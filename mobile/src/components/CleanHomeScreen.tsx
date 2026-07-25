@@ -598,7 +598,8 @@ export function CleanHomeScreen() {
         <View style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 14 }}>
           {pixel ? (
             <PixelFrame borderWidth={3} shadow={5} inner={3}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: tc.white, paddingVertical: 8, paddingHorizontal: 14 }}>
+              {/* 세로길이 +50% (기존 ≈46 → 68). 스캔 버튼(30)보다 넉넉히 커 내용은 중앙 정렬. */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: tc.white, minHeight: 68, paddingVertical: 8, paddingHorizontal: 14 }}>
                 <Svg width={19} height={19} viewBox="0 0 24 24" fill="none" stroke={P.ink3} strokeWidth={2.4} strokeLinecap="round">
                   <Circle cx={11} cy={11} r={7} />
                   <Path d="m20 20-3.5-3.5" />
@@ -621,7 +622,8 @@ export function CleanHomeScreen() {
               </View>
             </PixelFrame>
           ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: P.searchBg, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 16 }}>
+            // 세로길이 +50% (기존 ≈32 → 48).
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: P.searchBg, borderRadius: 14, minHeight: 48, paddingVertical: 6, paddingHorizontal: 16 }}>
               <Svg width={19} height={19} viewBox="0 0 24 24" fill="none" stroke={P.ink3} strokeWidth={2.2} strokeLinecap="round">
                 <Circle cx={11} cy={11} r={7} />
                 <Path d="m20 20-3.5-3.5" />
