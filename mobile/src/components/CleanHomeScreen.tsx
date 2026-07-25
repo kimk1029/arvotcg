@@ -8,6 +8,7 @@ import { useTheme, useThemeColors } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { PixelPress } from '@/components/cv/PixelPress';
+import { GradeMark } from '@/components/cv/GradeMark';
 import { fonts } from '@/theme/tokens';
 import {
   fetchSnkrdunkApparel,
@@ -15,14 +16,14 @@ import {
   fetchSnkrdunkBrowse,
   fetchSnkrdunkSalesChart,
   fetchSnkrdunkSalesHistory,
-  headlinePriceFromHistory,
+  headlineFromHistory,
   searchSnkrdunkByQuery,
   SNKRDUNK_FEATURED_CARDS,
   type SnkrdunkApparel,
   type SnkrdunkCardSeed,
 } from '@/services/snkrdunk';
 import { useGamePrefs } from '@/components/GamePrefsProvider';
-import type { GameId } from '@/lib/gamePrefs';
+import { GAME_IDS, GAME_OPTIONS, type GameId } from '@/lib/gamePrefs';
 import { CARD_PACKS } from '@/data/cardPacks';
 import { jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
 import * as ImagePicker from 'expo-image-picker';
@@ -98,6 +99,7 @@ const FEATURED_BY_ID = new Map(SNKRDUNK_FEATURED_CARDS.map((s) => [s.apparelId, 
 
 const BOX_NAME_RE = /ボックス|box|booster|ブースター|デッキビルド|スターター|拡張パック|ハイクラスパック|ポケモンセンターセット|シュリンク/i;
 const isBoxName = (name: string) => BOX_NAME_RE.test(name || '');
+
 
 function inferSnkrCategory(name: string): SnkrdunkCardSeed['category'] | null {
   if (/プロモ|PROMO/i.test(name)) return '프로모';
@@ -347,7 +349,7 @@ export function CleanHomeScreen() {
 
   // 인기 카드 풀 — 설정에서 켠 게임별로 조회해 라운드로빈으로 섞는다 (웹 CleanHome 동일 컨셉).
   // 포켓몬은 browse 기본 풀, 나머지 게임은 키워드 검색.
-  const { enabledGames } = useGamePrefs();
+  const { enabledGames, toggleGame } = useGamePrefs();
   const gamesKey = enabledGames.join(',');
   const [snkrRows, setSnkrRows] = useState<SnkrRow[]>([]);
   useEffect(() => {
@@ -397,6 +399,8 @@ export function CleanHomeScreen() {
   // 대표 시세 = 시세상세 헤드라인과 동일(거래 많은 등급의 최근 체결가). 없으면 minPrice 폴백.
   const [changeById, setChangeById] = useState<Record<number, number>>({});
   const [priceById, setPriceById] = useState<Record<number, number>>({});
+  // 대표 시세의 등급 기준('PSA 10' 이면 우하단에 PSA10 마크 표시).
+  const [basisById, setBasisById] = useState<Record<number, string>>({});
   useEffect(() => {
     if (snkrRows.length === 0) return;
     let alive = true;
@@ -410,8 +414,9 @@ export function CleanHomeScreen() {
           if (!alive) return;
           const pct = chart ? trendChangePct(chart.points) : undefined;
           if (pct != null) setChangeById((prev) => ({ ...prev, [seed.apparelId]: pct }));
-          const price = headlinePriceFromHistory(history, data?.minPrice ?? 0);
+          const { price, basis } = headlineFromHistory(history, data?.minPrice ?? 0);
           if (price > 0) setPriceById((prev) => ({ ...prev, [seed.apparelId]: price }));
+          setBasisById((prev) => ({ ...prev, [seed.apparelId]: basis }));
         }),
       );
     })();
@@ -522,6 +527,53 @@ export function CleanHomeScreen() {
     </View>
   );
 
+  // HOT 카드 위 게임 필터 칩 — 포켓몬·원피스는 항상, 그 외 켜둔 게임도 함께 노출해 on/off.
+  // 끝의 '더보기' 칩은 설정(전체 게임 관리)으로 이동. 라벨/이모지는 GAME_OPTIONS 단일 소스.
+  const chipGames = GAME_IDS.filter(
+    (g) => g === 'pokemon' || g === 'onepiece' || enabledGames.includes(g),
+  );
+  const GameChips = () => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingBottom: 13 }}
+    >
+      {chipGames.map((g) => {
+        const opt = GAME_OPTIONS.find((o) => o.id === g);
+        const on = enabledGames.includes(g);
+        return (
+          <Pressable
+            key={g}
+            onPress={() => toggleGame(g)}
+            hitSlop={4}
+            style={{
+              flexDirection: 'row', alignItems: 'center', gap: 5,
+              paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
+              backgroundColor: on ? P.ink : P.tileBg,
+              borderWidth: 1, borderColor: on ? P.ink : P.line,
+            }}
+          >
+            <Text style={{ fontSize: 13 }}>{opt?.emoji}</Text>
+            <Text style={ts(13, '700', on ? P.bg : P.ink2)}>{opt?.label ?? g}</Text>
+          </Pressable>
+        );
+      })}
+      {/* 더보기 → 설정: 유희왕·스포츠 등 다른 카드도 켜고 끈다. */}
+      <Pressable
+        onPress={() => router.push('/settings' as never)}
+        hitSlop={4}
+        style={{
+          flexDirection: 'row', alignItems: 'center', gap: 3,
+          paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
+          backgroundColor: P.tileBg, borderWidth: 1, borderColor: P.line,
+        }}
+      >
+        <Text style={ts(13, '700', P.ink2)}>더보기</Text>
+        <Chevron size={13} color={P.ink3} w={2.6} />
+      </Pressable>
+    </ScrollView>
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: P.bg }}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
@@ -625,10 +677,12 @@ export function CleanHomeScreen() {
         {/* HOT cards — 자동 슬라이딩 */}
         {snkrRows.length > 0 ? (
           <View style={{ paddingBottom: 24 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 13 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 10 }}>
               <Text style={ts(18, '800', P.ink)}>HOT 카드</Text>
               <MoreLink onPress={() => router.push('/cards/snkrdunk' as never)} />
             </View>
+            {/* 게임 필터 칩 — 포켓몬/원피스(+켜둔 게임) on/off. '더보기' 는 설정에서 전체 관리. */}
+            <GameChips />
             <AutoCarousel
               data={snkrRows}
               itemWidth={100}
@@ -644,6 +698,7 @@ export function CleanHomeScreen() {
                     >
                       <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800' }}>{idx + 1}</Text>
                     </View>
+                    {basisById[seed.apparelId] === 'PSA 10' ? <GradeMark company="PSA" grade="10" height={9} /> : null}
                   </CardArt>
                   <Text numberOfLines={1} style={[ts(12.5, '700', P.ink), { marginTop: 9 }]}>{seed.shortName}</Text>
                   <Text numberOfLines={1} style={[ts(flat ? 15 : 13, '900', P.ink), { marginTop: 4, letterSpacing: -0.3 }]}>{fmtPrice(priceById[seed.apparelId] ?? data?.minPrice ?? 0)}</Text>
