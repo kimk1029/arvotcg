@@ -22,7 +22,11 @@ import {
   type SnkrdunkSalesHistory,
   type SnkrdunkSearchResult,
 } from '../../../shared/snkrdunk';
-import { headlinePriceFromHistory as sharedHeadlinePrice } from '../../../shared/snkrdunkPrice';
+import {
+  headlinePriceFromHistory as sharedHeadlinePrice,
+  headlineFromHistory as sharedHeadline,
+  type Headline,
+} from '../../../shared/snkrdunkPrice';
 
 export * from '../../../shared/snkrdunk';
 
@@ -256,6 +260,14 @@ export function headlinePriceFromHistory(
   minPrice: number,
 ): number {
   return sharedHeadlinePrice(history?.history ?? [], minPrice);
+}
+
+/** 대표 시세 + 등급 기준('PSA 10' | 'PSA 9' | 'RAW'). HOT 카드 PSA10 마크 판별용. */
+export function headlineFromHistory(
+  history: SnkrdunkSalesHistory | null | undefined,
+  minPrice: number,
+): Headline {
+  return sharedHeadline(history?.history ?? [], minPrice);
 }
 
 /* ── 홈 추천 시드 ─────────────────────────────────────────────────── */

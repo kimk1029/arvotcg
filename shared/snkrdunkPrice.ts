@@ -162,11 +162,18 @@ export function gradeAgg(
   return { key, recent: matches[0], avg, low, count: matches.length };
 }
 
+/** 대표 시세 결과 — 가격 + 어느 등급 기준인지('PSA 10' | 'PSA 9' | 'RAW'). */
+export interface Headline {
+  price: number;
+  basis: string;
+}
+
 /**
  * 시세상세 헤드라인과 동일한 '대표 시세' — 거래가 가장 많은 등급의 최근 체결가
- * (없으면 평균 → 최저매물 순 폴백). CardDetailView 의 기본 헤드라인 계산과 일치.
+ * (없으면 평균 → 최저매물 순 폴백)와 그 등급 기준을 함께 반환.
+ * CardDetailView 의 기본 헤드라인 계산과 일치.
  */
-export function headlinePriceFromHistory(history: SnkrdunkSaleEntry[], minPrice: number): number {
+export function headlineFromHistory(history: SnkrdunkSaleEntry[], minPrice: number): Headline {
   const grades = [
     gradeAgg(history, (b) => PSA10_RE.test(b), 'PSA 10'),
     gradeAgg(history, (b) => PSA9_RE.test(b), 'PSA 9'),
@@ -175,7 +182,12 @@ export function headlinePriceFromHistory(history: SnkrdunkSaleEntry[], minPrice:
   const sel =
     grades.slice().sort((a, b) => b.count - a.count).find((g) => g.count > 0) ??
     grades[grades.length - 1];
-  return sel?.recent || sel?.avg || minPrice || 0;
+  return { price: sel?.recent || sel?.avg || minPrice || 0, basis: sel?.key ?? 'RAW' };
+}
+
+/** 대표 시세 가격만 (기준 등급은 무시). */
+export function headlinePriceFromHistory(history: SnkrdunkSaleEntry[], minPrice: number): number {
+  return headlineFromHistory(history, minPrice).price;
 }
 
 /**
