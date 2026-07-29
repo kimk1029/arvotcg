@@ -6,11 +6,12 @@ import { useCurrency } from '@/components/CurrencyProvider';
 import { useUnread } from '@/components/UnreadProvider';
 import { useTheme } from '@/components/ThemeProvider';
 import { useGamePrefs } from '@/components/GamePrefsProvider';
-import type { GameId } from '@/lib/gamePrefs';
+import { GAME_IDS, GAME_OPTIONS, type GameId } from '@/lib/gamePrefs';
 import { HeroSlider, type HeroSlideData } from '@/components/HeroSlider';
 import { HomeKoSearchBar } from '@/components/HomeKoSearchBar';
+import { GradeMark } from '@/components/cards/GradeMark';
 import { translateKnownCardNameToKo } from '@/lib/cardTranslate';
-import { headlinePriceFromHistory, trendChangePct } from '@/lib/snkrdunkPrice';
+import { headlineFromHistory, trendChangePct } from '@/lib/snkrdunkPrice';
 import type { SnkrdunkRow } from '@/components/dashboard/DashboardScreen';
 import type { MvcAuctionItem } from '@/lib/navercafe';
 
@@ -287,7 +288,7 @@ export function CleanHome({ heroBanners, snkrdunkRows = [], snkrdunkBoxRows = []
   // 설정에서 켠 게임들의 인기 카드/박스를 조회해 섞는다 (테마와 무관).
   // 포켓몬은 서버 기본 rows 사용, 나머지 게임은 키워드 검색으로 조회.
   // 포켓몬만 켜져 있으면 조회 없이 서버 rows 그대로 (기존 기본 동작과 동일).
-  const { enabledGames } = useGamePrefs();
+  const { enabledGames, toggleGame } = useGamePrefs();
   const gamesKey = enabledGames.join(',');
   const extraGames = enabledGames.filter((g) => GAME_POPULAR_KEYWORD[g]);
   const needsMix = extraGames.length > 0;
@@ -359,12 +360,13 @@ export function CleanHome({ heroBanners, snkrdunkRows = [], snkrdunkBoxRows = []
           ]);
           const points = (cr as { data?: { points?: Array<[number, number]> } } | null)?.data?.points;
           const history =
-            (hr as { data?: { history?: Parameters<typeof headlinePriceFromHistory>[0] } } | null)?.data
+            (hr as { data?: { history?: Parameters<typeof headlineFromHistory>[0] } } | null)?.data
               ?.history ?? [];
-          const recent = headlinePriceFromHistory(history, row.minPrice);
+          const { price: recent, basis } = headlineFromHistory(history, row.minPrice);
           return {
             ...row,
             recentPrice: recent > 0 ? recent : undefined,
+            basis,
             changePct: points ? trendChangePct(points) : undefined,
           };
         } catch {
@@ -390,6 +392,50 @@ export function CleanHome({ heroBanners, snkrdunkRows = [], snkrdunkBoxRows = []
 
   const hotRows = (needsMix && mixPopular[gamesKey]) || snkrdunkRows;
   const boxRows = (needsMix && mixBox[gamesKey]) || snkrdunkBoxRows;
+
+  // HOT 카드 위 게임 필터 칩 — 포켓몬·원피스는 항상, 그 외 켜둔 게임도 함께 노출해 on/off.
+  // 끝의 '더보기' 칩은 설정(전체 게임 관리)으로 이동. 앱 CleanHomeScreen GameChips 와 동일.
+  const chipGames = GAME_IDS.filter(
+    (g) => g === 'pokemon' || g === 'onepiece' || enabledGames.includes(g),
+  );
+  const gameChips = (
+    <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none', padding: '0 20px 13px' }}>
+      {chipGames.map((g) => {
+        const opt = GAME_OPTIONS.find((o) => o.id === g);
+        const on = enabledGames.includes(g);
+        return (
+          <button
+            key={g}
+            type="button"
+            onClick={() => toggleGame(g)}
+            style={{
+              flex: 'none', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+              padding: '7px 12px', borderRadius: 999, fontFamily: 'var(--f1)',
+              background: on ? P.ink : P.tileBg,
+              border: `1px solid ${on ? P.ink : P.line}`,
+            }}
+          >
+            <span style={{ fontSize: 13 }}>{opt?.emoji}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: on ? P.bg : P.ink2 }}>{opt?.label ?? g}</span>
+          </button>
+        );
+      })}
+      {/* 더보기 → 설정: 유희왕·스포츠 등 다른 카드도 켜고 끈다. */}
+      <Link
+        href="/my/settings"
+        style={{
+          flex: 'none', display: 'flex', alignItems: 'center', gap: 3, textDecoration: 'none',
+          padding: '7px 12px', borderRadius: 999,
+          background: P.tileBg, border: `1px solid ${P.line}`,
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 700, color: P.ink2 }}>더보기</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={P.ink3} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m9 6 6 6-6 6" />
+        </svg>
+      </Link>
+    </div>
+  );
   // 실시간 급등 = 등락률 내림차순(데이터 없는 행은 뒤로). 이름값이 '급등'이도록 정렬.
   const moverRows = [...hotRows].sort(
     (a, b) => (b.changePct ?? -Infinity) - (a.changePct ?? -Infinity),
@@ -467,6 +513,8 @@ export function CleanHome({ heroBanners, snkrdunkRows = [], snkrdunkBoxRows = []
       {hotRows.length > 0 && (
         <div style={{ padding: '0 0 24px' }}>
           <SectionHead title="HOT 카드" href="/cards/snkrdunk" P={P} />
+          {/* 게임 필터 칩 — 포켓몬/원피스(+켜둔 게임) on/off. '더보기' 는 설정에서 전체 관리. */}
+          {gameChips}
           <div ref={hotRef} style={hrowStyle}>
             {hotDisplay.map((c, i) => {
               const rank = (i % hotRows.length) + 1;
@@ -486,6 +534,8 @@ export function CleanHome({ heroBanners, snkrdunkRows = [], snkrdunkBoxRows = []
                     >
                       {rank}
                     </div>
+                    {/* 대표 시세가 PSA10 기준이면 우하단에 PSA10 마크 — 앱과 동일. */}
+                    {c.basis === 'PSA 10' && <GradeMark company="PSA" grade="10" height={9} />}
                   </CardArt>
                   <div style={{ fontSize: 12.5, fontWeight: 700, color: P.ink, marginTop: 9, lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {c.shortName}

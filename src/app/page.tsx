@@ -5,7 +5,7 @@ import type { HeroSlideData } from '@/components/HeroSlider';
 import { SNKRDUNK_FEATURED_CARDS, type SnkrdunkCardSeed } from '@/lib/snkrdunkCards';
 import { translateKnownCardNameToKo } from '@/lib/cardTranslate';
 import { classifySnkrdunkName, type SnkrdunkSalesHistory } from '@/lib/snkrdunk';
-import { trendChangePct, headlinePriceFromHistory } from '@/lib/snkrdunkPrice';
+import { trendChangePct, headlineFromHistory } from '@/lib/snkrdunkPrice';
 import { shortenName } from '../../shared/util/shortenName';
 import { CARD_PACKS } from '@/lib/cardPacks';
 import { fetchMvcAuctionPage, type MvcAuctionItem } from '@/lib/navercafe';
@@ -141,8 +141,9 @@ async function seedToRow(seed: SnkrSeed): Promise<SnkrdunkRow> {
   const chartPoints = chartResp?.data?.data?.points;
   const changePct = chartPoints ? trendChangePct(chartPoints) : undefined;
   // 대표 시세 = 시세상세 헤드라인과 동일(거래 많은 등급의 최근 체결가). 없으면 minPrice 폴백.
+  // basis(등급 기준)는 HOT 카드 PSA10 마크 판별용 — 앱 CleanHomeScreen 과 동일.
   const history = histResp?.data?.data?.history ?? [];
-  const recentPrice = headlinePriceFromHistory(history, apparel?.minPrice ?? 0);
+  const { price: recentPrice, basis } = headlineFromHistory(history, apparel?.minPrice ?? 0);
   // 큐레이션된 seed.shortName 이 우선, 없으면 일본어 원문을 한국어로 자동 번역.
   const jp = apparel?.localizedName ?? apparel?.name ?? '';
   const ko = FEATURED_BY_ID.has(seed.apparelId)
@@ -157,6 +158,7 @@ async function seedToRow(seed: SnkrSeed): Promise<SnkrdunkRow> {
     imageUrl: apparel?.imageUrl ?? null,
     minPrice: apparel?.minPrice ?? 0,
     recentPrice,
+    basis,
     listingCountText: apparel?.listingCountText ?? '',
     changePct,
   };

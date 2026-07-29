@@ -1,7 +1,7 @@
 #!/bin/sh
 # 커밋마다 package.json patch 버전 자동 +1 (v1.1.1 → v1.1.2).
-# 상단 StatusBar 의 버전 표시(NEXT_PUBLIC_APP_VERSION, next.config.mjs)가
-# push→배포마다 올라가게 한다.
+# 상단 StatusBar 의 버전 표시(웹 NEXT_PUBLIC_APP_VERSION, 앱 shared/version.ts)가
+# push→배포마다 올라가게 한다. shared/version.ts 는 여기서 자동 생성 — 수동 수정 금지.
 #
 # 활성화(클론 후 1회): git config core.hooksPath githooks
 set -e
@@ -14,6 +14,10 @@ const v = p.version.split(".").map(Number);
 v[2] += 1;
 p.version = v.join(".");
 fs.writeFileSync("package.json", JSON.stringify(p, null, 2) + "\n");
+fs.writeFileSync(
+  "shared/version.ts",
+  "/**\n * 앱 표시용 버전 — githooks/pre-commit 이 커밋마다 package.json patch +1 과 함께 자동 갱신.\n * 수동 수정 금지. (웹은 NEXT_PUBLIC_APP_VERSION 으로 package.json 을 직접 읽고,\n * 모바일은 Metro watchFolders 가 /shared 만 보므로 이 파일을 통해 같은 값을 읽는다.)\n */\nexport const APP_VERSION = \"" + p.version + "\";\n",
+);
 console.log("[pre-commit] version -> v" + p.version);
 '
-git add package.json
+git add package.json shared/version.ts

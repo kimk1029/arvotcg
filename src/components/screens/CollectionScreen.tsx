@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CardThumb } from '@/components/CardThumb';
+import { GradeMark } from '@/components/cards/GradeMark';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { usePriceMode } from '@/components/PriceModeProvider';
 import { Panel } from '@/components/ui/Panel';
@@ -556,56 +557,12 @@ function ProfitTag({ pct, size = 12 }: { pct: number | null; size?: number }) {
   );
 }
 
-/** 그레이딩 카드 표식 — 부모(position:relative) 우하단에 작게 플로팅. */
 /**
- * 그레이딩사 로고 이미지 (public/grading/*.webp) — PSA·CGC 는 Wikipedia,
- * SGC 는 공식 트위터, BGS(Beckett)·ARS 는 각 공식 사이트에서 수집한 실제 마크.
+ * 그레이딩 카드 표식 — 부모(position:relative) 우하단에 작게 플로팅.
+ * 구현 정본은 공통 GradeMark(src/components/cards/GradeMark) — 여기는 골드 폴백만 고정한 얇은 래퍼.
  */
-const GRADE_LOGOS: Record<string, string> = {
-  PSA: '/grading/psa.webp',
-  BGS: '/grading/bgs.webp',
-  CGC: '/grading/cgc.webp',
-  SGC: '/grading/sgc.webp',
-  ARS: '/grading/ars.webp',
-};
-
-/** 그레이딩 표식 — 우하단 흰 필 배지에 그레이딩사 로고 + 등급 숫자. */
 function GradedLabel({ company, grade }: { company?: string | null; grade?: string | null }) {
-  const key = (company ?? '').trim().toUpperCase();
-  const logo = GRADE_LOGOS[key];
-  if (!logo) {
-    // 미등록 회사 폴백 — 기존 골드 라벨.
-    return (
-      <span
-        style={{
-          position: 'absolute', bottom: 5, right: 5, zIndex: 4, pointerEvents: 'none',
-          fontFamily: 'var(--f1)', fontSize: 8.5, fontWeight: 800, lineHeight: 1, letterSpacing: 0.3,
-          color: '#fff', background: 'var(--gold)', padding: '2px 6px', borderRadius: 6,
-          boxShadow: '0 1px 3px rgba(0,0,0,.3)',
-        }}
-      >
-        그레이딩
-      </span>
-    );
-  }
-  return (
-    <span
-      style={{
-        position: 'absolute', bottom: 5, right: 5, zIndex: 4, pointerEvents: 'none',
-        display: 'inline-flex', alignItems: 'center', gap: 3,
-        background: '#fff', padding: '2px 5px', borderRadius: 6,
-        boxShadow: '0 1px 3px rgba(0,0,0,.35)',
-      }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={logo} alt={key} style={{ height: 12, width: 'auto', display: 'block' }} />
-      {grade?.trim() && (
-        <span style={{ fontFamily: 'var(--f1)', fontSize: 9.5, fontWeight: 900, lineHeight: 1, color: '#111' }}>
-          {grade.trim()}
-        </span>
-      )}
-    </span>
-  );
+  return <GradeMark company={company} grade={grade} gold="var(--gold)" />;
 }
 
 /** 카드 더보기(⋯) 메뉴 — 시세 보기 / 컬렉션에서 제거. Link/Panel 바깥에 형제로 배치. */

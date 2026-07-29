@@ -124,6 +124,8 @@ export interface SnkrdunkRow {
   minPrice: number;
   /** 대표 시세 — 시세상세 헤드라인과 동일(거래 많은 등급의 최근 체결가). 없으면 minPrice 로 폴백 표시. */
   recentPrice?: number;
+  /** 대표 시세의 등급 기준('PSA 10' | 'PSA 9' | 'RAW') — 'PSA 10' 이면 HOT 카드 우하단에 PSA10 마크. */
+  basis?: string;
   listingCountText: string;
   /** 등락률(%) — 판매 차트 기간 시세 변화. 양수=상승, 음수=하락. 데이터 없으면 미표시. */
   changePct?: number;
