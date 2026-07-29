@@ -14,7 +14,18 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.pokefesta30.app"
+      "bundleIdentifier": "com.pokefesta30.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true,
+          "NSExceptionDomains": {
+            "synology.me": {
+              "NSIncludesSubdomains": true,
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            }
+          }
+        }
+      }
     },
     "android": {
       "package": "com.pokefesta30.app",
