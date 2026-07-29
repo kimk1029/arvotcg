@@ -9,8 +9,8 @@
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
-      "backgroundColor": "#E8DFB8",
-      "resizeMode": "contain"
+      "backgroundColor": "#129782",
+      "resizeMode": "cover"
     },
     "ios": {
       "supportsTablet": false,
@@ -31,7 +31,7 @@
       "package": "com.pokefesta30.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0F172A"
+        "backgroundColor": "#129782"
       }
     },
     "web": {

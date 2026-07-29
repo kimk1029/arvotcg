@@ -34,7 +34,7 @@ const ACTIVITY: Array<{ em: string; bg: string; lb: string; href: string }> = [
 
 const SHOP_SHORTCUTS = [
   { em: '🛒', bg: '#6B3FA0', lb: '아르보TCG 상점', href: '/my/shop' },
-  { em: '🎲', bg: '#1B2E89', lb: '오리파 · 뽑기', href: '/my/oripa' },
+  // 오리파는 서비스 숨김 상태(2026-07) — 라우트는 살아있지만 진입점 미노출. 앱 my 와 동일.
 ];
 
 const SETTINGS: Array<{ em: string; bg: string; lb: string; href?: string }> = [
@@ -76,21 +76,7 @@ export function MyScreen({ user, level, cardCount, tradeCount, savedCount, isGue
               ★ LV.{p.level} {p.title}
             </div>
           </div>
-          <Link
-            href="/my/oripa"
-            style={{
-              padding: '6px 10px',
-              background: 'rgba(255,255,255,.1)',
-              color: 'var(--gold)',
-              fontFamily: 'var(--f1)',
-              fontSize: 10,
-              letterSpacing: 0.5,
-              textDecoration: 'none',
-              boxShadow: '-2px 0 0 rgba(255,255,255,.2),2px 0 0 rgba(255,255,255,.2),0 -2px 0 rgba(255,255,255,.2),0 2px 0 rgba(255,255,255,.2)',
-            }}
-          >
-            🎲
-          </Link>
+          {/* 오리파 🎲 바로가기 — 서비스 숨김 상태(2026-07)라 미노출. */}
         </div>
 
         <div>

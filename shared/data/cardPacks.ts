@@ -19,6 +19,12 @@ export type CardPackGame = 'pokemon' | 'onepiece' | 'yugioh' | 'sports';
 export interface CardPackMeta {
   /** 팩 코드 — 라우팅 슬러그로도 쓰임 (예: 'sv8a'). */
   code: string;
+  /**
+   * 공식 세트코드 표시용 (예: 'OP16') — code 가 슬러그일 뿐 세트코드가 아닌
+   * 팩(원피스 등)만 지정. 포켓몬은 code 자체가 세트코드라 생략.
+   * 표시할 땐 packSetCode() 를 쓸 것.
+   */
+  setCode?: string;
   /** 카드 게임 — 생략하면 포켓몬. 모바일은 포켓몬 팩만 노출(필터)한다. */
   game?: CardPackGame;
   /** 풀 한국어 이름. */
@@ -90,15 +96,15 @@ export const CARD_PACKS: CardPackMeta[] = [
 
   // ── 원피스 카드게임 (웹 시세확인 테마 탭 전용 — 모바일 미노출) ──
   // apparelGroupId 는 snkrdunk /v1/apparel-groups/{id} 스캔으로 확인한 값. 0 = 검색 폴백.
-  { code: 'op-kessen', game: 'onepiece', name: '결전의 시각', shortName: '결전의 시각', emoji: '⚔️', bg: '#B22D36', searchQuery: '決戦の刻', apparelGroupId: 0 },
-  { code: 'op-will', game: 'onepiece', name: '계승되는 의지', shortName: '계승되는 의지', emoji: '🔥', bg: '#C2410C', searchQuery: '受け継がれる意志', apparelGroupId: 0 },
-  { code: 'op-island', game: 'onepiece', name: '신의 섬의 모험', shortName: '신의 섬 모험', emoji: '🏝️', bg: '#15803D', searchQuery: '神の島の冒険', apparelGroupId: 0 },
-  { code: 'op-fist', game: 'onepiece', name: '신속의 주먹', shortName: '신속의 주먹', emoji: '👊', bg: '#0E7490', searchQuery: '神速の拳', apparelGroupId: 0 },
-  { code: 'op-royal', game: 'onepiece', name: '왕족의 혈통', shortName: '왕족의 혈통', emoji: '👑', bg: '#7C2D12', releasedAt: '2024-11-29', searchQuery: '王族の血統', apparelGroupId: 2246 },
-  { code: 'op-emperor', game: 'onepiece', name: '새로운 황제', shortName: '새로운 황제', emoji: '🏴‍☠️', bg: '#1D4ED8', releasedAt: '2024-08-30', searchQuery: '新たなる皇帝', apparelGroupId: 1782 },
-  { code: 'op-newera', game: 'onepiece', name: '신시대의 주역', shortName: '신시대의 주역', emoji: '🌅', bg: '#DC2626', searchQuery: '新時代の主役', apparelGroupId: 0 },
+  { code: 'op-kessen', setCode: 'OP16', game: 'onepiece', name: '결전의 시각', shortName: '결전의 시각', emoji: '⚔️', bg: '#B22D36', searchQuery: '決戦の刻', apparelGroupId: 0 },
+  { code: 'op-will', setCode: 'OP13', game: 'onepiece', name: '계승되는 의지', shortName: '계승되는 의지', emoji: '🔥', bg: '#C2410C', searchQuery: '受け継がれる意志', apparelGroupId: 0 },
+  { code: 'op-island', setCode: 'OP15', game: 'onepiece', name: '신의 섬의 모험', shortName: '신의 섬 모험', emoji: '🏝️', bg: '#15803D', searchQuery: '神の島の冒険', apparelGroupId: 0 },
+  { code: 'op-fist', setCode: 'OP11', game: 'onepiece', name: '신속의 주먹', shortName: '신속의 주먹', emoji: '👊', bg: '#0E7490', searchQuery: '神速の拳', apparelGroupId: 0 },
+  { code: 'op-royal', setCode: 'OP10', game: 'onepiece', name: '왕족의 혈통', shortName: '왕족의 혈통', emoji: '👑', bg: '#7C2D12', releasedAt: '2024-11-29', searchQuery: '王族の血統', apparelGroupId: 2246 },
+  { code: 'op-emperor', setCode: 'OP09', game: 'onepiece', name: '새로운 황제', shortName: '새로운 황제', emoji: '🏴‍☠️', bg: '#1D4ED8', releasedAt: '2024-08-30', searchQuery: '新たなる皇帝', apparelGroupId: 1782 },
+  { code: 'op-newera', setCode: 'OP05', game: 'onepiece', name: '신시대의 주역', shortName: '신시대의 주역', emoji: '🌅', bg: '#DC2626', searchQuery: '新時代の主役', apparelGroupId: 0 },
   { code: 'op-best2', game: 'onepiece', name: 'CARD THE BEST vol.2', shortName: 'THE BEST v2', emoji: '🏆', bg: '#B8860B', releasedAt: '2025-07-25', searchQuery: 'ONE PIECE CARD THE BEST', apparelGroupId: 3040 },
-  { code: 'op-romance', game: 'onepiece', name: '로맨스 던', shortName: '로맨스 던', emoji: '⛵', bg: '#0B3F70', releasedAt: '2022-07-21', searchQuery: 'ロマンスドーン', apparelGroupId: 1235 },
+  { code: 'op-romance', setCode: 'OP01', game: 'onepiece', name: '로맨스 던', shortName: '로맨스 던', emoji: '⛵', bg: '#0B3F70', releasedAt: '2022-07-21', searchQuery: 'ロマンスドーン', apparelGroupId: 1235 },
 
   // ── 유희왕 OCG ──
   { code: 'yg-chaos', game: 'yugioh', name: '카오스 오리진즈', shortName: '카오스 오리진즈', emoji: '🌀', bg: '#4C1D95', releasedAt: '2026-04-24', searchQuery: 'カオス・オリジンズ', apparelGroupId: 3422 },
@@ -120,4 +126,15 @@ export const CARD_PACKS: CardPackMeta[] = [
 
 export function getCardPack(code: string): CardPackMeta | undefined {
   return CARD_PACKS.find((p) => p.code === code);
+}
+
+/**
+ * 박스명 옆에 표시할 세트코드 — setCode 지정분(원피스 OP16 등) 우선,
+ * 없으면 code 를 대문자로(포켓몬 SV11B/M2A 등). 세트코드가 아닌 커스텀 슬러그
+ * (yg-, sp-, op- 접두 슬러그)는 표시하지 않도록 null.
+ */
+export function packSetCode(pack: Pick<CardPackMeta, 'code' | 'setCode'>): string | null {
+  if (pack.setCode) return pack.setCode;
+  if (/^(yg|sp|op)-/.test(pack.code)) return null;
+  return pack.code.toUpperCase();
 }

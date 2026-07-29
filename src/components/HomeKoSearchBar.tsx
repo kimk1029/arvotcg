@@ -83,14 +83,13 @@ export function HomeKoSearchBar() {
           e.preventDefault();
           submit();
         }}
-        // 세로길이 +50% (기존 44 → 66) — 앱 홈 검색바와 동일 비율.
-        style={{ position: 'relative', height: 66, width: '100%' }}
+        style={{ position: 'relative', height: 44, width: '100%' }}
       >
         {/* 아이콘 (input 안 좌측) */}
         <span
           aria-hidden
           style={{
-            position: 'absolute', left: 12, top: 0, height: 66,
+            position: 'absolute', left: 12, top: 0, height: 44,
             display: 'flex', alignItems: 'center', fontSize: 15, color: 'var(--ink3)', pointerEvents: 'none',
           }}
         >
@@ -107,8 +106,9 @@ export function HomeKoSearchBar() {
           aria-label="스니덩크 한국어 검색"
           disabled={scanning}
           style={{
-            width: '100%', height: 66, padding: '0 84px 0 36px', outline: 'none',
-            background: 'var(--white)', fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink)', letterSpacing: 0.3,
+            width: '100%', height: 44, padding: '0 84px 0 36px', outline: 'none',
+            // 인풋 텍스트 +2pt (11→13) — placeholder/검색어 가독성.
+            background: 'var(--white)', fontFamily: 'var(--f1)', fontSize: 13, color: 'var(--ink)', letterSpacing: 0.3,
             // 픽셀 폰트는 폭이 넓어 placeholder 가 줄바꿈→세로로 두꺼워졌다. 항상 한 줄.
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             ...(isClean
@@ -128,7 +128,7 @@ export function HomeKoSearchBar() {
             onClick={onClear}
             aria-label="검색어 지우기"
             style={{
-              position: 'absolute', right: 84, top: 19, width: 28, height: 28, border: 'none',
+              position: 'absolute', right: 84, top: 8, width: 28, height: 28, border: 'none',
               background: 'transparent', cursor: 'pointer', fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink3)',
             }}
           >
@@ -144,7 +144,7 @@ export function HomeKoSearchBar() {
           disabled={scanning}
           aria-label="카드 사진 스캔"
           style={{
-            position: 'absolute', right: 44, top: 17, width: 32, height: 32, border: 'none',
+            position: 'absolute', right: 44, top: 6, width: 32, height: 32, border: 'none',
             background: 'transparent', cursor: scanning ? 'default' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink3)',
           }}
@@ -165,7 +165,7 @@ export function HomeKoSearchBar() {
           aria-label="검색"
           disabled={scanning}
           style={{
-            position: 'absolute', right: 6, top: 17, width: 32, height: 32, border: 'none',
+            position: 'absolute', right: 6, top: 6, width: 32, height: 32, border: 'none',
             cursor: 'pointer', fontFamily: 'var(--f1)', fontSize: 13, letterSpacing: 0,
             ...(isClean
               ? { background: 'var(--accent)', color: 'var(--white)', borderRadius: 'var(--r-sm)', boxShadow: 'none' }

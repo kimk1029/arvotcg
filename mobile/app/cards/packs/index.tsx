@@ -19,7 +19,7 @@ import { PixelPress } from '@/components/cv/PixelPress';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { LoadingState, ErrorView } from '@/components/cv/ListState';
 import { colors } from '@/theme/tokens';
-import { CARD_PACKS, type CardPackMeta, type CardPackGame } from '@/data/cardPacks';
+import { CARD_PACKS, packSetCode, type CardPackMeta, type CardPackGame } from '@/data/cardPacks';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { fetchSnkrdunkApparelGroup } from '@/services/snkrdunk';
 import { localizeCardName } from '@/lib/cardNameKo';
@@ -252,15 +252,26 @@ export default function PackExplorerScreen() {
                     )}
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <PixelText
-                      variant="ko"
-                      size={13}
-                      weight="bold"
-                      color={colors.ink}
-                      numberOfLines={2}
-                    >
-                      {pack.name}
-                    </PixelText>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <PixelText
+                        variant="ko"
+                        size={13}
+                        weight="bold"
+                        color={colors.ink}
+                        numberOfLines={2}
+                        style={{ flexShrink: 1 }}
+                      >
+                        {pack.name}
+                      </PixelText>
+                      {/* 세트코드 라벨 — 포켓몬 SV11B/M2A, 원피스 OP16 등. 웹 PacksExplorer 와 동일. */}
+                      {packSetCode(pack) ? (
+                        <View style={{ borderWidth: 1, borderColor: colors.ink3, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
+                          <PixelText variant="ko" size={9} color={colors.ink3} style={{ letterSpacing: 0.5 }}>
+                            {packSetCode(pack)!}
+                          </PixelText>
+                        </View>
+                      ) : null}
+                    </View>
                     <PixelText
                       variant="ko"
                       size={10}

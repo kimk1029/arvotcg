@@ -73,6 +73,7 @@ export default async function PackExplorerPage() {
       }
       return {
         code: pack.code,
+        setCode: pack.setCode,
         game: pack.game ?? 'pokemon',
         name: pack.name,
         emoji: pack.emoji,

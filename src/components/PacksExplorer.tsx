@@ -5,11 +5,13 @@ import { useState } from 'react';
 import { Price } from '@/components/Price';
 import { ListAdRow } from '@/components/ListAdRow';
 import { useGamePrefs } from '@/components/GamePrefsProvider';
-import type { CardPackGame } from '../../shared/data/cardPacks';
+import { packSetCode, type CardPackGame } from '../../shared/data/cardPacks';
 
 /** 서버(page.tsx)에서 박스 시세까지 채워 내려주는 행. */
 export interface PackListRow {
   code: string;
+  /** 공식 세트코드(원피스 OP16 등) — 포켓몬은 code 가 곧 세트코드라 생략. */
+  setCode?: string;
   game: CardPackGame;
   name: string;
   emoji: string;
@@ -119,9 +121,30 @@ export function PacksExplorer({ packs }: { packs: PackListRow[] }) {
                       letterSpacing: 0.2,
                       whiteSpace: 'normal',
                       lineHeight: 1.45,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      flexWrap: 'wrap',
                     }}
                   >
-                    {pack.name}
+                    <span>{pack.name}</span>
+                    {/* 세트코드 라벨 — 포켓몬 SV11B/M2A, 원피스 OP16 등. 앱 packs 화면과 동일. */}
+                    {packSetCode(pack) && (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          letterSpacing: 0.5,
+                          color: 'var(--ink3)',
+                          border: '1px solid var(--ink3)',
+                          borderRadius: 5,
+                          padding: '1px 5px',
+                          lineHeight: 1.5,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {packSetCode(pack)}
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink3)', marginTop: 5, lineHeight: 1.45 }}>
                     {pack.boxKoName}

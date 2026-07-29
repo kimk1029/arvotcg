@@ -7,9 +7,10 @@ export const SLIDE_CLASSES = ['slide-a', 'slide-b', 'slide-c', 'slide-d'] as con
  */
 export const DEFAULT_BANNERS = [
   {
+    // IP 이미지(잉어킹 프로모 카드) 사용 금지 — 이모지 비주얼로 대체(2026-07).
     sortOrder: 10, slideClass: 'slide-a', badge: '★ 팬 프로젝트',
-    title: '잉어킹\n프로모!', sub: '성수 6곳 스탬프 랠리\n탭해서 이벤트 상세 보기',
-    ctaHint: '👉 TAP', visualType: 'image', visualValue: '/promo/magikarp-promo.png',
+    title: '스탬프\n랠리!', sub: '성수 6곳 스탬프 랠리\n탭해서 이벤트 상세 보기',
+    ctaHint: '👉 TAP', visualType: 'emoji', visualValue: '🎪',
     onClick: 'stamp-rally', linkUrl: null, active: true,
   },
   {
@@ -24,12 +25,7 @@ export const DEFAULT_BANNERS = [
     ctaHint: null, visualType: 'emoji', visualValue: '📢',
     onClick: null, linkUrl: null, active: true,
   },
-  {
-    sortOrder: 40, slideClass: 'slide-d', badge: '🎴 오리파 뽑기',
-    title: '한정 카드\n뽑기!', sub: 'S급 카드를 뽑을 기회\n탭해서 지금 도전',
-    ctaHint: '👉 TAP', visualType: 'emoji', visualValue: '🎴',
-    onClick: 'oripa', linkUrl: null, active: true,
-  },
+  // 오리파 슬라이드는 서비스 숨김 상태(2026-07)라 기본 배너에서 제외.
 ] as const;
 export const VISUAL_TYPES = ['emoji', 'image'] as const;
 export const ON_CLICKS = ['stamp-rally', 'oripa'] as const;

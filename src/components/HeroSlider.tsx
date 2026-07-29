@@ -40,10 +40,11 @@ const FALLBACK_SLIDES: HeroSlideData[] = [
   {
     cls: 'slide-a',
     badge: '★ 팬 프로젝트',
-    title: '잉어킹\n프로모!',
+    title: '스탬프\n랠리!',
+    // IP 이미지(잉어킹 프로모 카드) 사용 금지 — 이모지 비주얼로 대체.
     sub: '성수 6곳 스탬프 랠리\n탭해서 이벤트 상세 보기',
-    visualType: 'image',
-    visualValue: '/promo/magikarp-promo.png',
+    visualType: 'emoji',
+    visualValue: '🎪',
     onClick: 'stamp-rally',
     ctaHint: '👉 TAP',
   },
@@ -65,16 +66,7 @@ const FALLBACK_SLIDES: HeroSlideData[] = [
     visualValue: '📢',
     onClick: null,
   },
-  {
-    cls: 'slide-d',
-    badge: '🎴 오리파 뽑기',
-    title: '한정 카드\n뽑기!',
-    sub: 'S급 카드를 뽑을 기회\n탭해서 지금 도전',
-    visualType: 'emoji',
-    visualValue: '🎴',
-    onClick: 'oripa',
-    ctaHint: '👉 TAP',
-  },
+  // 오리파 슬라이드는 서비스 숨김 상태(2026-07)라 폴백에서 제외.
 ];
 
 const AUTOPLAY_MS = 3500;
