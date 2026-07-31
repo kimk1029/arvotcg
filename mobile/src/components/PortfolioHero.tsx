@@ -116,13 +116,20 @@ export function PortfolioHero({ totals: totalsProp }: { totals?: HeroTotals | nu
   return (
     <View style={{ marginHorizontal: 14, marginBottom: 6, position: 'relative' }}>
       <View style={authed ? undefined : { opacity: 0.35 }} pointerEvents={authed ? 'auto' : 'none'}>
-        {/* 웹: linear-gradient(160deg,#22222a,#0e0e12) + radius 16 */}
-        <View style={{ backgroundColor: '#17171c', borderRadius: 16, padding: 20, overflow: 'hidden' }}>
-          {/* 상단: 라벨 + 원화/엔화 토글 (웹 동일) */}
+        {/* 웹: linear-gradient(160deg,#22222a,#0e0e12) + radius 16.
+            탭하면 포트폴리오 상세(전체화면)로 이동. 내부 통화 토글은 중첩 Pressable 이라 그대로 동작. */}
+        <Pressable
+          onPress={() => router.push('/my/portfolio' as never)}
+          style={({ pressed }) => ({ backgroundColor: '#17171c', borderRadius: 16, padding: 20, overflow: 'hidden', opacity: pressed ? 0.92 : 1 })}
+        >
+          {/* 상단: 라벨(+상세 힌트) + 원화/엔화 토글 (웹 동일) */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <PixelText variant="ko" size={12} weight="bold" color="rgba(255,255,255,0.65)">
-              총 자산 가치
-            </PixelText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <PixelText variant="ko" size={12} weight="bold" color="rgba(255,255,255,0.65)">
+                총 자산 가치
+              </PixelText>
+              <PixelText variant="ko" size={12} weight="bold" color="rgba(255,255,255,0.4)">›</PixelText>
+            </View>
             <View style={{ flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 9, padding: 3 }}>
               {(['krw', 'jpy'] as const).map((m) => {
                 const on = mode === m;
@@ -167,7 +174,7 @@ export function PortfolioHero({ totals: totalsProp }: { totals?: HeroTotals | nu
               flex={1.2}
             />
           </View>
-        </View>
+        </Pressable>
       </View>
 
       {!authed && (

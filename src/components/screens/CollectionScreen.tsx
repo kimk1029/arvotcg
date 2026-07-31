@@ -77,6 +77,7 @@ function cardSub(c: CardRow): string {
 }
 
 export function CollectionScreen() {
+  const router = useRouter();
   const { format, rate, mode, setMode } = useCurrency();
   const { mode: priceMode } = usePriceMode();
   const [port, setPort] = useState<PortfolioData | null>(null);
@@ -275,20 +276,25 @@ export function CollectionScreen() {
     <div style={{ paddingBottom: 40 }}>
       <CollectionHeader />
 
-      {/* ── 총 자산 가치 카드 (다크 히어로) ── */}
+      {/* ── 총 자산 가치 카드 (다크 히어로) — 클릭 시 포트폴리오 상세(전체화면). 앱 PortfolioHero 와 패리티 ── */}
       <div style={{ padding: '4px var(--gap) 16px' }}>
         <div
+          role="button"
+          tabIndex={0}
+          onClick={() => router.push('/my/portfolio')}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') router.push('/my/portfolio'); }}
           style={{
             position: 'relative',
             overflow: 'hidden',
             borderRadius: 'var(--r-xl,16px)',
             padding: 20,
             background: 'linear-gradient(160deg,#22222a,#0e0e12)',
+            cursor: 'pointer',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 2 }}>
             <span style={{ fontFamily: 'var(--f1)', fontSize: 12.5, fontWeight: 600, color: 'rgba(255,255,255,.65)' }}>
-              총 자산 가치{usePsa10 ? ' · PSA10' : ''}
+              총 자산 가치{usePsa10 ? ' · PSA10' : ''} <span style={{ color: 'rgba(255,255,255,.4)' }}>›</span>
             </span>
             <div style={{ display: 'flex', background: 'rgba(255,255,255,.1)', borderRadius: 9, padding: 3 }}>
               {(['krw', 'jpy'] as const).map((m) => {
@@ -297,7 +303,7 @@ export function CollectionScreen() {
                   <button
                     key={m}
                     type="button"
-                    onClick={() => setMode(m)}
+                    onClick={(e) => { e.stopPropagation(); setMode(m); }}
                     style={{
                       fontFamily: 'var(--f1)', fontSize: 11, fontWeight: 800, padding: '5px 12px', borderRadius: 7,
                       border: 'none', cursor: 'pointer',
