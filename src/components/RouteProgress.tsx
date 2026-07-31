@@ -2,12 +2,13 @@
 
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { LoadingSpinner } from './LoadingSpinner';
 
 /**
  * 라우트 전환 즉각 피드백.
  *
  * 1. 상단 가로 진행바
- * 2. 전체화면 반투명 오버레이 + 포켓볼 스피너
+ * 2. 전체화면 반투명 오버레이 + 스피너/로딩 퍼센트
  *
  * 트리거:
  * - 같은 origin 의 <a> 클릭 (Next <Link> 포함)
@@ -15,7 +16,8 @@ import { useEffect, useState } from 'react';
  * - `window.dispatchEvent(new Event('pf:nav-start'))` — router.push 같은
  *   programmatic 네비게이션에서 즉시 오버레이를 띄울 때 사용
  *
- * 해제: pathname 또는 search params 가 바뀌면 자동 해제.
+ * 해제: pathname 또는 search params 가 바뀌면 (= 새 페이지가 실제로 마운트되면)
+ * 퍼센트를 100으로 채워 잠깐 보여준 뒤 해제 — 100% 전에 사라지지 않는다.
  *
  * 디자인 의도: loading.tsx 는 Next 가 새 라우트 트리를 마운트하기 시작해야
  * 보이는데, 그 사이 (몇백 ms) 동안 사용자가 클릭에 무반응이라고 느껴서
@@ -25,10 +27,18 @@ export function RouteProgress() {
   const pathname = usePathname();
   const search = useSearchParams();
   const [show, setShow] = useState(false);
+  const [done, setDone] = useState(false);
 
-  // 경로 변경 = 새 페이지가 실제로 마운트됨 → 오버레이 해제
+  // 경로 변경 = 새 페이지가 실제로 마운트됨 → 100% 표시 후 해제
   useEffect(() => {
-    setShow(false);
+    if (!show) return;
+    setDone(true);
+    const t = setTimeout(() => {
+      setShow(false);
+      setDone(false);
+    }, 180);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, search]);
 
   useEffect(() => {
@@ -67,11 +77,7 @@ export function RouteProgress() {
     <>
       <div className="route-progress" aria-hidden />
       <div className="route-overlay" role="status" aria-live="polite" aria-label="페이지 로딩 중">
-        <div
-          className="pf-pokeball-spinner"
-          style={{ width: 56, height: 56 }}
-          aria-hidden
-        />
+        <LoadingSpinner size={56} percent={done ? 100 : undefined} />
       </div>
     </>
   );

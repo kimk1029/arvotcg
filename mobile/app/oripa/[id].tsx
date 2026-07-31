@@ -11,7 +11,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
 import { PixelFrame } from '@/components/cv/PixelFrame';
-import { PokeballSpinner } from '@/components/PokeballSpinner';
+import { Spinner } from '@/components/Spinner';
 import { useToast } from '@/components/ToastProvider';
 import { space } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
@@ -408,7 +408,7 @@ export default function OripaPlay() {
                 >
                   {revealStage === 'running' ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <PokeballSpinner size={18} />
+                      <Spinner size={18} />
                       <PixelText variant={txt} size={11} color={tc.white}>뽑는 중...</PixelText>
                     </View>
                   ) : (

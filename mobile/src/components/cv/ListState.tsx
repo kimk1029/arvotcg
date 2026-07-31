@@ -2,39 +2,23 @@
  * Loading / Error / Empty 상태 컴포넌트.
  * /my/* 모든 리스트 페이지가 공유.
  */
-import { useEffect, useRef } from 'react';
-import { View, Animated, Easing } from 'react-native';
+import { View } from 'react-native';
 import { router } from 'expo-router';
 import { ApiError } from '@/lib/apiClient';
 import { isAuthenticated } from '@/lib/session';
 import { PixelText } from '@/components/PixelText';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { PixelPress } from '@/components/cv/PixelPress';
-import { SmoothBall } from '@/components/SmoothBall';
+import { Spinner, useLoadingProgress } from '@/components/Spinner';
 import { colors } from '@/theme/tokens';
 
 export function LoadingState() {
-  const spin = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(spin, {
-        toValue: 1,
-        duration: 800,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [spin]);
-  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const pct = useLoadingProgress();
   return (
     <View style={{ paddingVertical: 60, alignItems: 'center' }}>
-      <Animated.View style={{ transform: [{ rotate }] }}>
-        <SmoothBall size={48} />
-      </Animated.View>
+      <Spinner size={48} />
       <PixelText variant="pixel" size={9} color={colors.ink3} style={{ marginTop: 12 }}>
-        불러오는 중…
+        불러오는 중… {pct}%
       </PixelText>
     </View>
   );
