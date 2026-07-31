@@ -47,7 +47,15 @@
           "cameraPermission": "카드를 스캔하려면 카메라 접근이 필요합니다."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false
