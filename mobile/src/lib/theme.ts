@@ -6,15 +6,16 @@
 export type ThemeId = 'pokemon' | 'onepiece' | 'yugioh' | 'sports' | 'clean' | 'dark';
 
 export const THEMES: ReadonlyArray<{ id: ThemeId; label: string; desc: string }> = [
-  { id: 'pokemon',  label: '포켓몬스터',  desc: '몬스터볼 + 빨강·노랑 (기본)' },
-  { id: 'onepiece', label: '원피스',  desc: '루피의 밀짚모자 + 노을 톤' },
-  { id: 'yugioh',   label: '유희왕',  desc: '천년 퍼즐 + 보라·황금 톤' },
+  { id: 'pokemon',  label: '포켓몬스터',  desc: '몬스터볼 + 빨강·노랑 (픽셀)' },
+  { id: 'onepiece', label: '원피스',  desc: '밀짚모자 + 해적 깃발 클래식' },
+  { id: 'yugioh',   label: '유희왕',  desc: '천년 퍼즐 + 황금 클래식 (세리프)' },
   { id: 'sports',   label: '스포츠',  desc: '스코어보드 + 잔디·스타디움 톤' },
-  { id: 'clean',    label: '클린',  desc: '비트 아닌 깔끔·직각 (모던)' },
-  { id: 'dark',     label: '다크',  desc: '네온 주식창 다크 모드 (모던)' },
+  { id: 'clean',    label: '클린',  desc: '깔끔·모던 (기본)' },
+  { id: 'dark',     label: '다크',  desc: '네온 글로우 다크 모드 (모던)' },
 ];
 
-export const DEFAULT_THEME: ThemeId = 'pokemon';
+// 웹(src/lib/theme.ts)과 동일 — 기본 테마는 clean (패리티).
+export const DEFAULT_THEME: ThemeId = 'clean';
 export const THEME_STORAGE_KEY = 'pokefesta-theme';
 
 export function isThemeId(v: unknown): v is ThemeId {

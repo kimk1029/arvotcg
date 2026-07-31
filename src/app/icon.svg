@@ -7,16 +7,15 @@
   </defs>
   <!-- 브랜드 틸 라운드 스퀘어 (클린 테마 accent) -->
   <rect width="64" height="64" rx="14" fill="url(#bg)"/>
-  <!-- 뒤로 부채꼴로 펼친 카드 두 장 — TCG 상징. 파비콘 크기에선 은은한 톤으로만 읽힘. -->
-  <g fill="#FFFFFF" stroke="#0A5C4B" stroke-width="1.2" stroke-opacity=".35">
-    <rect x="10.5" y="16" width="20" height="29" rx="3" opacity=".26" transform="rotate(-16 20.5 30.5)"/>
-    <rect x="33.5" y="16" width="20" height="29" rx="3" opacity=".26" transform="rotate(16 43.5 30.5)"/>
+  <!-- 부채꼴로 겹친 카드 3장 — TCG 상징 -->
+  <g fill="#FFFFFF" stroke="#FFFFFF" stroke-width="1" stroke-opacity=".4">
+    <rect x="9" y="14" width="21" height="30" rx="3" opacity=".22" transform="rotate(-16 19.5 29)"/>
+    <rect x="34" y="14" width="21" height="30" rx="3" opacity=".22" transform="rotate(16 44.5 29)"/>
+    <rect x="21.5" y="12.5" width="21" height="30" rx="3" opacity=".32"/>
   </g>
-  <!-- ARVOTCG "A" 모노그램 -->
-  <path
-    fill="#FFFFFF"
-    fill-rule="evenodd"
-    d="M32 13.5 L49 51.5 L40.6 51.5 L37.6 44.3 L26.4 44.3 L23.4 51.5 L15 51.5 Z
-       M32 26 L35.8 37.9 L28.2 37.9 Z"
-  />
+  <!-- ARVO / TCG 워드마크 -->
+  <g fill="#FFFFFF" font-family="'DejaVu Sans','Arial Narrow',Arial,sans-serif" font-weight="bold" text-anchor="middle">
+    <text x="32" y="31.5" font-size="15" letter-spacing="0.5">ARVO</text>
+    <text x="32" y="46.5" font-size="15" letter-spacing="1">TCG</text>
+  </g>
 </svg>
