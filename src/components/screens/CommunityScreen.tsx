@@ -8,6 +8,7 @@ import { ComposedAvatar } from '@/components/ComposedAvatar';
 import { BookmarkButton } from '@/components/BookmarkButton';
 import { FeedComments, Lightbox } from '@/components/FeedRow';
 import { isAvatarId } from '@/lib/avatars';
+import { ShopSection, SHOP_REGIONS } from '@/components/screens/CommunityShop';
 import type { FeedPost, Trade } from '@/lib/types';
 
 /**
@@ -187,12 +188,15 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
   const clean = theme === 'clean';
   const P = clean ? CLEAN_P : VAR_P;
 
+  const [mode, setMode] = useState<'feed' | 'shop'>('feed');
+  const [region, setRegion] = useState('전체');
   const [cat, setCat] = useState<CatId>('전체');
   const [sort, setSort] = useState<SortId>('최신순');
   const [feature, setFeature] = useState<'hot' | 'best'>('hot');
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [keywords, setKeywords] = useState<string[]>(KEYWORDS);
+  const isShop = mode === 'shop';
 
   const isMarket = cat === '거래/나눔';
   const writeHref = isMarket ? '/write/trade' : '/write/feed';
@@ -251,11 +255,14 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
         {/* header */}
         <div style={{ background: P.cardBg, position: 'sticky', top: 0, zIndex: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '8px 16px' }}>
-            <div style={{ fontSize: 22, fontWeight: 900, color: P.ink, letterSpacing: '-.6px' }}>커뮤니티</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: P.ink }}>팔로잉</div>
-            <Link href="/my/feeds" style={{ fontSize: 14, fontWeight: 700, color: P.ink3, textDecoration: 'none' }}>내 게시글</Link>
+            {/* 커뮤니티 ↔ Shop 모드 토글 — 활성 타이틀은 크게, 비활성은 작고 흐리게 */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+              <button type="button" onClick={() => setMode('feed')} style={{ fontSize: isShop ? 16 : 22, fontWeight: 900, color: isShop ? (clean ? '#C7C7CC' : P.chev) : P.ink, letterSpacing: '-.6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', transition: 'font-size .15s' }}>커뮤니티</button>
+              <button type="button" onClick={() => setMode('shop')} style={{ fontSize: isShop ? 22 : 16, fontWeight: 900, color: isShop ? P.ink : (clean ? '#C7C7CC' : P.chev), letterSpacing: '-.6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', transition: 'font-size .15s' }}>Shop</button>
+            </div>
+            {!isShop && <Link href="/my/feeds" style={{ fontSize: 14, fontWeight: 700, color: P.ink3, textDecoration: 'none' }}>내 게시글</Link>}
             <div style={{ flex: 1 }} />
-            <button type="button" aria-label="검색" onClick={() => setSearchOpen((v) => !v)} style={{ display: 'block', color: searchOpen ? P.accent : P.ink, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{Ic.search(searchOpen ? P.accent : P.ink)}</button>
+            {!isShop && <button type="button" aria-label="검색" onClick={() => setSearchOpen((v) => !v)} style={{ display: 'block', color: searchOpen ? P.accent : P.ink, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{Ic.search(searchOpen ? P.accent : P.ink)}</button>}
             <Link href="/my/messages" aria-label="알림" style={{ position: 'relative', display: 'block', color: P.ink }}>
               {Ic.bell(P.ink)}
               <span style={{ position: 'absolute', top: -4, right: -4, minWidth: 15, height: 15, padding: '0 3px', background: P.red, borderRadius: 8, color: '#fff', fontSize: 9.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px solid ${P.cardBg}` }}>3</span>
@@ -266,7 +273,7 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
           </div>
 
           {/* search bar (검색 아이콘 토글) */}
-          {searchOpen && (
+          {!isShop && searchOpen && (
             <div style={{ padding: '4px 16px 8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: P.chip, borderRadius: 12, padding: '9px 12px' }}>
                 {Ic.search(P.ink3, 18)}
@@ -284,7 +291,17 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
             </div>
           )}
 
-          {/* category tabs — 보더 없음. 선택 탭 아래로 슬라이딩 밑줄만 이동 */}
+          {/* shop 모드: 지역 칩 / feed 모드: 카테고리 탭 */}
+          {isShop ? (
+            <div className="cv-hrow" style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto', padding: '4px 16px 12px', borderBottom: `1px solid ${P.line}` }}>
+              {SHOP_REGIONS.map((rg) => {
+                const on = region === rg;
+                return (
+                  <button key={rg} type="button" onClick={() => setRegion(rg)} style={{ flex: 'none', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700, padding: '7px 14px', borderRadius: 18, cursor: 'pointer', border: 'none', background: on ? P.ink : P.chip, color: on ? P.cardBg : P.ink3 }}>{rg}</button>
+                );
+              })}
+            </div>
+          ) : (
           <div className="cv-hrow" style={{ display: 'flex', alignItems: 'center', gap: 18, overflowX: 'auto', padding: '4px 16px 0', position: 'relative' }}>
             {CATS.map((c) => {
               const on = cat === c;
@@ -311,8 +328,13 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
               }}
             />
           </div>
+          )}
         </div>
 
+        {isShop ? (
+          <ShopSection P={P} />
+        ) : (
+        <>
         {/* 전체 탭에서만 인기글 + HOT 키워드 노출. 그 외 카테고리는 목록만. */}
         {cat === '전체' && (
           <>
@@ -414,6 +436,8 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
 
           <div style={{ height: 20 }} />
         </div>
+        </>
+        )}
 
         <div className="bggap" />
       </div>

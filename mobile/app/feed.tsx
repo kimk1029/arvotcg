@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { useTheme, useThemeColors } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import { PixelFrame } from '@/components/cv/PixelFrame';
+import { ShopSection, SHOP_REGIONS } from '@/components/CommunityShop';
 import { fonts } from '@/theme/tokens';
 import { api } from '@/lib/apiClient';
 
@@ -243,12 +244,15 @@ export default function CommunityScreen() {
 
   const tagStyle = (label: string) => (isClean ? TAG_COLOR[label] ?? TAG_COLOR['자유'] : { fg: P.accentDk, bg: P.accentSoft });
 
+  const [mode, setMode] = useState<'feed' | 'shop'>('feed');
+  const [region, setRegion] = useState('전체');
   const [cat, setCat] = useState<CatId>('전체');
   const [sort, setSort] = useState<SortId>('최신순');
   const [feature, setFeature] = useState<'hot' | 'best'>('hot');
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [keywords, setKeywords] = useState<string[]>(KEYWORDS);
+  const isShop = mode === 'shop';
 
   // 실데이터 — 웹 feed/page.tsx 와 동일한 두 요청.
   const [feed, setFeed] = useState<FeedPost[]>([]);
@@ -358,11 +362,22 @@ export default function CommunityScreen() {
       {/* header */}
       <View style={{ backgroundColor: P.cardBg, paddingTop: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 8 }}>
-          <Text style={ts(22, '900', P.ink)}>커뮤니티</Text>
-          <Text style={ts(14, '700', P.ink)}>팔로잉</Text>
-          <Pressable onPress={() => router.push('/my/feeds' as never)} hitSlop={6}><Text style={ts(14, '700', P.ink3)}>내 게시글</Text></Pressable>
+          {/* 커뮤니티 ↔ Shop 모드 토글 — 활성 타이틀은 크게, 비활성은 작고 흐리게 */}
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12 }}>
+            <Pressable onPress={() => setMode('feed')} hitSlop={6}>
+              <Text style={ts(isShop ? 16 : 22, '900', isShop ? (isClean ? '#C7C7CC' : P.chev) : P.ink)}>커뮤니티</Text>
+            </Pressable>
+            <Pressable onPress={() => setMode('shop')} hitSlop={6}>
+              <Text style={ts(isShop ? 22 : 16, '900', isShop ? P.ink : isClean ? '#C7C7CC' : P.chev)}>Shop</Text>
+            </Pressable>
+          </View>
+          {!isShop ? (
+            <Pressable onPress={() => router.push('/my/feeds' as never)} hitSlop={6}><Text style={ts(14, '700', P.ink3)}>내 게시글</Text></Pressable>
+          ) : null}
           <View style={{ flex: 1 }} />
-          <Pressable onPress={() => setSearchOpen((v) => !v)} hitSlop={8}><Search c={searchOpen ? P.accent : P.ink} /></Pressable>
+          {!isShop ? (
+            <Pressable onPress={() => setSearchOpen((v) => !v)} hitSlop={8}><Search c={searchOpen ? P.accent : P.ink} /></Pressable>
+          ) : null}
           <Pressable onPress={() => router.push('/my/messages' as never)} hitSlop={8} style={{ position: 'relative' }}>
             <Bell c={P.ink} />
             <View style={{ position: 'absolute', top: -4, right: -4, minWidth: 15, height: 15, paddingHorizontal: 3, backgroundColor: P.red, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: P.cardBg }}>
@@ -375,7 +390,7 @@ export default function CommunityScreen() {
         </View>
 
         {/* search bar (검색 토글) */}
-        {searchOpen ? (
+        {!isShop && searchOpen ? (
           <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: P.chip, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
               <Search c={P.ink3} s={18} />
@@ -394,7 +409,24 @@ export default function CommunityScreen() {
           </View>
         ) : null}
 
-        {/* category tabs — 보더 없음. 선택 탭으로 슬라이딩 밑줄 이동 */}
+        {/* shop 모드: 지역 칩 / feed 모드: 카테고리 탭 */}
+        {isShop ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 12 }}
+            style={{ borderBottomWidth: 1, borderBottomColor: P.line }}
+          >
+            {SHOP_REGIONS.map((rg) => {
+              const on = region === rg;
+              return (
+                <Pressable key={rg} onPress={() => setRegion(rg)} style={{ paddingVertical: 7, paddingHorizontal: 14, borderRadius: 18, backgroundColor: on ? P.ink : P.chip }}>
+                  <Text style={ts(13, '700', on ? P.cardBg : P.ink3)}>{rg}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -424,8 +456,12 @@ export default function CommunityScreen() {
           {/* 슬라이딩 밑줄 인디케이터 */}
           <Animated.View pointerEvents="none" style={{ position: 'absolute', bottom: 0, height: 2.5, borderRadius: 2, backgroundColor: P.accent, left: indLeft, width: indWidth }} />
         </ScrollView>
+        )}
       </View>
 
+      {isShop ? (
+        <ShopSection P={P} ts={ts} />
+      ) : (
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 120 }}
@@ -602,6 +638,7 @@ export default function CommunityScreen() {
           </Card>
         </View>
       </ScrollView>
+      )}
     </View>
   );
 }
