@@ -54,6 +54,7 @@ export interface CardPackMeta {
 }
 
 export const CARD_PACKS: CardPackMeta[] = [
+  { code: 'm6', name: '스톰 에메랄다', shortName: '스톰 에메랄다', emoji: '⛈️', bg: '#059669', releasedAt: '2026-07-31', searchQuery: 'ストームエメラルダ', apparelGroupId: 3662 },
   { code: 'm5', name: '어비스아이', shortName: '어비스아이', emoji: '🌑', bg: '#312E81', releasedAt: '2026-05-22', searchQuery: 'アビスアイ', apparelGroupId: 3453 },
   { code: 'm4', name: '닌자 스피너', shortName: '닌자 스피너', emoji: '🥷', bg: '#2563EB', releasedAt: '2026-03-13', searchQuery: 'ニンジャスピナー', apparelGroupId: 3320 },
   { code: 'm3', name: '무니키스 제로', shortName: '무니키스 제로', emoji: '🧬', bg: '#7C2D12', releasedAt: '2026-01-23', searchQuery: 'ムニキスゼロ', apparelGroupId: 3259 },
@@ -96,7 +97,7 @@ export const CARD_PACKS: CardPackMeta[] = [
 
   // ── 원피스 카드게임 (웹 시세확인 테마 탭 전용 — 모바일 미노출) ──
   // apparelGroupId 는 snkrdunk /v1/apparel-groups/{id} 스캔으로 확인한 값. 0 = 검색 폴백.
-  { code: 'op-kessen', setCode: 'OP16', game: 'onepiece', name: '결전의 시각', shortName: '결전의 시각', emoji: '⚔️', bg: '#B22D36', searchQuery: '決戦の刻', apparelGroupId: 0 },
+  { code: 'op-kessen', setCode: 'OP16', game: 'onepiece', name: '결전의 시각', shortName: '결전의 시각', emoji: '⚔️', bg: '#B22D36', releasedAt: '2026-05-30', searchQuery: '決戦の刻', apparelGroupId: 3479 },
   { code: 'op-will', setCode: 'OP13', game: 'onepiece', name: '계승되는 의지', shortName: '계승되는 의지', emoji: '🔥', bg: '#C2410C', searchQuery: '受け継がれる意志', apparelGroupId: 0 },
   { code: 'op-island', setCode: 'OP15', game: 'onepiece', name: '신의 섬의 모험', shortName: '신의 섬 모험', emoji: '🏝️', bg: '#15803D', searchQuery: '神の島の冒険', apparelGroupId: 0 },
   { code: 'op-fist', setCode: 'OP11', game: 'onepiece', name: '신속의 주먹', shortName: '신속의 주먹', emoji: '👊', bg: '#0E7490', searchQuery: '神速の拳', apparelGroupId: 0 },

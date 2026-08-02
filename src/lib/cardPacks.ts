@@ -30,6 +30,7 @@ import { CARD_PACKS, type CardPackMeta } from '../../shared/data/cardPacks';
  * 키는 대문자 + 점 제거 (e.g. 'sv11w' → SV11W, 'm1l' → M1L).
  */
 export enum CardPackCode {
+  M6 = 'm6',
   M5 = 'm5',
   M4 = 'm4',
   M3 = 'm3',
