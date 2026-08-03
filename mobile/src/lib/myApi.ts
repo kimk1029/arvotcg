@@ -373,13 +373,22 @@ export async function fetchAllPacksWithHits(limit = 12): Promise<PackWithHits[]>
   return (r.data ?? []).filter((p) => pokemonCodes.has(p.code));
 }
 
+// 팩 상세 캐시 — 웹 packs/[code]/page.tsx 의 ISR revalidate=900 과 동일 주기.
+const PACK_HITS_TTL_MS = 900 * 1000;
+const packHitsCache = new Map<string, { data: PackWithHits; at: number }>();
+
 export async function fetchPackHits(code: string, limit = 30): Promise<PackWithHits | null> {
+  const key = `${code}:${limit}`;
+  const cached = packHitsCache.get(key);
+  if (cached && Date.now() - cached.at < PACK_HITS_TTL_MS) return cached.data;
   try {
     const r = await api<{ data: PackWithHits }>(
       `/api/card-packs/${encodeURIComponent(code)}?limit=${limit}`,
       { auth: false },
     );
-    return r.data ?? null;
+    const data = r.data ?? null;
+    if (data) packHitsCache.set(key, { data, at: Date.now() });
+    return data;
   } catch (err) {
     // 웹 loadPack 과 동일 — 없는 팩 코드는 null (화면이 '팩을 찾지 못했어요' 표시).
     if (err instanceof ApiError && err.status === 404) return null;

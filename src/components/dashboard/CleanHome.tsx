@@ -11,6 +11,8 @@ import { HeroSlider, type HeroSlideData } from '@/components/HeroSlider';
 import { HomeKoSearchBar } from '@/components/HomeKoSearchBar';
 import { GradeMark } from '@/components/cards/GradeMark';
 import { translateKnownCardNameToKo } from '@/lib/cardTranslate';
+import { CARD_PACKS } from '@/lib/cardPacks';
+import { pickHomeBoxPacks } from '../../../shared/homeBoxPacks';
 import { headlineFromHistory, trendChangePct } from '@/lib/snkrdunkPrice';
 import type { SnkrdunkRow } from '@/components/dashboard/DashboardScreen';
 import type { MvcAuctionItem } from '@/lib/navercafe';
@@ -102,11 +104,6 @@ const GAME_POPULAR_KEYWORD: Partial<Record<GameId, string>> = {
   onepiece: 'ワンピースカード',
   yugioh: '遊戯王',
   sports: 'Topps',
-};
-const GAME_BOX_KEYWORD: Partial<Record<GameId, string>> = {
-  onepiece: 'ワンピースカード ボックス',
-  yugioh: '遊戯王 ボックス',
-  sports: 'Topps ボックス',
 };
 const BOX_NAME_RE = /ボックス|box|booster|ブースター|デッキビルド|スターター|拡張パック|ハイクラスパック|ポケモンセンターセット|シュリンク/i;
 const isBoxName = (name: string) => BOX_NAME_RE.test(name || '');
@@ -272,7 +269,9 @@ function CardArt({
   );
 }
 
-export function CleanHome({ heroBanners, snkrdunkRows = [], snkrdunkBoxRows = [] }: Props) {
+// snkrdunkBoxRows prop 은 레거시 DashboardScreen 경로용으로 Props 에만 남음 —
+// CleanHome 의 인기 박스는 앱과 동일하게 클라이언트에서 직접 선별·조회한다.
+export function CleanHome({ heroBanners, snkrdunkRows = [] }: Props) {
   const { format } = useCurrency();
   const { count: unread } = useUnread();
   const { theme } = useTheme();
@@ -293,9 +292,8 @@ export function CleanHome({ heroBanners, snkrdunkRows = [], snkrdunkBoxRows = []
   const extraGames = enabledGames.filter((g) => GAME_POPULAR_KEYWORD[g]);
   const needsMix = extraGames.length > 0;
   const [mixPopular, setMixPopular] = useState<Record<string, SnkrdunkRow[]>>({});
-  const [mixBox, setMixBox] = useState<Record<string, SnkrdunkRow[]>>({});
   useEffect(() => {
-    if (!needsMix || (mixPopular[gamesKey] && mixBox[gamesKey])) return;
+    if (!needsMix || mixPopular[gamesKey]) return;
     let alive = true;
     // 게임당 뽑는 개수 — 섞어도 캐러셀이 과하게 길어지지 않게 켠 게임 수로 나눔.
     const per = Math.max(2, Math.ceil(8 / enabledGames.length));
@@ -327,23 +325,14 @@ export function CleanHome({ heroBanners, snkrdunkRows = [], snkrdunkBoxRows = []
       return checked.filter((h): h is PopularSearchHit => h !== null);
     };
     (async () => {
-      const [popularLists, boxLists] = await Promise.all([
-        Promise.all(
-          extraGames.map(async (g) => {
-            const hits = shuffleRows(
-              (await search(GAME_POPULAR_KEYWORD[g]!)).filter((h) => !isBoxName(h.name)),
-            ).slice(0, per * 2);
-            return (await verifySingles(hits)).slice(0, per).map(searchHitToRow);
-          }),
-        ),
-        Promise.all(
-          extraGames.map(async (g) =>
-            shuffleRows((await search(GAME_BOX_KEYWORD[g]!)).filter((h) => isBoxName(h.name)))
-              .slice(0, per)
-              .map(searchHitToRow),
-          ),
-        ),
-      ]);
+      const popularLists = await Promise.all(
+        extraGames.map(async (g) => {
+          const hits = shuffleRows(
+            (await search(GAME_POPULAR_KEYWORD[g]!)).filter((h) => !isBoxName(h.name)),
+          ).slice(0, per * 2);
+          return (await verifySingles(hits)).slice(0, per).map(searchHitToRow);
+        }),
+      );
       if (!alive) return;
       // 검색 경로 행(추가 게임)에도 대표가·등락률을 채운다 — 포켓몬 seedToRow 와
       // 동일한 소스(sales-history 헤드라인가 + sales-chart trendChangePct, 정본 /shared).
@@ -382,16 +371,60 @@ export function CleanHome({ heroBanners, snkrdunkRows = [], snkrdunkBoxRows = []
           enabledGames.includes('pokemon') ? [pokemonRows.slice(0, per), ...lists] : lists,
         ).slice(0, 10);
       const popRows = withPokemon(enrichedPopular, snkrdunkRows);
-      const boxRows2 = withPokemon(boxLists, snkrdunkBoxRows);
       if (popRows.length > 0) setMixPopular((p) => ({ ...p, [gamesKey]: popRows }));
-      if (boxRows2.length > 0) setMixBox((p) => ({ ...p, [gamesKey]: boxRows2 }));
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gamesKey, needsMix, snkrdunkRows, snkrdunkBoxRows]);
+  }, [gamesKey, needsMix, snkrdunkRows]);
 
   const hotRows = (needsMix && mixPopular[gamesKey]) || snkrdunkRows;
-  const boxRows = (needsMix && mixBox[gamesKey]) || snkrdunkBoxRows;
+
+  // 인기 박스 — 앱 CleanHomeScreen 과 동일 로직: 선별은 shared pickHomeBoxPacks,
+  // 각 팩의 대표 박스는 apparel-groups(cat 14) 1건 조회. 켠 게임 전체를 라운드로빈.
+  const [boxRows, setBoxRows] = useState<SnkrdunkRow[]>([]);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const picked = pickHomeBoxPacks(CARD_PACKS, enabledGames);
+      const rows = await Promise.all(
+        picked.map(async (pack): Promise<SnkrdunkRow | null> => {
+          try {
+            const r = await fetch(
+              `/api/snkrdunk/apparel-groups/${pack.apparelGroupId}?apparelCategoryId=14&page=1&perPage=1`,
+            );
+            if (!r.ok) return null;
+            const j = (await r.json()) as {
+              data?: {
+                apparels?: Array<{
+                  id: number;
+                  localizedName?: string;
+                  imageUrl?: string | null;
+                  minPrice?: number;
+                  listingCountText?: string;
+                }>;
+              } | null;
+            };
+            const box = j.data?.apparels?.[0];
+            if (!box?.id) return null;
+            return {
+              apparelId: box.id,
+              shortName: pack.shortName,
+              localizedName: box.localizedName || undefined,
+              category: null,
+              imageUrl: box.imageUrl ?? null,
+              minPrice: box.minPrice ?? 0,
+              listingCountText: box.listingCountText ?? '',
+            };
+          } catch {
+            return null;
+          }
+        }),
+      );
+      if (alive) setBoxRows(rows.filter((r): r is SnkrdunkRow => r !== null).slice(0, 6));
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gamesKey]);
 
   // HOT 카드 위 게임 필터 칩 — 포켓몬·원피스는 항상, 그 외 켜둔 게임도 함께 노출해 on/off.
   // 끝의 '더보기' 칩은 설정(전체 게임 관리)으로 이동. 앱 CleanHomeScreen GameChips 와 동일.

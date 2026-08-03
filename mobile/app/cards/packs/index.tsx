@@ -40,8 +40,8 @@ interface PackWithBox extends CardPackMeta {
   boxPrice: number;
 }
 
-// 5분 동안 캐시 신선함으로 간주 — 박스 시세는 분 단위로 급변하지 않음.
-const PACKS_TTL_MS = 5 * 60 * 1000;
+// 10분 동안 캐시 신선함으로 간주 — 웹 packs/page.tsx 의 ISR revalidate=600 과 동일 주기.
+const PACKS_TTL_MS = 10 * 60 * 1000;
 let packsCache: { data: PackWithBox[]; at: number } | null = null;
 let packsInFlight: Promise<PackWithBox[]> | null = null;
 

@@ -24,6 +24,7 @@ import {
 import { useGamePrefs } from '@/components/GamePrefsProvider';
 import { GAME_IDS, GAME_OPTIONS, type GameId } from '@/lib/gamePrefs';
 import { CARD_PACKS } from '@/data/cardPacks';
+import { pickHomeBoxPacks } from '../../../shared/homeBoxPacks';
 import { jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadScanImage, CardScanError } from '@/services/cardScanApi';
@@ -428,16 +429,8 @@ export function CleanHomeScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      // 설정에서 켠 게임의 최신 팩들을 게임별로 뽑아 라운드로빈으로 섞는다.
-      const perGame = Math.max(3, Math.ceil(12 / enabledGames.length));
-      const pools = enabledGames.map((g) =>
-        shuffle(
-          CARD_PACKS.filter((p) => (p.game ?? 'pokemon') === g && p.apparelGroupId > 0)
-            .sort((a, b) => (b.releasedAt ?? '').localeCompare(a.releasedAt ?? ''))
-            .slice(0, perGame),
-        ),
-      );
-      const picked = interleaveRows(pools).slice(0, 8);
+      // 설정에서 켠 게임의 최신 팩 라운드로빈 선별 — 정본 shared/homeBoxPacks (웹 동일).
+      const picked = pickHomeBoxPacks(CARD_PACKS, enabledGames);
       const rows = await Promise.all(
         picked.map(async (pack): Promise<SnkrRow | null> => {
           // 웹 홈 fetchBoxRows 와 동일한 NAS 엔드포인트 (박스 전용 카테고리 그룹 조회).
