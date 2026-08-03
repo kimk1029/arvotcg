@@ -12,7 +12,6 @@ import { GradeMark } from '@/components/cv/GradeMark';
 import { fonts } from '@/theme/tokens';
 import {
   fetchSnkrdunkApparel,
-  fetchSnkrdunkApparelGroup,
   fetchSnkrdunkBrowse,
   fetchSnkrdunkSalesChart,
   fetchSnkrdunkSalesHistory,
@@ -441,12 +440,12 @@ export function CleanHomeScreen() {
       const picked = interleaveRows(pools).slice(0, 8);
       const rows = await Promise.all(
         picked.map(async (pack): Promise<SnkrRow | null> => {
-          const page = await fetchSnkrdunkApparelGroup(pack.apparelGroupId, {
-            apparelCategoryId: 14,
-            page: 1,
-            perPage: 1,
-          });
-          const box = page?.apparels?.[0];
+          // 웹 홈 fetchBoxRows 와 동일한 NAS 엔드포인트 (박스 전용 카테고리 그룹 조회).
+          const r = await api<{ data: { apparels?: SnkrdunkApparel[] } | null }>(
+            `/api/snkrdunk/apparel-groups/${pack.apparelGroupId}?apparelCategoryId=14&page=1&perPage=1`,
+            { auth: false },
+          ).catch(() => null);
+          const box = r?.data?.apparels?.[0];
           if (!box || !box.id) return null;
           return { seed: { apparelId: box.id, shortName: pack.shortName, category: null }, data: box };
         }),

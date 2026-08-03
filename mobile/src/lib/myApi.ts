@@ -4,18 +4,8 @@
  * 응답 타입은 웹 [[src/lib/queries.ts]] / [[src/lib/messages.ts]] 의 반환 모양과 1:1.
  * 모바일이 자체 mock 으로 폴백할 수 있도록 [[ApiError]] 를 그대로 던진다.
  */
-import { api, getApiBaseUrl } from './apiClient';
-import { CARD_PACKS, getCardPack, type CardPackMeta } from '@/data/cardPacks';
-import { localizeCardName } from './cardNameKo';
-import { shortenName } from '../../../shared/util/shortenName';
-import {
-  fetchAllSnkrdunkApparelGroup,
-  fetchSnkrdunkApparel,
-  fetchSnkrdunkApparelGroup,
-  searchSnkrdunkByQuery,
-  type SnkrdunkApparel,
-  type SnkrdunkApparelGroupPage,
-} from '@/services/snkrdunk';
+import { api, ApiError, getApiBaseUrl } from './apiClient';
+import { CARD_PACKS } from '@/data/cardPacks';
 
 export type TradeType = 'buy' | 'sell';
 export type TradeStatus = 'open' | 'reserved' | 'done' | 'cancelled';
@@ -338,6 +328,9 @@ export function fetchInventory(): Promise<{ inventory: InventorySnapshot }> {
 }
 
 /* --- card packs (snkrdunk hit cards per pack) -------------------- */
+// 팩 목록·상세 데이터는 웹 packs/[code]/page.tsx 와 동일하게 NAS `/api/card-packs`
+// (서버 getPackWithHits — DB 캐시·검색 폴백·selectHits 정렬·번역) 를 호출한다.
+// 로직 정본은 서버 한 곳: 기기에서 스니덩을 직접 조회하던 resolvePack 재구현은 제거됨.
 
 export interface PackHitCard {
   apparelId: number;
@@ -370,116 +363,27 @@ export interface PackWithHits {
 }
 
 export async function fetchAllPacksWithHits(limit = 12): Promise<PackWithHits[]> {
-  // 비포켓몬 팩(웹 시세확인 테마 탭 전용)은 모바일 미노출.
-  const pokemonPacks = CARD_PACKS.filter((p) => !p.game || p.game === 'pokemon');
-  return runWithConcurrency(pokemonPacks, 8, (pack) => resolvePack(pack, limit));
+  const r = await api<{ data: PackWithHits[] }>(`/api/card-packs?withHits=1&limit=${limit}`, {
+    auth: false,
+  });
+  // 이 화면(구 /cards 시세확인)은 포켓몬 박스만 다룸 — 서버는 전체 팩을 주므로 코드로 필터.
+  const pokemonCodes = new Set(
+    CARD_PACKS.filter((p) => !p.game || p.game === 'pokemon').map((p) => p.code),
+  );
+  return (r.data ?? []).filter((p) => pokemonCodes.has(p.code));
 }
 
 export async function fetchPackHits(code: string, limit = 30): Promise<PackWithHits | null> {
-  const pack = getCardPack(code);
-  if (!pack) return null;
-  return resolvePack(pack, limit);
-}
-
-async function runWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  task: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const out: R[] = new Array(items.length);
-  let cursor = 0;
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-    while (true) {
-      const i = cursor++;
-      if (i >= items.length) return;
-      out[i] = await task(items[i], i);
-    }
-  });
-  await Promise.all(workers);
-  return out;
-}
-
-async function resolvePack(pack: CardPackMeta, limit: number): Promise<PackWithHits> {
-  const singlesPerPage = Math.min(Math.max(limit * 4, 20), 100);
-  let groupSingles: SnkrdunkApparel[] = [];
-  let boxesPage: SnkrdunkApparelGroupPage | null = null;
-  if (pack.apparelGroupId) {
-    [groupSingles, boxesPage] = await Promise.all([
-      limit <= 12
-        ? fetchSnkrdunkApparelGroup(pack.apparelGroupId, {
-            apparelCategoryId: 25,
-            page: 1,
-            perPage: singlesPerPage,
-          }).then((p) => p?.apparels ?? [])
-        : fetchAllSnkrdunkApparelGroup(pack.apparelGroupId, {
-            apparelCategoryId: 25,
-            maxItems: Math.max(limit, 100),
-          }),
-      fetchSnkrdunkApparelGroup(pack.apparelGroupId, {
-        apparelCategoryId: 14,
-        page: 1,
-        perPage: 5,
-      }),
-    ]);
+  try {
+    const r = await api<{ data: PackWithHits }>(
+      `/api/card-packs/${encodeURIComponent(code)}?limit=${limit}`,
+      { auth: false },
+    );
+    return r.data ?? null;
+  } catch (err) {
+    // 웹 loadPack 과 동일 — 없는 팩 코드는 null (화면이 '팩을 찾지 못했어요' 표시).
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
   }
-  // 신규팩처럼 매물 0 이면 전부 노출 — 서버 resolveGroupSingles 와 동일 규칙.
-  const priced = groupSingles.filter((a) => a.minPrice > 0);
-  let hits = (priced.length > 0 ? priced : groupSingles).slice(0, limit).map(toHitCard);
-  let box = (boxesPage?.apparels ?? []).find((a) => a.minPrice > 0) ?? boxesPage?.apparels?.[0] ?? null;
-  // 그룹 미확인(groupId 0)·빈 그룹 팩(원피스 일부 등) — 서버 resolveSearchFill 처럼 검색 폴백.
-  if (hits.length === 0 && !box) {
-    ({ hits, box } = await resolvePackBySearch(pack, limit));
-  }
-  return {
-    code: pack.code,
-    name: pack.name,
-    shortName: pack.shortName,
-    emoji: pack.emoji,
-    bg: pack.bg,
-    releasedAt: pack.releasedAt,
-    boxImageUrl: box?.imageUrl ?? null,
-    boxName: box?.localizedName ?? null,
-    boxKoName: box ? localizeCardName(box.localizedName) : null,
-    hits,
-  };
-}
-
-async function resolvePackBySearch(
-  pack: CardPackMeta,
-  limit: number,
-): Promise<{ hits: PackHitCard[]; box: SnkrdunkApparel | null }> {
-  const results = await searchSnkrdunkByQuery(pack.searchQuery, 1);
-  // 검색 타일엔 시세·itemKind 가 없어 apparelId 별로 다시 fetch (동시성 cap 6).
-  const pool = results.slice(0, Math.min(Math.max(limit, 12), 40));
-  const hydrated = await runWithConcurrency(pool, 6, (r) => fetchSnkrdunkApparel(r.apparelId));
-  const apparels = hydrated.filter((a): a is SnkrdunkApparel => a != null);
-  const boxes = apparels.filter((a) => a.itemKind === 'box');
-  const singles = apparels.filter((a) => a.itemKind !== 'box');
-  const priced = singles.filter((a) => a.minPrice > 0);
-  const hits = [
-    ...(priced.length > 0 ? priced : singles).slice(0, limit),
-    // 웹 selectHits 와 동일 — 매물 있는 박스는 목록 끝에 붙는다.
-    ...boxes.filter((b) => b.minPrice > 0),
-  ].map(toHitCard);
-  const box = boxes.find((a) => a.minPrice > 0) ?? boxes[0] ?? null;
-  return { hits, box };
-}
-
-function toHitCard(a: SnkrdunkApparel): PackHitCard {
-  const jp = a.localizedName || a.name;
-  const ko = localizeCardName(jp);
-  return {
-    apparelId: a.id,
-    name: jp,
-    koName: ko,
-    shortName: shortenName(ko),
-    itemKind: a.itemKind,
-    imageUrl: a.imageUrl,
-    minPrice: a.minPrice,
-    displayPrice: a.displayPrice,
-    listingCount: a.listingCount,
-    listingCountText: a.listingCountText,
-    productNumber: a.productNumber,
-  };
 }
 

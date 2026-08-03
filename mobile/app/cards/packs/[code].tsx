@@ -28,7 +28,8 @@ export default function PackDetailScreen() {
   const [sort, setSort] = useState<SortMode>('price');
   const [view, setView] = useState<ViewMode>('grid');
   const { data, loading, error, refresh } = useAsync<PackWithHits | null>(
-    () => fetchPackHits(code, 200),
+    // 웹 packs/[code]/page.tsx 와 동일한 호출 (limit=600).
+    () => fetchPackHits(code, 600),
     [code],
   );
   // 웹 packs/[code]/page.tsx 동일 — itemKind 로 싱글/박스 분리.

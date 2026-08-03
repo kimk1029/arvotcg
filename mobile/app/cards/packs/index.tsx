@@ -21,7 +21,8 @@ import { LoadingState, ErrorView } from '@/components/cv/ListState';
 import { colors } from '@/theme/tokens';
 import { CARD_PACKS, packSetCode, type CardPackMeta, type CardPackGame } from '@/data/cardPacks';
 import { useCurrency } from '@/components/CurrencyProvider';
-import { fetchSnkrdunkApparelGroup, searchSnkrdunkByQuery } from '@/services/snkrdunk';
+import { api } from '@/lib/apiClient';
+import type { SnkrdunkApparelGroupPage, SnkrdunkSearchResult } from '@/services/snkrdunk';
 import { localizeCardName } from '@/lib/cardNameKo';
 import { useGamePrefs } from '@/components/GamePrefsProvider';
 
@@ -57,15 +58,18 @@ async function loadAllPacksWithBox(): Promise<PackWithBox[]> {
         boxPrice: 0,
       };
       try {
+        // 웹 packs/page.tsx 와 동일한 NAS 엔드포인트 호출 — 그룹 있으면 apparel-groups
+        // 박스 1건, 그룹 미확인(0)이면 '검색어 + ボックス' 검색 첫 매물.
         const timer = new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000));
         if (!pack.apparelGroupId) {
-          // 그룹 미확인 팩(원피스 일부 등) — 웹 packs/page.tsx 동일: 검색 1페이지의
-          // 첫 박스 매물로 대표 이미지/시세.
           const r = await Promise.race([
-            searchSnkrdunkByQuery(`${pack.searchQuery} ボックス`, 1),
+            api<{ results?: SnkrdunkSearchResult[] }>(
+              `/api/snkrdunk/search?q=${encodeURIComponent(`${pack.searchQuery} ボックス`)}`,
+              { auth: false },
+            ),
             timer,
           ]);
-          const hit = r?.[0] ?? null;
+          const hit = r?.results?.[0] ?? null;
           if (!hit) return fallback;
           return {
             ...pack,
@@ -75,13 +79,14 @@ async function loadAllPacksWithBox(): Promise<PackWithBox[]> {
             boxPrice: Number((hit.priceText ?? '').replace(/[^\d]/g, '')) || 0,
           };
         }
-        const fetcher = fetchSnkrdunkApparelGroup(pack.apparelGroupId, {
-          apparelCategoryId: 14,
-          page: 1,
-          perPage: 1,
-        });
-        const r = await Promise.race([fetcher, timer]);
-        const box = r?.apparels?.[0] ?? null;
+        const r = await Promise.race([
+          api<{ data: SnkrdunkApparelGroupPage | null }>(
+            `/api/snkrdunk/apparel-groups/${pack.apparelGroupId}?apparelCategoryId=14&page=1&perPage=1`,
+            { auth: false },
+          ),
+          timer,
+        ]);
+        const box = r?.data?.apparels?.[0] ?? null;
         const localized = box?.localizedName ?? null;
         return {
           ...pack,
