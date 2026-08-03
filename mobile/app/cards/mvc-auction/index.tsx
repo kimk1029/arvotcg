@@ -377,7 +377,7 @@ export default function MvcAuctionScreen() {
 
         {/* filter chips */}
         {tab === 'live' && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 20, paddingBottom: 20 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingBottom: 20 }}>
             {FILTERS.map((f) => {
               const on = filter === f;
               return (
@@ -405,7 +405,7 @@ export default function MvcAuctionScreen() {
             {tab === 'live' && featuredFiltered.length > 0 && (
               <>
                 <SectionHead title="🔥 마감 임박" />
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 13, paddingHorizontal: 20, paddingBottom: 24 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 13, paddingHorizontal: 20, paddingBottom: 24 }}>
                   {featuredFiltered.map((it, i) => {
                     const bid = bidFor(it);
                     const fav = isFav(String(it.articleId));

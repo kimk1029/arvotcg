@@ -313,7 +313,7 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
         <Text style={ts(16, '800', P.ink)}>방문 후기</Text>
         <Text style={ts(12, '600', P.ink3)}>{reviewFilter === 'all' ? `전체 ${total}개` : `${shopName(reviewFilter)} ${total}개`}</Text>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, paddingHorizontal: 16, paddingBottom: 12 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 7, paddingHorizontal: 16, paddingBottom: 12 }}>
         {filters.map((f) => {
           const on = reviewFilter === f.id;
           return (

@@ -221,16 +221,20 @@ export default function SnkrdunkDetail() {
   return (
     <View style={{ flex: 1, backgroundColor: tc.paper }}>
       <AppBar onBack={() => router.back()} title="시세 상세" />
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-        {loading ? (
-          <View style={{ padding: 40, alignItems: 'center' }}>
-            <PixelText variant={txt} size={10} color={tc.ink3}>불러오는 중...</PixelText>
-          </View>
-        ) : !apparel ? (
-          <View style={{ padding: 40, alignItems: 'center' }}>
-            <PixelText variant={txt} size={10} color={tc.ink3}>상품 정보를 가져오지 못했습니다.</PixelText>
-          </View>
-        ) : (
+      {/* ScrollView 는 데이터 도착 후 마운트 — 항상 마운트해 두고 내용만 갈아끼우면
+          Fabric(RN 0.81) 안드로이드가 콘텐츠 높이를 재측정하지 못해 뷰포트 아래
+          자식들이 통째로 클리핑되는 버그가 있다(일본판 섹션 미표시 원인).
+          정상 동작하는 packs/[code] 와 동일한 조건부 마운트 패턴. */}
+      {loading ? (
+        <View style={{ padding: 40, alignItems: 'center' }}>
+          <PixelText variant={txt} size={10} color={tc.ink3}>불러오는 중...</PixelText>
+        </View>
+      ) : !apparel ? (
+        <View style={{ padding: 40, alignItems: 'center' }}>
+          <PixelText variant={txt} size={10} color={tc.ink3}>상품 정보를 가져오지 못했습니다.</PixelText>
+        </View>
+      ) : (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
           <>
             {/* ── HERO ── */}
             <View style={{ paddingHorizontal: 14 }}>
@@ -339,19 +343,23 @@ export default function SnkrdunkDetail() {
 
             {region === '일본판' ? (
             <>
-            {/* ── 등급 카드 (가로 스크롤) ── */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 14, paddingVertical: 14, gap: 12 }}>
+            {/* ── 등급 카드 (3열) — 가로 ScrollView 는 RN 0.81 Fabric 에서 이 화면의
+                콘텐츠 높이를 NaN(MIN_VALUE)으로 측정해 이후 섹션 전체가 사라지는
+                버그가 있어 일반 flex 행으로 렌더한다. 웹도 스크롤 없는 그리드. */}
+            <View style={{ flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 14, gap: 8 }}>
               {grades.map((g) => {
                 const isSel = g.key === effectiveGrade;
                 const gc = (GRADE_COLOR[g.key] ?? (() => tc.ink))(tc);
                 return (
-                  <Pressable key={g.key} onPress={() => setGradeKey(g.key)} style={{ width: 158 }}>
+                  <Pressable key={g.key} onPress={() => setGradeKey(g.key)} style={{ flex: 1 }}>
                     <PixelFrame bg={tc.white} border={isSel ? gc : tc.pap3} borderWidth={isSel ? 3 : 2}>
                       <View style={{ padding: 14 }}>
                         <View style={{ alignSelf: 'flex-start', backgroundColor: gc, paddingHorizontal: 9, paddingVertical: 4 }}>
                           <PixelText variant={txt} size={10} weight="bold" color={tc.white}>{g.key}</PixelText>
                         </View>
-                        <PixelText variant={txt} size={18} weight="bold" color={tc.ink} numberOfLines={1} adjustsFontSizeToFit style={{ marginTop: 10 }}>{fmtYen(g.recent)}</PixelText>
+                        {/* adjustsFontSizeToFit 금지 — 가로 ScrollView(무한폭 측정) 안에서 RN 0.81
+                            Android 레이아웃이 폭주해 섹션 전체가 빈 공간이 되는 원인이었음. */}
+                        <PixelText variant={txt} size={15} weight="bold" color={tc.ink} numberOfLines={1} style={{ marginTop: 10 }}>{fmtYen(g.recent)}</PixelText>
                         <View style={{ marginTop: 11, gap: 8 }}>
                           <GradeRow tc={tc} txt={txt} label="평균가" value={fmtYen(g.avg)} />
                           <GradeRow tc={tc} txt={txt} label="최근 최저" value={fmtYen(g.low)} />
@@ -363,7 +371,7 @@ export default function SnkrdunkDetail() {
                   </Pressable>
                 );
               })}
-            </ScrollView>
+            </View>
 
             {/* ── PSA 인구 리포트 (등급별 pop — cert 1회 등록 후 공유, 웹 동일) ── */}
             <PsaPopPanel setCode={kreamHints.setCode} cardNumber={kreamHints.cardNumber} />
@@ -381,7 +389,7 @@ export default function SnkrdunkDetail() {
             <View style={{ marginHorizontal: 14 }}>
               <SectHd title="가격 추이" more={chartMore} />
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 14, gap: 6, marginBottom: 10 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 14, gap: 6, marginBottom: 10 }}>
               {RANGES.map((r, i) => {
                 const active = i === rangeIdx;
                 return (
@@ -390,7 +398,7 @@ export default function SnkrdunkDetail() {
                   </Pressable>
                 );
               })}
-            </ScrollView>
+            </View>
             <View style={{ marginHorizontal: 14, marginBottom: 12 }}>
               <PixelFrame bg={tc.white}>
                 <View style={{ padding: 14 }}>
@@ -405,7 +413,7 @@ export default function SnkrdunkDetail() {
             </View>
             {/* 등급 토글 — 거래가 있는 등급(PSA10/RAW 등)만 노출, 바꿔서 볼 수 있게 (웹 동일). */}
             {tradeGrades.length > 1 ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 14, gap: 6, marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 14, gap: 6, marginBottom: 10 }}>
                 {tradeGrades.map((g) => {
                   const active = g.key === effectiveGrade;
                   const gc = (GRADE_COLOR[g.key] ?? (() => tc.ink))(tc);
@@ -428,7 +436,7 @@ export default function SnkrdunkDetail() {
                     </Pressable>
                   );
                 })}
-              </ScrollView>
+              </View>
             ) : null}
             <View style={{ marginHorizontal: 14, marginBottom: 12 }}>
               <PixelFrame bg={flat ? tc.white : tc.ink2}>
@@ -489,8 +497,8 @@ export default function SnkrdunkDetail() {
             </>
             ) : null}
           </>
-        )}
-      </ScrollView>
+        </ScrollView>
+      )}
 
       <Modal visible={zoomOpen} transparent animationType="fade" onRequestClose={() => setZoomOpen(false)}>
         <Pressable onPress={() => setZoomOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
