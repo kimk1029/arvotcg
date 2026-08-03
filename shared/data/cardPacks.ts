@@ -95,7 +95,7 @@ export const CARD_PACKS: CardPackMeta[] = [
   { code: 's6a', name: '이브이 히어로즈', shortName: '이브이 히어로즈', emoji: '🦊', bg: '#EA580C', releasedAt: '2021-05-28', searchQuery: 'イーブイヒーローズ', apparelGroupId: 450 },
   { code: 's4a', name: '샤이니 스타 V', shortName: '샤이니 스타 V', emoji: '🌟', bg: '#7C3AED', releasedAt: '2020-11-20', searchQuery: 'シャイニースターV', apparelGroupId: 1565 },
 
-  // ── 원피스 카드게임 (웹 시세확인 테마 탭 전용 — 모바일 미노출) ──
+  // ── 원피스 카드게임 (웹·앱 시세확인 게임 탭) ──
   // apparelGroupId 는 snkrdunk /v1/apparel-groups/{id} 스캔으로 확인한 값. 0 = 검색 폴백.
   { code: 'op-kessen', setCode: 'OP16', game: 'onepiece', name: '결전의 시각', shortName: '결전의 시각', emoji: '⚔️', bg: '#B22D36', releasedAt: '2026-05-30', searchQuery: '決戦の刻', apparelGroupId: 3479 },
   { code: 'op-will', setCode: 'OP13', game: 'onepiece', name: '계승되는 의지', shortName: '계승되는 의지', emoji: '🔥', bg: '#C2410C', searchQuery: '受け継がれる意志', apparelGroupId: 0 },

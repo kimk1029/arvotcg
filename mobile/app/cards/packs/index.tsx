@@ -21,7 +21,7 @@ import { LoadingState, ErrorView } from '@/components/cv/ListState';
 import { colors } from '@/theme/tokens';
 import { CARD_PACKS, packSetCode, type CardPackMeta, type CardPackGame } from '@/data/cardPacks';
 import { useCurrency } from '@/components/CurrencyProvider';
-import { fetchSnkrdunkApparelGroup } from '@/services/snkrdunk';
+import { fetchSnkrdunkApparelGroup, searchSnkrdunkByQuery } from '@/services/snkrdunk';
 import { localizeCardName } from '@/lib/cardNameKo';
 import { useGamePrefs } from '@/components/GamePrefsProvider';
 
@@ -58,6 +58,23 @@ async function loadAllPacksWithBox(): Promise<PackWithBox[]> {
       };
       try {
         const timer = new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000));
+        if (!pack.apparelGroupId) {
+          // 그룹 미확인 팩(원피스 일부 등) — 웹 packs/page.tsx 동일: 검색 1페이지의
+          // 첫 박스 매물로 대표 이미지/시세.
+          const r = await Promise.race([
+            searchSnkrdunkByQuery(`${pack.searchQuery} ボックス`, 1),
+            timer,
+          ]);
+          const hit = r?.[0] ?? null;
+          if (!hit) return fallback;
+          return {
+            ...pack,
+            boxName: hit.name,
+            boxKoName: localizeCardName(hit.name),
+            boxImageUrl: hit.imageUrl,
+            boxPrice: Number((hit.priceText ?? '').replace(/[^\d]/g, '')) || 0,
+          };
+        }
         const fetcher = fetchSnkrdunkApparelGroup(pack.apparelGroupId, {
           apparelCategoryId: 14,
           page: 1,

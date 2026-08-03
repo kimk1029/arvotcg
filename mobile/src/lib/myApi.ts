@@ -10,8 +10,11 @@ import { localizeCardName } from './cardNameKo';
 import { shortenName } from '../../../shared/util/shortenName';
 import {
   fetchAllSnkrdunkApparelGroup,
+  fetchSnkrdunkApparel,
   fetchSnkrdunkApparelGroup,
+  searchSnkrdunkByQuery,
   type SnkrdunkApparel,
+  type SnkrdunkApparelGroupPage,
 } from '@/services/snkrdunk';
 
 export type TradeType = 'buy' | 'sell';
@@ -398,25 +401,35 @@ async function runWithConcurrency<T, R>(
 
 async function resolvePack(pack: CardPackMeta, limit: number): Promise<PackWithHits> {
   const singlesPerPage = Math.min(Math.max(limit * 4, 20), 100);
-  const [singles, boxesPage] = await Promise.all([
-    limit <= 12
-      ? fetchSnkrdunkApparelGroup(pack.apparelGroupId, {
-          apparelCategoryId: 25,
-          page: 1,
-          perPage: singlesPerPage,
-        }).then((p) => p?.apparels ?? [])
-      : fetchAllSnkrdunkApparelGroup(pack.apparelGroupId, {
-          apparelCategoryId: 25,
-          maxItems: Math.max(limit, 100),
-        }),
-    fetchSnkrdunkApparelGroup(pack.apparelGroupId, {
-      apparelCategoryId: 14,
-      page: 1,
-      perPage: 5,
-    }),
-  ]);
-  const hits = singles.filter((a) => a.minPrice > 0).slice(0, limit).map(toHitCard);
-  const box = (boxesPage?.apparels ?? []).find((a) => a.minPrice > 0) ?? boxesPage?.apparels?.[0] ?? null;
+  let groupSingles: SnkrdunkApparel[] = [];
+  let boxesPage: SnkrdunkApparelGroupPage | null = null;
+  if (pack.apparelGroupId) {
+    [groupSingles, boxesPage] = await Promise.all([
+      limit <= 12
+        ? fetchSnkrdunkApparelGroup(pack.apparelGroupId, {
+            apparelCategoryId: 25,
+            page: 1,
+            perPage: singlesPerPage,
+          }).then((p) => p?.apparels ?? [])
+        : fetchAllSnkrdunkApparelGroup(pack.apparelGroupId, {
+            apparelCategoryId: 25,
+            maxItems: Math.max(limit, 100),
+          }),
+      fetchSnkrdunkApparelGroup(pack.apparelGroupId, {
+        apparelCategoryId: 14,
+        page: 1,
+        perPage: 5,
+      }),
+    ]);
+  }
+  // 신규팩처럼 매물 0 이면 전부 노출 — 서버 resolveGroupSingles 와 동일 규칙.
+  const priced = groupSingles.filter((a) => a.minPrice > 0);
+  let hits = (priced.length > 0 ? priced : groupSingles).slice(0, limit).map(toHitCard);
+  let box = (boxesPage?.apparels ?? []).find((a) => a.minPrice > 0) ?? boxesPage?.apparels?.[0] ?? null;
+  // 그룹 미확인(groupId 0)·빈 그룹 팩(원피스 일부 등) — 서버 resolveSearchFill 처럼 검색 폴백.
+  if (hits.length === 0 && !box) {
+    ({ hits, box } = await resolvePackBySearch(pack, limit));
+  }
   return {
     code: pack.code,
     name: pack.name,
@@ -429,6 +442,27 @@ async function resolvePack(pack: CardPackMeta, limit: number): Promise<PackWithH
     boxKoName: box ? localizeCardName(box.localizedName) : null,
     hits,
   };
+}
+
+async function resolvePackBySearch(
+  pack: CardPackMeta,
+  limit: number,
+): Promise<{ hits: PackHitCard[]; box: SnkrdunkApparel | null }> {
+  const results = await searchSnkrdunkByQuery(pack.searchQuery, 1);
+  // 검색 타일엔 시세·itemKind 가 없어 apparelId 별로 다시 fetch (동시성 cap 6).
+  const pool = results.slice(0, Math.min(Math.max(limit, 12), 40));
+  const hydrated = await runWithConcurrency(pool, 6, (r) => fetchSnkrdunkApparel(r.apparelId));
+  const apparels = hydrated.filter((a): a is SnkrdunkApparel => a != null);
+  const boxes = apparels.filter((a) => a.itemKind === 'box');
+  const singles = apparels.filter((a) => a.itemKind !== 'box');
+  const priced = singles.filter((a) => a.minPrice > 0);
+  const hits = [
+    ...(priced.length > 0 ? priced : singles).slice(0, limit),
+    // 웹 selectHits 와 동일 — 매물 있는 박스는 목록 끝에 붙는다.
+    ...boxes.filter((b) => b.minPrice > 0),
+  ].map(toHitCard);
+  const box = boxes.find((a) => a.minPrice > 0) ?? boxes[0] ?? null;
+  return { hits, box };
 }
 
 function toHitCard(a: SnkrdunkApparel): PackHitCard {
