@@ -14,7 +14,7 @@ import { ScanPreview } from '@/components/cv/ScanPreview';
 import { BatchScanPreview } from '@/components/cv/BatchScanPreview';
 import { useChrome } from '@/components/ChromeContext';
 import { colors } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useThemeColors, useThemeTextVariant, useTheme } from '@/components/ThemeProvider';
 import { CARDS, GAMES, fmt, priceLabel, displayCardName, inferCardCurrency, cardProfit, type CardItem, type Game, type Rarity, type PriceCurrency } from '@/data/cardvault';
 import { addCards } from '@/lib/collection';
 import { usePriceMode } from '@/lib/priceMode';
@@ -115,6 +115,28 @@ export default function ScanScreen() {
 function ScanScreenInner() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  const { theme } = useTheme();
+  // 직접입력 팔레트 — 웹 ManualAddForm CLEAN_P/VAR_P 미러 (클린=프로토타입 고정색, 그 외=테마 토큰).
+  const mclean = theme === 'clean';
+  const MP = {
+    pageBg: mclean ? '#ffffff' : tc.paper,
+    ink: mclean ? '#16161a' : tc.ink,
+    ink2: mclean ? '#8E8E93' : tc.ink2,
+    ink3: mclean ? '#9A9AA0' : tc.ink3,
+    accent: mclean ? '#FF7A00' : tc.gold,
+    accentSoft: mclean ? '#FFF6EE' : tc.pap2,
+    line: mclean ? '#F0F0F2' : tc.pap3,
+    fieldBg: mclean ? '#F7F7F9' : tc.pap2,
+    fieldBd: mclean ? '#E5E5EA' : tc.pap3,
+    nameBg: mclean ? '#F2F2F4' : tc.pap2,
+    radioBd: mclean ? '#D2D2D8' : tc.ink3,
+    btnBg: mclean ? '#16161a' : tc.ink,
+    btnFg: mclean ? '#ffffff' : tc.paper,
+    disBg: mclean ? '#F2F2F4' : tc.pap2,
+    disFg: mclean ? '#B0B0B6' : tc.ink3,
+    red: mclean ? '#F5333F' : tc.red,
+    cta: mclean ? '#0E7C66' : tc.grn,
+  } as const;
   const params = useLocalSearchParams<{
     mode?: string;
     regApparelId?: string;
@@ -571,7 +593,17 @@ function ScanScreenInner() {
           }
           setMode('choose');
         }}
-        title="카드 등록"
+        title={mode === 'manual' ? '카드 추가' : '카드 등록'}
+        right={
+          mode === 'manual' ? (
+            <Pressable
+              onPress={() => setMode('choose')}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: MP.btnBg, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 }}
+            >
+              <PixelText variant="ko" size={11} weight="bold" color={MP.btnFg}>📷 스캔</PixelText>
+            </Pressable>
+          ) : undefined
+        }
       />
       {mode === 'preview' && photoUri && photoMeta ? (
         <ScanPreview
@@ -791,587 +823,367 @@ function ScanScreenInner() {
         )}
 
         {mode === 'manual' && (
-          <View style={{ paddingHorizontal: 14, gap: 14 }}>
-            <View>
-              <PixelText variant={txt} size={11} style={{ marginBottom: 8, letterSpacing: 1 }}>
-                🎮 게임 <Text style={{ color: tc.red }}>*</Text>
-              </PixelText>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {(GAMES.slice(1) as Game[]).map((g) => (
-                  <Chip key={g} on={manGame === g} onPress={() => setManGame(g)} size={9} px={9} py={6}>
-                    {g}
-                  </Chip>
-                ))}
-              </View>
-            </View>
-
-            <View>
-              <PixelText variant={txt} size={11} style={{ marginBottom: 8, letterSpacing: 1 }}>
-                📛 카드명 <Text style={{ color: tc.ink3 }}>(이름만으로도 검색 가능)</Text>
-              </PixelText>
-              <TextInput
-                value={manName}
-                onChangeText={setManName}
-                placeholder="예) 리자몽 EX, 블랙 로터스"
-                placeholderTextColor={tc.ink4}
-                style={inputStyle}
-              />
-            </View>
-
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <PixelText variant={txt} size={10} style={{ marginBottom: 8, letterSpacing: 1 }}>
-                  세트 코드 <Text style={{ color: tc.ink3 }}>(선택)</Text>
-                </PixelText>
-                <TextInput
-                  value={manSet}
-                  onChangeText={(t) => setManSet(t.toUpperCase())}
-                  placeholder="예) SV1"
-                  placeholderTextColor={tc.ink4}
-                  autoCapitalize="characters"
-                  style={inputStyle}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <PixelText variant={txt} size={10} style={{ marginBottom: 8, letterSpacing: 1 }}>
-                  카드 번호 <Text style={{ color: tc.ink3 }}>(선택)</Text>
-                </PixelText>
-                <TextInput
-                  value={manNum}
-                  onChangeText={setManNum}
-                  placeholder="006"
-                  placeholderTextColor={tc.ink4}
-                  style={inputStyle}
-                />
-              </View>
-            </View>
-
-            <View>
-              <PixelText variant={txt} size={11} style={{ marginBottom: 8, letterSpacing: 1 }}>
-                ✨ 희귀도 <Text style={{ color: tc.red }}>*</Text>
-              </PixelText>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {(['C', 'U', 'R', 'SR', 'HR', 'S'] as Rarity[]).map((r) => (
-                  <Chip key={r} on={manRar === r} onPress={() => setManRar(r)} size={11} px={12} py={8}>
-                    {r}
-                  </Chip>
-                ))}
-              </View>
-            </View>
-
-            {manErr && (
-              <PixelText variant={txt} size={10} color={tc.red}>
-                ⚠ {manErr}
-              </PixelText>
-            )}
-
+          <View style={{ paddingHorizontal: 16 }}>
+            {/* ── 입력 폼 — 웹 ManualAddForm 프로토타입 레이아웃 (세트코드+번호 → 카드이름 → 검색) ── */}
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <PixelPress wrapStyle={{ flex: 1 }} onPress={() => setMode('choose')}>
-                <View style={{ paddingVertical: 11, alignItems: 'center' }}>
-                  <PixelText variant={txt} size={11}>
-                    ← 뒤로
-                  </PixelText>
+              <View style={{ flex: 1 }}>
+                <PixelText variant="ko" size={10} weight="bold" color={MP.ink2} style={{ marginBottom: 5, paddingLeft: 2 }}>세트코드</PixelText>
+                <View style={{ backgroundColor: MP.fieldBg, borderWidth: 1.5, borderColor: MP.fieldBd, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10 }}>
+                  <TextInput
+                    value={manSet}
+                    onChangeText={(t) => setManSet(t.toUpperCase())}
+                    placeholder="예) SV4a"
+                    placeholderTextColor={MP.ink3}
+                    autoCapitalize="characters"
+                    maxLength={16}
+                    style={{ fontSize: 14, fontWeight: '700', color: MP.ink, padding: 0 }}
+                  />
                 </View>
-              </PixelPress>
-              {/* 세트+번호 또는 카드명 중 하나만 있으면 검색 가능. */}
-              <PixelPress
-                wrapStyle={{ flex: 2 }}
-                onPress={runManualSearch}
-                disabled={manSearching || !((manSet && manNum) || manName.trim())}
-                bg={!manSearching && ((manSet && manNum) || manName.trim()) ? tc.gold : tc.pap3}
-                hi={!manSearching && ((manSet && manNum) || manName.trim()) ? tc.goldLt : null}
-                lo={!manSearching && ((manSet && manNum) || manName.trim()) ? tc.goldDk : null}
-              >
-                <View style={{ paddingVertical: 11, alignItems: 'center' }}>
-                  <PixelText variant={txt} size={11}>
-                    {manSearching ? '검색 중...' : '🔍 카드 검색'}
-                  </PixelText>
+              </View>
+              <View style={{ flex: 1 }}>
+                <PixelText variant="ko" size={10} weight="bold" color={MP.ink2} style={{ marginBottom: 5, paddingLeft: 2 }}>카드번호</PixelText>
+                <View style={{ backgroundColor: MP.fieldBg, borderWidth: 1.5, borderColor: MP.fieldBd, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10 }}>
+                  <TextInput
+                    value={manNum}
+                    onChangeText={setManNum}
+                    placeholder="예) 201/165"
+                    placeholderTextColor={MP.ink3}
+                    maxLength={16}
+                    style={{ fontSize: 14, fontWeight: '700', color: MP.ink, padding: 0 }}
+                  />
                 </View>
-              </PixelPress>
+              </View>
             </View>
+            <View style={{ marginTop: 9 }}>
+              <PixelText variant="ko" size={10} weight="bold" color={MP.ink2} style={{ marginBottom: 5, paddingLeft: 2 }}>카드이름</PixelText>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: MP.nameBg, borderWidth: 1.5, borderColor: MP.accent, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 11 }}>
+                <PixelText variant="ko" size={13} color={MP.ink}>🔍</PixelText>
+                <TextInput
+                  value={manName}
+                  onChangeText={setManName}
+                  placeholder="예) 리자몽 ex"
+                  placeholderTextColor={MP.ink3}
+                  maxLength={60}
+                  style={{ flex: 1, fontSize: 14.5, fontWeight: '700', color: MP.ink, padding: 0 }}
+                />
+                {manName ? (
+                  <Pressable onPress={() => setManName('')} hitSlop={6}>
+                    <PixelText variant="ko" size={13} color={MP.ink3}>ⓧ</PixelText>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+            {manErr ? (
+              <PixelText variant="ko" size={11} weight="bold" color={MP.red} style={{ marginTop: 8 }}>⚠ {manErr}</PixelText>
+            ) : null}
+            <Pressable
+              disabled={manSearching}
+              onPress={runManualSearch}
+              style={{ marginTop: 11, height: 44, borderRadius: 12, backgroundColor: MP.btnBg, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, opacity: manSearching ? 0.6 : 1 }}
+            >
+              <PixelText variant="ko" size={13} weight="bold" color={MP.btnFg}>{manSearching ? '검색 중...' : '🔍 카드 검색'}</PixelText>
+            </Pressable>
 
-            {/* 검색 결과 — 필터 칩 → 정렬 → 리스트(단일 선택 라디오). 웹 ManualAddForm 패리티 */}
-            {manSearched && (
-              <View style={{ gap: 8 }}>
-                {manResults.length > 0 && (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                    <Chip
-                      on={!manSetFilter && !manRarityFilter}
-                      onPress={() => { setManSetFilter(null); setManRarityFilter(null); setManMenu(null); }}
-                      size={9}
-                      px={9}
-                      py={6}
-                    >
-                      전체
-                    </Chip>
-                    {manSetOptions.length > 0 && (
-                      <Chip
-                        on={!!manSetFilter}
-                        onPress={() => setManMenu(manMenu === 'set' ? null : 'set')}
-                        size={9}
-                        px={9}
-                        py={6}
-                      >
-                        {`${manSetFilter ?? '세트'} ▾`}
-                      </Chip>
-                    )}
-                    {manRarityOptions.length > 0 && (
-                      <Chip
-                        on={!!manRarityFilter}
-                        onPress={() => setManMenu(manMenu === 'rarity' ? null : 'rarity')}
-                        size={9}
-                        px={9}
-                        py={6}
-                      >
-                        {`${manRarityFilter ?? '레어도'} ▾`}
-                      </Chip>
-                    )}
-                  </View>
-                )}
-                {manMenu === 'set' && (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                    <Chip on={!manSetFilter} onPress={() => { setManSetFilter(null); setManMenu(null); }} size={9} px={9} py={6}>
-                      전체 세트
-                    </Chip>
-                    {manSetOptions.map((s) => (
-                      <Chip key={s} on={manSetFilter === s} onPress={() => { setManSetFilter(s); setManMenu(null); }} size={9} px={9} py={6}>
-                        {s}
-                      </Chip>
-                    ))}
-                  </View>
-                )}
-                {manMenu === 'rarity' && (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                    <Chip on={!manRarityFilter} onPress={() => { setManRarityFilter(null); setManMenu(null); }} size={9} px={9} py={6}>
-                      전체 레어도
-                    </Chip>
-                    {manRarityOptions.map((r) => (
-                      <Chip key={r} on={manRarityFilter === r} onPress={() => { setManRarityFilter(r); setManMenu(null); }} size={9} px={9} py={6}>
-                        {r === 'PROMO' ? '프로모' : r}
-                      </Chip>
-                    ))}
-                  </View>
-                )}
+            {!manSearched && !manSearching ? (
+              <PixelText variant="ko" size={12} color={MP.ink3} style={{ textAlign: 'center', paddingVertical: 46, lineHeight: 20 }}>
+                세트코드+카드번호 또는 카드이름으로 검색해 보세요.{'\n'}이름만 입력해도 검색돼요.
+              </PixelText>
+            ) : null}
 
-                {/* 결과 수 + 정렬 */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <PixelText variant={txt} size={10} color={tc.ink3} style={{ letterSpacing: 1 }}>
-                    검색 결과 {manDisplayed.length}건
+            {/* ── 검색 결과 — 필터 칩(드롭다운 메뉴) → 결과 수+정렬 → 라디오 행 리스트 ── */}
+            {manSearched ? (
+              <>
+                {manResults.length > 0 ? (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 14, paddingBottom: 8 }}>
+                    <MChip P={MP} active={!manSetFilter && !manRarityFilter} onPress={() => { setManSetFilter(null); setManRarityFilter(null); setManMenu(null); }} label="전체" />
+                    {manSetOptions.length > 0 ? (
+                      <MChip P={MP} active={!!manSetFilter} onPress={() => setManMenu(manMenu === 'set' ? null : 'set')} label={`${manSetFilter ?? '세트'} ▾`} />
+                    ) : null}
+                    {manRarityOptions.length > 0 ? (
+                      <MChip P={MP} active={!!manRarityFilter} onPress={() => setManMenu(manMenu === 'rarity' ? null : 'rarity')} label={`${manRarityFilter ?? '레어도'} ▾`} />
+                    ) : null}
+                  </View>
+                ) : null}
+                {manMenu === 'set' ? (
+                  <MMenu P={MP}>
+                    <MMenuItem P={MP} active={!manSetFilter} onPress={() => { setManSetFilter(null); setManMenu(null); }} label="전체 세트" />
+                    {manSetOptions.map((sOpt) => (
+                      <MMenuItem key={sOpt} P={MP} active={manSetFilter === sOpt} onPress={() => { setManSetFilter(sOpt); setManMenu(null); }} label={sOpt} />
+                    ))}
+                  </MMenu>
+                ) : null}
+                {manMenu === 'rarity' ? (
+                  <MMenu P={MP}>
+                    <MMenuItem P={MP} active={!manRarityFilter} onPress={() => { setManRarityFilter(null); setManMenu(null); }} label="전체 레어도" />
+                    {manRarityOptions.map((rOpt) => (
+                      <MMenuItem key={rOpt} P={MP} active={manRarityFilter === rOpt} onPress={() => { setManRarityFilter(rOpt); setManMenu(null); }} label={rOpt === 'PROMO' ? '프로모' : rOpt} />
+                    ))}
+                  </MMenu>
+                ) : null}
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 2 }}>
+                  <PixelText variant="ko" size={12} color={MP.ink3}>
+                    검색 결과 <PixelText variant="ko" size={12} weight="bold" color={MP.ink}>{manDisplayed.length}</PixelText>개
                     {manDisplayed.length !== manResults.length ? ` (전체 ${manResults.length})` : ''}
                   </PixelText>
-                  <Pressable onPress={() => setManMenu(manMenu === 'sort' ? null : 'sort')}>
-                    <PixelText variant={txt} size={10} color={tc.ink}>
-                      {MAN_SORT_LABEL[manSort]} ▾
-                    </PixelText>
+                  <Pressable onPress={() => setManMenu(manMenu === 'sort' ? null : 'sort')} hitSlop={6}>
+                    <PixelText variant="ko" size={12} weight="bold" color={MP.ink}>{MAN_SORT_LABEL[manSort]} ▾</PixelText>
                   </Pressable>
                 </View>
-                {manMenu === 'sort' && (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                {manMenu === 'sort' ? (
+                  <MMenu P={MP}>
                     {(Object.keys(MAN_SORT_LABEL) as ManSortKey[]).map((k) => (
-                      <Chip key={k} on={manSort === k} onPress={() => { setManSort(k); setManMenu(null); }} size={9} px={9} py={6}>
-                        {MAN_SORT_LABEL[k]}
-                      </Chip>
+                      <MMenuItem key={k} P={MP} active={manSort === k} onPress={() => { setManSort(k); setManMenu(null); }} label={MAN_SORT_LABEL[k]} />
                     ))}
-                  </View>
-                )}
+                  </MMenu>
+                ) : null}
 
                 {manDisplayed.map(({ c, idx }) => {
                   const sel = manSelectedIdx === idx;
                   const rar = manRarityOf(c);
                   const rarC = rar ? (MAN_RARITY_BADGE[rar] ?? { fg: '#8E8E93', bg: '#F2F2F4' }) : null;
+                  const sub = [c.set && c.set !== '-' ? c.set : '', c.num && c.num !== '-' ? c.num : ''].filter(Boolean).join(' · ');
                   return (
-                    <PixelPress
+                    <Pressable
                       key={c.id}
                       onPress={() => setManSelectedIdx(sel ? null : idx)}
-                      bg={sel ? tc.gold : tc.white}
-                      borderWidth={3}
-                      shadow={4}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', gap: 13, padding: 12, borderRadius: 14, marginBottom: 8,
+                        backgroundColor: sel ? MP.accentSoft : MP.pageBg,
+                        borderWidth: 1.5, borderColor: sel ? MP.accent : MP.line,
+                      }}
                     >
-                      {/* 썸네일 크게(카드 실물비 63:88), 컨테이너 여백 최소화. */}
-                      <View style={{ flexDirection: 'row', gap: 10, padding: 4, paddingRight: 10, alignItems: 'center' }}>
-                        <View style={{ width: 76, height: 106, borderColor: tc.ink, borderWidth: 2 }}>
-                          <CardThumb card={c} height={102} emojiSize={30} showLabel={false} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <PixelText variant="ko" size={11} weight="bold">{displayCardName(c.name)}</PixelText>
-                          <PixelText variant={txt} size={9} color={tc.ink3} style={{ marginTop: 3 }}>
-                            {c.set} · {c.num}
-                          </PixelText>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5, flexWrap: 'wrap' }}>
-                            {rar && rarC && (
-                              <View style={{ backgroundColor: rarC.bg, paddingHorizontal: 6, paddingVertical: 2 }}>
-                                <PixelText variant="ko" size={8} weight="bold" color={rarC.fg}>
-                                  {rar === 'PROMO' ? '프로모' : rar}
-                                </PixelText>
-                              </View>
-                            )}
-                            <View style={{ borderWidth: 1, borderColor: tc.ink4, paddingHorizontal: 6, paddingVertical: 2 }}>
-                              <PixelText variant="ko" size={8} color={tc.ink2}>일본판</PixelText>
+                      <View style={{ width: 52, height: 72, borderRadius: 8, overflow: 'hidden', backgroundColor: MP.fieldBg, elevation: 3, shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 4, shadowOffset: { width: 0, height: 3 } }}>
+                        <CardThumb card={c} height={72} emojiSize={24} showLabel={false} />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <PixelText variant="ko" size={13} weight="bold" color={MP.ink} numberOfLines={1}>{displayCardName(c.name)}</PixelText>
+                        {sub ? (
+                          <PixelText variant="ko" size={11} color={MP.ink3} numberOfLines={1} style={{ marginTop: 3 }}>{sub}</PixelText>
+                        ) : null}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 7, flexWrap: 'wrap' }}>
+                          {rar && rarC ? (
+                            <View style={{ backgroundColor: rarC.bg, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+                              <PixelText variant="ko" size={9} weight="bold" color={rarC.fg}>{rar === 'PROMO' ? '프로모' : rar}</PixelText>
                             </View>
-                            <PixelText variant={txt} size={9} color={c.price > 0 ? tc.grnDk : tc.ink3}>
+                          ) : null}
+                          <View style={{ borderWidth: 1, borderColor: MP.fieldBd, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+                            <PixelText variant="ko" size={9} weight="bold" color={MP.ink2}>일본판</PixelText>
+                          </View>
+                          {c.price > 0 ? (
+                            <PixelText variant="ko" size={10} weight="bold" color={MP.ink} style={{ marginLeft: 2 }}>
                               {priceLabel(c.price, inferCardCurrency(c))}
                             </PixelText>
-                          </View>
-                        </View>
-                        {/* 단일 선택 라디오 — 웹과 동일한 선택 모델 */}
-                        <View
-                          style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: 11,
-                            borderWidth: 2,
-                            borderColor: sel ? tc.ink : tc.ink4,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: tc.white,
-                          }}
-                        >
-                          {sel && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: tc.ink }} />}
+                          ) : null}
                         </View>
                       </View>
-                    </PixelPress>
+                      <View style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: sel ? MP.accent : MP.radioBd, alignItems: 'center', justifyContent: 'center', backgroundColor: MP.pageBg }}>
+                        {sel ? <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: MP.accent }} /> : null}
+                      </View>
+                    </Pressable>
                   );
                 })}
-                {/* 더보기 — 다음 페이지 이어서 로드 */}
-                {manHasMore && (
-                  <PixelPress onPress={loadMoreManual} disabled={manLoadingMore} borderWidth={3} shadow={4}>
-                    <View style={{ paddingVertical: 11, alignItems: 'center' }}>
-                      <PixelText variant={txt} size={10}>
-                        {manLoadingMore ? '불러오는 중...' : '↓ 결과 더보기'}
-                      </PixelText>
-                    </View>
-                  </PixelPress>
-                )}
-                {/* 맨 아래 고정 — 검색에 안 잡혀도 입력한 정보로 직접 등록 */}
-                <PixelPress onPress={() => openRegister(buildManualCard(), 'manual')} bg={tc.pap2} borderWidth={3} shadow={4}>
-                  <View style={{ flexDirection: 'row', gap: 10, padding: 4, paddingRight: 8, alignItems: 'center' }}>
-                    <View style={{ width: 76, height: 106, borderColor: tc.ink, borderWidth: 2, alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ fontSize: 26 }}>✍️</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <PixelText variant="ko" size={11} weight="bold">카드정보 직접 입력</PixelText>
-                      <PixelText variant="ko" size={9} color={tc.ink3} style={{ marginTop: 3 }}>
-                        찾는 카드가 없나요? 입력한 정보로 바로 등록
-                      </PixelText>
-                      <PixelText variant={txt} size={9} color={tc.ink3} style={{ marginTop: 3 }}>
-                        {manName || '무제 카드'} · {manSet || '-'} · {manNum || '-'}
-                      </PixelText>
-                    </View>
-                    <PixelText variant={txt} size={10} color={tc.blu}>선택 ▶</PixelText>
-                  </View>
-                </PixelPress>
-              </View>
-            )}
+
+                {manHasMore ? (
+                  <Pressable
+                    disabled={manLoadingMore}
+                    onPress={loadMoreManual}
+                    style={{ paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, borderColor: MP.fieldBd, backgroundColor: MP.pageBg, alignItems: 'center', marginBottom: 4 }}
+                  >
+                    <PixelText variant="ko" size={12} weight="bold" color={MP.ink}>{manLoadingMore ? '불러오는 중...' : '↓ 결과 더보기'}</PixelText>
+                  </Pressable>
+                ) : null}
+
+                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4, paddingTop: 12, paddingBottom: 8 }}>
+                  <PixelText variant="ko" size={12} weight="bold" color={MP.ink3}>찾는 카드가 없나요?</PixelText>
+                  <Pressable onPress={() => openRegister(buildManualCard(), 'manual')} hitSlop={6}>
+                    <PixelText variant="ko" size={12} weight="bold" color={MP.accent}>직접 입력하기</PixelText>
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
           </View>
         )}
 
-        {mode === 'register' && pendingCard && (() => {
-          const price = parseInt(buyPriceStr, 10);
-          const preview = cardProfit(
-            price > 0
-              ? { ...pendingCard, buyPrice: price, buyCurrency: buyCur, qty: buyQty }
-              : { ...pendingCard, qty: buyQty },
-            priceMode,
-          );
-          return (
-          <View style={{ paddingHorizontal: 14, gap: 16 }}>
-            {/* 확인된 카드 (3→4단계) */}
-            <PixelFrame borderWidth={3} shadow={5}>
-              <View style={{ flexDirection: 'row', gap: 12, padding: 12, alignItems: 'center' }}>
-                <View style={{ width: 56, height: 78, borderColor: tc.ink, borderWidth: 2 }}>
-                  <CardThumb card={pendingCard} height={74} emojiSize={26} showLabel={false} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <PixelText variant={txt} size={10} color={tc.grn} style={{ marginBottom: 5 }}>
-                    ✓ 이 카드를 등록합니다
-                  </PixelText>
-                  <PixelText variant="ko" size={12} weight="bold" style={{ lineHeight: 18 }}>
-                    {displayCardName(pendingCard.name)}
-                  </PixelText>
-                  <PixelText variant={txt} size={9} color={tc.ink3} style={{ marginTop: 3 }}>
-                    {pendingCard.set} · {pendingCard.num}
-                  </PixelText>
-                  <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <RarBadge rar={pendingCard.rar} />
-                    <PixelText variant={txt} size={9} color={tc.ink3}>
-                      현재 {priceLabel(cardProfit(pendingCard, priceMode).currentKrw, 'KRW')}
-                    </PixelText>
-                  </View>
-                </View>
+        {/* ── 카드 등록 — 웹 CardRegisterSheet 와 동일 구성/순서 (미리보기 → 직접뽑기 →
+            구입가격 → 날짜+수량 → 발매지역 → 등급 → 메모 → 등록 CTA) ── */}
+        {mode === 'register' && pendingCard && (
+          <View style={{ paddingHorizontal: 16, gap: 14 }}>
+            {/* 카드 미리보기 — 웹 cv-reg-preview */}
+            <View style={{ flexDirection: 'row', gap: 12, padding: 12, alignItems: 'center', backgroundColor: MP.fieldBg, borderRadius: 14 }}>
+              <View style={{ width: 56, height: 78, borderRadius: 8, overflow: 'hidden', backgroundColor: MP.pageBg }}>
+                <CardThumb card={pendingCard} height={78} emojiSize={26} showLabel={false} />
               </View>
-            </PixelFrame>
-
-            {/* 직접뽑기 토글 */}
-            <ToggleRow
-              on={selfPulled}
-              onPress={() => setSelfPulled((v) => !v)}
-              label="🎁 직접 뽑은 카드"
-              hint="구매가 대신 현재시세를 기준가로 사용"
-            />
-
-            {/* 구매 시기 */}
-            <View>
-              <PixelText variant={txt} size={11} style={{ marginBottom: 8, letterSpacing: 1 }}>
-                📅 구매일
-              </PixelText>
-              <TextInput
-                value={buyYm}
-                onChangeText={setBuyYm}
-                placeholder="2026-07-02"
-                placeholderTextColor={tc.ink4}
-                style={inputStyle}
-              />
-            </View>
-
-            {/* 발매 지역 — 웹 CardRegisterSheet region 동일 */}
-            <View>
-              <PixelText variant={txt} size={11} style={{ marginBottom: 8, letterSpacing: 1 }}>
-                🌏 발매 지역
-              </PixelText>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {(
-                  [
-                    ['jp', '일본판'],
-                    ['kr', '한국판'],
-                    ['en', '영문판'],
-                  ] as const
-                ).map(([k, lb]) => (
-                  <Chip key={k} on={region === k} onPress={() => setRegion(k)} size={9} px={10} py={6}>
-                    {lb}
-                  </Chip>
-                ))}
-              </View>
-            </View>
-
-            {/* 구매가 + 통화 — 직접뽑기면 현재시세 기준가 안내로 대체 */}
-            {selfPulled ? (
-              <View>
-                <PixelText variant={txt} size={11} style={{ marginBottom: 8, letterSpacing: 1 }}>
-                  💰 기준가
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <PixelText variant="ko" size={13} weight="bold" color={MP.ink} numberOfLines={2}>{displayCardName(pendingCard.name)}</PixelText>
+                <PixelText variant="ko" size={11} color={MP.ink3} style={{ marginTop: 3 }}>
+                  {[pendingCard.set !== '-' ? pendingCard.set : '', pendingCard.num !== '-' ? pendingCard.num : ''].filter(Boolean).join(' · ') || '세트/번호 미상'}
                 </PixelText>
-                <PixelFrame borderWidth={3} bg={tc.pap3}>
-                  <View style={{ padding: 12 }}>
-                    <PixelText variant={txt} size={10} color={tc.ink3} style={{ lineHeight: 16 }}>
-                      현재시세 {priceLabel(cardProfit(pendingCard, priceMode).currentKrw / Math.max(1, buyQty), 'KRW')} 를
-                      {`\n`}기준가로 등록합니다
-                    </PixelText>
-                  </View>
-                </PixelFrame>
+                <PixelText variant="ko" size={11} weight="bold" color={MP.ink} style={{ marginTop: 6 }}>
+                  현재시세 {priceLabel(cardProfit(pendingCard, priceMode).currentKrw, 'KRW')}
+                </PixelText>
               </View>
-            ) : (
-              <View>
-                {/* 타이틀 우측 통화 토글 — 토글하면 인풋 안 단위가 ₩/¥ 로 바뀐다 */}
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: 8,
-                  }}
-                >
-                  <PixelText variant={txt} size={11} style={{ letterSpacing: 1 }}>
-                    💰 구매가 <Text style={{ color: tc.ink3 }}>(장당)</Text>
-                  </PixelText>
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      borderColor: tc.ink,
-                      borderWidth: 2,
-                      backgroundColor: tc.white,
-                    }}
-                  >
-                    {(['KRW', 'JPY'] as PriceCurrency[]).map((c, i) => (
+            </View>
+
+            {/* 직접뽑기 — 웹 cv-reg-check */}
+            <MCheckRow P={MP} on={selfPulled} onPress={() => setSelfPulled((v) => !v)} label="직접 뽑은 카드예요 (구입가 대신 현재시세를 기준가로)" />
+
+            {/* 구입가격 — 라벨 우측 통화 토글, 인풋 안 단위 (웹 동일) */}
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ paddingLeft: 2 }}>구입가격</PixelText>
+                {!selfPulled ? (
+                  <View style={{ flexDirection: 'row', backgroundColor: MP.fieldBg, borderRadius: 999, padding: 2 }}>
+                    {(['KRW', 'JPY'] as PriceCurrency[]).map((c) => (
                       <Pressable
                         key={c}
                         onPress={() => setBuyCur(c)}
-                        style={{
-                          paddingHorizontal: 10,
-                          paddingVertical: 4,
-                          backgroundColor: buyCur === c ? tc.gold : 'transparent',
-                          borderLeftWidth: i === 0 ? 0 : 2,
-                          borderLeftColor: tc.ink,
-                        }}
+                        style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: buyCur === c ? MP.btnBg : 'transparent' }}
                       >
-                        <PixelText variant={txt} size={9} color={buyCur === c ? tc.ink : tc.ink3}>
+                        <PixelText variant="ko" size={10} weight="bold" color={buyCur === c ? MP.btnFg : MP.ink3}>
                           {c === 'JPY' ? '¥ 엔화' : '₩ 원화'}
                         </PixelText>
                       </Pressable>
                     ))}
                   </View>
-                </View>
-                {/* 인풋 안 좌측에 통화 단위 */}
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    backgroundColor: tc.white,
-                    borderColor: tc.ink,
-                    borderWidth: 3,
-                    paddingLeft: 14,
-                  }}
-                >
-                  <PixelText variant={txt} size={14} color={tc.ink2}>
-                    {buyCur === 'JPY' ? '¥' : '₩'}
+                ) : null}
+              </View>
+              {selfPulled ? (
+                <View style={{ backgroundColor: MP.fieldBg, borderRadius: 12, padding: 12 }}>
+                  <PixelText variant="ko" size={11} color={MP.ink3} style={{ lineHeight: 17 }}>
+                    현재시세 {priceLabel(cardProfit(pendingCard, priceMode).currentKrw / Math.max(1, buyQty), 'KRW')} 적용
                   </PixelText>
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: MP.pageBg, borderWidth: 1.5, borderColor: MP.fieldBd, borderRadius: 12, paddingHorizontal: 12 }}>
+                  <PixelText variant="ko" size={14} weight="bold" color={MP.ink2}>{buyCur === 'JPY' ? '¥' : '₩'}</PixelText>
                   <TextInput
                     value={buyPriceStr}
                     onChangeText={setBuyPriceStr}
                     placeholder={buyCur === 'JPY' ? '엔화 금액' : '원화 금액'}
-                    placeholderTextColor={tc.ink4}
+                    placeholderTextColor={MP.ink3}
                     keyboardType="numeric"
-                    style={{
-                      flex: 1,
-                      paddingHorizontal: 10,
-                      paddingVertical: 12,
-                      fontSize: 17,
-                      fontFamily: 'Galmuri11',
-                      color: tc.ink,
-                    }}
+                    style={{ flex: 1, paddingVertical: 12, fontSize: 15, fontWeight: '700', color: MP.ink, padding: 0, paddingLeft: 2 }}
+                  />
+                </View>
+              )}
+            </View>
+
+            {/* 구입 날짜 + 수량 — 나란히 (웹 cv-manual-row) */}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ marginBottom: 6, paddingLeft: 2 }}>구입 날짜</PixelText>
+                <View style={{ backgroundColor: MP.pageBg, borderWidth: 1.5, borderColor: MP.fieldBd, borderRadius: 12, paddingHorizontal: 12 }}>
+                  <TextInput
+                    value={buyYm}
+                    onChangeText={setBuyYm}
+                    placeholder="2026-08-04"
+                    placeholderTextColor={MP.ink3}
+                    style={{ paddingVertical: 12, fontSize: 13, fontWeight: '700', color: MP.ink, padding: 0 }}
                   />
                 </View>
               </View>
-            )}
-
-            {/* 수량 — 폼 인풋과 같은 보더의 단일 스테퍼 박스 */}
-            <View>
-              <PixelText variant={txt} size={11} style={{ marginBottom: 8, letterSpacing: 1 }}>
-                🔢 수량
-              </PixelText>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'stretch',
-                  borderColor: tc.ink,
-                  borderWidth: 3,
-                  backgroundColor: tc.white,
-                }}
-              >
-                <Pressable
-                  onPress={() => setBuyQty((q) => Math.max(1, q - 1))}
-                  style={{
-                    width: 52,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    paddingVertical: 12,
-                    borderRightWidth: 3,
-                    borderRightColor: tc.ink,
-                    backgroundColor: tc.pap3,
-                  }}
-                >
-                  <PixelText variant={txt} size={16}>−</PixelText>
-                </Pressable>
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                  <PixelText variant={txt} size={15}>{buyQty}</PixelText>
+              <View style={{ flex: 1 }}>
+                <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ marginBottom: 6, paddingLeft: 2 }}>수량</PixelText>
+                <View style={{ flexDirection: 'row', alignItems: 'stretch', borderWidth: 1.5, borderColor: MP.fieldBd, borderRadius: 12, backgroundColor: MP.pageBg, overflow: 'hidden' }}>
+                  <Pressable onPress={() => setBuyQty((q) => Math.max(1, q - 1))} style={{ width: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: MP.fieldBg }}>
+                    <PixelText variant="ko" size={15} weight="bold" color={MP.ink}>−</PixelText>
+                  </Pressable>
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 }}>
+                    <PixelText variant="ko" size={14} weight="bold" color={MP.ink}>{buyQty}</PixelText>
+                  </View>
+                  <Pressable onPress={() => setBuyQty((q) => Math.min(999, q + 1))} style={{ width: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: MP.fieldBg }}>
+                    <PixelText variant="ko" size={15} weight="bold" color={MP.ink}>＋</PixelText>
+                  </Pressable>
                 </View>
-                <Pressable
-                  onPress={() => setBuyQty((q) => Math.min(999, q + 1))}
-                  style={{
-                    width: 52,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    paddingVertical: 12,
-                    borderLeftWidth: 3,
-                    borderLeftColor: tc.ink,
-                    backgroundColor: tc.pap3,
-                  }}
-                >
-                  <PixelText variant={txt} size={16}>＋</PixelText>
-                </Pressable>
               </View>
             </View>
 
-            {/* 등급여부 토글 + 등급사/등급 */}
-            <ToggleRow
-              on={graded}
-              onPress={() => setGraded((v) => !v)}
-              label="🏅 등급(그레이딩) 카드"
-              hint="PSA/BGS 등 슬랩 카드"
-            />
-            {graded && (
+            {/* 발매 지역 — 웹 동일 3버튼 */}
+            <View>
+              <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ marginBottom: 6, paddingLeft: 2 }}>발매 지역</PixelText>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {([
+                  ['jp', '일본판'],
+                  ['kr', '한국판'],
+                  ['en', '영문판'],
+                ] as const).map(([k, lb]) => (
+                  <MCatBtn key={k} P={MP} active={region === k} onPress={() => setRegion(k)} label={lb} />
+                ))}
+              </View>
+            </View>
+
+            {/* 등급여부 — 웹 cv-reg-check + 등급사/등급 */}
+            <MCheckRow P={MP} on={graded} onPress={() => setGraded((v) => !v)} label="등급(그레이딩) 카드예요" />
+            {graded ? (
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <View style={{ flex: 1.4 }}>
-                  <PixelText variant={txt} size={10} style={{ marginBottom: 8, letterSpacing: 1 }}>
-                    등급사
-                  </PixelText>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ marginBottom: 6, paddingLeft: 2 }}>등급사</PixelText>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                     {['PSA', 'BGS', 'CGC', 'SGC', 'ARS'].map((co) => (
-                      <Chip key={co} on={gradeCompany === co} onPress={() => setGradeCompany(co)} size={9} px={8} py={6}>
-                        {co}
-                      </Chip>
+                      <MCatBtn key={co} P={MP} active={gradeCompany === co} onPress={() => setGradeCompany(co)} label={co} compact />
                     ))}
                   </View>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <PixelText variant={txt} size={10} style={{ marginBottom: 8, letterSpacing: 1 }}>
-                    등급
-                  </PixelText>
-                  <TextInput
-                    value={gradeValue}
-                    onChangeText={setGradeValue}
-                    placeholder="10"
-                    placeholderTextColor={tc.ink4}
-                    keyboardType="numeric"
-                    style={inputStyle}
-                  />
+                  <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ marginBottom: 6, paddingLeft: 2 }}>등급</PixelText>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                    {['10', '9', '8'].map((v) => (
+                      <MCatBtn key={v} P={MP} active={gradeValue === v} onPress={() => setGradeValue(v)} label={v} compact />
+                    ))}
+                  </View>
+                  <View style={{ backgroundColor: MP.pageBg, borderWidth: 1.5, borderColor: MP.fieldBd, borderRadius: 12, paddingHorizontal: 12 }}>
+                    <TextInput
+                      value={gradeValue}
+                      onChangeText={setGradeValue}
+                      placeholder="예) 10"
+                      placeholderTextColor={MP.ink3}
+                      keyboardType="numeric"
+                      maxLength={6}
+                      style={{ paddingVertical: 10, fontSize: 13, fontWeight: '700', color: MP.ink, padding: 0 }}
+                    />
+                  </View>
                 </View>
               </View>
-            )}
+            ) : null}
 
-            {/* 메모 — 웹 CardRegisterSheet memo 동일 */}
+            {/* 메모 — 웹 동일 */}
             <View>
-              <PixelText variant={txt} size={11} style={{ marginBottom: 8, letterSpacing: 1 }}>
-                📝 메모 (선택)
-              </PixelText>
-              <TextInput
-                value={memo}
-                onChangeText={setMemo}
-                placeholder="구매처, 상태 등 자유롭게"
-                placeholderTextColor={tc.ink4}
-                multiline
-                style={[inputStyle, { minHeight: 64, textAlignVertical: 'top' }]}
-              />
+              <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ marginBottom: 6, paddingLeft: 2 }}>메모 (선택)</PixelText>
+              <View style={{ backgroundColor: MP.pageBg, borderWidth: 1.5, borderColor: MP.fieldBd, borderRadius: 12, paddingHorizontal: 12 }}>
+                <TextInput
+                  value={memo}
+                  onChangeText={setMemo}
+                  placeholder="구입 경로, 보관 위치, 컨디션 등"
+                  placeholderTextColor={MP.ink3}
+                  multiline
+                  maxLength={500}
+                  style={{ paddingVertical: 11, fontSize: 13, fontWeight: '600', color: MP.ink, minHeight: 72, textAlignVertical: 'top', padding: 0 }}
+                />
+              </View>
             </View>
 
-            {/* 6단계 — 수익률 실시간 미리보기 */}
-            {preview.hasBuy && (
-              <PixelFrame borderWidth={3} shadow={4} bg={tc.pap3}>
-                <View style={{ padding: 12, gap: 6 }}>
-                  <ProfitRow label="총 구매가" value={priceLabel(preview.investedKrw, 'KRW')} />
-                  <ProfitRow label="현재 시세" value={priceLabel(preview.currentKrw, 'KRW')} />
-                  <View style={{ height: 1, backgroundColor: tc.ink4, marginVertical: 2 }} />
-                  <ProfitRow
-                    label="예상 수익률"
-                    value={`${preview.profitKrw >= 0 ? '+' : ''}₩${fmt(Math.abs(preview.profitKrw))} (${
-                      preview.ratePct != null ? `${preview.ratePct >= 0 ? '+' : ''}${preview.ratePct.toFixed(1)}%` : '—'
-                    })`}
-                    color={preview.profitKrw >= 0 ? tc.grnDk : tc.red}
-                    bold
-                  />
-                </View>
-              </PixelFrame>
-            )}
-
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
-              <PixelPress wrapStyle={{ flex: 1 }} onPress={() => finalizeRegister(true)}>
-                <View style={{ paddingVertical: 12, alignItems: 'center' }}>
-                  <PixelText variant={txt} size={10}>건너뛰기</PixelText>
-                </View>
-              </PixelPress>
-              <PixelPress
-                wrapStyle={{ flex: 2 }}
-                onPress={() => finalizeRegister(false)}
-                bg={tc.gold}
-                hi={tc.goldLt}
-                lo={tc.goldDk}
-              >
-                <View style={{ paddingVertical: 12, alignItems: 'center' }}>
-                  <PixelText variant={txt} size={11} weight="bold">컬렉션에 등록 ✓</PixelText>
-                </View>
-              </PixelPress>
-            </View>
+            {/* 등록 CTA — 웹 cv-manual-submit(clean: 에메랄드 채움 라운드) */}
+            <Pressable
+              onPress={() => finalizeRegister(false)}
+              style={{
+                height: 50,
+                borderRadius: 14,
+                backgroundColor: MP.cta,
+                alignItems: 'center',
+                justifyContent: 'center',
+                elevation: 4,
+                shadowColor: MP.cta,
+                shadowOpacity: 0.3,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 4 },
+                marginTop: 2,
+              }}
+            >
+              <PixelText variant="ko" size={14} weight="bold" color="#ffffff">＋ 컬렉션에 등록</PixelText>
+            </Pressable>
           </View>
-          );
-        })()}
+        )}
 
         {mode === 'result' && found && (
           <>
@@ -1476,45 +1288,136 @@ function ScanScreenInner() {
           </>
         )}
       </ScrollView>
-      {/* 하단 고정 추가 바 — 웹 ManualAddForm sticky bar 패리티 */}
+      {/* 하단 고정 추가 바 — 웹 ManualAddForm sticky bar 와 동일 */}
       {mode === 'manual' && manSearched && (
         <View
           style={{
             flexDirection: 'row',
             alignItems: 'center',
             gap: 12,
-            paddingHorizontal: 14,
-            paddingVertical: 10,
-            borderTopWidth: 3,
-            borderTopColor: tc.ink,
-            backgroundColor: tc.paper,
+            paddingHorizontal: 18,
+            paddingVertical: 12,
+            borderTopWidth: 1,
+            borderTopColor: MP.line,
+            backgroundColor: MP.pageBg,
           }}
         >
           <View style={{ maxWidth: 120 }}>
-            <PixelText variant={txt} size={8} color={tc.ink3}>선택한 카드</PixelText>
-            <PixelText variant="ko" size={11} weight="bold" numberOfLines={1} style={{ marginTop: 2 }}>
+            <PixelText variant="ko" size={10} color={MP.ink3}>선택한 카드</PixelText>
+            <PixelText variant="ko" size={13} weight="bold" color={MP.ink} numberOfLines={1} style={{ marginTop: 1 }}>
               {manSelected ? displayCardName(manSelected.name) : '선택 안 됨'}
             </PixelText>
           </View>
-          <PixelPress
-            wrapStyle={{ flex: 1 }}
+          <Pressable
             disabled={!manSelected}
             onPress={() => manSelected && openRegister(manSelected, 'manual')}
-            bg={manSelected ? tc.gold : tc.pap3}
-            hi={manSelected ? tc.goldLt : null}
-            lo={manSelected ? tc.goldDk : null}
+            style={{
+              flex: 1,
+              height: 50,
+              borderRadius: 14,
+              backgroundColor: manSelected ? MP.btnBg : MP.disBg,
+              alignItems: 'center',
+              justifyContent: 'center',
+              elevation: manSelected ? 4 : 0,
+              shadowColor: '#000',
+              shadowOpacity: manSelected ? 0.18 : 0,
+              shadowRadius: 8,
+              shadowOffset: { width: 0, height: 6 },
+            }}
           >
-            <View style={{ paddingVertical: 13, alignItems: 'center' }}>
-              <PixelText variant={txt} size={11} weight="bold" color={manSelected ? tc.ink : tc.ink3}>
-                {manSelected ? '내 컬렉션에 추가' : '카드를 선택하세요'}
-              </PixelText>
-            </View>
-          </PixelPress>
+            <PixelText variant="ko" size={13} weight="bold" color={manSelected ? MP.btnFg : MP.disFg}>
+              {manSelected ? '내 컬렉션에 추가' : '카드를 선택하세요'}
+            </PixelText>
+          </Pressable>
         </View>
       )}
       </>
       )}
     </View>
+  );
+}
+
+/* ── 직접입력 전용 — 웹 ManualAddForm 의 Chip/Menu/MenuItem 미러 ── */
+interface ManualPalette {
+  pageBg: string; ink: string; ink2: string; ink3: string; accent: string; accentSoft: string;
+  line: string; fieldBg: string; fieldBd: string; nameBg: string; radioBd: string;
+  btnBg: string; btnFg: string; disBg: string; disFg: string; red: string;
+}
+
+function MChip({ P, active, onPress, label }: { P: ManualPalette; active: boolean; onPress: () => void; label: string }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        flexDirection: 'row', alignItems: 'center', gap: 4,
+        paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
+        backgroundColor: active ? P.btnBg : P.pageBg,
+        borderWidth: 1.5, borderColor: active ? P.btnBg : P.fieldBd,
+      }}
+    >
+      <PixelText variant="ko" size={11} weight="bold" color={active ? P.btnFg : P.ink}>{label}</PixelText>
+    </Pressable>
+  );
+}
+
+function MMenu({ P, children }: { P: ManualPalette; children: React.ReactNode }) {
+  return (
+    <View
+      style={{
+        backgroundColor: P.pageBg, borderRadius: 14, borderWidth: 1, borderColor: P.line,
+        marginBottom: 8, paddingVertical: 4, overflow: 'hidden',
+        elevation: 4, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
+      }}
+    >
+      {children}
+    </View>
+  );
+}
+
+function MMenuItem({ P, active, onPress, label }: { P: ManualPalette; active: boolean; onPress: () => void; label: string }) {
+  return (
+    <Pressable onPress={onPress} style={{ paddingHorizontal: 14, paddingVertical: 11, backgroundColor: active ? P.accentSoft : 'transparent' }}>
+      <PixelText variant="ko" size={12} weight={active ? 'bold' : 'normal'} color={active ? P.accent : P.ink}>{label}</PixelText>
+    </Pressable>
+  );
+}
+
+function MCheckRow({ P, on, onPress, label }: { P: ManualPalette; on: boolean; onPress: () => void; label: string }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        padding: 12, borderRadius: 12,
+        backgroundColor: on ? P.accentSoft : P.fieldBg,
+        borderWidth: 1.5, borderColor: on ? P.accent : P.fieldBd,
+      }}
+    >
+      <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: on ? P.accent : P.radioBd, backgroundColor: on ? P.accent : P.pageBg, alignItems: 'center', justifyContent: 'center' }}>
+        {on ? <PixelText variant="ko" size={11} weight="bold" color="#ffffff">✓</PixelText> : null}
+      </View>
+      <PixelText variant="ko" size={12} weight="bold" color={P.ink} style={{ flex: 1 }}>{label}</PixelText>
+    </Pressable>
+  );
+}
+
+function MCatBtn({ P, active, onPress, label, compact }: { P: ManualPalette; active: boolean; onPress: () => void; label: string; compact?: boolean }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        flex: compact ? undefined : 1,
+        paddingHorizontal: compact ? 10 : 0,
+        paddingVertical: compact ? 7 : 10,
+        alignItems: 'center',
+        borderRadius: 12,
+        backgroundColor: active ? P.btnBg : P.pageBg,
+        borderWidth: 1.5,
+        borderColor: active ? P.btnBg : P.fieldBd,
+      }}
+    >
+      <PixelText variant="ko" size={compact ? 11 : 12} weight="bold" color={active ? P.btnFg : P.ink}>{label}</PixelText>
+    </Pressable>
   );
 }
 

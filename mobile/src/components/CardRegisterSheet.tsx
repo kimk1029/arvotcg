@@ -5,7 +5,8 @@ import { PixelFrame } from '@/components/cv/PixelFrame';
 import { PixelPress } from '@/components/cv/PixelPress';
 import { Chip } from '@/components/cv/Chip';
 import { ThumbImage } from '@/components/cv/ThumbImage';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useThemeColors, useThemeTextVariant, useTheme } from '@/components/ThemeProvider';
+import { isFlatTheme } from '@/lib/theme';
 import { useToast } from '@/components/ToastProvider';
 import { addCards } from '@/lib/collection';
 import { createMyCard } from '@/lib/myApi';
@@ -84,6 +85,9 @@ export function CardRegisterSheet({
 }) {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  // 플랫(클린·다크) — 웹 clean 등록 폼(라운드 인풋·필 토글·에메랄드 CTA)과 동일 처리.
+  const { theme } = useTheme();
+  const flat = isFlatTheme(theme);
   const toast = useToast();
 
   const [saving, setSaving] = useState(false);
@@ -100,12 +104,14 @@ export function CardRegisterSheet({
 
   const inputStyle = {
     backgroundColor: tc.white,
-    borderColor: tc.ink,
-    borderWidth: 3,
+    borderColor: flat ? tc.pap3 : tc.ink,
+    borderWidth: flat ? 1.5 : 3,
+    borderRadius: flat ? 12 : 0,
     paddingHorizontal: 12,
     paddingVertical: 11,
-    fontSize: 15,
-    fontFamily: 'Galmuri11',
+    fontSize: flat ? 14 : 15,
+    fontFamily: flat ? undefined : 'Galmuri11',
+    fontWeight: flat ? ('700' as const) : undefined,
     color: tc.ink,
   } as const;
 
@@ -219,8 +225,8 @@ export function CardRegisterSheet({
                 <View style={{ flexDirection: 'row', gap: 12, padding: 12, alignItems: 'center' }}>
                   <ThumbImage
                     uri={card.imageUrl}
-                    style={{ width: 52, height: 72 }}
-                    borderColor={tc.ink}
+                    style={{ width: 52, height: 72, borderRadius: flat ? 8 : 0 }}
+                    borderColor={flat ? undefined : tc.ink}
                     bg={tc.white}
                     resizeMode="contain"
                     emojiSize={25}
@@ -244,8 +250,9 @@ export function CardRegisterSheet({
                   alignItems: 'center',
                   gap: 8,
                   borderColor: selfPulled ? tc.gold : tc.pap3,
-                  borderWidth: 2,
-                  backgroundColor: selfPulled ? tc.goldLt ?? tc.white : tc.white,
+                  borderWidth: flat ? 1.5 : 2,
+                  borderRadius: flat ? 12 : 0,
+                  backgroundColor: selfPulled ? (flat ? tc.goldSoft : tc.goldLt ?? tc.white) : tc.white,
                   paddingHorizontal: 12,
                   paddingVertical: 10,
                 }}
@@ -264,8 +271,9 @@ export function CardRegisterSheet({
                   alignItems: 'center',
                   gap: 8,
                   borderColor: graded ? tc.gold : tc.pap3,
-                  borderWidth: 2,
-                  backgroundColor: graded ? tc.goldLt ?? tc.white : tc.white,
+                  borderWidth: flat ? 1.5 : 2,
+                  borderRadius: flat ? 12 : 0,
+                  backgroundColor: graded ? (flat ? tc.goldSoft : tc.goldLt ?? tc.white) : tc.white,
                   paddingHorizontal: 12,
                   paddingVertical: 10,
                 }}
@@ -313,7 +321,7 @@ export function CardRegisterSheet({
                 <View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
                     <PixelText variant={txt} size={11} style={{ letterSpacing: 1 }}>💰 구매가 (선택)</PixelText>
-                    <View style={{ flexDirection: 'row', borderColor: tc.ink, borderWidth: 2, backgroundColor: tc.white }}>
+                    <View style={{ flexDirection: 'row', borderColor: flat ? tc.pap3 : tc.ink, borderWidth: flat ? 0 : 2, borderRadius: flat ? 999 : 0, padding: flat ? 2 : 0, backgroundColor: flat ? tc.pap2 : tc.white }}>
                       {(['KRW', 'JPY'] as PriceCurrency[]).map((c, i) => (
                         <Pressable
                           key={c}
@@ -321,19 +329,20 @@ export function CardRegisterSheet({
                           style={{
                             paddingHorizontal: 10,
                             paddingVertical: 4,
-                            backgroundColor: buyCur === c ? tc.gold : 'transparent',
-                            borderLeftWidth: i === 0 ? 0 : 2,
+                            borderRadius: flat ? 999 : 0,
+                            backgroundColor: buyCur === c ? (flat ? tc.ink : tc.gold) : 'transparent',
+                            borderLeftWidth: flat || i === 0 ? 0 : 2,
                             borderLeftColor: tc.ink,
                           }}
                         >
-                          <PixelText variant={txt} size={9} color={buyCur === c ? tc.ink : tc.ink3}>
+                          <PixelText variant={txt} size={9} weight={flat ? 'bold' : 'normal'} color={buyCur === c ? (flat ? tc.paper : tc.ink) : tc.ink3}>
                             {c === 'JPY' ? '¥ 엔화' : '₩ 원화'}
                           </PixelText>
                         </Pressable>
                       ))}
                     </View>
                   </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: tc.white, borderColor: tc.ink, borderWidth: 3, paddingLeft: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: tc.white, borderColor: flat ? tc.pap3 : tc.ink, borderWidth: flat ? 1.5 : 3, borderRadius: flat ? 12 : 0, paddingLeft: 12 }}>
                     <PixelText variant={txt} size={13} color={tc.ink2}>{buyCur === 'JPY' ? '¥' : '₩'}</PixelText>
                     <TextInput
                       value={buyPriceStr}
@@ -341,7 +350,7 @@ export function CardRegisterSheet({
                       placeholder={buyCur === 'JPY' ? '엔화 금액' : '원화 금액'}
                       placeholderTextColor={tc.ink4}
                       keyboardType="numeric"
-                      style={{ flex: 1, paddingHorizontal: 10, paddingVertical: 11, fontSize: 16, fontFamily: 'Galmuri11', color: tc.ink }}
+                      style={{ flex: 1, paddingHorizontal: 10, paddingVertical: 11, fontSize: flat ? 15 : 16, fontFamily: flat ? undefined : 'Galmuri11', fontWeight: flat ? '700' : undefined, color: tc.ink }}
                     />
                   </View>
                 </View>
@@ -376,10 +385,10 @@ export function CardRegisterSheet({
                 </View>
                 <View style={{ flex: 1 }}>
                   <PixelText variant={txt} size={11} style={{ marginBottom: 7, letterSpacing: 1 }}>🔢 수량</PixelText>
-                  <View style={{ flexDirection: 'row', alignItems: 'stretch', borderColor: tc.ink, borderWidth: 3, backgroundColor: tc.white }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'stretch', borderColor: flat ? tc.pap3 : tc.ink, borderWidth: flat ? 1.5 : 3, borderRadius: flat ? 12 : 0, overflow: 'hidden', backgroundColor: tc.white }}>
                     <Pressable
                       onPress={() => setQty((q) => Math.max(1, q - 1))}
-                      style={{ width: 38, alignItems: 'center', justifyContent: 'center', borderRightWidth: 3, borderRightColor: tc.ink, backgroundColor: tc.pap3 }}
+                      style={{ width: 38, alignItems: 'center', justifyContent: 'center', borderRightWidth: flat ? 0 : 3, borderRightColor: tc.ink, backgroundColor: flat ? tc.pap2 : tc.pap3 }}
                     >
                       <PixelText variant={txt} size={14}>−</PixelText>
                     </Pressable>
@@ -388,7 +397,7 @@ export function CardRegisterSheet({
                     </View>
                     <Pressable
                       onPress={() => setQty((q) => Math.min(999, q + 1))}
-                      style={{ width: 38, alignItems: 'center', justifyContent: 'center', borderLeftWidth: 3, borderLeftColor: tc.ink, backgroundColor: tc.pap3 }}
+                      style={{ width: 38, alignItems: 'center', justifyContent: 'center', borderLeftWidth: flat ? 0 : 3, borderLeftColor: tc.ink, backgroundColor: flat ? tc.pap2 : tc.pap3 }}
                     >
                       <PixelText variant={txt} size={14}>＋</PixelText>
                     </Pressable>
@@ -425,14 +434,30 @@ export function CardRegisterSheet({
                 />
               </View>
 
-              {/* 등록 버튼 */}
-              <PixelPress onPress={onSave} disabled={saving} bg={tc.gold} hi={tc.goldLt} lo={tc.goldDk}>
-                <View style={{ paddingVertical: 13, alignItems: 'center' }}>
-                  <PixelText variant={txt} size={11} weight="bold">
+              {/* 등록 버튼 — 플랫: 웹 clean cv-manual-submit(에메랄드 채움 라운드) */}
+              {flat ? (
+                <Pressable
+                  onPress={onSave}
+                  disabled={saving}
+                  style={{
+                    height: 48, borderRadius: 14, backgroundColor: tc.grn, alignItems: 'center', justifyContent: 'center',
+                    opacity: saving ? 0.6 : 1,
+                    elevation: 4, shadowColor: tc.grn, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
+                  }}
+                >
+                  <PixelText variant="ko" size={13} weight="bold" color="#ffffff">
                     {saving ? '저장 중...' : '＋ 컬렉션에 등록'}
                   </PixelText>
-                </View>
-              </PixelPress>
+                </Pressable>
+              ) : (
+                <PixelPress onPress={onSave} disabled={saving} bg={tc.gold} hi={tc.goldLt} lo={tc.goldDk}>
+                  <View style={{ paddingVertical: 13, alignItems: 'center' }}>
+                    <PixelText variant={txt} size={11} weight="bold">
+                      {saving ? '저장 중...' : '＋ 컬렉션에 등록'}
+                    </PixelText>
+                  </View>
+                </PixelPress>
+              )}
               <View style={{ height: 18 }} />
             </ScrollView>
           </View>

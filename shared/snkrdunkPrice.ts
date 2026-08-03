@@ -162,6 +162,23 @@ export function gradeAgg(
   return { key, recent: matches[0], avg, low, count: matches.length };
 }
 
+/** RAW→PSA10 그레이딩 시 가격 상승폭 — 등급별 투자 수익률 섹션(웹·앱 공통). */
+export interface GradeUplift {
+  rawAvg: number;
+  psa10Avg: number;
+  /** psa10Avg - rawAvg (JPY). */
+  diff: number;
+  /** rawAvg 대비 상승률(%). */
+  pct: number;
+}
+
+/** RAW 평균가 → PSA10 평균가 상승폭. 한쪽이라도 데이터가 없으면 null (UI 는 '데이터 부족'). */
+export function gradeUplift(rawAvg: number, psa10Avg: number): GradeUplift | null {
+  if (!(rawAvg > 0) || !(psa10Avg > 0)) return null;
+  const diff = psa10Avg - rawAvg;
+  return { rawAvg, psa10Avg, diff, pct: (diff / rawAvg) * 100 };
+}
+
 /** 대표 시세 결과 — 가격 + 어느 등급 기준인지('PSA 10' | 'PSA 9' | 'RAW'). */
 export interface Headline {
   price: number;

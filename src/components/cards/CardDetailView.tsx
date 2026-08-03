@@ -10,6 +10,7 @@ import { KreamCompare } from '@/components/cards/KreamCompare';
 import { MultiSourceKoPrice } from '@/components/cards/MultiSourceKoPrice';
 import { PsaPopPanel } from '@/components/cards/PsaPopPanel';
 import { downsamplePricePoints, isGradedSnkrdunkBadge } from '@/lib/snkrdunk';
+import { gradeUplift } from '@/lib/snkrdunkPrice';
 
 /**
  * 카드 시세 상세 — ARVOTCG '카드상세' 디자인 레이아웃.
@@ -136,6 +137,8 @@ export function CardDetailView({
   const headlinePrice = sel?.recent || sel?.avg || minPrice || 0;
   // KREAM 비교 기준 = RAW(비등급) 최근 거래가. 없으면 최저매물.
   const rawGrade = grades.find((g) => g.key === 'RAW');
+  // 등급별 투자 수익률 — RAW 평균가 → PSA10 평균가 상승폭 (정본 shared gradeUplift).
+  const uplift = gradeUplift(rawGrade?.avg ?? 0, grades.find((g) => g.key === 'PSA 10')?.avg ?? 0);
   const rawRecent = rawGrade?.recent || rawGrade?.avg || minPrice || 0;
 
   // 등록 팝업의 등급별 등록가 미리보기용 — PSA10/9는 집계 재사용, PSA8은 거래내역에서.
@@ -450,13 +453,45 @@ export function CardDetailView({
         </Panel>
       </div>
 
-      {/* ── 등급별 투자 수익률 (준비 중) ─────────────────────── */}
+      {/* ── 등급별 투자 수익률 — RAW 평균가 → PSA10 평균가 상승폭 (정본 shared gradeUplift) ── */}
       <div className="sect">
         <div className="sect-hd">
           <h2>등급별 투자 수익률</h2>
+          <span className="more">RAW → PSA 10</span>
         </div>
-        <Panel style={{ padding: 14 }}>
-          <ComingSoon height={72} />
+        <Panel style={{ padding: 16 }}>
+          {uplift ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'stretch', gap: 10 }}>
+                <div style={{ flex: 1, background: 'var(--pap2)', borderRadius: 'var(--r-sm, 0px)', padding: '10px 12px' }}>
+                  <div style={{ fontFamily: 'var(--f1)', fontSize: 9, color: 'var(--ink3)', fontWeight: 700 }}>RAW 평균가</div>
+                  <div style={{ fontFamily: 'var(--f1)', fontSize: 15, fontWeight: 800, color: 'var(--ink)', marginTop: 5 }}>
+                    <Price jpy={uplift.rawAvg} />
+                  </div>
+                </div>
+                <div style={{ alignSelf: 'center', fontFamily: 'var(--f1)', fontSize: 15, color: 'var(--ink3)', flex: 'none' }}>→</div>
+                <div style={{ flex: 1, background: 'var(--gold-soft, var(--pap2))', borderRadius: 'var(--r-sm, 0px)', padding: '10px 12px' }}>
+                  <div style={{ fontFamily: 'var(--f1)', fontSize: 9, color: 'var(--gold-dk, var(--ink3))', fontWeight: 700 }}>PSA 10 평균가</div>
+                  <div style={{ fontFamily: 'var(--f1)', fontSize: 15, fontWeight: 800, color: 'var(--ink)', marginTop: 5 }}>
+                    <Price jpy={uplift.psa10Avg} />
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginTop: 12, display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink3)', fontWeight: 600 }}>그레이딩 상승폭</span>
+                <span style={{ fontFamily: 'var(--f1)', fontSize: 16, fontWeight: 900, color: uplift.diff >= 0 ? 'var(--red)' : 'var(--blu)' }}>
+                  {uplift.diff >= 0 ? '+' : '−'}<Price jpy={Math.abs(uplift.diff)} /> ({uplift.diff >= 0 ? '+' : ''}{uplift.pct.toFixed(1)}%)
+                </span>
+              </div>
+              <div style={{ marginTop: 8, fontFamily: 'var(--f1)', fontSize: 9, color: 'var(--ink3)', lineHeight: 1.5 }}>
+                최근 거래 평균 기준 단순 시세차 — 그레이딩 비용·수수료·기간은 반영되지 않아요.
+              </div>
+            </>
+          ) : (
+            <div style={{ padding: '18px 0', textAlign: 'center', fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink3)' }}>
+              RAW·PSA 10 거래 데이터가 모두 있어야 계산할 수 있어요
+            </div>
+          )}
         </Panel>
       </div>
         </>
@@ -471,24 +506,6 @@ export function CardDetailView({
         </div>
       )}
 
-      {/* ── 가격 알림 — 앱 전용. 웹은 간략 안내만. ─────────────── */}
-      <div className="sect">
-        <div className="sect-hd">
-          <h2>가격 알림</h2>
-          <span className="more">앱 전용</span>
-        </div>
-        <Panel style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 24, flex: 'none' }}>🔔</span>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: 'var(--f1)', fontSize: 13, fontWeight: 800, color: 'var(--ink)', letterSpacing: 0.3 }}>
-              가격 알림은 앱에서 이용할 수 있어요
-            </div>
-            <div style={{ fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink3)', marginTop: 5, lineHeight: 1.5, letterSpacing: 0.2 }}>
-              ARVOTCG 앱에서 목표가를 설정하면 시세가 도달했을 때 알려드려요.
-            </div>
-          </div>
-        </Panel>
-      </div>
     </>
   );
 }

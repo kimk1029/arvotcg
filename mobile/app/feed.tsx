@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ScrollView, View, Pressable, Text, TextInput, Animated, Easing, Image, Modal, RefreshControl } from 'react-native';
+import { ScrollView, View, Pressable, Text, TextInput, Animated, Easing, Image, LayoutAnimation, Modal, Platform, RefreshControl, UIManager } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { router } from 'expo-router';
 import { useTheme, useThemeColors } from '@/components/ThemeProvider';
@@ -19,6 +19,11 @@ import { api } from '@/lib/apiClient';
 
 const PURPLE = '#6a3aff';
 const RED = '#F5333F';
+
+// 타이틀 스왑 LayoutAnimation (구 아키텍처 Android 활성화 필요)
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 interface Palette {
   pageBg: string;
@@ -253,6 +258,11 @@ export default function CommunityScreen() {
   const [query, setQuery] = useState('');
   const [keywords, setKeywords] = useState<string[]>(KEYWORDS);
   const isShop = mode === 'shop';
+  const switchMode = (m: 'feed' | 'shop') => {
+    if (m === mode) return;
+    LayoutAnimation.configureNext(LayoutAnimation.create(300, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.scaleXY));
+    setMode(m);
+  };
 
   // 실데이터 — 웹 feed/page.tsx 와 동일한 두 요청.
   const [feed, setFeed] = useState<FeedPost[]>([]);
@@ -362,18 +372,19 @@ export default function CommunityScreen() {
       {/* header */}
       <View style={{ backgroundColor: P.cardBg, paddingTop: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 8 }}>
-          {/* 커뮤니티 ↔ Shop 모드 토글 — 활성 타이틀은 크게, 비활성은 작고 흐리게 */}
+          {/* 커뮤니티 ↔ Shop 모드 토글 — 활성 타이틀이 왼쪽 큰 자리로, 비활성이
+              오른쪽 작은 자리로 서로 위치를 교환하며 애니메이션(LayoutAnimation) */}
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12 }}>
-            <Pressable onPress={() => setMode('feed')} hitSlop={6}>
-              <Text style={ts(isShop ? 16 : 22, '900', isShop ? (isClean ? '#C7C7CC' : P.chev) : P.ink)}>커뮤니티</Text>
-            </Pressable>
-            <Pressable onPress={() => setMode('shop')} hitSlop={6}>
-              <Text style={ts(isShop ? 22 : 16, '900', isShop ? P.ink : isClean ? '#C7C7CC' : P.chev)}>Shop</Text>
-            </Pressable>
+            {(isShop ? (['shop', 'feed'] as const) : (['feed', 'shop'] as const)).map((m) => {
+              const active = m === mode;
+              const label = m === 'feed' ? '커뮤니티' : 'Shop';
+              return (
+                <Pressable key={m} onPress={() => switchMode(m)} hitSlop={6}>
+                  <Text style={ts(active ? 22 : 16, '900', active ? P.ink : isClean ? '#C7C7CC' : P.chev)}>{label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
-          {!isShop ? (
-            <Pressable onPress={() => router.push('/my/feeds' as never)} hitSlop={6}><Text style={ts(14, '700', P.ink3)}>내 게시글</Text></Pressable>
-          ) : null}
           <View style={{ flex: 1 }} />
           {!isShop ? (
             <Pressable onPress={() => setSearchOpen((v) => !v)} hitSlop={8}><Search c={searchOpen ? P.accent : P.ink} /></Pressable>

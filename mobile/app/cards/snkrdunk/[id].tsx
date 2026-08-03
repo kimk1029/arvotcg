@@ -5,7 +5,6 @@ import { AppBar } from '@/components/AppBar';
 import { CardActions } from '@/components/CardActions';
 import { KreamCompare } from '@/components/cards/KreamCompare';
 import { MultiSourceKoPrice } from '@/components/cards/MultiSourceKoPrice';
-import { PriceAlertSection } from '@/components/cards/PriceAlertSection';
 import { PsaPopPanel } from '@/components/cards/PsaPopPanel';
 import { PixelText } from '@/components/PixelText';
 import { PixelFrame } from '@/components/cv/PixelFrame';
@@ -28,6 +27,7 @@ import {
 } from '@/services/snkrdunk';
 import { jaToKoCached, jaToKoServer } from '@/lib/cardLang';
 import { parseKreamHints } from '../../../../shared/util/kreamMatch';
+import { gradeUplift } from '../../../../shared/snkrdunkPrice';
 
 function fmtYen(n: number): string {
   if (!n) return '—';
@@ -78,6 +78,9 @@ const GRADE_COLOR: Record<string, (tc: ReturnType<typeof useThemeColors>) => str
   'PSA 9': (tc) => tc.blu,
   RAW: (tc) => tc.grn,
 };
+
+/** 등급 카드 고정 높이 — 가로 SV 의 NaN 높이 측정 우회용(명시 높이 필수). */
+const GRADE_CARD_H = 208;
 
 const RANGES: Array<{ label: string; days: number }> = [
   { label: '1개월', days: 30 },
@@ -165,6 +168,8 @@ export default function SnkrdunkDetail() {
   const headlinePrice = sel?.recent || sel?.avg || apparel?.minPrice || 0;
   const rawGrade = grades.find((g) => g.key === 'RAW');
   const rawRecent = rawGrade?.recent || rawGrade?.avg || apparel?.minPrice || 0;
+  // 등급별 투자 수익률 — RAW 평균가 → PSA10 평균가 상승폭 (웹 동일, 정본 shared).
+  const uplift = gradeUplift(rawGrade?.avg ?? 0, grades.find((g) => g.key === 'PSA 10')?.avg ?? 0);
 
   // 등록 팝업의 등급별 등록가 미리보기용 — PSA10/9는 집계 재사용, PSA8은 거래내역에서.
   const gradePrices = useMemo(() => {
@@ -343,15 +348,20 @@ export default function SnkrdunkDetail() {
 
             {region === '일본판' ? (
             <>
-            {/* ── 등급 카드 (3열) — 가로 ScrollView 는 RN 0.81 Fabric 에서 이 화면의
-                콘텐츠 높이를 NaN(MIN_VALUE)으로 측정해 이후 섹션 전체가 사라지는
-                버그가 있어 일반 flex 행으로 렌더한다. 웹도 스크롤 없는 그리드. */}
-            <View style={{ flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 14, gap: 8 }}>
+            {/* ── 등급 카드 (가로 스크롤, 웹 동일 카드폭 176) —
+                RN 0.81 Fabric 은 이 화면의 가로 SV 콘텐츠 높이를 NaN 으로 측정해
+                이후 섹션이 전부 사라진다. SV 에 명시적 height 를 줘 측정을 우회. */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ height: GRADE_CARD_H + 28 }}
+              contentContainerStyle={{ flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 14, gap: 12 }}
+            >
               {grades.map((g) => {
                 const isSel = g.key === effectiveGrade;
                 const gc = (GRADE_COLOR[g.key] ?? (() => tc.ink))(tc);
                 return (
-                  <Pressable key={g.key} onPress={() => setGradeKey(g.key)} style={{ flex: 1 }}>
+                  <Pressable key={g.key} onPress={() => setGradeKey(g.key)} style={{ width: 176, height: GRADE_CARD_H }}>
                     <PixelFrame bg={tc.white} border={isSel ? gc : tc.pap3} borderWidth={isSel ? 3 : 2}>
                       <View style={{ padding: 14 }}>
                         <View style={{ alignSelf: 'flex-start', backgroundColor: gc, paddingHorizontal: 9, paddingVertical: 4 }}>
@@ -359,7 +369,7 @@ export default function SnkrdunkDetail() {
                         </View>
                         {/* adjustsFontSizeToFit 금지 — 가로 ScrollView(무한폭 측정) 안에서 RN 0.81
                             Android 레이아웃이 폭주해 섹션 전체가 빈 공간이 되는 원인이었음. */}
-                        <PixelText variant={txt} size={15} weight="bold" color={tc.ink} numberOfLines={1} style={{ marginTop: 10 }}>{fmtYen(g.recent)}</PixelText>
+                        <PixelText variant={txt} size={16} weight="bold" color={tc.ink} numberOfLines={1} style={{ marginTop: 10 }}>{fmtYen(g.recent)}</PixelText>
                         <View style={{ marginTop: 11, gap: 8 }}>
                           <GradeRow tc={tc} txt={txt} label="평균가" value={fmtYen(g.avg)} />
                           <GradeRow tc={tc} txt={txt} label="최근 최저" value={fmtYen(g.low)} />
@@ -371,7 +381,7 @@ export default function SnkrdunkDetail() {
                   </Pressable>
                 );
               })}
-            </View>
+            </ScrollView>
 
             {/* ── PSA 인구 리포트 (등급별 pop — cert 1회 등록 후 공유, 웹 동일) ── */}
             <PsaPopPanel setCode={kreamHints.setCode} cardNumber={kreamHints.cardNumber} />
@@ -471,25 +481,44 @@ export default function SnkrdunkDetail() {
               </PixelFrame>
             </View>
 
-            {/* ── 등급별 투자 수익률 (준비 중) ── */}
+            {/* ── 등급별 투자 수익률 — RAW 평균가 → PSA10 평균가 상승폭 (웹 동일, 정본 shared gradeUplift) ── */}
             <View style={{ marginHorizontal: 14 }}>
-              <SectHd title="등급별 투자 수익률" />
+              <SectHd title="등급별 투자 수익률" more="RAW → PSA 10" />
             </View>
             <View style={{ marginHorizontal: 14, marginBottom: 12 }}>
               <PixelFrame bg={tc.white}>
-                <View style={{ height: 72, alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                  <Text style={{ fontSize: 18, opacity: 0.5 }}>🚧</Text>
-                  <PixelText variant={txt} size={11} weight="bold" color={tc.ink3}>준비 중</PixelText>
+                <View style={{ padding: 16 }}>
+                  {uplift ? (
+                    <>
+                      <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: 10 }}>
+                        <View style={{ flex: 1, backgroundColor: tc.pap2, borderRadius: flat ? 10 : 0, paddingHorizontal: 12, paddingVertical: 10 }}>
+                          <PixelText variant={txt} size={9} weight="bold" color={tc.ink3}>RAW 평균가</PixelText>
+                          <PixelText variant={txt} size={14} weight="bold" color={tc.ink} numberOfLines={1} style={{ marginTop: 5 }}>{fmtYen(uplift.rawAvg)}</PixelText>
+                        </View>
+                        <PixelText variant={txt} size={14} color={tc.ink3} style={{ alignSelf: 'center' }}>→</PixelText>
+                        <View style={{ flex: 1, backgroundColor: tc.goldSoft, borderRadius: flat ? 10 : 0, paddingHorizontal: 12, paddingVertical: 10 }}>
+                          <PixelText variant={txt} size={9} weight="bold" color={tc.goldDk}>PSA 10 평균가</PixelText>
+                          <PixelText variant={txt} size={14} weight="bold" color={tc.ink} numberOfLines={1} style={{ marginTop: 5 }}>{fmtYen(uplift.psa10Avg)}</PixelText>
+                        </View>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 12 }}>
+                        <PixelText variant={txt} size={10} color={tc.ink3}>그레이딩 상승폭</PixelText>
+                        <PixelText variant={txt} size={15} weight="bold" color={uplift.diff >= 0 ? tc.red : tc.blu} numberOfLines={1} style={{ flexShrink: 1 }}>
+                          {uplift.diff >= 0 ? '+' : '−'}{fmtYen(Math.abs(uplift.diff))} ({uplift.diff >= 0 ? '+' : ''}{uplift.pct.toFixed(1)}%)
+                        </PixelText>
+                      </View>
+                      <PixelText variant={txt} size={9} color={tc.ink3} style={{ marginTop: 8, lineHeight: 14 }}>
+                        최근 거래 평균 기준 단순 시세차 — 그레이딩 비용·수수료·기간은 반영되지 않아요.
+                      </PixelText>
+                    </>
+                  ) : (
+                    <View style={{ paddingVertical: 18, alignItems: 'center' }}>
+                      <PixelText variant={txt} size={10} color={tc.ink3}>RAW·PSA 10 거래 데이터가 모두 있어야 계산할 수 있어요</PixelText>
+                    </View>
+                  )}
                 </View>
               </PixelFrame>
             </View>
-
-            {/* ── 가격 알림 — 웹 '가격 알림 · 앱 전용' 자리의 실제 구현 ── */}
-            <PriceAlertSection
-              apparelId={apparelId}
-              cardName={displayNameKo}
-              currentPriceJpy={rawRecent}
-            />
 
             <View style={{ alignItems: 'center', paddingVertical: 12 }}>
               <PixelText variant={txt} size={8} color={tc.ink3}>데이터 출처: snkrdunk.com (10분 캐시)</PixelText>
