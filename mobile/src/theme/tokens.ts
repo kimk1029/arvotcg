@@ -14,6 +14,8 @@ export const colors = {
   gold: '#FFD23F',
   goldLt: '#FFE987',
   goldDk: '#B88400',
+  /** 웹 --gold-soft 대응 — 골드 틴트 면(가격 필 등). 픽셀 테마는 골드 원색과 동일. */
+  goldSoft: '#FFD23F',
   blu: '#3A5BD9',
   bluLt: '#7A94FF',
   bluDk: '#1B2E89',

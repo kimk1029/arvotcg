@@ -18,7 +18,8 @@ import { PixelText } from '@/components/PixelText';
 import { PixelPress } from '@/components/cv/PixelPress';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { LoadingState, ErrorView } from '@/components/cv/ListState';
-import { colors } from '@/theme/tokens';
+import { useThemeColors, useTheme } from '@/components/ThemeProvider';
+import { isFlatTheme } from '@/lib/theme';
 import { CARD_PACKS, packSetCode, type CardPackMeta, type CardPackGame } from '@/data/cardPacks';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { api } from '@/lib/apiClient';
@@ -117,6 +118,10 @@ function fetchPacksOnce(): Promise<PackWithBox[]> {
 
 export default function PackExplorerScreen() {
   const { format: formatCurrency } = useCurrency();
+  // 클린·다크(플랫) — 웹 clean 디자인셋과 동일하게 픽셀 보더/직각을 라운드+소프트로.
+  const tc = useThemeColors();
+  const { theme } = useTheme();
+  const flat = isFlatTheme(theme);
   // 캐시가 있으면 즉시 보여주고 (loading=false), 없으면 로딩 표시.
   const [data, setData] = useState<PackWithBox[] | null>(packsCache?.data ?? null);
   const [loading, setLoading] = useState<boolean>(!packsCache);
@@ -180,23 +185,24 @@ export default function PackExplorerScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.paper }}>
+    <View style={{ flex: 1, backgroundColor: tc.bg }}>
       <AppBar onBack={() => router.back()} title="시세확인" />
-      {/* 게임 필터 탭 — 웹 PacksExplorer 동일 (설정에서 켠 게임만, 여러 개면 '전체' 탭 추가) */}
+      {/* 게임 필터 탭 — 웹 PacksExplorer 동일 (설정에서 켠 게임만, 여러 개면 '전체' 탭 추가).
+          클린은 웹 [data-theme=clean] .chip.on(잉크 배경+흰 글씨)과 동일. */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 14, paddingTop: 10 }}>
         {multi && (
-          <PixelPress onPress={() => setPicked('all')} bg={game === 'all' ? colors.gold : colors.white} borderWidth={3} shadow={game === 'all' ? 2 : 4} inner={2}>
+          <PixelPress onPress={() => setPicked('all')} bg={game === 'all' ? (flat ? tc.ink : tc.gold) : tc.white} borderWidth={3} shadow={game === 'all' ? 2 : 4} inner={2}>
             <View style={{ paddingHorizontal: 12, paddingVertical: 7 }}>
-              <PixelText variant="ko" size={10} weight="bold" color={colors.ink}>전체</PixelText>
+              <PixelText variant="ko" size={10} weight="bold" color={flat && game === 'all' ? tc.paper : tc.ink}>전체</PixelText>
             </View>
           </PixelPress>
         )}
         {tabs.map((t) => {
           const on = game === t.key;
           return (
-            <PixelPress key={t.key} onPress={() => setPicked(t.key)} bg={on ? colors.gold : colors.white} borderWidth={3} shadow={on ? 2 : 4} inner={2}>
+            <PixelPress key={t.key} onPress={() => setPicked(t.key)} bg={on ? (flat ? tc.ink : tc.gold) : tc.white} borderWidth={3} shadow={on ? 2 : 4} inner={2}>
               <View style={{ paddingHorizontal: 12, paddingVertical: 7 }}>
-                <PixelText variant="ko" size={10} weight="bold" color={colors.ink}>{t.label}</PixelText>
+                <PixelText variant="ko" size={10} weight="bold" color={flat && on ? tc.paper : tc.ink}>{t.label}</PixelText>
               </View>
             </PixelPress>
           );
@@ -210,17 +216,17 @@ export default function PackExplorerScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ paddingBottom: 110 }}>
-          {/* 헤더 안내 — 입체 픽셀 프레임 */}
+          {/* 헤더 안내 — 픽셀 테마는 입체 프레임, 플랫 테마는 PixelFrame 이 자동 플랫 처리 */}
           <View style={{ marginHorizontal: 14, marginTop: 14, marginBottom: 12 }}>
-            <PixelFrame bg={colors.white}>
+            <PixelFrame bg={tc.white}>
               <View style={{ padding: 14 }}>
-                <PixelText variant="ko" size={14} weight="bold" color={colors.ink}>
+                <PixelText variant="ko" size={14} weight="bold" color={tc.ink}>
                   {gameLabel} 카드 박스
                 </PixelText>
                 <PixelText
                   variant="ko"
                   size={11}
-                  color={colors.ink3}
+                  color={tc.ink3}
                   style={{ marginTop: 6, lineHeight: 16 }}
                 >
                   박스를 선택하면 해당 박스의 싱글카드 시세가 표시됩니다.
@@ -229,13 +235,14 @@ export default function PackExplorerScreen() {
             </PixelFrame>
           </View>
 
-          {/* 박스 리스트 — 각 항목 입체 픽셀 버튼. 리스트 간 갭 축소(12→6→3). */}
-          <View style={{ marginHorizontal: 14, gap: 3 }}>
+          {/* 박스 리스트 — 픽셀 테마는 입체 버튼, 플랫은 웹 .pack-list-item(라운드+소프트) 동일.
+              플랫 간격은 웹 gap 10 에 맞춰 넓힘. */}
+          <View style={{ marginHorizontal: 14, gap: flat ? 10 : 3 }}>
             {list.map((pack) => (
               <PixelPress
                 key={pack.code}
                 onPress={() => router.push(`/cards/packs/${pack.code}` as never)}
-                bg={colors.white}
+                bg={tc.white}
                 borderWidth={4}
                 shadow={6}
                 hi="rgba(255,255,255,0.95)"
@@ -257,8 +264,10 @@ export default function PackExplorerScreen() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       backgroundColor: pack.bg,
-                      borderColor: colors.ink,
-                      borderWidth: 2,
+                      // 웹 클린: 썸네일은 ink 보더 없이 라운드(--r-sm=14).
+                      borderColor: tc.ink,
+                      borderWidth: flat ? 0 : 2,
+                      borderRadius: flat ? 14 : 0,
                       overflow: 'hidden',
                     }}
                   >
@@ -279,7 +288,7 @@ export default function PackExplorerScreen() {
                         variant="ko"
                         size={13}
                         weight="bold"
-                        color={colors.ink}
+                        color={tc.ink}
                         numberOfLines={2}
                         style={{ flexShrink: 1 }}
                       >
@@ -287,8 +296,8 @@ export default function PackExplorerScreen() {
                       </PixelText>
                       {/* 세트코드 라벨 — 포켓몬 SV11B/M2A, 원피스 OP16 등. 웹 PacksExplorer 와 동일. */}
                       {packSetCode(pack) ? (
-                        <View style={{ borderWidth: 1, borderColor: colors.ink3, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
-                          <PixelText variant="ko" size={9} color={colors.ink3} style={{ letterSpacing: 0.5 }}>
+                        <View style={{ borderWidth: 1, borderColor: tc.ink3, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
+                          <PixelText variant="ko" size={9} color={tc.ink3} style={{ letterSpacing: 0.5 }}>
                             {packSetCode(pack)!}
                           </PixelText>
                         </View>
@@ -297,7 +306,7 @@ export default function PackExplorerScreen() {
                     <PixelText
                       variant="ko"
                       size={10}
-                      color={colors.ink3}
+                      color={tc.ink3}
                       style={{ marginTop: 5, lineHeight: 15 }}
                       numberOfLines={1}
                     >
@@ -306,7 +315,7 @@ export default function PackExplorerScreen() {
                     <PixelText
                       variant="ko"
                       size={10}
-                      color={colors.ink3}
+                      color={tc.ink3}
                       style={{ lineHeight: 15 }}
                       numberOfLines={1}
                     >
@@ -314,6 +323,7 @@ export default function PackExplorerScreen() {
                     </PixelText>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 7 }}>
                       {pack.boxPrice > 0 ? (
+                        // 웹 클린: 박스가 필 = gold-soft 배경 + gold-dk 1px 보더 + 알약 라운드.
                         <View
                           style={{
                             flexDirection: 'row',
@@ -321,35 +331,38 @@ export default function PackExplorerScreen() {
                             gap: 4,
                             paddingHorizontal: 7,
                             paddingVertical: 4,
-                            backgroundColor: colors.gold,
-                            borderColor: colors.ink,
+                            backgroundColor: flat ? tc.goldSoft : tc.gold,
+                            borderColor: flat ? tc.goldDk : tc.ink,
                             borderWidth: 1,
+                            borderRadius: flat ? 999 : 0,
                           }}
                         >
-                          <PixelText variant="pixel" size={7} color={colors.ink} style={{ opacity: 0.7 }}>
+                          <PixelText variant="pixel" size={7} color={tc.ink} style={{ opacity: 0.7 }}>
                             박스
                           </PixelText>
-                          <PixelText variant="pixel" size={9} color={colors.ink} numberOfLines={1}>
+                          <PixelText variant="pixel" size={9} weight="bold" color={tc.ink} numberOfLines={1}>
                             {formatCurrency(pack.boxPrice)}
                           </PixelText>
                         </View>
                       ) : null}
+                      {/* 웹 클린: 출시일 필 = pap2 배경, 보더 없음, 알약 라운드. */}
                       <View
                         style={{
                           paddingHorizontal: 6,
                           paddingVertical: 3,
-                          backgroundColor: colors.pap2,
-                          borderColor: colors.ink,
-                          borderWidth: 1,
+                          backgroundColor: tc.pap2,
+                          borderColor: tc.ink,
+                          borderWidth: flat ? 0 : 1,
+                          borderRadius: flat ? 999 : 0,
                         }}
                       >
-                        <PixelText variant="pixel" size={8} color={colors.ink2} numberOfLines={1}>
+                        <PixelText variant="pixel" size={8} color={tc.ink2} numberOfLines={1}>
                           {pack.releasedAt ? `${pack.releasedAt} 출시` : '출시일 확인 중'}
                         </PixelText>
                       </View>
                     </View>
                   </View>
-                  <PixelText variant="pixel" size={14} color={colors.ink3} style={{ paddingRight: 6 }}>
+                  <PixelText variant="pixel" size={14} color={tc.ink3} style={{ paddingRight: 6 }}>
                     ›
                   </PixelText>
                 </View>

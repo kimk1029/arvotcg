@@ -110,7 +110,7 @@ export const THEME_COLORS: Record<ThemeId, typeof colors> = {
     grn: '#0E9C6E', grnLt: '#2BB888', grnDk: '#0A7A56',
     orn: '#E07B39', ornLt: '#EC9C68', ornDk: '#B85F22',
     pur: '#7C5CDB', purLt: '#A189EC', purDk: '#5C3FB0',
-    gold: '#C8941E', goldLt: '#E0AC3C', goldDk: '#A2760F',
+    gold: '#C8941E', goldLt: '#E0AC3C', goldDk: '#A2760F', goldSoft: '#FAF2DD',
     yel: '#C8941E', yelLt: '#E0AC3C', yelDk: '#A2760F',
     teal: '#0E9C6E',
     nav: '#1A1D24', navLt: '#363B45', navDk: '#11141A',     // 브랜드 다크(주 액센트)
@@ -127,7 +127,7 @@ export const THEME_COLORS: Record<ThemeId, typeof colors> = {
     orn: '#F5A45A', ornLt: '#FFC089', ornDk: '#B86E2E',
     pur: '#A78BFA', purLt: '#C7B2FF', purDk: '#6E4FC8',
     pnk: '#F472B6', pnkLt: '#F9A8D4', pnkDk: '#9D2463',
-    gold: '#FFD45E', goldLt: '#FFE39A', goldDk: '#A8841E',
+    gold: '#FFD45E', goldLt: '#FFE39A', goldDk: '#A8841E', goldSoft: '#2A2617',
     yel: '#FFD45E', yelLt: '#FFE39A', yelDk: '#A8841E',
     teal: '#5ED99B',
     nav: '#36C5FF', navLt: '#7FDCFF', navDk: '#1487C0',

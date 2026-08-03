@@ -10,8 +10,8 @@ import { PixelPress } from '@/components/cv/PixelPress';
 import { EmptyState, ErrorView, LoadingState } from '@/components/cv/ListState';
 import { SnkrdunkCardTile } from '@/components/cv/SnkrdunkCardTile';
 import { ThumbImage } from '@/components/cv/ThumbImage';
-import { colors } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useThemeColors, useThemeTextVariant, useTheme } from '@/components/ThemeProvider';
+import { isFlatTheme } from '@/lib/theme';
 import { fetchPackHits, type PackHitCard, type PackWithHits } from '@/lib/myApi';
 import { useAsync } from '@/lib/useAsync';
 import { useCurrency } from '@/components/CurrencyProvider';
@@ -22,6 +22,9 @@ type ViewMode = 'grid' | 'list';
 export default function PackDetailScreen() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  // 클린·다크(플랫) — 웹 clean 디자인셋과 동일하게 픽셀 보더/직각을 라운드+소프트로.
+  const { theme } = useTheme();
+  const flat = isFlatTheme(theme);
   const { format: formatCurrency } = useCurrency();
   const params = useLocalSearchParams<{ code: string }>();
   const code = params.code ?? '';
@@ -39,7 +42,7 @@ export default function PackDetailScreen() {
   const sortedBoxes = useMemo(() => sortHits(boxes, 'price'), [boxes]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: tc.paper }}>
+    <View style={{ flex: 1, backgroundColor: tc.bg }}>
       <AppBar onBack={() => router.back()} title={data?.shortName ?? '카드팩'} />
       {loading && !data ? (
         <LoadingState />
@@ -53,7 +56,7 @@ export default function PackDetailScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ paddingBottom: 110 }}>
-          {/* Pack header — 박스 이미지 + 정보 */}
+          {/* Pack header — 박스 이미지 + 정보. 플랫은 웹 clean 디자인셋(라운드 --r=18, ink 보더 없음). */}
           <View style={{ marginHorizontal: 14, marginTop: 14, marginBottom: 14 }}>
             <View
               style={{
@@ -63,15 +66,17 @@ export default function PackDetailScreen() {
                 padding: 12,
                 backgroundColor: data.bg,
                 borderColor: tc.ink,
-                borderWidth: 3,
+                borderWidth: flat ? 0 : 3,
+                borderRadius: flat ? 18 : 0,
               }}
             >
-              {/* 박스 대표 이미지 */}
+              {/* 박스 대표 이미지 — 플랫은 라운드(--r-sm=14) + 보더 없음 */}
               <ThumbImage
                 uri={data.boxImageUrl}
                 size={110}
                 bg="rgba(0,0,0,0.18)"
-                borderColor={tc.ink}
+                borderColor={flat ? undefined : tc.ink}
+                style={flat ? { borderRadius: 14 } : undefined}
                 emoji={data.emoji}
                 emojiSize={48}
               />
@@ -145,7 +150,8 @@ export default function PackDetailScreen() {
                   inner={3}
                 >
                   <View style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
-                    <PixelText variant={txt} size={9} color={on ? tc.gold : tc.ink}>
+                    {/* 픽셀=골드 온 텍스트, 플랫=웹 clean .chip.on(흰 글씨) */}
+                    <PixelText variant={txt} size={9} color={on ? (flat ? tc.paper : tc.gold) : tc.ink}>
                       {label}
                     </PixelText>
                   </View>
@@ -172,7 +178,7 @@ export default function PackDetailScreen() {
                   inner={3}
                 >
                   <View style={{ paddingHorizontal: 9, paddingVertical: 6 }}>
-                    <PixelText variant={txt} size={14} color={on ? tc.gold : tc.ink}>
+                    <PixelText variant={txt} size={14} color={on ? (flat ? tc.paper : tc.gold) : tc.ink}>
                       {icon}
                     </PixelText>
                   </View>
