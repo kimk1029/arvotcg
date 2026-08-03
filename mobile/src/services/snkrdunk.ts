@@ -1,21 +1,17 @@
 /**
- * SNKRDUNK 비공식 v1 JSON API 호출 (모바일).
+ * SNKRDUNK 데이터 fetcher (모바일) — 웹과 동일하게 NAS `/api/snkrdunk/*` 를 호출.
  *
  * 타입·파서·변환·로컬라이즈·다운샘플 등 순수 로직의 정본은 [[/shared/snkrdunk.ts]] —
- * 이 파일은 re-export + 네이티브 fetch(timeout) 기반 fetcher + 모바일 전용
- * 시세탭 헬퍼(PriceMode 등)만 보유. 웹과 규칙이 어긋나지 않게 재구현 금지.
+ * 이 파일은 re-export + NAS 프록시 fetcher + 모바일 전용 시세탭 헬퍼(PriceMode 등)만
+ * 보유. 웹과 규칙이 어긋나지 않게 재구현 금지.
  *
- * 네이티브에서는 CORS 없이 직접 호출. Expo Web 빌드는 CORS로 차단되므로
- * 그 경우 Next.js 백엔드의 /api/snkrdunk/* 프록시를 거쳐야 함 (현재 미적용).
+ * 2026-08: 기기→스니덩 직접 호출을 전부 NAS 경유로 통일 (웹·앱 같은 서버 로직 —
+ * DB 캐시·카탈로그 적재·스냅샷 부수효과까지 동일). 응답은 서버가 이미
+ * toSnkrdunkApparel 로 매핑한 형태라 여기서 재매핑하지 않는다.
  */
 import {
-  SNKRDUNK_ORIGIN,
   SNKRDUNK_BROWSE_KEYWORD,
   isSingleUnitSale,
-  parseSnkrdunkSearchHtml,
-  toSnkrdunkApparel,
-  type RawApparel,
-  type RawApparelGroupPage,
   type SnkrdunkApparel,
   type SnkrdunkApparelGroupPage,
   type SnkrdunkSalesChart,
@@ -27,6 +23,7 @@ import {
   headlineFromHistory as sharedHeadline,
   type Headline,
 } from '../../../shared/snkrdunkPrice';
+import { api } from '@/lib/apiClient';
 
 export * from '../../../shared/snkrdunk';
 
@@ -36,17 +33,10 @@ function abortAfter(ms: number): AbortSignal {
   return c.signal;
 }
 
-async function getJson<T>(path: string): Promise<T | null> {
+/** NAS 프록시 GET — 실패(네트워크·5xx)는 null. 웹 serverFetch 의 관대한 폴백과 동일. */
+async function getProxy<T>(path: string, timeoutMs = 8000): Promise<T | null> {
   try {
-    const res = await fetch(`${SNKRDUNK_ORIGIN}${path}`, {
-      headers: {
-        Accept: 'application/json',
-        'Accept-Language': 'ja,en-US;q=0.8,ko;q=0.7',
-      },
-      signal: abortAfter(8000),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
+    return await api<T>(path, { auth: false, signal: abortAfter(timeoutMs) });
   } catch {
     return null;
   }
@@ -54,9 +44,8 @@ async function getJson<T>(path: string): Promise<T | null> {
 
 export async function fetchSnkrdunkApparel(apparelId: number): Promise<SnkrdunkApparel | null> {
   if (!Number.isInteger(apparelId) || apparelId <= 0) return null;
-  const raw = await getJson<RawApparel>(`/v1/apparels/${apparelId}`);
-  if (!raw) return null;
-  return toSnkrdunkApparel(raw);
+  const r = await getProxy<{ data: SnkrdunkApparel | null }>(`/api/snkrdunk/apparels/${apparelId}`);
+  return r?.data ?? null;
 }
 
 export async function fetchSnkrdunkApparelGroup(
@@ -65,22 +54,19 @@ export async function fetchSnkrdunkApparelGroup(
 ): Promise<SnkrdunkApparelGroupPage | null> {
   if (!Number.isInteger(groupId) || groupId <= 0) return null;
   const page = Number.isInteger(opts.page) && opts.page && opts.page > 0 ? opts.page : 1;
-  const perPage = Number.isInteger(opts.perPage) && opts.perPage ? Math.min(Math.max(opts.perPage, 1), 100) : 100;
-  const raw = await getJson<RawApparelGroupPage>(
-    `/v1/apparel-groups/${groupId}?page=${page}&perPage=${perPage}&apparelCategoryId=${opts.apparelCategoryId}`,
+  // 서버 라우트가 perPage 를 50 으로 캡 — 페이지네이션 계산이 어긋나지 않게 동일 캡.
+  const perPage = Number.isInteger(opts.perPage) && opts.perPage ? Math.min(Math.max(opts.perPage, 1), 50) : 50;
+  const r = await getProxy<{ data: SnkrdunkApparelGroupPage | null }>(
+    `/api/snkrdunk/apparel-groups/${groupId}?page=${page}&perPage=${perPage}&apparelCategoryId=${opts.apparelCategoryId}`,
   );
-  if (!raw) return null;
-  return {
-    apparels: (raw.apparels ?? []).map((a) => toSnkrdunkApparel(a, opts.apparelCategoryId === 25 ? 'single' : 'box')),
-    apparelsCount: raw.apparelsCount ?? 0,
-  };
+  return r?.data ?? null;
 }
 
 export async function fetchAllSnkrdunkApparelGroup(
   groupId: number,
   opts: { apparelCategoryId: 25 | 14; maxItems?: number },
 ): Promise<SnkrdunkApparel[]> {
-  const perPage = 100;
+  const perPage = 50;
   const first = await fetchSnkrdunkApparelGroup(groupId, {
     apparelCategoryId: opts.apparelCategoryId,
     page: 1,
@@ -106,21 +92,23 @@ export async function fetchSnkrdunkSalesHistory(
   apparelId: number,
 ): Promise<SnkrdunkSalesHistory | null> {
   if (!Number.isInteger(apparelId) || apparelId <= 0) return null;
-  const data = await getJson<SnkrdunkSalesHistory>(
-    `/v1/apparels/${apparelId}/sales-history?size_id=0&page=1&per_page=20`,
+  const r = await getProxy<{ data: SnkrdunkSalesHistory | null }>(
+    `/api/snkrdunk/apparels/${apparelId}/sales-history`,
   );
-  if (!data) return null;
-  // 웹과 동일 규칙 — 여러 장 묶음 체결은 단가 오염원이라 제외.
-  return { ...data, history: data.history.filter(isSingleUnitSale) };
+  if (!r?.data) return null;
+  // 서버가 이미 필터하지만 규칙 정본(단일 장 체결만)을 이중으로 보장 — 멱등.
+  return { ...r.data, history: r.data.history.filter(isSingleUnitSale) };
 }
 
 export async function fetchSnkrdunkSalesChart(
   apparelId: number,
 ): Promise<SnkrdunkSalesChart | null> {
   if (!Number.isInteger(apparelId) || apparelId <= 0) return null;
-  const main = await getJson<SnkrdunkSalesChart>(`/v1/apparels/${apparelId}/sales-chart`);
-  if (main && main.points && main.points.length > 0) return main;
-  return getJson<SnkrdunkSalesChart>(`/v1/apparels/${apparelId}/sales-chart/used`);
+  // 메인/중고 차트 폴백은 서버 fetchSnkrdunkSalesChart 가 처리.
+  const r = await getProxy<{ data: SnkrdunkSalesChart | null }>(
+    `/api/snkrdunk/apparels/${apparelId}/sales-chart`,
+  );
+  return r?.data ?? null;
 }
 
 export async function fetchSnkrdunkBrowse(page = 1): Promise<SnkrdunkSearchResult[]> {
@@ -136,21 +124,11 @@ export async function searchSnkrdunkByQuery(
 ): Promise<SnkrdunkSearchResult[]> {
   if (!query || !query.trim()) return [];
   const p = Number.isInteger(page) && page > 1 ? `&page=${page}` : '';
-  const url = `${SNKRDUNK_ORIGIN}/search?keywords=${encodeURIComponent(query.trim())}${p}`;
-  try {
-    const res = await fetch(url, {
-      headers: {
-        Accept: 'text/html',
-        'Accept-Language': 'ja,en-US;q=0.8,ko;q=0.7',
-      },
-      signal: abortAfter(10000),
-    });
-    if (!res.ok) return [];
-    const html = await res.text();
-    return parseSnkrdunkSearchHtml(html);
-  } catch {
-    return [];
-  }
+  const r = await getProxy<{ results?: SnkrdunkSearchResult[] }>(
+    `/api/snkrdunk/search?q=${encodeURIComponent(query.trim())}${p}`,
+    10000,
+  );
+  return r?.results ?? [];
 }
 
 /* ── 모바일 전용 — 시세탭(싱글/PSA10 토글) 헬퍼 ─────────────────────── */
