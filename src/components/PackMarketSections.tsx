@@ -7,7 +7,6 @@ import type { PackHitCard } from '@/lib/cardPackHits';
 type SortKey = 'price-desc' | 'recent-sale' | 'listing-desc';
 
 interface Props {
-  packBg: string;
   cards: PackHitCard[];
   boxes: PackHitCard[];
   showBoxes?: boolean;
@@ -27,7 +26,7 @@ function sortItems(items: PackHitCard[], sort: SortKey): PackHitCard[] {
   });
 }
 
-export function PackMarketSections({ packBg, cards, boxes, showBoxes = false }: Props) {
+export function PackMarketSections({ cards, boxes, showBoxes = false }: Props) {
   const [cardSort, setCardSort] = useState<SortKey>('price-desc');
   const sortedCards = useMemo(() => sortItems(cards, cardSort), [cards, cardSort]);
   const sortedBoxes = useMemo(() => sortItems(boxes, 'price-desc'), [boxes]);
@@ -37,7 +36,6 @@ export function PackMarketSections({ packBg, cards, boxes, showBoxes = false }: 
       <MarketSection
         title="싱글카드 시세"
         count={cards.length}
-        packBg={packBg}
         items={sortedCards}
         sort={cardSort}
         onSort={setCardSort}
@@ -48,7 +46,6 @@ export function PackMarketSections({ packBg, cards, boxes, showBoxes = false }: 
         <MarketSection
           title="상자/팩 매물"
           count={boxes.length}
-          packBg={packBg}
           items={sortedBoxes}
           emptyText="상자/팩 매물을 가져오지 못했어요."
         />
@@ -60,7 +57,6 @@ export function PackMarketSections({ packBg, cards, boxes, showBoxes = false }: 
 function MarketSection({
   title,
   count,
-  packBg,
   items,
   sort,
   onSort,
@@ -68,7 +64,6 @@ function MarketSection({
 }: {
   title: string;
   count: number;
-  packBg: string;
   items: PackHitCard[];
   sort?: SortKey;
   onSort?: (sort: SortKey) => void;
@@ -124,7 +119,7 @@ function MarketSection({
           }}
         >
           {items.map((hit) => (
-            <MarketCard key={hit.apparelId} hit={hit} packBg={packBg} />
+            <MarketCard key={hit.apparelId} hit={hit} />
           ))}
         </div>
       )}
@@ -132,14 +127,13 @@ function MarketSection({
   );
 }
 
-function MarketCard({ hit, packBg }: { hit: PackHitCard; packBg: string }) {
+function MarketCard({ hit }: { hit: PackHitCard }) {
   // 번역된 koName 이 비어있거나 원문과 동일하면 일본어 별도 표기 생략 (중복 라인 방지).
   const koTitle = hit.koName || hit.shortName;
   const jpTitle = hit.name && hit.name !== koTitle ? hit.name : null;
   return (
     <PackGridCard
       href={`/cards/snkrdunk/${hit.apparelId}`}
-      style={{ borderTop: `4px solid ${packBg}` }}
       image={hit.imageUrl}
       title={koTitle}
       subtitle={jpTitle}

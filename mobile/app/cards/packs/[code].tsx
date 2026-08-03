@@ -2,11 +2,10 @@
  * /cards/packs/[code] — 팩별 힛카드 풀 그리드 + 리스트 뷰 전환.
  */
 import { useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
-import { PixelPress } from '@/components/cv/PixelPress';
 import { EmptyState, ErrorView, LoadingState } from '@/components/cv/ListState';
 import { SnkrdunkCardTile } from '@/components/cv/SnkrdunkCardTile';
 import { ThumbImage } from '@/components/cv/ThumbImage';
@@ -19,6 +18,13 @@ import { useCurrency } from '@/components/CurrencyProvider';
 type SortMode = 'price' | 'recent' | 'listing' | 'name';
 type ViewMode = 'grid' | 'list';
 
+const SORT_OPTIONS: Array<{ key: SortMode; label: string }> = [
+  { key: 'price', label: '가격 높은순' },
+  { key: 'recent', label: '최근 거래순' },
+  { key: 'listing', label: '매물 많은순' },
+  { key: 'name', label: '이름순' },
+];
+
 export default function PackDetailScreen() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
@@ -29,6 +35,7 @@ export default function PackDetailScreen() {
   const params = useLocalSearchParams<{ code: string }>();
   const code = params.code ?? '';
   const [sort, setSort] = useState<SortMode>('price');
+  const [sortOpen, setSortOpen] = useState(false);
   const [view, setView] = useState<ViewMode>('grid');
   const { data, loading, error, refresh } = useAsync<PackWithHits | null>(
     // 웹 packs/[code]/page.tsx 와 동일한 호출 (limit=600).
@@ -119,73 +126,118 @@ export default function PackDetailScreen() {
             </View>
           </View>
 
-          {/* Sort + view toggle */}
+          {/* Sort 셀렉트 + 뷰 토글 — 웹 PackMarketSections 의 <select> 대응(작은 셀렉트박스),
+              뷰 전환은 아이콘만 있는 단일 세그먼트 컨테이너(줄바꿈 없음). */}
           <View
             style={{
               flexDirection: 'row',
-              flexWrap: 'wrap',
-              gap: 4,
-              marginLeft: 14,
-              marginRight: 18,
-              marginBottom: 14,
               alignItems: 'center',
+              gap: 8,
+              marginHorizontal: 14,
+              marginBottom: 14,
             }}
           >
-            {([
-              ['price', '가격 높은순'],
-              ['recent', '최근 거래순'],
-              ['listing', '매물 많은순'],
-              ['name', '이름순'],
-            ] as const).map(([key, label]) => {
-              const on = sort === key;
-              return (
-                <PixelPress
-                  key={key}
-                  onPress={() => setSort(key)}
-                  bg={on ? tc.ink : tc.white}
-                  borderWidth={3}
-                  shadow={4}
-                  hi={on ? null : 'rgba(255,255,255,0.95)'}
-                  lo={on ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.32)'}
-                  inner={3}
-                >
-                  <View style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
-                    {/* 픽셀=골드 온 텍스트, 플랫=웹 clean .chip.on(흰 글씨) */}
-                    <PixelText variant={txt} size={9} color={on ? (flat ? tc.paper : tc.gold) : tc.ink}>
-                      {label}
-                    </PixelText>
-                  </View>
-                </PixelPress>
-              );
-            })}
+            <Pressable
+              onPress={() => setSortOpen(true)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                height: 32,
+                paddingHorizontal: 10,
+                backgroundColor: tc.white,
+                borderWidth: 1,
+                borderColor: flat ? tc.pap3 : tc.ink,
+                borderRadius: flat ? 8 : 0,
+              }}
+            >
+              <PixelText variant={txt} size={9} color={tc.ink}>
+                {SORT_OPTIONS.find((o) => o.key === sort)?.label ?? '정렬'}
+              </PixelText>
+              <PixelText variant={txt} size={7} color={tc.ink3}>▼</PixelText>
+            </Pressable>
 
             <View style={{ flex: 1 }} />
 
-            {([
-              ['grid', '⊞'],
-              ['list', '☰'],
-            ] as const).map(([key, icon]) => {
-              const on = view === key;
-              return (
-                <PixelPress
-                  key={key}
-                  onPress={() => setView(key)}
-                  bg={on ? tc.ink : tc.white}
-                  borderWidth={3}
-                  shadow={4}
-                  hi={on ? null : 'rgba(255,255,255,0.95)'}
-                  lo={on ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.32)'}
-                  inner={3}
-                >
-                  <View style={{ paddingHorizontal: 9, paddingVertical: 6 }}>
-                    <PixelText variant={txt} size={14} color={on ? (flat ? tc.paper : tc.gold) : tc.ink}>
+            <View
+              style={{
+                flexDirection: 'row',
+                padding: 2,
+                gap: 2,
+                backgroundColor: flat ? tc.pap2 : tc.white,
+                borderWidth: 1,
+                borderColor: flat ? tc.pap3 : tc.ink,
+                borderRadius: flat ? 8 : 0,
+              }}
+            >
+              {([
+                ['grid', '⊞'],
+                ['list', '☰'],
+              ] as const).map(([key, icon]) => {
+                const on = view === key;
+                return (
+                  <Pressable
+                    key={key}
+                    onPress={() => setView(key)}
+                    style={{
+                      paddingHorizontal: 9,
+                      paddingVertical: 4,
+                      backgroundColor: on ? (flat ? tc.white : tc.ink) : 'transparent',
+                      borderRadius: flat ? 6 : 0,
+                    }}
+                  >
+                    <PixelText variant={txt} size={13} color={on ? (flat ? tc.ink : tc.gold) : tc.ink3}>
                       {icon}
                     </PixelText>
-                  </View>
-                </PixelPress>
-              );
-            })}
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
+
+          {/* 정렬 드롭다운 메뉴 */}
+          <Modal transparent visible={sortOpen} animationType="fade" onRequestClose={() => setSortOpen(false)}>
+            <Pressable
+              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }}
+              onPress={() => setSortOpen(false)}
+            >
+              <View
+                style={{
+                  marginTop: 160,
+                  marginLeft: 14,
+                  alignSelf: 'flex-start',
+                  minWidth: 150,
+                  backgroundColor: tc.white,
+                  borderWidth: 1,
+                  borderColor: flat ? tc.pap3 : tc.ink,
+                  borderRadius: flat ? 12 : 0,
+                  overflow: 'hidden',
+                }}
+              >
+                {SORT_OPTIONS.map((o) => {
+                  const on = sort === o.key;
+                  return (
+                    <Pressable
+                      key={o.key}
+                      onPress={() => {
+                        setSort(o.key);
+                        setSortOpen(false);
+                      }}
+                      style={{
+                        paddingHorizontal: 14,
+                        paddingVertical: 11,
+                        backgroundColor: on ? (flat ? tc.pap2 : tc.gold) : 'transparent',
+                      }}
+                    >
+                      <PixelText variant={txt} size={10} weight={on ? 'bold' : 'normal'} color={tc.ink}>
+                        {o.label}
+                      </PixelText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </Pressable>
+          </Modal>
 
           {/* Body */}
           <View style={{ marginHorizontal: 14 }}>
@@ -197,7 +249,6 @@ export default function PackDetailScreen() {
                   <View key={hit.apparelId} style={{ width: '32%' }}>
                     <SnkrdunkCardTile
                       onPress={() => router.push(`/cards/snkrdunk/${hit.apparelId}` as never)}
-                      accentColor={data.bg}
                       imageUrl={hit.imageUrl}
                       koName={hit.koName || hit.shortName}
                       subName={hit.name}
@@ -213,7 +264,7 @@ export default function PackDetailScreen() {
             ) : (
               <View style={{ gap: 8 }}>
                 {cards.map((hit) => (
-                  <ListRow key={hit.apparelId} hit={hit} accent={data.bg} />
+                  <ListRow key={hit.apparelId} hit={hit} />
                 ))}
               </View>
             )}
@@ -226,7 +277,7 @@ export default function PackDetailScreen() {
                 </PixelText>
                 <View style={{ gap: 8 }}>
                   {sortedBoxes.map((hit) => (
-                    <ListRow key={hit.apparelId} hit={hit} accent={data.bg} />
+                    <ListRow key={hit.apparelId} hit={hit} />
                   ))}
                 </View>
               </View>
@@ -238,13 +289,12 @@ export default function PackDetailScreen() {
   );
 }
 
-function ListRow({ hit, accent }: { hit: PackHitCard; accent: string }) {
+function ListRow({ hit }: { hit: PackHitCard }) {
   const { format: formatCurrency } = useCurrency();
   return (
     <SnkrdunkCardTile
       variant="row"
       onPress={() => router.push(`/cards/snkrdunk/${hit.apparelId}` as never)}
-      accentColor={accent}
       imageUrl={hit.imageUrl}
       koName={hit.koName || hit.shortName}
       subName={hit.name}

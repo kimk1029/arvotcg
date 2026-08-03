@@ -77,7 +77,7 @@ export default async function PackDetailPage({ params }: Params) {
         </div>
       </div>
 
-      <PackMarketSections packBg={pack.bg} cards={cards} boxes={boxes} />
+      <PackMarketSections cards={cards} boxes={boxes} />
 
       <div className="bggap" />
     </>
