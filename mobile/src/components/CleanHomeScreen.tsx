@@ -97,6 +97,10 @@ interface SnkrRow {
 
 const FEATURED_BY_ID = new Map(SNKRDUNK_FEATURED_CARDS.map((s) => [s.apparelId, s]));
 
+// RN 에는 CSS word-break:keep-all 이 없어 한글이 글자 단위로 줄바꿈됨 —
+// 어절 내부에 word joiner(U+2060)를 끼워 공백에서만 줄바꿈되게 함 (웹 keep-all 패리티).
+const keepAllWrap = (s: string) => s.split(' ').map((w) => w.split('').join('\u2060')).join(' ');
+
 const BOX_NAME_RE = /ボックス|box|booster|ブースター|デッキビルド|スターター|拡張パック|ハイクラスパック|ポケモンセンターセット|シュリンク/i;
 const isBoxName = (name: string) => BOX_NAME_RE.test(name || '');
 
@@ -513,7 +517,7 @@ export function CleanHomeScreen() {
       {lines.map((line) => (
         <View key={line} style={{ flexDirection: 'row', gap: 5 }}>
           <Text style={[ts(12, '400', P.ink2), { lineHeight: 18 }]}>-</Text>
-          <Text style={[ts(12, '400', P.ink2), { lineHeight: 18, flexShrink: 1 }]}>{line}</Text>
+          <Text style={[ts(12, '400', P.ink2), { lineHeight: 18, flexShrink: 1 }]}>{keepAllWrap(line)}</Text>
         </View>
       ))}
     </View>
@@ -652,7 +656,7 @@ export function CleanHomeScreen() {
                 <Chevron size={16} color={P.chev} w={2.4} />
               </View>
               <Text style={[ts(16, '800', P.ink), { marginTop: 14 }]}>내 카드 등록</Text>
-              <Text style={[ts(12, '400', P.ink2), { marginTop: 3 }]}>보유 카드를 등록하고 관리해요</Text>
+              <Text style={[ts(12, '400', P.ink2), { marginTop: 3 }]}>{keepAllWrap('보유 카드를 등록하고 관리해요')}</Text>
             </ScanTile>
             <ScanTile onPress={() => router.push('/cards/packs' as never)}>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>

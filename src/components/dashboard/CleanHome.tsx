@@ -697,7 +697,7 @@ function QuickTile({
       <div style={{ fontSize: 16, fontWeight: 800, color: P.ink, marginTop: 14 }}>{label}</div>
       {Array.isArray(desc) ? (
         // 여러 줄 설명 — "- " 불릿 + 행잉 인덴트로 줄별 정렬.
-        <div style={{ fontSize: 12, color: P.ink2, marginTop: 3, lineHeight: 1.55 }}>
+        <div style={{ fontSize: 12, color: P.ink2, marginTop: 3, lineHeight: 1.55, wordBreak: 'keep-all' }}>
           {desc.map((line) => (
             <div key={line} style={{ display: 'flex', gap: 5 }}>
               <span aria-hidden>-</span>
@@ -706,7 +706,7 @@ function QuickTile({
           ))}
         </div>
       ) : (
-        <div style={{ fontSize: 12, color: P.ink2, marginTop: 3 }}>{desc}</div>
+        <div style={{ fontSize: 12, color: P.ink2, marginTop: 3, wordBreak: 'keep-all' }}>{desc}</div>
       )}
     </Link>
   );
