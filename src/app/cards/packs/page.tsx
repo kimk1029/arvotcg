@@ -2,15 +2,27 @@ import { AppBar } from '@/components/ui/AppBar';
 import { StatusBar } from '@/components/ui/StatusBar';
 import { PacksExplorer, type PackListRow } from '@/components/PacksExplorer';
 import { CARD_PACKS } from '@/lib/cardPacks';
-import { translateKnownCardNameToKo } from '@/lib/cardTranslate';
 import { serverFetch } from '@/lib/apiServer';
 
-interface ApparelGroupResp {
-  apparels?: Array<{ localizedName: string; imageUrl: string | null; minPrice: number }>;
-}
+/**
+ * 시세확인 박스 리스트 — 카탈로그+대표 박스는 NAS `/api/card-packs?withBox=1`
+ * 단일 소스. 서버 카탈로그에 세트를 추가·배포하면 웹·앱 재배포 없이 목록에
+ * 바로 뜬다 (앱 packs/index.tsx 와 동일 플로우). 번들 CARD_PACKS 는 NAS
+ * 미응답 시 박스 정보 없는 폴백으로만 쓴다.
+ */
 
-interface SearchResp {
-  results?: Array<{ name: string; imageUrl: string | null; priceText: string }>;
+interface PackWithBoxResp {
+  code: string;
+  setCode?: string;
+  game?: PackListRow['game'];
+  name: string;
+  emoji: string;
+  bg: string;
+  releasedAt?: string;
+  boxName: string;
+  boxKoName: string;
+  boxImageUrl: string | null;
+  boxPrice: number;
 }
 
 export const metadata = {
@@ -19,73 +31,51 @@ export const metadata = {
 };
 
 // ISR — 인증 없는 공용 데이터라 캐시해 즉시 서빙 + 백그라운드 재생성.
-// (팩 ~56개 × NAS 호출이라 동적 렌더 시 수 초가 걸리던 페이지)
 export const revalidate = 600;
 
 /** 박스 시세 TTL — 페이지 revalidate 와 정렬. */
 const BOX_TTL = 600;
 
-/** 동시 실행 cap — 한 번의 재생성에서 NAS/스니덩을 한꺼번에 두드리지 않게. */
-async function mapWithLimit<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const out: R[] = new Array(items.length);
-  let cursor = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, async () => {
-      while (cursor < items.length) {
-        const idx = cursor++;
-        out[idx] = await fn(items[idx]);
-      }
-    }),
-  );
-  return out;
-}
-
 export default async function PackExplorerPage() {
-  const packs: PackListRow[] = await mapWithLimit(
-    CARD_PACKS,
-    8,
-    async (pack) => {
-      let box: { localizedName: string; imageUrl: string | null; minPrice: number } | null = null;
-      if (pack.apparelGroupId) {
-        const r = await serverFetch<{ data: ApparelGroupResp | null }>(
-          `/api/snkrdunk/apparel-groups/${pack.apparelGroupId}?apparelCategoryId=14&page=1&perPage=1`,
-          { auth: false, revalidate: BOX_TTL },
-        );
-        box = r.data?.data?.apparels?.[0] ?? null;
-      } else {
-        // 그룹 미확인 팩(비포켓몬 일부) — 검색 1페이지의 첫 박스 매물로 대표 이미지/시세.
-        const r = await serverFetch<SearchResp>(
-          `/api/snkrdunk/search?q=${encodeURIComponent(`${pack.searchQuery} ボックス`)}`,
-          { auth: false, revalidate: BOX_TTL },
-        );
-        const hit = r.data?.results?.[0];
-        if (hit) {
-          box = {
-            localizedName: hit.name,
-            imageUrl: hit.imageUrl,
-            minPrice: Number((hit.priceText ?? '').replace(/[^\d]/g, '')) || 0,
-          };
-        }
-      }
-      return {
-        code: pack.code,
-        setCode: pack.setCode,
-        game: pack.game ?? 'pokemon',
-        name: pack.name,
-        emoji: pack.emoji,
-        bg: pack.bg,
-        releasedAt: pack.releasedAt,
-        boxName: box?.localizedName ?? pack.searchQuery,
-        boxKoName: box?.localizedName ? translateKnownCardNameToKo(box.localizedName) : pack.name,
-        boxImageUrl: box?.imageUrl ?? null,
-        boxPrice: box?.minPrice ?? 0,
-      };
-    },
+  const r = await serverFetch<{ data?: PackWithBoxResp[] }>(
+    '/api/card-packs?withBox=1',
+    { auth: false, revalidate: BOX_TTL },
   );
+  // withBox 미지원 구서버가 meta 목록만 돌려주는 과도기 대비 — 박스 필드 유무로 검증.
+  const fromServer =
+    r.data?.data && r.data.data.length > 0 && typeof r.data.data[0].boxName === 'string'
+      ? r.data.data
+      : null;
+  const rows: PackWithBoxResp[] =
+    fromServer ??
+    // NAS 미응답 폴백 — 번들 카탈로그로 박스 이미지/시세 없이 표시.
+    CARD_PACKS.map((pack) => ({
+          code: pack.code,
+          setCode: pack.setCode,
+          game: pack.game,
+          name: pack.name,
+          emoji: pack.emoji,
+          bg: pack.bg,
+          releasedAt: pack.releasedAt,
+          boxName: pack.searchQuery,
+          boxKoName: pack.name,
+          boxImageUrl: null,
+          boxPrice: 0,
+        }));
+
+  const packs: PackListRow[] = rows.map((pack) => ({
+    code: pack.code,
+    setCode: pack.setCode,
+    game: pack.game ?? 'pokemon',
+    name: pack.name,
+    emoji: pack.emoji,
+    bg: pack.bg,
+    releasedAt: pack.releasedAt,
+    boxName: pack.boxName,
+    boxKoName: pack.boxKoName,
+    boxImageUrl: pack.boxImageUrl,
+    boxPrice: pack.boxPrice,
+  }));
 
   return (
     <>

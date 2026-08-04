@@ -11,8 +11,11 @@ import { HeroSlider, type HeroSlideData } from '@/components/HeroSlider';
 import { HomeKoSearchBar } from '@/components/HomeKoSearchBar';
 import { GradeMark } from '@/components/cards/GradeMark';
 import { translateKnownCardNameToKo } from '@/lib/cardTranslate';
-import { CARD_PACKS } from '@/lib/cardPacks';
+import { CARD_PACKS, type CardPackMeta } from '@/lib/cardPacks';
 import { pickHomeBoxPacks } from '../../../shared/homeBoxPacks';
+
+/** 홈 인기박스 선별에 필요한 최소 팩 메타 — 서버 /api/card-packs 응답과 번들 공용. */
+type HomePackMeta = Pick<CardPackMeta, 'game' | 'apparelGroupId' | 'releasedAt' | 'shortName'>;
 import { headlineFromHistory, trendChangePct } from '@/lib/snkrdunkPrice';
 import type { SnkrdunkRow } from '@/components/dashboard/DashboardScreen';
 import type { MvcAuctionItem } from '@/lib/navercafe';
@@ -381,11 +384,18 @@ export function CleanHome({ heroBanners, snkrdunkRows = [] }: Props) {
 
   // 인기 박스 — 앱 CleanHomeScreen 과 동일 로직: 선별은 shared pickHomeBoxPacks,
   // 각 팩의 대표 박스는 apparel-groups(cat 14) 1건 조회. 켠 게임 전체를 라운드로빈.
+  // 팩 풀은 서버 카탈로그(/api/card-packs)가 정본 — 서버에 세트 추가만 해도 반영.
+  // 번들 CARD_PACKS 는 서버 미응답 폴백.
   const [boxRows, setBoxRows] = useState<SnkrdunkRow[]>([]);
   useEffect(() => {
     let alive = true;
     (async () => {
-      const picked = pickHomeBoxPacks(CARD_PACKS, enabledGames);
+      const catalog = await fetch('/api/card-packs')
+        .then((r) => (r.ok ? (r.json() as Promise<{ data?: HomePackMeta[] }>) : null))
+        .catch(() => null);
+      const pool: readonly HomePackMeta[] =
+        catalog?.data && catalog.data.length > 0 ? catalog.data : CARD_PACKS;
+      const picked = pickHomeBoxPacks(pool, enabledGames);
       const rows = await Promise.all(
         picked.map(async (pack): Promise<SnkrdunkRow | null> => {
           try {

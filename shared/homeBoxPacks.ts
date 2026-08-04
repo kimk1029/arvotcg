@@ -29,10 +29,14 @@ export function interleavePools<T>(pools: T[][]): T[] {
   return out;
 }
 
-export function pickHomeBoxPacks(
-  packs: readonly CardPackMeta[],
+// 서버 `/api/card-packs` 응답(searchQuery/hits 제외 meta)도 그대로 받도록 필요한
+// 필드만 요구하는 제네릭 — 번들 CARD_PACKS 와 서버 카탈로그 양쪽에서 쓰인다.
+export function pickHomeBoxPacks<
+  T extends Pick<CardPackMeta, 'game' | 'apparelGroupId' | 'releasedAt'>,
+>(
+  packs: readonly T[],
   enabledGames: readonly string[],
-): CardPackMeta[] {
+): T[] {
   const games = enabledGames.length > 0 ? enabledGames : ['pokemon'];
   // 게임당 뽑는 개수 — 섞어도 캐러셀이 과하게 길어지지 않게 켠 게임 수로 나눔.
   const perGame = Math.max(3, Math.ceil(12 / games.length));

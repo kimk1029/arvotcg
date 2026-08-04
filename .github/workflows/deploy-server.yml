@@ -19,6 +19,8 @@ on:
     paths:
       - 'server/**'
       - 'src/lib/**'
+      # 서버가 ../shared 를 직접 import 하므로 shared 만 바뀐 커밋(팩 카탈로그 추가 등)도 재배포 필수.
+      - 'shared/**'
       - 'prisma/schema.prisma'
       - 'prisma/manual/**'
       - 'ecosystem.config.cjs'

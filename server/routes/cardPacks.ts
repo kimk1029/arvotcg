@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { CARD_PACKS } from '@/lib/cardPacks';
 import { getAllPacksWithHits, getPackWithHits } from '../lib/cardPackHits.js';
+import { getPacksWithBox } from '../lib/cardPackCatalog.js';
 
 const router = Router();
 
@@ -8,6 +9,11 @@ router.get('/', async (req: Request, res: Response) => {
   const withHits = req.query.withHits === '1';
   const limitRaw = Number(req.query.limit ?? 12);
   const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 30) : 12;
+
+  // 시세확인 목록용 — 카탈로그 + 대표 박스 1건 (웹·앱 공통 단일 소스).
+  if (req.query.withBox === '1') {
+    return res.json({ data: await getPacksWithBox() });
+  }
 
   if (!withHits) {
     return res.json({

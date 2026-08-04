@@ -23,7 +23,7 @@ import {
 } from '@/services/snkrdunk';
 import { useGamePrefs } from '@/components/GamePrefsProvider';
 import { GAME_IDS, GAME_OPTIONS, type GameId } from '@/lib/gamePrefs';
-import { CARD_PACKS } from '@/data/cardPacks';
+import { CARD_PACKS, type CardPackMeta } from '@/data/cardPacks';
 import { pickHomeBoxPacks } from '../../../shared/homeBoxPacks';
 import { jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
 import * as ImagePicker from 'expo-image-picker';
@@ -96,6 +96,9 @@ interface SnkrRow {
 }
 
 const FEATURED_BY_ID = new Map(SNKRDUNK_FEATURED_CARDS.map((s) => [s.apparelId, s]));
+
+/** 홈 인기박스 선별에 필요한 최소 팩 메타 — 서버 /api/card-packs 응답과 번들 공용 (웹 동일). */
+type HomePackMeta = Pick<CardPackMeta, 'game' | 'apparelGroupId' | 'releasedAt' | 'shortName'>;
 
 // RN 에는 CSS word-break:keep-all 이 없어 한글이 글자 단위로 줄바꿈됨 —
 // 어절 내부에 word joiner(U+2060)를 끼워 공백에서만 줄바꿈되게 함 (웹 keep-all 패리티).
@@ -434,7 +437,14 @@ export function CleanHomeScreen() {
     let alive = true;
     (async () => {
       // 설정에서 켠 게임의 최신 팩 라운드로빈 선별 — 정본 shared/homeBoxPacks (웹 동일).
-      const picked = pickHomeBoxPacks(CARD_PACKS, enabledGames);
+      // 팩 풀은 서버 카탈로그(/api/card-packs)가 정본 — 서버에 세트 추가만 해도 반영.
+      // 번들 CARD_PACKS 는 서버 미응답 폴백.
+      const catalog = await api<{ data?: HomePackMeta[] }>('/api/card-packs', { auth: false }).catch(
+        () => null,
+      );
+      const pool: readonly HomePackMeta[] =
+        catalog?.data && catalog.data.length > 0 ? catalog.data : CARD_PACKS;
+      const picked = pickHomeBoxPacks(pool, enabledGames);
       const rows = await Promise.all(
         picked.map(async (pack): Promise<SnkrRow | null> => {
           // 웹 홈 fetchBoxRows 와 동일한 NAS 엔드포인트 (박스 전용 카테고리 그룹 조회).

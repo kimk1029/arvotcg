@@ -2,13 +2,12 @@
  * /cards/packs — 시세확인 박스 리스트.
  *
  * 웹 src/app/cards/packs/page.tsx 와 동등.
- * CARD_PACKS 를 순회하며 각 팩의 apparel-group 박스 1건을 fetch (apparelCategoryId=14).
- * 박스 이미지 + 한·일 이름 + 박스 가격을 카드 형태로 표시.
- * 항목 클릭 시 /cards/packs/[code] 로 이동.
+ * 카탈로그+대표 박스는 NAS `/api/card-packs?withBox=1` 단일 소스 — 서버
+ * 카탈로그에 세트를 추가·배포하면 앱 업데이트 없이 목록에 바로 뜬다.
+ * 번들 CARD_PACKS 는 서버 미응답 시 박스 정보 없는 폴백으로만 쓴다.
  *
- * 캐싱: 첫 진입 시 38팩 fetch 가 길어 매번 "불러오는 중" 으로 보임.
- * 모듈 레벨 캐시에 결과를 보관, 화면 재진입 시 즉시 표시하고 TTL 지났을 때만
- * 백그라운드에서 갱신.
+ * 캐싱: 모듈 레벨 캐시에 결과를 보관, 화면 재진입 시 즉시 표시하고 TTL
+ * 지났을 때만 백그라운드에서 갱신.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, View, Image, Text } from 'react-native';
@@ -23,8 +22,6 @@ import { isFlatTheme } from '@/lib/theme';
 import { CARD_PACKS, packSetCode, type CardPackMeta, type CardPackGame } from '@/data/cardPacks';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { api } from '@/lib/apiClient';
-import type { SnkrdunkApparelGroupPage, SnkrdunkSearchResult } from '@/services/snkrdunk';
-import { localizeCardName } from '@/lib/cardNameKo';
 import { useGamePrefs } from '@/components/GamePrefsProvider';
 
 const GAME_TABS: Array<{ key: CardPackGame; label: string }> = [
@@ -47,60 +44,27 @@ let packsCache: { data: PackWithBox[]; at: number } | null = null;
 let packsInFlight: Promise<PackWithBox[]> | null = null;
 
 async function loadAllPacksWithBox(): Promise<PackWithBox[]> {
-  // 부분 실패 허용 — 38개 팩 fetch 중 일부 실패해도 나머지는 표시.
-  // 8초 타임아웃으로 무한 대기 방지.
-  return Promise.all(
-    CARD_PACKS.map(async (pack) => {
-      const fallback: PackWithBox = {
-        ...pack,
-        boxName: pack.searchQuery,
-        boxKoName: pack.name,
-        boxImageUrl: null,
-        boxPrice: 0,
-      };
-      try {
-        // 웹 packs/page.tsx 와 동일한 NAS 엔드포인트 호출 — 그룹 있으면 apparel-groups
-        // 박스 1건, 그룹 미확인(0)이면 '검색어 + ボックス' 검색 첫 매물.
-        const timer = new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000));
-        if (!pack.apparelGroupId) {
-          const r = await Promise.race([
-            api<{ results?: SnkrdunkSearchResult[] }>(
-              `/api/snkrdunk/search?q=${encodeURIComponent(`${pack.searchQuery} ボックス`)}`,
-              { auth: false },
-            ),
-            timer,
-          ]);
-          const hit = r?.results?.[0] ?? null;
-          if (!hit) return fallback;
-          return {
-            ...pack,
-            boxName: hit.name,
-            boxKoName: localizeCardName(hit.name),
-            boxImageUrl: hit.imageUrl,
-            boxPrice: Number((hit.priceText ?? '').replace(/[^\d]/g, '')) || 0,
-          };
-        }
-        const r = await Promise.race([
-          api<{ data: SnkrdunkApparelGroupPage | null }>(
-            `/api/snkrdunk/apparel-groups/${pack.apparelGroupId}?apparelCategoryId=14&page=1&perPage=1`,
-            { auth: false },
-          ),
-          timer,
-        ]);
-        const box = r?.data?.apparels?.[0] ?? null;
-        const localized = box?.localizedName ?? null;
-        return {
-          ...pack,
-          boxName: localized ?? pack.searchQuery,
-          boxKoName: localized ? localizeCardName(localized) : pack.name,
-          boxImageUrl: box?.imageUrl ?? null,
-          boxPrice: box?.minPrice ?? 0,
-        };
-      } catch {
-        return fallback;
-      }
-    }),
-  );
+  // 서버 단일 카탈로그 — 웹 packs/page.tsx 와 동일 엔드포인트. 12초 타임아웃으로
+  // 무한 대기 방지(첫 캐시 웜업은 서버가 60여 팩을 훑느라 수 초 걸릴 수 있음).
+  try {
+    const timer = new Promise<null>((resolve) => setTimeout(() => resolve(null), 12000));
+    const r = await Promise.race([
+      api<{ data?: PackWithBox[] }>('/api/card-packs?withBox=1', { auth: false }),
+      timer,
+    ]);
+    // withBox 미지원 구서버가 meta 목록만 돌려주는 과도기 대비 — 박스 필드 유무로 검증.
+    if (r?.data && r.data.length > 0 && typeof r.data[0].boxName === 'string') return r.data;
+  } catch {
+    // fall through — 번들 폴백
+  }
+  // 서버 미응답 폴백 — 번들 카탈로그로 박스 이미지/시세 없이 표시.
+  return CARD_PACKS.map((pack) => ({
+    ...pack,
+    boxName: pack.searchQuery,
+    boxKoName: pack.name,
+    boxImageUrl: null,
+    boxPrice: 0,
+  }));
 }
 
 function fetchPacksOnce(): Promise<PackWithBox[]> {
