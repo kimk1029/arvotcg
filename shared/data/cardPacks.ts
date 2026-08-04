@@ -95,16 +95,28 @@ export const CARD_PACKS: CardPackMeta[] = [
   { code: 's6a', name: '이브이 히어로즈', shortName: '이브이 히어로즈', emoji: '🦊', bg: '#EA580C', releasedAt: '2021-05-28', searchQuery: 'イーブイヒーローズ', apparelGroupId: 450 },
   { code: 's4a', name: '샤이니 스타 V', shortName: '샤이니 스타 V', emoji: '🌟', bg: '#7C3AED', releasedAt: '2020-11-20', searchQuery: 'シャイニースターV', apparelGroupId: 1565 },
 
-  // ── 원피스 카드게임 (웹·앱 시세확인 게임 탭) ──
+  // ── 원피스 카드게임 (웹·앱 시세확인 게임 탭) — 전 세트 (발매일 역순) ──
   // apparelGroupId 는 snkrdunk /v1/apparel-groups/{id} 스캔으로 확인한 값. 0 = 검색 폴백.
   { code: 'op-kessen', setCode: 'OP16', game: 'onepiece', name: '결전의 시각', shortName: '결전의 시각', emoji: '⚔️', bg: '#B22D36', releasedAt: '2026-05-30', searchQuery: '決戦の刻', apparelGroupId: 3479 },
-  { code: 'op-will', setCode: 'OP13', game: 'onepiece', name: '계승되는 의지', shortName: '계승되는 의지', emoji: '🔥', bg: '#C2410C', searchQuery: '受け継がれる意志', apparelGroupId: 0 },
-  { code: 'op-island', setCode: 'OP15', game: 'onepiece', name: '신의 섬의 모험', shortName: '신의 섬 모험', emoji: '🏝️', bg: '#15803D', searchQuery: '神の島の冒険', apparelGroupId: 0 },
-  { code: 'op-fist', setCode: 'OP11', game: 'onepiece', name: '신속의 주먹', shortName: '신속의 주먹', emoji: '👊', bg: '#0E7490', searchQuery: '神速の拳', apparelGroupId: 0 },
+  { code: 'op-island', setCode: 'OP15', game: 'onepiece', name: '신의 섬의 모험', shortName: '신의 섬 모험', emoji: '🏝️', bg: '#15803D', releasedAt: '2026-02-28', searchQuery: '神の島の冒険', apparelGroupId: 3291 },
+  { code: 'op-warlords', setCode: 'OP14', game: 'onepiece', name: '창해의 칠무해', shortName: '창해의 칠무해', emoji: '🗡️', bg: '#155E75', releasedAt: '2025-11-22', searchQuery: '蒼海の七傑', apparelGroupId: 3108 },
+  { code: 'op-heroines', setCode: 'EB03', game: 'onepiece', name: '히로인즈 에디션', shortName: '히로인즈', emoji: '🌸', bg: '#DB2777', releasedAt: '2025-10-25', searchQuery: 'ヒロインズエディション', apparelGroupId: 3087 },
+  { code: 'op-will', setCode: 'OP13', game: 'onepiece', name: '계승되는 의지', shortName: '계승되는 의지', emoji: '🔥', bg: '#C2410C', releasedAt: '2025-08-23', searchQuery: '受け継がれる意志', apparelGroupId: 3057 },
+  { code: 'op-best2', setCode: 'PRB02', game: 'onepiece', name: 'CARD THE BEST vol.2', shortName: 'THE BEST v2', emoji: '🏆', bg: '#B8860B', releasedAt: '2025-07-25', searchQuery: 'ONE PIECE CARD THE BEST', apparelGroupId: 3040 },
+  { code: 'op-bond', setCode: 'OP12', game: 'onepiece', name: '사제의 인연', shortName: '사제의 인연', emoji: '🥋', bg: '#9333EA', releasedAt: '2025-05-31', searchQuery: '師弟の絆', apparelGroupId: 0 },
+  { code: 'op-fist', setCode: 'OP11', game: 'onepiece', name: '신속의 주먹', shortName: '신속의 주먹', emoji: '👊', bg: '#0E7490', releasedAt: '2025-03-01', searchQuery: '神速の拳', apparelGroupId: 0 },
+  { code: 'op-anime25', setCode: 'EB02', game: 'onepiece', name: 'Anime 25th 컬렉션', shortName: 'Anime 25th', emoji: '🎬', bg: '#EA580C', releasedAt: '2025-01-25', searchQuery: 'アニメ 25th コレクション', apparelGroupId: 0 },
   { code: 'op-royal', setCode: 'OP10', game: 'onepiece', name: '왕족의 혈통', shortName: '왕족의 혈통', emoji: '👑', bg: '#7C2D12', releasedAt: '2024-11-29', searchQuery: '王族の血統', apparelGroupId: 2246 },
   { code: 'op-emperor', setCode: 'OP09', game: 'onepiece', name: '새로운 황제', shortName: '새로운 황제', emoji: '🏴‍☠️', bg: '#1D4ED8', releasedAt: '2024-08-30', searchQuery: '新たなる皇帝', apparelGroupId: 1782 },
-  { code: 'op-newera', setCode: 'OP05', game: 'onepiece', name: '신시대의 주역', shortName: '신시대의 주역', emoji: '🌅', bg: '#DC2626', searchQuery: '新時代の主役', apparelGroupId: 0 },
-  { code: 'op-best2', game: 'onepiece', name: 'CARD THE BEST vol.2', shortName: 'THE BEST v2', emoji: '🏆', bg: '#B8860B', releasedAt: '2025-07-25', searchQuery: 'ONE PIECE CARD THE BEST', apparelGroupId: 3040 },
+  { code: 'op-best1', setCode: 'PRB01', game: 'onepiece', name: 'ONE PIECE CARD THE BEST', shortName: 'THE BEST v1', emoji: '🥇', bg: '#A16207', releasedAt: '2024-07-27', searchQuery: 'プレミアムブースター ONE PIECE', apparelGroupId: 0 },
+  { code: 'op-legends', setCode: 'OP08', game: 'onepiece', name: '두 개의 전설', shortName: '두 개의 전설', emoji: '📜', bg: '#7F1D1D', releasedAt: '2024-05-25', searchQuery: '二つの伝説', apparelGroupId: 0 },
+  { code: 'op-future', setCode: 'OP07', game: 'onepiece', name: '500년 후의 미래', shortName: '500년 후 미래', emoji: '🔮', bg: '#4F46E5', releasedAt: '2024-02-24', searchQuery: '500年後の未来', apparelGroupId: 0 },
+  { code: 'op-memorial', setCode: 'EB01', game: 'onepiece', name: '메모리얼 컬렉션', shortName: '메모리얼', emoji: '📀', bg: '#0369A1', releasedAt: '2024-01-27', searchQuery: 'メモリアルコレクション', apparelGroupId: 0 },
+  { code: 'op-twin', setCode: 'OP06', game: 'onepiece', name: '쌍벽의 패자', shortName: '쌍벽의 패자', emoji: '🆚', bg: '#334155', releasedAt: '2023-11-25', searchQuery: '双璧の覇者', apparelGroupId: 0 },
+  { code: 'op-newera', setCode: 'OP05', game: 'onepiece', name: '신시대의 주역', shortName: '신시대의 주역', emoji: '🌅', bg: '#DC2626', releasedAt: '2023-08-26', searchQuery: '新時代の主役', apparelGroupId: 0 },
+  { code: 'op-kingdom', setCode: 'OP04', game: 'onepiece', name: '모략의 왕국', shortName: '모략의 왕국', emoji: '🏰', bg: '#78350F', releasedAt: '2023-05-27', searchQuery: '謀略の王国', apparelGroupId: 0 },
+  { code: 'op-enemy', setCode: 'OP03', game: 'onepiece', name: '강대한 적', shortName: '강대한 적', emoji: '👹', bg: '#B91C1C', releasedAt: '2023-02-11', searchQuery: '強大な敵', apparelGroupId: 0 },
+  { code: 'op-summit', setCode: 'OP02', game: 'onepiece', name: '정상 결전', shortName: '정상 결전', emoji: '🌋', bg: '#92400E', releasedAt: '2022-11-04', searchQuery: '頂上決戦', apparelGroupId: 0 },
   { code: 'op-romance', setCode: 'OP01', game: 'onepiece', name: '로맨스 던', shortName: '로맨스 던', emoji: '⛵', bg: '#0B3F70', releasedAt: '2022-07-21', searchQuery: 'ロマンスドーン', apparelGroupId: 1235 },
 
   // ── 유희왕 OCG ──

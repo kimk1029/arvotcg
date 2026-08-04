@@ -42,6 +42,7 @@ export const SET_CODE_META: Record<string, SetCodeMeta> = {
   // ── 원피스 확장 부스터 (EB) / 프리미엄 부스터 (PRB) ──
   EB01: { name: '메모리얼 컬렉션', releasedAt: '2024-01-27' },
   EB02: { name: 'Anime 25th 컬렉션', releasedAt: '2025-01-25' },
+  EB03: { name: '히로인즈 에디션', releasedAt: '2025-10-25' },
   PRB01: { name: 'ONE PIECE CARD THE BEST', releasedAt: '2024-07-27' },
   PRB02: { name: 'ONE PIECE CARD THE BEST vol.2', releasedAt: '2025-07-26' },
 
