@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useTheme } from './ThemeProvider';
+import { Modal, Pressable, Text, View, type TextStyle, type ViewStyle } from 'react-native';
+import { useTheme, useThemeColors } from './ThemeProvider';
 import { PixelText } from './PixelText';
-import { THEMES, type ThemeId } from '@/lib/theme';
-import { colors, fonts } from '@/theme/tokens';
+import { isFlatTheme, THEMES, type ThemeId } from '@/lib/theme';
+import { fonts } from '@/theme/tokens';
 
 const SWATCH_BG: Record<ThemeId, string> = {
   pokemon: '#E63946',
@@ -22,27 +22,66 @@ const SWATCH_DOT: Record<ThemeId, string> = {
   dark: '#36C5FF',
 };
 
-/** 마이페이지 설정 — 테마 행 + 모달 픽커. */
+/** 마이페이지 설정 — 테마 행 + 모달 픽커. 클린/다크는 플랫(무테·라운드·소프트 섀도). */
 export function ThemeSettingsItem() {
   const { theme, setTheme } = useTheme();
+  const tc = useThemeColors();
+  const flat = isFlatTheme(theme);
   const [open, setOpen] = useState(false);
   const current = THEMES.find((t) => t.id === theme) ?? THEMES[0];
 
+  const iconBox = (bg: string): ViewStyle => ({
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: bg,
+    borderWidth: flat ? 0 : 2,
+    borderColor: tc.ink,
+    borderRadius: flat ? 10 : 0,
+  });
+  const dotSt = (bg: string): ViewStyle => ({ width: 10, height: 10, backgroundColor: bg, borderRadius: flat ? 5 : 0 });
+  const modalSt: ViewStyle = flat
+    ? { backgroundColor: tc.paper, padding: 16, minWidth: 280, maxWidth: 360, borderRadius: 18, shadowColor: '#000', shadowOpacity: 0.18, shadowOffset: { width: 0, height: 8 }, shadowRadius: 24, elevation: 8 }
+    : { backgroundColor: tc.paper, padding: 16, minWidth: 280, maxWidth: 360, shadowColor: tc.ink, shadowOpacity: 1, shadowOffset: { width: 5, height: 5 }, shadowRadius: 0, elevation: 8 };
+  const tileSt = (active: boolean): ViewStyle => flat
+    ? { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: active ? tc.goldSoft : tc.white, paddingVertical: 10, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, borderColor: active ? tc.goldDk : tc.pap3 }
+    : { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: active ? tc.gold : tc.white, paddingVertical: 10, paddingHorizontal: 10, shadowColor: tc.ink, shadowOpacity: 1, shadowOffset: { width: 2, height: 2 }, shadowRadius: 0, elevation: 1 };
+  const modalTitleSt: TextStyle = flat
+    ? { fontSize: 16, fontWeight: '800', color: tc.ink }
+    : { fontFamily: fonts.pixel, fontSize: 14, color: tc.ink };
+  const modalHintSt: TextStyle = flat
+    ? { fontSize: 12, fontWeight: '500', color: tc.ink3, marginTop: 6 }
+    : { fontFamily: fonts.pixel, fontSize: 9, color: tc.ink3, marginTop: 6 };
+  const labelSt: TextStyle = flat
+    ? { fontSize: 13, fontWeight: '700', color: tc.ink }
+    : { fontFamily: fonts.pixel, fontSize: 11, color: tc.ink, letterSpacing: 0.3 };
+  const tileDescSt: TextStyle = flat
+    ? { fontSize: 11, fontWeight: '500', color: tc.ink3, marginTop: 3 }
+    : { fontFamily: fonts.pixel, fontSize: 8, color: tc.ink3, marginTop: 4 };
+  const tileCheckSt: TextStyle = flat
+    ? { fontSize: 14, fontWeight: '800', color: tc.ink }
+    : { fontFamily: fonts.pixel, fontSize: 12, color: tc.ink };
+
   return (
     <>
-      <Pressable style={styles.row} onPress={() => setOpen(true)}>
-        <View style={[styles.iconBox, { backgroundColor: SWATCH_BG[theme] }]}>
-          <View style={[styles.iconDot, { backgroundColor: SWATCH_DOT[theme] }]} />
+      <Pressable style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 14 }} onPress={() => setOpen(true)}>
+        <View style={iconBox(SWATCH_BG[theme])}>
+          <View style={dotSt(SWATCH_DOT[theme])} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <PixelText variant="ko" size={12} color={colors.ink} weight="bold" numberOfLines={1}>
+          <PixelText variant="ko" size={12} color={tc.ink} weight="bold" numberOfLines={1}>
             테마
           </PixelText>
-          <PixelText variant="ko" size={10} color={colors.ink3} style={{ marginTop: 2 }} numberOfLines={1}>
+          <PixelText variant="ko" size={10} color={tc.ink3} style={{ marginTop: 2 }} numberOfLines={1}>
             {current.label}
           </PixelText>
         </View>
-        <PixelText variant="pixel" size={12} color={colors.ink3}>▶</PixelText>
+        {flat ? (
+          <Text style={{ fontSize: 18, fontWeight: '600', color: tc.ink3, lineHeight: 20 }}>›</Text>
+        ) : (
+          <PixelText variant="pixel" size={12} color={tc.ink3}>▶</PixelText>
+        )}
       </Pressable>
 
       <Modal
@@ -51,33 +90,30 @@ export function ThemeSettingsItem() {
         animationType="fade"
         onRequestClose={() => setOpen(false)}
       >
-        <Pressable style={styles.overlay} onPress={() => setOpen(false)}>
-          <Pressable style={styles.modal} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>테마 선택</Text>
-            <Text style={styles.modalHint}>선택 즉시 반영. 다음 방문에도 유지.</Text>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', padding: 20 }} onPress={() => setOpen(false)}>
+          <Pressable style={modalSt} onPress={(e) => e.stopPropagation()}>
+            <Text style={modalTitleSt}>테마 선택</Text>
+            <Text style={modalHintSt}>선택 즉시 반영. 다음 방문에도 유지.</Text>
             <View style={{ marginTop: 12, gap: 8 }}>
               {THEMES.map((t) => {
                 const active = t.id === theme;
                 return (
                   <Pressable
                     key={t.id}
-                    style={[
-                      styles.tile,
-                      active ? { backgroundColor: colors.gold } : null,
-                    ]}
+                    style={tileSt(active)}
                     onPress={() => {
                       setTheme(t.id);
                       setOpen(false);
                     }}
                   >
-                    <View style={[styles.iconBox, { backgroundColor: SWATCH_BG[t.id] }]}>
-                      <View style={[styles.iconDot, { backgroundColor: SWATCH_DOT[t.id] }]} />
+                    <View style={iconBox(SWATCH_BG[t.id])}>
+                      <View style={dotSt(SWATCH_DOT[t.id])} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.label}>{t.label}</Text>
-                      <Text style={styles.tileDesc}>{t.desc}</Text>
+                      <Text style={labelSt}>{t.label}</Text>
+                      <Text style={tileDescSt}>{t.desc}</Text>
                     </View>
-                    {active && <Text style={styles.tileCheck}>✓</Text>}
+                    {active && <Text style={tileCheckSt}>✓</Text>}
                   </Pressable>
                 );
               })}
@@ -88,60 +124,3 @@ export function ThemeSettingsItem() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  iconBox: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderColor: colors.ink,
-    borderWidth: 2,
-  },
-  iconDot: { width: 10, height: 10 },
-  label: { fontFamily: fonts.pixel, fontSize: 11, color: colors.ink, letterSpacing: 0.3 },
-  sub: { color: colors.ink3, fontSize: 9 },
-  arrow: { color: colors.ink3, fontFamily: fonts.pixel, fontSize: 12 },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modal: {
-    backgroundColor: colors.paper,
-    padding: 16,
-    minWidth: 280,
-    maxWidth: 360,
-    shadowColor: colors.ink,
-    shadowOpacity: 1,
-    shadowOffset: { width: 5, height: 5 },
-    shadowRadius: 0,
-    elevation: 8,
-  },
-  modalTitle: { fontFamily: fonts.pixel, fontSize: 14, color: colors.ink },
-  modalHint: { fontFamily: fonts.pixel, fontSize: 9, color: colors.ink3, marginTop: 6 },
-  tile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.white,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    shadowColor: colors.ink,
-    shadowOpacity: 1,
-    shadowOffset: { width: 2, height: 2 },
-    shadowRadius: 0,
-    elevation: 1,
-  },
-  tileDesc: { fontFamily: fonts.pixel, fontSize: 8, color: colors.ink3, marginTop: 4 },
-  tileCheck: { fontFamily: fonts.pixel, fontSize: 12, color: colors.ink },
-});

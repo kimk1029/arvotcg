@@ -10,8 +10,8 @@ import { PixelText } from '@/components/PixelText';
 import { PixelPress } from '@/components/cv/PixelPress';
 import { SectHd } from '@/components/cv/SectHd';
 import { EmptyState, ErrorView, LoadingState } from '@/components/cv/ListState';
-import { colors } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { isFlatTheme } from '@/lib/theme';
 import { fetchMessageThreads, type MessageThread } from '@/lib/myApi';
 import { useAsync } from '@/lib/useAsync';
 
@@ -56,6 +56,7 @@ export default function MyMessagesScreen() {
 function ThreadRow({ thread }: { thread: MessageThread }) {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  const flat = isFlatTheme(useTheme().theme);
   return (
     <PixelPress
       onPress={() => router.push(`/messages/${thread.peerId}` as never)}
@@ -67,7 +68,7 @@ function ThreadRow({ thread }: { thread: MessageThread }) {
       inner={0}
     >
       <View style={{ flexDirection: 'row', padding: 12, gap: 12, alignItems: 'center' }}>
-        <View style={{ width: 42, height: 42, borderColor: tc.ink, borderWidth: 2, backgroundColor: tc.pap2, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 42, height: 42, borderColor: tc.ink, borderWidth: flat ? 0 : 2, borderRadius: flat ? 12 : 0, backgroundColor: tc.pap2, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontSize: 22 }}>{renderAvatar(thread.peerAvatar)}</Text>
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -82,7 +83,7 @@ function ThreadRow({ thread }: { thread: MessageThread }) {
           </PixelText>
         </View>
         {thread.unread > 0 ? (
-          <View style={{ minWidth: 22, height: 22, paddingHorizontal: 6, backgroundColor: tc.red, borderColor: tc.ink, borderWidth: 2, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ minWidth: 22, height: 22, paddingHorizontal: 6, backgroundColor: tc.red, borderColor: tc.ink, borderWidth: flat ? 0 : 2, borderRadius: flat ? 11 : 0, alignItems: 'center', justifyContent: 'center' }}>
             <PixelText variant={txt} size={9} color={tc.white} weight="bold">
               {thread.unread > 99 ? '99+' : thread.unread}
             </PixelText>

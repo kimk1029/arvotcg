@@ -14,7 +14,8 @@ import { PixelText } from '@/components/PixelText';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { PixelPress } from '@/components/cv/PixelPress';
 import { ProviderLogo } from '@/components/ProviderLogo';
-import { colors } from '@/theme/tokens';
+import { useTheme, useThemeColors } from '@/components/ThemeProvider';
+import { isFlatTheme } from '@/lib/theme';
 import { startSocialLogin, type AuthProvider } from '@/lib/oauth';
 
 interface Props {
@@ -29,6 +30,8 @@ interface Props {
 }
 
 export function InlineLoginGate({ title, feature, description, icon = '🔒' }: Props) {
+  const tc = useThemeColors();
+  const flat = isFlatTheme(useTheme().theme);
   const [busy, setBusy] = useState(false);
 
   const startLogin = async (provider: AuthProvider) => {
@@ -42,7 +45,7 @@ export function InlineLoginGate({ title, feature, description, icon = '🔒' }: 
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.paper }}>
+    <View style={{ flex: 1, backgroundColor: tc.paper }}>
       <AppBar onBack={() => router.replace('/' as never)} title={title} />
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 16, paddingBottom: 40 }}
@@ -51,7 +54,7 @@ export function InlineLoginGate({ title, feature, description, icon = '🔒' }: 
         {/* Lock hero — 잠긴 기능 안내 */}
         <View style={{ marginBottom: 16 }}>
           <PixelFrame
-            bg={colors.gold}
+            bg={tc.gold}
             borderWidth={4}
             shadow={6}
             hi="rgba(255,255,255,0.55)"
@@ -70,23 +73,24 @@ export function InlineLoginGate({ title, feature, description, icon = '🔒' }: 
                 style={{
                   width: 56,
                   height: 56,
-                  backgroundColor: colors.ink,
-                  borderColor: colors.ink,
-                  borderWidth: 3,
+                  backgroundColor: tc.ink,
+                  borderColor: tc.ink,
+                  borderWidth: flat ? 0 : 3,
+                  borderRadius: flat ? 16 : 0,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
                 <Text style={{ fontSize: 28 }}>{icon}</Text>
               </View>
-              <PixelText variant="pixel" size={10} color={colors.ink} style={{ letterSpacing: 1.5 }}>
+              <PixelText variant="pixel" size={flat ? 11 : 10} weight={flat ? 'bold' : 'normal'} color={tc.ink} style={{ letterSpacing: flat ? 0.5 : 1.5 }}>
                 LOGIN REQUIRED
               </PixelText>
               <PixelText
                 variant="ko"
                 size={14}
                 weight="bold"
-                color={colors.ink}
+                color={tc.ink}
                 style={{ textAlign: 'center', lineHeight: 20 }}
               >
                 {feature}을(를) 사용하려면{'\n'}로그인이 필요합니다
@@ -95,7 +99,7 @@ export function InlineLoginGate({ title, feature, description, icon = '🔒' }: 
                 <PixelText
                   variant="ko"
                   size={11}
-                  color={colors.ink}
+                  color={tc.ink}
                   style={{ textAlign: 'center', opacity: 0.7, lineHeight: 15 }}
                 >
                   {description}
@@ -114,11 +118,11 @@ export function InlineLoginGate({ title, feature, description, icon = '🔒' }: 
             marginVertical: 12,
           }}
         >
-          <View style={{ flex: 1, height: 2, backgroundColor: colors.pap3 }} />
-          <PixelText variant="pixel" size={9} color={colors.ink3} style={{ letterSpacing: 1 }}>
+          <View style={{ flex: 1, height: flat ? 1 : 2, backgroundColor: tc.pap3 }} />
+          <PixelText variant="pixel" size={flat ? 11 : 9} color={tc.ink3} style={{ letterSpacing: flat ? 0.3 : 1 }}>
             소셜 로그인
           </PixelText>
-          <View style={{ flex: 1, height: 2, backgroundColor: colors.pap3 }} />
+          <View style={{ flex: 1, height: flat ? 1 : 2, backgroundColor: tc.pap3 }} />
         </View>
 
         {/* Compact social buttons — /login 의 큰 버튼보다 한 단계 작게.
@@ -153,7 +157,7 @@ export function InlineLoginGate({ title, feature, description, icon = '🔒' }: 
           onPress={() => router.replace('/' as never)}
           style={{ marginTop: 18, padding: 12, alignItems: 'center' }}
         >
-          <PixelText variant="pixel" size={9} color={colors.ink3} style={{ letterSpacing: 1 }}>
+          <PixelText variant="pixel" size={flat ? 11 : 9} color={tc.ink3} style={{ letterSpacing: flat ? 0.3 : 1 }}>
             ← 홈으로 돌아가기
           </PixelText>
         </Pressable>
@@ -171,6 +175,7 @@ interface CompactBtnProps {
 }
 
 function CompactLoginBtn({ bg, fg, provider, name, onPress }: CompactBtnProps) {
+  const flat = isFlatTheme(useTheme().theme);
   return (
     <PixelPress
       onPress={onPress}
@@ -198,12 +203,13 @@ function CompactLoginBtn({ bg, fg, provider, name, onPress }: CompactBtnProps) {
             alignItems: 'center',
             justifyContent: 'center',
             borderColor: 'rgba(0,0,0,0.12)',
-            borderWidth: 1,
+            borderWidth: flat ? 0 : 1,
+            borderRadius: flat ? 8 : 0,
           }}
         >
           <ProviderLogo provider={provider} size={19} />
         </View>
-        <PixelText variant="pixel" size={11} color={fg} style={{ flex: 1, letterSpacing: 0.5 }}>
+        <PixelText variant="pixel" size={flat ? 13 : 11} weight={flat ? 'bold' : 'normal'} color={fg} style={{ flex: 1, letterSpacing: flat ? 0 : 0.5 }}>
           {name}
         </PixelText>
       </View>

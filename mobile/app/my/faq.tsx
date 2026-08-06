@@ -6,7 +6,8 @@ import { PixelText } from '@/components/PixelText';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { SectHd } from '@/components/cv/SectHd';
 import { colors } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { isFlatTheme } from '@/lib/theme';
 import { REWARDS } from '@/lib/rewards';
 
 interface QA { q: string; a: string }
@@ -127,6 +128,7 @@ export default function FaqScreen() {
 function FaqRow({ qa }: { qa: QA }) {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  const flat = isFlatTheme(useTheme().theme);
   const [open, setOpen] = useState(false);
   return (
     <PixelFrame bg={tc.white} borderWidth={2} shadow={3} hi={null} lo={null} inner={0}>
@@ -138,7 +140,7 @@ function FaqRow({ qa }: { qa: QA }) {
             <PixelText variant={txt} size={9} color={tc.ink3}>{open ? '▲' : '▼'}</PixelText>
           </View>
           {open ? (
-            <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: 'rgba(0,0,0,0.15)', borderStyle: 'dashed', flexDirection: 'row', gap: 6 }}>
+            <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: flat ? tc.pap3 : 'rgba(0,0,0,0.15)', borderStyle: flat ? 'solid' : 'dashed', flexDirection: 'row', gap: 6 }}>
               <PixelText variant="ko" size={10} color={tc.blu} weight="bold">A.</PixelText>
               <PixelText variant="ko" size={10} color={tc.ink2} style={{ flex: 1, lineHeight: 18 }}>
                 {qa.a}

@@ -10,7 +10,6 @@ import {
   Alert,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -22,8 +21,9 @@ import { SnkrdunkCardTile } from '@/components/cv/SnkrdunkCardTile';
 import { InlineLoginGate } from '@/components/InlineLoginGate';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { useToast } from '@/components/ToastProvider';
-import { colors, fonts, space } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { space } from '@/theme/tokens';
+import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { isFlatTheme } from '@/lib/theme';
 import {
   fetchMyFavorites,
   removeFavorite,
@@ -41,6 +41,7 @@ function useAuthed(): boolean {
 export default function FavoritesScreen() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  const flat = isFlatTheme(useTheme().theme);
   const authed = useAuthed();
   const { format } = useCurrency();
   const toast = useToast();
@@ -106,7 +107,7 @@ export default function FavoritesScreen() {
         ) : (
           <>
             {/* 요약 — 포트폴리오 합계에는 포함되지 않음을 명시 */}
-            <View style={styles.summary}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: tc.ink2, padding: 14, marginHorizontal: 14, marginTop: 14, marginBottom: 12, borderWidth: flat ? 0 : 3, borderColor: tc.ink, borderRadius: flat ? 14 : 0 }}>
               <Text style={{ fontSize: 36 }}>⭐</Text>
               <View style={{ flex: 1 }}>
                 <PixelText variant="ko" size={13} weight="bold" color={tc.white}>
@@ -127,9 +128,9 @@ export default function FavoritesScreen() {
             </View>
 
             {/* 그리드 */}
-            <View style={styles.grid}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: space.gap, gap: 8 }}>
               {rows.map((r) => (
-                <View key={r.id} style={styles.gridItem}>
+                <View key={r.id} style={{ width: '31%', backgroundColor: tc.white, borderWidth: flat ? 1 : 3, borderColor: flat ? tc.pap3 : tc.ink, borderRadius: flat ? 12 : 0, overflow: 'hidden', marginBottom: 8 }}>
                   <SnkrdunkCardTile
                     plainPress
                     onPress={() => router.push(`/cards/snkrdunk/${r.snkrdunkApparelId}` as never)}
@@ -143,7 +144,7 @@ export default function FavoritesScreen() {
                     infoPadding={7}
                     emojiSize={29}
                   />
-                  <Pressable onPress={() => onRemove(r.snkrdunkApparelId)} style={styles.removeBtn}>
+                  <Pressable onPress={() => onRemove(r.snkrdunkApparelId)} style={{ paddingVertical: 5, alignItems: 'center', borderTopWidth: flat ? 1 : 2, borderTopColor: flat ? tc.pap3 : tc.ink }}>
                     <PixelText variant={txt} size={9} color={tc.red}>✕ 제거</PixelText>
                   </Pressable>
                 </View>
@@ -156,31 +157,3 @@ export default function FavoritesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  summary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    backgroundColor: colors.ink2,
-    padding: 14,
-    marginHorizontal: 14,
-    marginTop: 14,
-    marginBottom: 12,
-    borderWidth: 3,
-    borderColor: colors.ink,
-  },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: space.gap, gap: 8 },
-  gridItem: {
-    width: '31%',
-    backgroundColor: colors.white,
-    borderWidth: 3,
-    borderColor: colors.ink,
-    marginBottom: 8,
-  },
-  removeBtn: {
-    paddingVertical: 5,
-    alignItems: 'center',
-    borderTopWidth: 2,
-    borderTopColor: colors.ink,
-  },
-});

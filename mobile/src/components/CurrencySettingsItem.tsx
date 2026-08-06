@@ -1,7 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useCurrency } from './CurrencyProvider';
 import { PixelText } from './PixelText';
-import { colors, fonts } from '@/theme/tokens';
+import { SETTINGS_ROW, useSettingsRow } from './settingsRow';
+import { fonts } from '@/theme/tokens';
 
 /**
  * 마이페이지 설정 — 통화 행 (¥ ↔ ₩ 토글).
@@ -10,41 +11,25 @@ import { colors, fonts } from '@/theme/tokens';
  */
 export function CurrencySettingsItem() {
   const { mode, toggle, rate } = useCurrency();
+  const { flat, tc, icon } = useSettingsRow();
   const isKrw = mode === 'krw';
 
   return (
-    <Pressable onPress={toggle} style={styles.row}>
-      <View style={[styles.icon, { backgroundColor: isKrw ? colors.blu : colors.red }]}>
-        <Text style={styles.iconText}>{isKrw ? '₩' : '¥'}</Text>
+    <Pressable onPress={toggle} style={SETTINGS_ROW}>
+      <View style={icon(isKrw ? tc.blu : tc.red)}>
+        <Text style={flat ? { color: tc.white, fontSize: 15, fontWeight: '800' } : { color: tc.white, fontFamily: fonts.pixel, fontSize: 16 }}>
+          {isKrw ? '₩' : '¥'}
+        </Text>
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <PixelText variant="ko" size={12} color={colors.ink} weight="bold" numberOfLines={1}>
+        <PixelText variant="ko" size={12} color={tc.ink} weight="bold" numberOfLines={1}>
           통화
         </PixelText>
-        <PixelText variant="ko" size={10} color={colors.ink3} style={{ marginTop: 2 }} numberOfLines={1}>
+        <PixelText variant="ko" size={10} color={tc.ink3} style={{ marginTop: 2 }} numberOfLines={1}>
           {isKrw ? `원화 (KRW) · 1¥ ≈ ${rate.toFixed(2)}₩` : '엔화 (JPY)'}
         </PixelText>
       </View>
-      <PixelText variant="pixel" size={14} color={colors.ink3}>↔</PixelText>
+      <PixelText variant="pixel" size={14} color={tc.ink3}>↔</PixelText>
     </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  icon: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderColor: colors.ink,
-    borderWidth: 2,
-  },
-  iconText: { color: colors.white, fontFamily: fonts.pixel, fontSize: 16 },
-});

@@ -15,7 +15,8 @@ import { AVATARS, BACKGROUNDS, FRAMES } from '@/data/shopCatalog';
 import { fetchInventory, buyOrPick, type ShopKind, type InventorySnapshot } from '@/lib/myApi';
 import { useAsync } from '@/lib/useAsync';
 import { colors } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { isFlatTheme } from '@/lib/theme';
 
 type Tab = ShopKind;
 const TABS: Array<{ id: Tab; label: string }> = [
@@ -27,6 +28,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
 export default function ShopScreen() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  const flat = isFlatTheme(useTheme().theme);
   const [tab, setTab] = useState<Tab>('avatar');
   const [pending, setPending] = useState<string | null>(null);
   const { data, loading, error, refresh } = useAsync(fetchInventory);
@@ -58,7 +60,7 @@ export default function ShopScreen() {
         title="꾸미기 샵"
         right={
           inv ? (
-            <View style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: tc.gold, borderColor: tc.ink, borderWidth: 2 }}>
+            <View style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: tc.gold, borderColor: tc.ink, borderWidth: flat ? 0 : 2, borderRadius: flat ? 8 : 0 }}>
               <PixelText variant={txt} size={9} color={tc.ink} weight="bold">
                 {inv.points.toLocaleString('ko-KR')}P
               </PixelText>
@@ -89,8 +91,9 @@ export default function ShopScreen() {
                   flex: 1,
                   paddingVertical: 10,
                   backgroundColor: tab === t.id ? tc.ink : tc.white,
-                  borderColor: tc.ink,
-                  borderWidth: 3,
+                  borderColor: flat ? (tab === t.id ? tc.ink : tc.pap3) : tc.ink,
+                  borderWidth: flat ? 1 : 3,
+                  borderRadius: flat ? 10 : 0,
                   alignItems: 'center',
                 }}
               >
@@ -218,6 +221,7 @@ const TAG_STYLE: Record<NonNullable<TileProps['tag']>, { bg: string; fg: string;
 function ItemTile({ preview, name, price, tag, owned, equipped, locked, pending, onPress }: TileProps) {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  const flat = isFlatTheme(useTheme().theme);
   const bg = equipped ? tc.gold : owned ? tc.pap2 : tc.white;
   return (
     <View style={{ width: '31%' }}>
@@ -238,7 +242,7 @@ function ItemTile({ preview, name, price, tag, owned, equipped, locked, pending,
           </View>
           <PixelText variant="ko" size={9} color={tc.ink} weight="bold" numberOfLines={1}>{name}</PixelText>
           {tag ? (
-            <View style={{ paddingHorizontal: 4, backgroundColor: TAG_STYLE[tag].bg, borderColor: tc.ink, borderWidth: 1 }}>
+            <View style={{ paddingHorizontal: 4, backgroundColor: TAG_STYLE[tag].bg, borderColor: tc.ink, borderWidth: flat ? 0 : 1, borderRadius: flat ? 4 : 0 }}>
               <PixelText variant={txt} size={7} color={TAG_STYLE[tag].fg}>{TAG_STYLE[tag].label}</PixelText>
             </View>
           ) : null}

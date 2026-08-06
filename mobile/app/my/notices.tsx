@@ -5,7 +5,8 @@ import { PixelText } from '@/components/PixelText';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { SectHd } from '@/components/cv/SectHd';
 import { colors } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { isFlatTheme } from '@/lib/theme';
 
 interface Notice {
   id: string;
@@ -67,13 +68,14 @@ export default function NoticesScreen() {
 function NoticeCard({ notice }: { notice: Notice }) {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  const flat = isFlatTheme(useTheme().theme);
   const tag = notice.tag ? TAG_STYLE[notice.tag] : null;
   return (
     <PixelFrame bg={tc.white} borderWidth={2} shadow={3} hi={null} lo={null}>
       <View style={{ padding: 14 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
           {tag ? (
-            <View style={{ paddingHorizontal: 7, paddingVertical: 2, backgroundColor: tag.bg, borderColor: tc.ink, borderWidth: 1 }}>
+            <View style={{ paddingHorizontal: 7, paddingVertical: 2, backgroundColor: tag.bg, borderColor: tc.ink, borderWidth: flat ? 0 : 1, borderRadius: flat ? 6 : 0 }}>
               <PixelText variant={txt} size={8} color={tag.fg} style={{ letterSpacing: 0.5 }}>{tag.label}</PixelText>
             </View>
           ) : null}

@@ -3,14 +3,16 @@
  *
  * /api/me/portfolio 가 KST 정각 기준 일별 스냅샷을 upsert + 어제와 비교한
  * changeAbsJpy/changePct 와 history (최근 30일) 를 함께 반환. 통화 모드에 맞춰
- * ¥/₩ 자동 변환.
+ * ¥/₩ 자동 변환. 다크 히어로 안에 렌더 — 클린(플랫) 테마는 폰트/모서리만 플랫.
  */
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View, type TextStyle } from 'react-native';
 import Svg, { Line, Path } from 'react-native-svg';
 import { useCurrency } from './CurrencyProvider';
+import { useTheme, useThemeColors } from './ThemeProvider';
 import { fetchPortfolio, type PortfolioSummary } from '@/lib/myApi';
-import { colors, fonts } from '@/theme/tokens';
+import { isFlatTheme } from '@/lib/theme';
+import { fonts } from '@/theme/tokens';
 
 type State =
   | { kind: 'loading' }
@@ -18,8 +20,15 @@ type State =
   | { kind: 'error' }
   | { kind: 'ok'; data: PortfolioSummary };
 
+function useFlat(): boolean {
+  const { theme } = useTheme();
+  return isFlatTheme(theme);
+}
+
 export function PortfolioTotal() {
   const { format } = useCurrency();
+  const flat = useFlat();
+  const tc = useThemeColors();
   const [state, setState] = useState<State>({ kind: 'loading' });
 
   useEffect(() => {
@@ -49,16 +58,26 @@ export function PortfolioTotal() {
     return '시세 조회 실패';
   })();
 
+  const titleSt: TextStyle = flat
+    ? { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.55)', marginBottom: 4 }
+    : { fontFamily: fonts.pixel, fontSize: 9, color: 'rgba(255,255,255,0.5)', letterSpacing: 0.4, marginBottom: 4 };
+  const valueSt: TextStyle = flat
+    ? { fontSize: 20, fontWeight: '800', color: tc.gold }
+    : { fontFamily: fonts.pixel, fontSize: 17, color: tc.gold, letterSpacing: 0.3 };
+  const countSt: TextStyle = flat
+    ? { fontSize: 11, fontWeight: '500', color: 'rgba(255,255,255,0.5)' }
+    : { fontFamily: fonts.pixel, fontSize: 9, color: 'rgba(255,255,255,0.45)' };
+
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.title}>포트폴리오 평가액 (스니덩크 최저가 합계)</Text>
-      <View style={styles.row}>
-        <Text style={styles.value}>{label}</Text>
+    <View style={{ marginTop: 10, padding: 10, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: flat ? 12 : 0 }}>
+      <Text style={titleSt}>포트폴리오 평가액 (스니덩크 최저가 합계)</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+        <Text style={valueSt}>{label}</Text>
         {state.kind === 'ok' && state.data.changePct != null && (
           <DeltaBadge pct={state.data.changePct} absJpy={state.data.changeAbsJpy} format={format} />
         )}
         {state.kind === 'ok' && (
-          <Text style={styles.count}>
+          <Text style={countSt}>
             {state.data.pricedCount}/{state.data.totalCount}장 반영
           </Text>
         )}
@@ -77,14 +96,15 @@ function DeltaBadge({
   absJpy: number | null;
   format: (jpy: number) => string;
 }) {
+  const flat = useFlat();
   const up = pct >= 0;
   const sign = up ? '▲' : '▼';
   const color = up ? '#22C55E' : '#E63946';
   const pctStr = `${up ? '+' : ''}${pct.toFixed(1)}%`;
   const absStr = absJpy != null ? ` (${up ? '+' : '-'}${format(Math.abs(absJpy))})` : '';
   return (
-    <View style={[styles.badge, { borderColor: color }]}>
-      <Text style={{ color, fontFamily: fonts.pixel, fontSize: 10 }}>
+    <View style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: 'rgba(0,0,0,0.2)', borderWidth: 1, borderColor: color, borderRadius: flat ? 6 : 0 }}>
+      <Text style={flat ? { color, fontSize: 11, fontWeight: '700' } : { color, fontFamily: fonts.pixel, fontSize: 10 }}>
         {sign} {pctStr}
         {absStr}
       </Text>
@@ -93,6 +113,7 @@ function DeltaBadge({
 }
 
 function Sparkline({ points }: { points: number[] }) {
+  const flat = useFlat();
   if (points.length < 2) return null;
   const W = 280;
   const H = 36;
@@ -110,44 +131,16 @@ function Sparkline({ points }: { points: number[] }) {
   const last = points[points.length - 1];
   const first = points[0];
   const up = last >= first;
+  const hintSt: TextStyle = flat
+    ? { fontSize: 10, fontWeight: '500', color: 'rgba(255,255,255,0.4)', marginTop: 3 }
+    : { fontFamily: fonts.pixel, fontSize: 8, color: 'rgba(255,255,255,0.35)', letterSpacing: 0.3, marginTop: 3 };
   return (
     <View style={{ marginTop: 6 }}>
       <Svg width={W} height={H}>
         <Path d={d} fill="none" stroke={up ? '#22C55E' : '#E63946'} strokeWidth={2} strokeLinejoin="round" />
         <Line x1={0} y1={H - 2} x2={W} y2={H - 2} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
       </Svg>
-      <Text style={styles.hint}>최근 {points.length}일 (KST 정각 기준)</Text>
+      <Text style={hintSt}>최근 {points.length}일 (KST 정각 기준)</Text>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: {
-    marginTop: 10,
-    padding: 10,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  title: {
-    fontFamily: fonts.pixel,
-    fontSize: 9,
-    color: 'rgba(255,255,255,0.5)',
-    letterSpacing: 0.4,
-    marginBottom: 4,
-  },
-  row: { flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' },
-  value: { fontFamily: fonts.pixel, fontSize: 17, color: colors.gold, letterSpacing: 0.3 },
-  count: { fontFamily: fonts.pixel, fontSize: 9, color: 'rgba(255,255,255,0.45)' },
-  badge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderWidth: 1,
-  },
-  hint: {
-    fontFamily: fonts.pixel,
-    fontSize: 8,
-    color: 'rgba(255,255,255,0.35)',
-    letterSpacing: 0.3,
-    marginTop: 3,
-  },
-});

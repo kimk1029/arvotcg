@@ -14,8 +14,9 @@ import { PixelPress } from '@/components/cv/PixelPress';
 import { InlineLoginGate } from '@/components/InlineLoginGate';
 import { PortfolioTotal } from '@/components/PortfolioTotal';
 import { useToast } from '@/components/ToastProvider';
-import { colors, fonts } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { fonts } from '@/theme/tokens';
+import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { isFlatTheme } from '@/lib/theme';
 import { fetchMySummary, fetchUnreadCount, updateMyName, type MySummary } from '@/lib/myApi';
 import { useAsync } from '@/lib/useAsync';
 import { isAuthenticated, setSession, subscribeSession } from '@/lib/session';
@@ -47,6 +48,8 @@ interface MenuSection {
 export default function MyScreen() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  const { theme } = useTheme();
+  const flat = isFlatTheme(theme);
   const toast = useToast();
   const authed = useAuthed();
   const { data, error, refresh } = useAsync<MySummary>(
@@ -161,7 +164,7 @@ export default function MyScreen() {
           >
             <View style={{ padding: 18 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                <View style={{ width: 60, height: 60, backgroundColor: tc.gold, alignItems: 'center', justifyContent: 'center', borderColor: tc.ink, borderWidth: 3 }}>
+                <View style={{ width: 60, height: 60, backgroundColor: tc.gold, alignItems: 'center', justifyContent: 'center', borderColor: tc.ink, borderWidth: flat ? 0 : 3, borderRadius: flat ? 16 : 0 }}>
                   <Text style={{ fontSize: 30 }}>🃏</Text>
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
@@ -201,7 +204,7 @@ export default function MyScreen() {
                   <PixelText variant={txt} size={9} color="rgba(255,255,255,0.5)" style={{ letterSpacing: 0.5, marginBottom: 6 }}>
                     XP {lv.xp} / {lv.xpNeeded}
                   </PixelText>
-                  <View style={{ height: 10, backgroundColor: 'rgba(0,0,0,0.4)', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1 }}>
+                  <View style={{ height: 10, backgroundColor: 'rgba(0,0,0,0.4)', borderColor: 'rgba(255,255,255,0.1)', borderWidth: flat ? 0 : 1, borderRadius: flat ? 5 : 0, overflow: 'hidden' }}>
                     <View style={{ width: `${xpPct}%`, height: '100%', backgroundColor: tc.gold }} />
                   </View>
                   <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 6 }}>
@@ -222,14 +225,14 @@ export default function MyScreen() {
               <PortfolioTotal />
               <Pressable
                 onPress={() => router.push('/my/portfolio' as never)}
-                style={{ marginTop: 8, paddingVertical: 8, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}
+                style={{ marginTop: 8, paddingVertical: 8, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: flat ? 10 : 0 }}
               >
                 <PixelText variant={txt} size={10} color={tc.gold} style={{ letterSpacing: 0.4 }}>
                   📈 포트폴리오 자세히 보기 →
                 </PixelText>
               </Pressable>
               {!authed && error ? (
-                <View style={{ marginTop: 12, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                <View style={{ marginTop: 12, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: flat ? 10 : 0 }}>
                   <PixelText variant="ko" size={9} color={tc.white} style={{ lineHeight: 14, opacity: 0.7 }}>
                     로그인하면 카드·포인트·거래글이 동기화됩니다.
                   </PixelText>
@@ -302,16 +305,16 @@ export default function MyScreen() {
                   placeholderTextColor={tc.ink3}
                   maxLength={20}
                   autoFocus
-                  style={{ backgroundColor: tc.white, borderColor: tc.ink, borderWidth: 3, padding: 10, fontFamily: fonts.ko, fontSize: 14, color: tc.ink }}
+                  style={{ backgroundColor: tc.white, borderColor: flat ? tc.pap3 : tc.ink, borderWidth: flat ? 1 : 3, borderRadius: flat ? 10 : 0, padding: 10, fontFamily: flat ? undefined : fonts.ko, fontSize: 14, color: tc.ink }}
                 />
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <Pressable onPress={() => setEditOpen(false)} style={{ flex: 1, paddingVertical: 11, alignItems: 'center', backgroundColor: tc.white, borderColor: tc.ink, borderWidth: 2 }}>
+                  <Pressable onPress={() => setEditOpen(false)} style={{ flex: 1, paddingVertical: 11, alignItems: 'center', backgroundColor: tc.white, borderColor: flat ? tc.pap3 : tc.ink, borderWidth: flat ? 1 : 2, borderRadius: flat ? 10 : 0 }}>
                     <PixelText variant={txt} size={10} color={tc.ink3}>취소</PixelText>
                   </Pressable>
                   <Pressable
                     onPress={saveName}
                     disabled={nameBusy || !nameInput.trim()}
-                    style={{ flex: 1, paddingVertical: 11, alignItems: 'center', backgroundColor: tc.gold, borderColor: tc.ink, borderWidth: 2, opacity: nameBusy || !nameInput.trim() ? 0.5 : 1 }}
+                    style={{ flex: 1, paddingVertical: 11, alignItems: 'center', backgroundColor: tc.gold, borderColor: tc.ink, borderWidth: flat ? 0 : 2, borderRadius: flat ? 10 : 0, opacity: nameBusy || !nameInput.trim() ? 0.5 : 1 }}
                   >
                     <PixelText variant={txt} size={10} color={tc.ink}>{nameBusy ? '저장 중…' : '저장'}</PixelText>
                   </Pressable>
@@ -328,8 +331,9 @@ export default function MyScreen() {
 function Stat({ label, value }: { label: string; value: string }) {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  const flat = isFlatTheme(useTheme().theme);
   return (
-    <View style={{ flex: 1, alignItems: 'center', paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)', borderWidth: 2 }}>
+    <View style={{ flex: 1, alignItems: 'center', paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)', borderWidth: flat ? 0 : 2, borderRadius: flat ? 10 : 0 }}>
       <PixelText variant={txt} size={11} color={tc.gold} weight="bold">{value}</PixelText>
       <PixelText variant={txt} size={9} color="rgba(255,255,255,0.55)" style={{ marginTop: 4 }}>{label}</PixelText>
     </View>
@@ -339,6 +343,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 function MenuRow({ item }: { item: MenuItem }) {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  const flat = isFlatTheme(useTheme().theme);
   const disabled = item.disabled === true;
   return (
     <PixelPress
@@ -351,7 +356,7 @@ function MenuRow({ item }: { item: MenuItem }) {
       inner={0}
     >
       <View style={{ paddingHorizontal: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: disabled ? 0.45 : 1 }}>
-        <View style={{ width: 36, height: 36, backgroundColor: item.iconBg ?? tc.pap3, borderColor: tc.ink, borderWidth: 2, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 36, height: 36, backgroundColor: item.iconBg ?? tc.pap3, borderColor: tc.ink, borderWidth: flat ? 0 : 2, borderRadius: flat ? 10 : 0, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontSize: 18 }}>{item.icon}</Text>
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -361,11 +366,17 @@ function MenuRow({ item }: { item: MenuItem }) {
           ) : null}
         </View>
         {item.badge ? (
-          <View style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: tc.red, borderColor: tc.ink, borderWidth: 2 }}>
+          <View style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: tc.red, borderColor: tc.ink, borderWidth: flat ? 0 : 2, borderRadius: flat ? 8 : 0 }}>
             <PixelText variant={txt} size={9} color={tc.white} weight="bold">{item.badge}</PixelText>
           </View>
         ) : null}
-        {!disabled ? <PixelText variant={txt} size={14} color={tc.ink3}>▶</PixelText> : null}
+        {!disabled ? (
+          flat ? (
+            <Text style={{ fontSize: 18, fontWeight: '600', color: tc.ink3, lineHeight: 20 }}>›</Text>
+          ) : (
+            <PixelText variant={txt} size={14} color={tc.ink3}>▶</PixelText>
+          )
+        ) : null}
       </View>
     </PixelPress>
   );
