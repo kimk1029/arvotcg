@@ -48,9 +48,10 @@ export function PixelFrame({
   const edge = border === colors.ink ? c.ink : border;
   const shadowFill = shadowColor ?? edge;
 
-  // 플랫(clean·dark) — 픽셀 데코 대신 라인보더+라운드(또는 직각). clean=직각, dark=라운드.
+  // 플랫(clean·dark) — 픽셀 데코 대신 라인보더+라운드+소프트섀도.
+  // (clean 직각 예외는 2026-08-06 제거 — 직각+보더가 픽셀 잔재로 보임. 웹 CSS 도 동시 제거.)
   if (isFlatTheme(theme)) {
-    const radius = theme === 'dark' ? 14 : 0;
+    const radius = 14;
     const pad = Math.max(2, borderWidth);
     return (
       <View

@@ -3884,42 +3884,12 @@ a{color:inherit;text-decoration:none;}
   --tel:#0E9C6E; --tel-lt:#2BB888; --tel-dk:#0A7A56;
   --pur:#7C5CDB; --pur-lt:#A189EC; --pur-dk:#5C3FB0;
   --orn:#E07B39; --orn-lt:#EC9C68; --orn-dk:#B85F22;
-  /* 라운드 = 전부 직각(컨텐츠·버튼·인풋·칩 모두 0). 가벼운 2단 섀도우만 유지. */
-  --r:0px; --r-sm:0px; --r-pill:0px; --r-xl:0px;
+  /* 라운드 — 직각(--r:0) 예외는 2026-08-06 제거: 직각+라인보더가 픽셀 잔재로 보임(앱 PixelFrame 동시 수정). */
+  --r:18px; --r-sm:14px; --r-pill:999px; --r-xl:24px;
   --sh-sm:0 1px 2px rgba(17,20,26,.04),0 2px 8px rgba(17,20,26,.04);
   --sh-md:0 4px 16px rgba(17,20,26,.07);
   --sh-lg:0 8px 28px rgba(17,20,26,.10),0 2px 8px rgba(17,20,26,.05);
 }
-/* 직각 강제 — 인라인/하드코딩 border-radius 까지 덮는다(원형 아바타·로딩 스피너 제외). */
-[data-theme="clean"] .card,
-[data-theme="clean"] .qi,
-[data-theme="clean"] .cc-item,
-[data-theme="clean"] .feed-item,
-[data-theme="clean"] .trade-card,
-[data-theme="clean"] .my-item,
-[data-theme="clean"] .shop-card,
-[data-theme="clean"] .stat-card,
-[data-theme="clean"] .sum-card,
-[data-theme="clean"] .place-card,
-[data-theme="clean"] .level-card,
-[data-theme="clean"] .thread-item,
-[data-theme="clean"] .seg-wrap,
-[data-theme="clean"] .seg,
-[data-theme="clean"] .chip,
-[data-theme="clean"] .abtn,
-[data-theme="clean"] .appbar-back,
-[data-theme="clean"] .appbar-right,
-[data-theme="clean"] .qi-icon,
-[data-theme="clean"] .mi-icon,
-[data-theme="clean"] .pri-btn,
-[data-theme="clean"] .btn,
-[data-theme="clean"] input,
-[data-theme="clean"] textarea,
-[data-theme="clean"] select,
-[data-theme="clean"] .hero-promo-card,
-[data-theme="clean"] .fab-circle,
-[data-theme="clean"] .fab-btn,
-[data-theme="clean"] .dash-quick > div{border-radius:0 !important;}
 /* 자간 살짝 타이트 + 숫자 탭률러(프로토타입 -0.02em) */
 [data-theme="clean"] *{letter-spacing:-0.02em;}
 [data-theme="clean"] .num,

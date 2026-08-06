@@ -97,8 +97,11 @@ export function PixelPress({
   const styleVal = typeof style === 'function' ? style({ pressed, hovered: false } as never) : style;
 
   // 플랫(clean·dark) — 픽셀 데코/드롭섀도 대신 라인보더+라운드, 누르면 살짝 투명.
+  // (clean 직각 예외는 2026-08-06 제거 — PixelFrame 과 동일.)
+  // borderWidth=0 && shadow=0 은 컨테이너 안 "bare row" 용례 — 무테·무라운드 유지.
   if (isFlatTheme(theme)) {
-    const radius = theme === 'dark' ? 12 : 0;
+    const bare = borderWidth === 0 && shadowProp === 0;
+    const radius = bare ? 0 : 12;
     return (
       <Pressable
         {...rest}
@@ -108,7 +111,7 @@ export function PixelPress({
       >
         <View
           style={[
-            { backgroundColor: faceBg, borderWidth: 1, borderColor: c.pap3, borderRadius: radius },
+            { backgroundColor: faceBg, borderWidth: bare ? 0 : 1, borderColor: c.pap3, borderRadius: radius },
             theme === 'clean' && shadowProp > 0 ? pressStyles.flatShadow : null,
           ]}
         >
