@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
+import { HAS_NAVER_MAP_KEY, ShopNaverMap } from '@/components/screens/ShopNaverMap';
+
 /**
  * 커뮤니티 Shop 모드 — Claude Design 'POKE30 커뮤니티' 프로토타입의 샵 화면.
  * 지도(핀 선택) · 선택 샵 요약 카드(오리파 도넛·후기 토글·지도앱 링크) ·
@@ -44,13 +46,16 @@ interface ShopInfo {
   emoji: string;
   x: string;
   y: string;
+  /** 네이버 지도 좌표 (근사값 — Geocoder 가 주소 기준으로 보정) */
+  lat: number;
+  lng: number;
 }
 
 const SHOPS: ShopInfo[] = [
-  { id: 's1', name: '포켓랩 성수점', official: true, addr: '서울 성동구 연무장길 21', dist: '320m', rating: '4.8', reviews: 214, oripa: '65%', single: '1,240종', priceLv: '저렴', priceColor: '#1E8E5A', grad: 'linear-gradient(150deg,#ffb347,#ff7a1f)', emoji: '🎁', x: '30%', y: '38%' },
-  { id: 's2', name: '카드킹덤 홍대', official: true, addr: '서울 마포구 와우산로 105', dist: '1.2km', rating: '4.6', reviews: 158, oripa: '40%', single: '2,860종', priceLv: '보통', priceColor: '#16161a', grad: 'linear-gradient(150deg,#6fb1e0,#3a6ea5)', emoji: '👑', x: '62%', y: '30%' },
-  { id: 's3', name: 'TCG스테이션', addr: '서울 성동구 왕십리로 83', dist: '850m', rating: '4.4', reviews: 96, oripa: '80%', single: '420종', priceLv: '높음', priceColor: '#F5333F', grad: 'linear-gradient(150deg,#9d6bd6,#4568dc)', emoji: '🚉', x: '46%', y: '66%' },
-  { id: 's4', name: '몬스터카드샵', addr: '서울 광진구 아차산로 200', dist: '2.1km', rating: '4.2', reviews: 61, oripa: '25%', single: '3,150종', priceLv: '저렴', priceColor: '#1E8E5A', grad: 'linear-gradient(150deg,#11998e,#38ef7d)', emoji: '👾', x: '78%', y: '58%' },
+  { id: 's1', name: '포켓랩 성수점', official: true, addr: '서울 성동구 연무장길 21', dist: '320m', rating: '4.8', reviews: 214, oripa: '65%', single: '1,240종', priceLv: '저렴', priceColor: '#1E8E5A', grad: 'linear-gradient(150deg,#ffb347,#ff7a1f)', emoji: '🎁', x: '30%', y: '38%', lat: 37.5433, lng: 127.0512 },
+  { id: 's2', name: '카드킹덤 홍대', official: true, addr: '서울 마포구 와우산로 105', dist: '1.2km', rating: '4.6', reviews: 158, oripa: '40%', single: '2,860종', priceLv: '보통', priceColor: '#16161a', grad: 'linear-gradient(150deg,#6fb1e0,#3a6ea5)', emoji: '👑', x: '62%', y: '30%', lat: 37.5535, lng: 126.9256 },
+  { id: 's3', name: 'TCG스테이션', addr: '서울 성동구 왕십리로 83', dist: '850m', rating: '4.4', reviews: 96, oripa: '80%', single: '420종', priceLv: '높음', priceColor: '#F5333F', grad: 'linear-gradient(150deg,#9d6bd6,#4568dc)', emoji: '🚉', x: '46%', y: '66%', lat: 37.557, lng: 127.04 },
+  { id: 's4', name: '몬스터카드샵', addr: '서울 광진구 아차산로 200', dist: '2.1km', rating: '4.2', reviews: 61, oripa: '25%', single: '3,150종', priceLv: '저렴', priceColor: '#1E8E5A', grad: 'linear-gradient(150deg,#11998e,#38ef7d)', emoji: '👾', x: '78%', y: '58%', lat: 37.5405, lng: 127.0715 },
 ];
 
 const REVIEW_TAGS = ['오리파 알참', '가격 착함', '응대 친절', '매장 쾌적', '재고 많음'];
@@ -139,9 +144,13 @@ export function ShopSection({ P }: { P: ShopPalette }) {
 
   return (
     <div>
-      {/* map */}
+      {/* map — 네이버 지도 (키 미설정 시 일러스트 지도 폴백) */}
       <div style={{ padding: '14px 16px 6px' }}>
         <div style={{ position: 'relative', height: 230, borderRadius: 18, overflow: 'hidden', background: '#E8EDE6', boxShadow: '0 2px 10px rgba(0,0,0,.06)' }}>
+          {HAS_NAVER_MAP_KEY ? (
+            <ShopNaverMap pins={SHOPS} selId={shopId} onSelect={selectShop} />
+          ) : (
+            <>
           <div style={{ position: 'absolute', left: 0, right: 0, top: 74, height: 13, background: '#fff' }} />
           <div style={{ position: 'absolute', left: 0, right: 0, top: 158, height: 9, background: '#fff', transform: 'rotate(-4deg)' }} />
           <div style={{ position: 'absolute', top: 0, bottom: 0, left: 96, width: 11, background: '#fff', transform: 'rotate(6deg)' }} />
@@ -164,6 +173,8 @@ export function ShopSection({ P }: { P: ShopPalette }) {
           <div style={{ position: 'absolute', right: 12, bottom: 12, width: 36, height: 36, borderRadius: 11, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(0,0,0,.14)' }}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#16161a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></svg>
           </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -198,7 +209,7 @@ export function ShopSection({ P }: { P: ShopPalette }) {
                 <a href="https://tmap.life" target="_blank" rel="noreferrer" title="티맵 길안내" style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(150deg,#7d3ff0,#4a12c4)', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', boxShadow: '0 2px 5px rgba(90,30,200,.3)' }}>
                   <span style={{ fontSize: 10, fontWeight: 900, color: '#fff', fontStyle: 'italic' }}>T</span>
                 </a>
-                <a href="https://map.naver.com" target="_blank" rel="noreferrer" title="네이버지도" style={{ width: 28, height: 28, borderRadius: 8, background: '#03C75A', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', boxShadow: '0 2px 5px rgba(3,199,90,.3)' }}>
+                <a href={`https://map.naver.com/p/search/${encodeURIComponent(shop.name)}`} target="_blank" rel="noreferrer" title="네이버지도" style={{ width: 28, height: 28, borderRadius: 8, background: '#03C75A', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', boxShadow: '0 2px 5px rgba(3,199,90,.3)' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24"><path d="M12 2C7.6 2 4 5.5 4 9.9c0 5.4 7 11.5 7.7 12.1a.5.5 0 0 0 .6 0C13 21.4 20 15.3 20 9.9 20 5.5 16.4 2 12 2Z" fill="#fff" /><circle cx="12" cy="10" r="3" fill="#03C75A" /></svg>
                 </a>
               </div>

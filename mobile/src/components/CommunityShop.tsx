@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 
+import { HAS_NAVER_MAP_KEY, ShopNaverMap } from '@/components/ShopNaverMap';
+
 /**
  * 커뮤니티 Shop 모드 — Claude Design 'POKE30 커뮤니티' 프로토타입의 샵 화면 (네이티브).
  * 지도(핀 선택) · 선택 샵 요약 카드(오리파 도넛·후기 토글·지도앱 링크) ·
@@ -46,13 +48,16 @@ interface ShopInfo {
   emoji: string;
   x: number; // 지도 내 % 위치
   y: number;
+  /** 네이버 지도 좌표 (근사값 — Geocoder 가 주소 기준으로 보정) */
+  lat: number;
+  lng: number;
 }
 
 const SHOPS: ShopInfo[] = [
-  { id: 's1', name: '포켓랩 성수점', official: true, addr: '서울 성동구 연무장길 21', dist: '320m', rating: '4.8', reviews: 214, oripa: '65%', single: '1,240종', priceLv: '저렴', priceColor: '#1E8E5A', tile: '#ff9a33', emoji: '🎁', x: 30, y: 38 },
-  { id: 's2', name: '카드킹덤 홍대', official: true, addr: '서울 마포구 와우산로 105', dist: '1.2km', rating: '4.6', reviews: 158, oripa: '40%', single: '2,860종', priceLv: '보통', priceColor: '#16161a', tile: '#5595c8', emoji: '👑', x: 62, y: 30 },
-  { id: 's3', name: 'TCG스테이션', addr: '서울 성동구 왕십리로 83', dist: '850m', rating: '4.4', reviews: 96, oripa: '80%', single: '420종', priceLv: '높음', priceColor: '#F5333F', tile: '#7169d9', emoji: '🚉', x: 46, y: 66 },
-  { id: 's4', name: '몬스터카드샵', addr: '서울 광진구 아차산로 200', dist: '2.1km', rating: '4.2', reviews: 61, oripa: '25%', single: '3,150종', priceLv: '저렴', priceColor: '#1E8E5A', tile: '#25c486', emoji: '👾', x: 78, y: 58 },
+  { id: 's1', name: '포켓랩 성수점', official: true, addr: '서울 성동구 연무장길 21', dist: '320m', rating: '4.8', reviews: 214, oripa: '65%', single: '1,240종', priceLv: '저렴', priceColor: '#1E8E5A', tile: '#ff9a33', emoji: '🎁', x: 30, y: 38, lat: 37.5433, lng: 127.0512 },
+  { id: 's2', name: '카드킹덤 홍대', official: true, addr: '서울 마포구 와우산로 105', dist: '1.2km', rating: '4.6', reviews: 158, oripa: '40%', single: '2,860종', priceLv: '보통', priceColor: '#16161a', tile: '#5595c8', emoji: '👑', x: 62, y: 30, lat: 37.5535, lng: 126.9256 },
+  { id: 's3', name: 'TCG스테이션', addr: '서울 성동구 왕십리로 83', dist: '850m', rating: '4.4', reviews: 96, oripa: '80%', single: '420종', priceLv: '높음', priceColor: '#F5333F', tile: '#7169d9', emoji: '🚉', x: 46, y: 66, lat: 37.557, lng: 127.04 },
+  { id: 's4', name: '몬스터카드샵', addr: '서울 광진구 아차산로 200', dist: '2.1km', rating: '4.2', reviews: 61, oripa: '25%', single: '3,150종', priceLv: '저렴', priceColor: '#1E8E5A', tile: '#25c486', emoji: '👾', x: 78, y: 58, lat: 37.5405, lng: 127.0715 },
 ];
 
 const REVIEW_TAGS = ['오리파 알참', '가격 착함', '응대 친절', '매장 쾌적', '재고 많음'];
@@ -147,12 +152,16 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
         }
       }}
     >
-      {/* map */}
+      {/* map — 네이버 지도 (키 미설정 시 일러스트 지도 폴백) */}
       <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 }}>
         <View
           onLayout={(e) => setMapW(e.nativeEvent.layout.width)}
           style={{ position: 'relative', height: MAP_H, borderRadius: 18, overflow: 'hidden', backgroundColor: '#E8EDE6' }}
         >
+          {HAS_NAVER_MAP_KEY ? (
+            <ShopNaverMap pins={SHOPS} selId={shopId} onSelect={selectShop} />
+          ) : (
+            <>
           <View style={{ position: 'absolute', left: 0, right: 0, top: 74, height: 13, backgroundColor: '#fff' }} />
           <View style={{ position: 'absolute', left: 0, right: 0, top: 158, height: 9, backgroundColor: '#fff', transform: [{ rotate: '-4deg' }] }} />
           <View style={{ position: 'absolute', top: -20, bottom: -20, left: 96, width: 11, backgroundColor: '#fff', transform: [{ rotate: '6deg' }] }} />
@@ -181,6 +190,8 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
               <Circle cx={12} cy={12} r={3} /><Path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
             </Svg>
           </View>
+            </>
+          )}
         </View>
       </View>
 
@@ -223,7 +234,7 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
                 <Pressable onPress={() => Linking.openURL('https://tmap.life')} style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#5f28da', alignItems: 'center', justifyContent: 'center' }}>
                   <Text style={{ fontSize: 10, fontWeight: '900', color: '#fff', fontStyle: 'italic' }}>T</Text>
                 </Pressable>
-                <Pressable onPress={() => Linking.openURL('https://map.naver.com')} style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#03C75A', alignItems: 'center', justifyContent: 'center' }}>
+                <Pressable onPress={() => Linking.openURL(`https://map.naver.com/p/search/${encodeURIComponent(shop.name)}`)} style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#03C75A', alignItems: 'center', justifyContent: 'center' }}>
                   <Svg width={13} height={13} viewBox="0 0 24 24">
                     <Path d="M12 2C7.6 2 4 5.5 4 9.9c0 5.4 7 11.5 7.7 12.1a.5.5 0 0 0 .6 0C13 21.4 20 15.3 20 9.9 20 5.5 16.4 2 12 2Z" fill="#fff" />
                     <Circle cx={12} cy={10} r={3} fill="#03C75A" />
