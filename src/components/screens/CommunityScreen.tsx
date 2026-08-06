@@ -85,8 +85,8 @@ const GRAD = {
   koi: 'linear-gradient(150deg,#5b86e5,#36d1dc)',
 };
 
-type CatId = '전체' | '자유' | '시세/정보' | '질문' | '자랑' | '거래/나눔' | '꿀팁';
-const CATS: CatId[] = ['전체', '자유', '시세/정보', '질문', '자랑', '거래/나눔', '꿀팁'];
+type CatId = '전체' | '자유' | '시세/정보' | '자랑' | '거래/나눔';
+const CATS: CatId[] = ['전체', '자유', '시세/정보', '자랑', '거래/나눔'];
 
 type SortId = '최신순' | '추천순' | '댓글순';
 const SORTS: SortId[] = ['최신순', '추천순', '댓글순'];
@@ -94,9 +94,7 @@ const SORTS: SortId[] = ['최신순', '추천순', '댓글순'];
 // 게시글 카테고리별 태그 색(클린). VAR 테마는 accent 톤으로 대체.
 const TAG_COLOR: Record<string, { fg: string; bg: string }> = {
   '자유': { fg: '#5a3ad6', bg: '#EFEBFF' },
-  '질문': { fg: '#1E8E5A', bg: '#E3F6EC' },
   '자랑': { fg: '#C2410C', bg: '#FFEDD5' },
-  '꿀팁': { fg: '#2563EB', bg: '#E0EDFF' },
   '거래/나눔': { fg: '#7C3AED', bg: '#F1EAFF' },
   '시세/정보': { fg: '#0369A1', bg: '#E0F2FE' },
 };
@@ -106,7 +104,7 @@ function tagStyle(label: string, clean: boolean, P: Palette): { fg: string; bg: 
 }
 
 /** 글의 카테고리 추정 — 현재 글에 카테고리 컬럼이 없어 사진 유무로 자랑/자유 구분.
- *  (PostRow 표시 로직과 동일 기준. 시세/정보·질문·꿀팁은 데이터가 없어 비게 됨.) */
+ *  (PostRow 표시 로직과 동일 기준. 시세/정보는 데이터가 없어 비게 됨.) */
 function postCat(p: FeedPost): CatId {
   return (p.images?.length ?? 0) > 0 ? '자랑' : '자유';
 }

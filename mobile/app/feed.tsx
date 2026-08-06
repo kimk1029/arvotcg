@@ -59,17 +59,15 @@ const CLEAN_P: Palette = {
   chev: '#C2C2C8',
 };
 
-type CatId = '전체' | '자유' | '시세/정보' | '질문' | '자랑' | '거래/나눔' | '꿀팁';
-const CATS: CatId[] = ['전체', '자유', '시세/정보', '질문', '자랑', '거래/나눔', '꿀팁'];
+type CatId = '전체' | '자유' | '시세/정보' | '자랑' | '거래/나눔';
+const CATS: CatId[] = ['전체', '자유', '시세/정보', '자랑', '거래/나눔'];
 
 type SortId = '최신순' | '추천순' | '댓글순';
 const SORTS: SortId[] = ['최신순', '추천순', '댓글순'];
 
 const TAG_COLOR: Record<string, { fg: string; bg: string }> = {
   '자유': { fg: '#5a3ad6', bg: '#EFEBFF' },
-  '질문': { fg: '#1E8E5A', bg: '#E3F6EC' },
   '자랑': { fg: '#C2410C', bg: '#FFEDD5' },
-  '꿀팁': { fg: '#2563EB', bg: '#E0EDFF' },
   '거래/나눔': { fg: '#7C3AED', bg: '#F1EAFF' },
   '시세/정보': { fg: '#0369A1', bg: '#E0F2FE' },
 };
