@@ -17,14 +17,13 @@ export interface ShopMapPin {
   lng: number;
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// NCP SDK 는 타입 패키지가 없어 any 로 다룬다.
 type NMaps = any;
 declare global {
   interface Window {
     naver?: { maps: NMaps };
   }
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_NCP_MAP_CLIENT_ID ?? '';
 export const HAS_NAVER_MAP_KEY = CLIENT_ID.length > 0;
