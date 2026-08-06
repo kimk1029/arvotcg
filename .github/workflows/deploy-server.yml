@@ -48,6 +48,9 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
+          # NAS 의 npm ci 두 번(서버+루트)만 10분 가까이 걸려 기본 10m 으론 pm2 재시작 전에
+          # "Run Command Timeout" 으로 죽는다 (2026-08-06 실사고). 여유 있게 30분.
+          command_timeout: 30m
           envs: SERVER_ENV_CONTENT
           script: |
             set -e
