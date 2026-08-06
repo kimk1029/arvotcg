@@ -1,25 +1,46 @@
 /**
- * /my — 마이페이지 대시보드.
- * 실시간 데이터: /api/me/summary (인증 시) → 카드 보유 수, 거래/찜 글 수, 포인트, 레벨.
- * 미인증 시: 익명 더미 + 로그인 CTA.
+ * /my — 마이페이지. Claude Design 'POKE30 마이페이지' 프로토타입 레이아웃
+ * (홈·커뮤니티와 동일하게 모든 테마 공통 단일 디자인 — 라이트/화이트 카드/오렌지 포인트).
+ * 실시간 데이터: /api/me/summary(카드·거래·찜·포인트·레벨) + /api/me/portfolio + 미읽음 쪽지.
+ * 미인증 시 InlineLoginGate. 웹 MyScreen 과 페어.
  */
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, TextInput, View, Text } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { AppBar } from '@/components/AppBar';
-import { PixelText } from '@/components/PixelText';
-import { SectHd } from '@/components/cv/SectHd';
-import { PixelFrame } from '@/components/cv/PixelFrame';
-import { PixelPress } from '@/components/cv/PixelPress';
+import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { InlineLoginGate } from '@/components/InlineLoginGate';
-import { PortfolioTotal } from '@/components/PortfolioTotal';
+import { useCurrency } from '@/components/CurrencyProvider';
 import { useToast } from '@/components/ToastProvider';
-import { fonts } from '@/theme/tokens';
-import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
-import { isFlatTheme } from '@/lib/theme';
-import { fetchMySummary, fetchUnreadCount, updateMyName, type MySummary } from '@/lib/myApi';
+import {
+  fetchMySummary, fetchPortfolio, fetchUnreadCount, updateMyName,
+  type MySummary, type PortfolioSummary,
+} from '@/lib/myApi';
 import { useAsync } from '@/lib/useAsync';
 import { isAuthenticated, setSession, subscribeSession } from '@/lib/session';
+
+/* 프로토타입 고정 팔레트 — 테마 무관 (홈 CleanHomeScreen·커뮤니티 feed.tsx 와 동일 접근) */
+const P = {
+  pageBg: '#F7F7F9',
+  card: '#FFFFFF',
+  ink: '#16161a',
+  sub: '#9A9AA0',
+  sub2: '#8E8E93',
+  line: '#F4F4F6',
+  headerLine: '#F0F0F2',
+  chip: '#F0F0F2',
+  orange: '#FF7A00',
+  red: '#F5333F',
+  blue: '#2F6BFF',
+  chev: '#C2C2C8',
+};
+
+const CARD_SHADOW = {
+  shadowColor: '#000',
+  shadowOpacity: 0.05,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 2,
+} as const;
 
 function useAuthed(): boolean {
   const [authed, setAuthed] = useState(() => isAuthenticated());
@@ -30,32 +51,83 @@ function useAuthed(): boolean {
 }
 
 interface MenuItem {
-  icon: string;
-  /** 아이콘 박스 배경색 — 웹 .mi-icon 처럼 항목별 컬러. 없으면 기본 pap3. */
-  iconBg?: string;
+  emoji: string;
+  iconBg: string;
   label: string;
-  desc?: string;
+  sub?: string;
   badge?: string;
   disabled?: boolean;
   onPress?: () => void;
 }
 
-interface MenuSection {
-  title: string;
-  items: MenuItem[];
+/* ---------------- 아이콘 (디자인 SVG 그대로) ---------------- */
+
+function CartIcon() {
+  return (
+    <Svg width={23} height={23} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx={9} cy={21} r={1.6} />
+      <Circle cx={19} cy={21} r={1.6} />
+      <Path d="M2 3h3l2.7 12.4a2 2 0 0 0 2 1.6h8.8a2 2 0 0 0 2-1.6L22 7H6" />
+    </Svg>
+  );
 }
 
+function GearIcon() {
+  return (
+    <Svg width={23} height={23} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx={12} cy={12} r={3} />
+      <Path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+    </Svg>
+  );
+}
+
+function Chevron({ s = 16 }: { s?: number }) {
+  return (
+    <Svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={P.chev} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="m9 6 6 6-6 6" />
+    </Svg>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={P.sub} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M12 20h9" />
+      <Path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </Svg>
+  );
+}
+
+/** 포트폴리오 스파크라인 — 88×28, history 정규화. 상승=빨강(디자인)/하락=파랑. */
+function Sparkline({ points, color }: { points: number[]; color: string }) {
+  const W = 100;
+  const H = 28;
+  if (points.length < 2) return null;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const span = Math.max(1, max - min);
+  const step = W / (points.length - 1);
+  const coords = points.map((v, i) => ({
+    x: i * step,
+    y: H - 4 - ((v - min) / span) * (H - 8),
+  }));
+  const d = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ');
+  const last = coords[coords.length - 1];
+  return (
+    <Svg width={88} height={28} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ flexShrink: 0 }}>
+      <Path d={d} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx={last.x} cy={last.y} r={2.5} fill={color} />
+    </Svg>
+  );
+}
+
+/* ---------------- 화면 ---------------- */
+
 export default function MyScreen() {
-  const tc = useThemeColors();
-  const txt = useThemeTextVariant();
-  const { theme } = useTheme();
-  const flat = isFlatTheme(theme);
   const toast = useToast();
   const authed = useAuthed();
-  const { data, error, refresh } = useAsync<MySummary>(
-    fetchMySummary,
-    [authed],
-  );
+  const { format } = useCurrency();
+  const { data, refresh } = useAsync<MySummary>(fetchMySummary, [authed]);
 
   // 미읽음 쪽지 수 — 웹 useUnread 대응.
   const [unread, setUnread] = useState(0);
@@ -68,12 +140,22 @@ export default function MyScreen() {
     };
   }, [authed]);
 
+  // 포트폴리오 컴팩트 카드 — /api/me/portfolio (평가액·등락·30일 히스토리).
+  const [pf, setPf] = useState<PortfolioSummary | null>(null);
+  useEffect(() => {
+    if (!authed) return;
+    let alive = true;
+    fetchPortfolio().then((d) => alive && setPf(d)).catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [authed]);
+
   // 이름 편집 — 웹 EditableName 대응(PATCH /api/me/name).
   const [editOpen, setEditOpen] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [nameBusy, setNameBusy] = useState(false);
 
-  // 인라인 로그인 게이트 — 바텀 탭바는 PhoneShell 이 유지.
   if (!authed) {
     return (
       <InlineLoginGate
@@ -95,6 +177,9 @@ export default function MyScreen() {
   const tradeCount = summary?.counts.tradeCount ?? 0;
   const savedCount = summary?.counts.savedCount ?? 0;
 
+  const pfUp = (pf?.changePct ?? 0) >= 0;
+  const pfColor = pfUp ? P.red : P.blue;
+
   const saveName = async () => {
     const trimmed = nameInput.trim();
     if (!trimmed || nameBusy) return;
@@ -115,212 +200,183 @@ export default function MyScreen() {
     }
   };
 
-  // 웹 마이페이지(/my)와 동일한 메뉴 구성.
-  const sections: MenuSection[] = [
-    {
-      title: '내 활동',
-      items: [
-        { icon: '✉️', iconBg: '#0D7377', label: '쪽지함', desc: '거래 채팅', badge: unread > 0 ? `${unread > 99 ? '99+' : unread} 안읽음` : undefined, onPress: () => router.push('/my/messages' as never) },
-        { icon: '📈', iconBg: '#16A357', label: '포트폴리오', desc: '평가액·등락률·일별 차트', onPress: () => router.push('/my/portfolio' as never) },
-        { icon: '🃏', iconBg: '#FB923C', label: '내 카드', desc: `${cardCount}장 보유 중`, onPress: () => router.push('/my/cards' as never) },
-        { icon: '⭐', iconBg: '#7C3AED', label: '관심카드', desc: '찜한 시세 카드', onPress: () => router.push('/my/favorites' as never) },
-        { icon: '📝', iconBg: '#FFD23F', label: '내가 쓴 거래글', desc: `${tradeCount}건`, onPress: () => router.push('/my/trades' as never) },
-        { icon: '🗣', iconBg: '#6B3FA0', label: '내 피드', desc: '내가 쓴 커뮤니티 글', onPress: () => router.push('/my/feeds' as never) },
-        { icon: '💛', iconBg: '#3A5BD9', label: '찜한 글', desc: `${savedCount}건`, onPress: () => router.push('/my/bookmarks' as never) },
-      ],
-    },
-    {
-      title: '상점 바로가기',
-      items: [
-        { icon: '🛒', iconBg: '#6B3FA0', label: '아르보TCG 상점', desc: '아바타·배경·테두리', onPress: () => router.push('/my/shop' as never) },
-        // 오리파는 서비스 숨김 상태(2026-07) — 라우트는 살아있지만 진입점 미노출. 웹 MyScreen 과 동일.
-      ],
-    },
+  // 내 활동 — 디자인의 5행 + 기존 기능 행(관심카드·내 피드) 동일 스타일로 이어붙임.
+  const activity: MenuItem[] = [
+    { emoji: '✉️', iconBg: '#E3F6EC', label: '쪽지함', sub: '새 쪽지를 확인하세요', badge: unread > 0 ? `${unread > 99 ? '99+' : unread}` : undefined, onPress: () => router.push('/my/messages' as never) },
+    { emoji: '📈', iconBg: '#FFF1E6', label: '포트폴리오', sub: '보유 카드 평가액과 수익률', onPress: () => router.push('/my/portfolio' as never) },
+    { emoji: '🃏', iconBg: '#E0EDFF', label: '내 카드', sub: `등록한 카드 ${cardCount}장 관리`, onPress: () => router.push('/my/cards' as never) },
+    { emoji: '🤝', iconBg: '#F4F1FF', label: '내 거래', sub: '판매·구매 내역', onPress: () => router.push('/my/trades' as never) },
+    { emoji: '❤️', iconBg: '#FFECEC', label: '찜한 글', sub: '북마크한 게시글', onPress: () => router.push('/my/bookmarks' as never) },
+    { emoji: '⭐', iconBg: '#FFF6DE', label: '관심카드', sub: '찜한 시세 카드', onPress: () => router.push('/my/favorites' as never) },
+    { emoji: '🗣', iconBg: '#F1EAFF', label: '내 피드', sub: '내가 쓴 커뮤니티 글', onPress: () => router.push('/my/feeds' as never) },
   ];
 
-  // 설정 섹션의 내비게이션 항목 (통화/테마 행 다음에 같은 컨테이너에 이어 렌더).
-  const settingsNav: MenuItem[] = [
-    { icon: '⚙️', iconBg: '#1A1A2E', label: '환경설정', desc: '통화·테마·네비게이션', onPress: () => router.push('/settings' as never) },
-    { icon: '📢', iconBg: '#FFD23F', label: '공지사항', badge: 'NEW', onPress: () => router.push('/my/notices' as never) },
-    { icon: '❓', iconBg: '#3A5BD9', label: 'FAQ · 자주 묻는 질문', onPress: () => router.push('/my/faq' as never) },
-    { icon: '📜', iconBg: tc.pap2, label: '이용약관', onPress: () => router.push('/legal?doc=terms' as never) },
-    { icon: '🔒', iconBg: '#0D7377', label: '개인정보처리방침', onPress: () => router.push('/legal?doc=privacy' as never) },
-    { icon: '🔔', iconBg: tc.pap2, label: '알림 설정', desc: '준비중', disabled: true },
+  const settings: MenuItem[] = [
+    { emoji: '📢', iconBg: '#FFF6DE', label: '공지사항', badge: 'NEW', onPress: () => router.push('/my/notices' as never) },
+    { emoji: '❓', iconBg: '#E0EDFF', label: 'FAQ · 자주 묻는 질문', onPress: () => router.push('/my/faq' as never) },
+    { emoji: '📜', iconBg: '#F0F0F2', label: '이용약관', onPress: () => router.push('/legal?doc=terms' as never) },
+    { emoji: '🔒', iconBg: '#E3F6EC', label: '개인정보처리방침', onPress: () => router.push('/legal?doc=privacy' as never) },
+    { emoji: '🔔', iconBg: '#F0F0F2', label: '알림 설정', sub: '준비중', disabled: true },
   ];
 
   return (
-    <View style={{ flex: 1, backgroundColor: tc.paper }}>
-      <AppBar onBack={() => router.replace('/' as never)} title="마이" />
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 14, paddingBottom: 110 }}>
-        {/* Profile hero */}
-        <View style={{ marginHorizontal: 14, marginBottom: 14 }}>
-          <PixelFrame
-            bg={tc.ink2}
-            borderWidth={4}
-            shadow={7}
-            hi="rgba(255,255,255,0.08)"
-            lo="rgba(0,0,0,0.4)"
-            inner={4}
-          >
-            <View style={{ padding: 18 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                <View style={{ width: 60, height: 60, backgroundColor: tc.gold, alignItems: 'center', justifyContent: 'center', borderColor: tc.ink, borderWidth: flat ? 0 : 3, borderRadius: flat ? 16 : 0 }}>
-                  <Text style={{ fontSize: 30 }}>🃏</Text>
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <PixelText variant={txt} size={14} color={tc.white} style={{ letterSpacing: 1 }} numberOfLines={1}>
-                    {userName}
-                  </PixelText>
-                  <PixelText variant={txt} size={10} color={tc.gold} style={{ marginTop: 6, letterSpacing: 0.5 }} numberOfLines={1}>
-                    ★ LV.{level}{lv?.title ? ` ${lv.title}` : ''} · {points.toLocaleString('ko-KR')}P
-                  </PixelText>
-                </View>
-                {authed ? (
-                  <PixelPress
-                    onPress={() => {
-                      setNameInput(userName);
-                      setEditOpen(true);
-                    }}
-                    bg={tc.gold}
-                    hi={tc.goldLt}
-                    lo={tc.goldDk}
-                    shadow={4}
-                  >
-                    <View style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
-                      <PixelText variant={txt} size={10} color={tc.ink}>편집</PixelText>
-                    </View>
-                  </PixelPress>
-                ) : (
-                  <PixelPress onPress={() => router.push('/login' as never)} bg={tc.gold} hi={tc.goldLt} lo={tc.goldDk} shadow={4}>
-                    <View style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
-                      <PixelText variant={txt} size={10} color={tc.ink}>로그인</PixelText>
-                    </View>
-                  </PixelPress>
-                )}
-              </View>
-              {/* XP 진행바 — 웹 MyScreen 동일 */}
-              {lv ? (
-                <View style={{ marginTop: 14 }}>
-                  <PixelText variant={txt} size={9} color="rgba(255,255,255,0.5)" style={{ letterSpacing: 0.5, marginBottom: 6 }}>
-                    XP {lv.xp} / {lv.xpNeeded}
-                  </PixelText>
-                  <View style={{ height: 10, backgroundColor: 'rgba(0,0,0,0.4)', borderColor: 'rgba(255,255,255,0.1)', borderWidth: flat ? 0 : 1, borderRadius: flat ? 5 : 0, overflow: 'hidden' }}>
-                    <View style={{ width: `${xpPct}%`, height: '100%', backgroundColor: tc.gold }} />
-                  </View>
-                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 6 }}>
-                    <PixelText variant={txt} size={9} color="rgba(255,255,255,0.5)" style={{ letterSpacing: 0.3 }}>
-                      다음 LV.까지 {lv.xpNeeded - lv.xp} XP
-                    </PixelText>
-                  </View>
-                </View>
-              ) : null}
-
-              <View style={{ flexDirection: 'row', marginTop: 12, gap: 8 }}>
-                <Stat label="카드" value={`${cardCount}장`} />
-                <Stat label="거래" value={`${tradeCount}건`} />
-                <Stat label="찜" value={`${savedCount}건`} />
-              </View>
-
-              {/* 포트폴리오 총액 + 어제 대비 등락 + 30일 스파크라인 — 웹 PortfolioTotal 동일 */}
-              <PortfolioTotal />
-              <Pressable
-                onPress={() => router.push('/my/portfolio' as never)}
-                style={{ marginTop: 8, paddingVertical: 8, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: flat ? 10 : 0 }}
-              >
-                <PixelText variant={txt} size={10} color={tc.gold} style={{ letterSpacing: 0.4 }}>
-                  📈 포트폴리오 자세히 보기 →
-                </PixelText>
-              </Pressable>
-              {!authed && error ? (
-                <View style={{ marginTop: 12, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: flat ? 10 : 0 }}>
-                  <PixelText variant="ko" size={9} color={tc.white} style={{ lineHeight: 14, opacity: 0.7 }}>
-                    로그인하면 카드·포인트·거래글이 동기화됩니다.
-                  </PixelText>
-                </View>
-              ) : null}
-            </View>
-          </PixelFrame>
+    <View style={{ flex: 1, backgroundColor: P.pageBg }}>
+      {/* header — 디자인: 내 프로필 + 상점(카트)·환경설정(기어) */}
+      <View style={{ backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: P.headerLine, flexDirection: 'row', alignItems: 'center', paddingTop: 8, paddingBottom: 12, paddingHorizontal: 20 }}>
+        <Text style={{ flex: 1, fontSize: 24, fontWeight: '900', color: P.ink, letterSpacing: -0.6 }}>내 프로필</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+          <Pressable onPress={() => router.push('/my/shop' as never)} hitSlop={8}><CartIcon /></Pressable>
+          <Pressable onPress={() => router.push('/settings' as never)} hitSlop={8}><GearIcon /></Pressable>
         </View>
+      </View>
 
-        {sections.map((section) => (
-          <View key={section.title} style={{ marginHorizontal: 14, marginBottom: 14 }}>
-            <SectHd title={section.title} />
-            <PixelFrame>
-              <View>
-                {section.items.map((item, i) => (
-                  <View key={item.label}>
-                    <MenuRow item={item} />
-                    {i < section.items.length - 1 ? <View style={{ height: 1, backgroundColor: tc.pap3, marginHorizontal: 14 }} /> : null}
-                  </View>
-                ))}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
+        {/* profile card */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 10 }}>
+          <View style={[{ backgroundColor: P.card, borderRadius: 20, padding: 20 }, CARD_SHADOW]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              <View style={{ position: 'relative' }}>
+                <View style={{ width: 64, height: 64, borderRadius: 20, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+                  <Svg width={64} height={64} style={{ position: 'absolute' }}>
+                    <Defs>
+                      <LinearGradient id="av" x1="0" y1="0" x2="0.6" y2="1">
+                        <Stop offset="0" stopColor="#3b5bdb" />
+                        <Stop offset="1" stopColor="#1e2f8f" />
+                      </LinearGradient>
+                    </Defs>
+                    <Rect width={64} height={64} fill="url(#av)" />
+                  </Svg>
+                  <Text style={{ fontSize: 32 }}>💎</Text>
+                </View>
+                <View style={{ position: 'absolute', bottom: -5, right: -5, backgroundColor: P.orange, paddingVertical: 3, paddingHorizontal: 7, borderRadius: 9, borderWidth: 2.5, borderColor: '#fff' }}>
+                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900' }}>LV.{level}</Text>
+                </View>
               </View>
-            </PixelFrame>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                  <Text numberOfLines={1} style={{ fontSize: 18, fontWeight: '900', color: P.ink, letterSpacing: -0.4, flexShrink: 1 }}>{userName}</Text>
+                  <Pressable hitSlop={8} onPress={() => { setNameInput(userName); setEditOpen(true); }}><PencilIcon /></Pressable>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: P.orange }}>★ {lv?.title ?? '트레이너'}</Text>
+                  <Text style={{ fontSize: 11.5, color: P.sub, fontWeight: '600' }}>· {points.toLocaleString('ko-KR')} 포인트</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* XP */}
+            {lv ? (
+              <View style={{ marginTop: 16 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: P.sub }}>XP {lv.xp} / {lv.xpNeeded}</Text>
+                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: P.sub }}>다음 LV.까지 <Text style={{ color: P.ink }}>{lv.xpNeeded - lv.xp} XP</Text></Text>
+                </View>
+                <View style={{ height: 8, borderRadius: 4, backgroundColor: P.chip, overflow: 'hidden' }}>
+                  <View style={{ width: `${Math.max(xpPct, 6)}%`, height: '100%', borderRadius: 4, overflow: 'hidden' }}>
+                    <Svg width="100%" height={8} preserveAspectRatio="none">
+                      <Defs>
+                        <LinearGradient id="xp" x1="0" y1="0" x2="1" y2="0">
+                          <Stop offset="0" stopColor="#FF9A4D" />
+                          <Stop offset="1" stopColor="#FF7A00" />
+                        </LinearGradient>
+                      </Defs>
+                      <Rect width="100%" height={8} fill="url(#xp)" />
+                    </Svg>
+                  </View>
+                </View>
+              </View>
+            ) : null}
+
+            {/* compact portfolio */}
+            <Pressable
+              onPress={() => router.push('/my/portfolio' as never)}
+              style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14, backgroundColor: P.pageBg, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, opacity: pressed ? 0.85 : 1 }]}
+            >
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: P.sub }}>포트폴리오</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
+                  <Text style={{ fontSize: 17, fontWeight: '900', color: P.ink, letterSpacing: -0.4 }}>
+                    {pf ? format(pf.totalJpy) : '계산 중…'}
+                  </Text>
+                  {pf?.changePct != null ? (
+                    <Text style={{ fontSize: 11.5, fontWeight: '800', color: pfColor }}>
+                      {pfUp ? '+' : ''}{pf.changePct.toFixed(1)}% {pfUp ? '▲' : '▼'}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+              {pf && pf.history.length >= 2 ? (
+                <Sparkline points={pf.history.map((h) => h.totalJpy)} color={pfColor} />
+              ) : null}
+              <Chevron s={15} />
+            </Pressable>
           </View>
-        ))}
-
-        {/* 설정 — 통화/테마 + 공지/FAQ/약관/개인정보/알림 을 한 컨테이너에 (웹과 동일 배치). */}
-        <View style={{ marginHorizontal: 14, marginBottom: 14 }}>
-          <SectHd title="설정" />
-          <PixelFrame>
-            <View>
-              {settingsNav.map((item, i) => (
-                <View key={item.label}>
-                  <MenuRow item={item} />
-                  {i < settingsNav.length - 1 ? <View style={{ height: 1, backgroundColor: tc.pap3, marginHorizontal: 14 }} /> : null}
-                </View>
-              ))}
-            </View>
-          </PixelFrame>
         </View>
+
+        {/* stats */}
+        <View style={{ flexDirection: 'row', gap: 9, paddingHorizontal: 16, paddingBottom: 20 }}>
+          {([
+            [cardCount, '내 카드'],
+            [tradeCount, '내 거래'],
+            [savedCount, '찜한 글'],
+          ] as const).map(([n, label]) => (
+            <View key={label} style={[{ flex: 1, backgroundColor: P.card, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 12, alignItems: 'center' }, CARD_SHADOW, { shadowOpacity: 0.04 }]}>
+              <Text style={{ fontSize: 22, fontWeight: '900', color: P.ink }}>{n}</Text>
+              <Text style={{ fontSize: 11.5, color: P.sub2, fontWeight: '600', marginTop: 3 }}>{label}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* 내 활동 */}
+        <Text style={{ fontSize: 17, fontWeight: '800', color: P.ink, paddingHorizontal: 20, paddingBottom: 12 }}>내 활동</Text>
+        <MenuCard items={activity} />
+
+        {/* 설정 */}
+        <Text style={{ fontSize: 17, fontWeight: '800', color: P.ink, paddingHorizontal: 20, paddingBottom: 12 }}>설정</Text>
+        <MenuCard items={settings} />
 
         {/* 로그아웃 */}
-        <View style={{ marginHorizontal: 14, marginBottom: 8 }}>
-          <PixelPress
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+          <Pressable
             onPress={() => {
               setSession(null);
               router.replace('/login' as never);
             }}
-            bg={tc.white}
-            shadow={4}
+            style={({ pressed }) => [{ backgroundColor: P.card, borderRadius: 18, paddingVertical: 15, alignItems: 'center', opacity: pressed ? 0.85 : 1 }, CARD_SHADOW, { shadowOpacity: 0.04 }]}
           >
-            <View style={{ paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
-              <Text style={{ fontSize: 14 }}>🚪</Text>
-              <PixelText variant="ko" size={12} color={tc.ink3} weight="bold">로그아웃</PixelText>
-            </View>
-          </PixelPress>
+            <Text style={{ fontSize: 14.5, fontWeight: '800', color: P.red }}>로그아웃</Text>
+          </Pressable>
         </View>
       </ScrollView>
 
       {/* 이름 편집 모달 — 웹 EditableName 대응 */}
       <Modal visible={editOpen} transparent animationType="fade" onRequestClose={() => setEditOpen(false)}>
-        <Pressable onPress={() => setEditOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <Pressable onPress={() => setEditOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <Pressable onPress={() => {}} style={{ width: '100%', maxWidth: 320 }}>
-            <PixelFrame bg={tc.paper} borderWidth={3} shadow={6} inner={3}>
-              <View style={{ padding: 16, gap: 12 }}>
-                <PixelText variant={txt} size={12} weight="bold" color={tc.ink}>이름 변경</PixelText>
-                <TextInput
-                  value={nameInput}
-                  onChangeText={setNameInput}
-                  placeholder="새 이름"
-                  placeholderTextColor={tc.ink3}
-                  maxLength={20}
-                  autoFocus
-                  style={{ backgroundColor: tc.white, borderColor: flat ? tc.pap3 : tc.ink, borderWidth: flat ? 1 : 3, borderRadius: flat ? 10 : 0, padding: 10, fontFamily: flat ? undefined : fonts.ko, fontSize: 14, color: tc.ink }}
-                />
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <Pressable onPress={() => setEditOpen(false)} style={{ flex: 1, paddingVertical: 11, alignItems: 'center', backgroundColor: tc.white, borderColor: flat ? tc.pap3 : tc.ink, borderWidth: flat ? 1 : 2, borderRadius: flat ? 10 : 0 }}>
-                    <PixelText variant={txt} size={10} color={tc.ink3}>취소</PixelText>
-                  </Pressable>
-                  <Pressable
-                    onPress={saveName}
-                    disabled={nameBusy || !nameInput.trim()}
-                    style={{ flex: 1, paddingVertical: 11, alignItems: 'center', backgroundColor: tc.gold, borderColor: tc.ink, borderWidth: flat ? 0 : 2, borderRadius: flat ? 10 : 0, opacity: nameBusy || !nameInput.trim() ? 0.5 : 1 }}
-                  >
-                    <PixelText variant={txt} size={10} color={tc.ink}>{nameBusy ? '저장 중…' : '저장'}</PixelText>
-                  </Pressable>
-                </View>
+            <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 20, gap: 14 }}>
+              <Text style={{ fontSize: 16, fontWeight: '900', color: P.ink }}>이름 변경</Text>
+              <TextInput
+                value={nameInput}
+                onChangeText={setNameInput}
+                placeholder="새 이름"
+                placeholderTextColor={P.sub}
+                maxLength={20}
+                autoFocus
+                style={{ backgroundColor: P.pageBg, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, fontSize: 14.5, fontWeight: '600', color: P.ink }}
+              />
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Pressable onPress={() => setEditOpen(false)} style={{ flex: 1, paddingVertical: 12, alignItems: 'center', backgroundColor: P.chip, borderRadius: 12 }}>
+                  <Text style={{ fontSize: 13.5, fontWeight: '800', color: P.sub2 }}>취소</Text>
+                </Pressable>
+                <Pressable
+                  onPress={saveName}
+                  disabled={nameBusy || !nameInput.trim()}
+                  style={{ flex: 1, paddingVertical: 12, alignItems: 'center', backgroundColor: P.orange, borderRadius: 12, opacity: nameBusy || !nameInput.trim() ? 0.5 : 1 }}
+                >
+                  <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#fff' }}>{nameBusy ? '저장 중…' : '저장'}</Text>
+                </Pressable>
               </View>
-            </PixelFrame>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -328,56 +384,35 @@ export default function MyScreen() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  const tc = useThemeColors();
-  const txt = useThemeTextVariant();
-  const flat = isFlatTheme(useTheme().theme);
+/** 화이트 라운드 카드 안 메뉴 행 리스트 — 디자인 sc-for 행 그대로. */
+function MenuCard({ items }: { items: MenuItem[] }) {
   return (
-    <View style={{ flex: 1, alignItems: 'center', paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)', borderWidth: flat ? 0 : 2, borderRadius: flat ? 10 : 0 }}>
-      <PixelText variant={txt} size={11} color={tc.gold} weight="bold">{value}</PixelText>
-      <PixelText variant={txt} size={9} color="rgba(255,255,255,0.55)" style={{ marginTop: 4 }}>{label}</PixelText>
-    </View>
-  );
-}
-
-function MenuRow({ item }: { item: MenuItem }) {
-  const tc = useThemeColors();
-  const txt = useThemeTextVariant();
-  const flat = isFlatTheme(useTheme().theme);
-  const disabled = item.disabled === true;
-  return (
-    <PixelPress
-      onPress={disabled ? () => undefined : (item.onPress ?? (() => undefined))}
-      bg={tc.white}
-      hi={null}
-      lo={null}
-      shadow={0}
-      borderWidth={0}
-      inner={0}
-    >
-      <View style={{ paddingHorizontal: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: disabled ? 0.45 : 1 }}>
-        <View style={{ width: 36, height: 36, backgroundColor: item.iconBg ?? tc.pap3, borderColor: tc.ink, borderWidth: flat ? 0 : 2, borderRadius: flat ? 10 : 0, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 18 }}>{item.icon}</Text>
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <PixelText variant="ko" size={12} color={tc.ink} weight="bold" numberOfLines={1}>{item.label}</PixelText>
-          {item.desc ? (
-            <PixelText variant="ko" size={10} color={tc.ink3} style={{ marginTop: 2 }} numberOfLines={1}>{item.desc}</PixelText>
-          ) : null}
-        </View>
-        {item.badge ? (
-          <View style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: tc.red, borderColor: tc.ink, borderWidth: flat ? 0 : 2, borderRadius: flat ? 8 : 0 }}>
-            <PixelText variant={txt} size={9} color={tc.white} weight="bold">{item.badge}</PixelText>
-          </View>
-        ) : null}
-        {!disabled ? (
-          flat ? (
-            <Text style={{ fontSize: 18, fontWeight: '600', color: tc.ink3, lineHeight: 20 }}>›</Text>
-          ) : (
-            <PixelText variant={txt} size={14} color={tc.ink3}>▶</PixelText>
-          )
-        ) : null}
+    <View style={{ paddingHorizontal: 16, paddingBottom: 28 }}>
+      <View style={[{ backgroundColor: P.card, borderRadius: 18, overflow: 'hidden' }, CARD_SHADOW, { shadowOpacity: 0.04 }]}>
+        {items.map((m, i) => (
+          <Pressable
+            key={m.label}
+            onPress={m.disabled ? undefined : m.onPress}
+            style={({ pressed }) => [
+              { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 15, paddingHorizontal: 16, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: P.line, opacity: m.disabled ? 0.45 : pressed ? 0.7 : 1 },
+            ]}
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: m.iconBg, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 19 }}>{m.emoji}</Text>
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontSize: 14.5, fontWeight: '800', color: P.ink }}>{m.label}</Text>
+              {m.sub ? <Text style={{ fontSize: 11.5, color: P.sub, fontWeight: '600', marginTop: 2 }}>{m.sub}</Text> : null}
+            </View>
+            {m.badge ? (
+              <View style={{ backgroundColor: P.red, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 9 }}>
+                <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#fff' }}>{m.badge}</Text>
+              </View>
+            ) : null}
+            {!m.disabled ? <Chevron /> : null}
+          </Pressable>
+        ))}
       </View>
-    </PixelPress>
+    </View>
   );
 }
