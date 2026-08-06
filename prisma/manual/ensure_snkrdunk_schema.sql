@@ -147,3 +147,6 @@ CREATE INDEX IF NOT EXISTS "action_logs_type_createdAt_idx" ON "action_logs" ("t
 CREATE INDEX IF NOT EXISTS "action_logs_path_createdAt_idx" ON "action_logs" ("path", "createdAt" DESC);
 CREATE INDEX IF NOT EXISTS "action_logs_userId_idx" ON "action_logs" ("userId");
 CREATE INDEX IF NOT EXISTS "action_logs_anonId_idx" ON "action_logs" ("anonId");
+
+-- 8) 커뮤니티 피드 카테고리 (2026-08-06) — migrate deploy 드리프트 대비 안전망.
+ALTER TABLE "feeds" ADD COLUMN IF NOT EXISTS "category" TEXT;

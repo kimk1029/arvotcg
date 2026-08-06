@@ -19,6 +19,7 @@ import { useToast } from '@/components/ToastProvider';
 import { uploadFeedImages } from '@/lib/uploads';
 import { fetchInventory } from '@/lib/myApi';
 import { REWARDS } from '@/lib/rewards';
+import { DEFAULT_FEED_CATEGORY, FEED_CATEGORIES, type FeedCategory } from '@/lib/feedCategories';
 import { isAuthenticated, subscribeSession } from '@/lib/session';
 
 const MAX_IMAGES = 3;
@@ -45,6 +46,7 @@ export default function WriteFeed() {
   const { userCardId } = useLocalSearchParams<{ userCardId?: string }>();
 
   const [note, setNote] = useState('');
+  const [category, setCategory] = useState<FeedCategory>(DEFAULT_FEED_CATEGORY);
   const [images, setImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -73,6 +75,7 @@ export default function WriteFeed() {
         const name = r.data.nickname || r.data.snkrdunkName || '내 카드';
         const grade = r.data.gradeEstimate ? ` (${r.data.gradeEstimate})` : '';
         setNote((prev) => prev || `${name}${grade} 자랑하러 왔어요 🃏\n`);
+        setCategory('자랑');
       })
       .catch(() => undefined);
     return () => {
@@ -115,6 +118,7 @@ export default function WriteFeed() {
         body: {
           text: note.trim(),
           avatarId: avatarId || undefined,
+          category,
           images: images.length > 0 ? images : undefined,
         },
       });
@@ -128,7 +132,7 @@ export default function WriteFeed() {
       toast.error(e instanceof Error ? e.message : '등록 실패');
       setSubmitting(false);
     }
-  }, [submitting, uploading, note, avatarId, images, toast]);
+  }, [submitting, uploading, note, avatarId, category, images, toast]);
 
   if (!authed) {
     return (
@@ -145,6 +149,34 @@ export default function WriteFeed() {
     <View style={{ flex: 1, backgroundColor: tc.paper }}>
       <AppBar title="커뮤니티 글 작성" onBack={() => router.back()} />
       <ScrollView contentContainerStyle={{ padding: space.gap, gap: 10, paddingBottom: 110 }}>
+        {/* 카테고리 — 웹 WriteScreen 동일 */}
+        <PixelText variant="ko" size={11} weight="bold">
+          🏷 카테고리
+        </PixelText>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {FEED_CATEGORIES.map((c) => {
+            const on = category === c;
+            return (
+              <Pressable
+                key={c}
+                onPress={() => setCategory(c)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  alignItems: 'center',
+                  backgroundColor: on ? tc.ink : tc.white,
+                  borderWidth: 2,
+                  borderColor: tc.ink,
+                }}
+              >
+                <PixelText variant="ko" size={11} weight="bold" color={on ? tc.white : tc.ink2}>
+                  {c}
+                </PixelText>
+              </Pressable>
+            );
+          })}
+        </View>
+
         {/* 내용 */}
         <PixelText variant="ko" size={11} weight="bold">
           🗣 하고 싶은 말

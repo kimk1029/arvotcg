@@ -111,6 +111,8 @@ model Feed {
   authorEmoji   String   @default("🐣")
   authorBgId    String   @default("default")
   authorFrameId String   @default("none")
+  /// 글 카테고리 (shared/feedCategories.ts: 자유/시세·정보/자랑). NULL = 레거시 글.
+  category      String?
   /// 첨부 사진 URL 배열 (Vercel Blob URL). 상세 펼침 시에만 노출.
   images        Json?
   createdAt     DateTime @default(now())

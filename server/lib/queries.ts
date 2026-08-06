@@ -80,6 +80,7 @@ type FeedRow = {
   authorEmoji: string;
   authorBgId?: string;
   authorFrameId?: string;
+  category?: string | null;
   images?: unknown;
   createdAt: Date;
   author?: { name: string | null } | null;
@@ -96,6 +97,7 @@ function toFeedPost(r: FeedRow): FeedPost {
     authorName: r.author?.name ?? null,
     authorBgId: r.authorBgId,
     authorFrameId: r.authorFrameId,
+    category: r.category ?? null,
     images: asImages(r.images),
     commentCount: r._count?.comments ?? 0,
     likeCount: r._count?.bookmarks ?? 0,

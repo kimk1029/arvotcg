@@ -6,6 +6,7 @@ import { useTheme, useThemeColors } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { ShopSection, SHOP_REGIONS } from '@/components/CommunityShop';
+import { isFeedCategory } from '@/lib/feedCategories';
 import { fonts } from '@/theme/tokens';
 import { api } from '@/lib/apiClient';
 
@@ -121,6 +122,8 @@ interface FeedPost {
   authorName?: string | null;
   authorBgId?: string;
   authorFrameId?: string;
+  /** 글 카테고리 (shared/feedCategories.ts). null/undefined = 레거시 글 → 사진 유무로 추정. */
+  category?: string | null;
   images?: string[];
   commentCount?: number;
   likeCount?: number;
@@ -138,8 +141,9 @@ interface Trade {
   images?: string[];
 }
 
-/** 글의 카테고리 추정 — 웹 postCat 동일: 사진 유무로 자랑/자유 구분. */
+/** 글 카테고리 — 웹 postCat 동일: DB category 우선, 레거시 글은 사진 유무로 추정. */
 function postCat(p: FeedPost): CatId {
+  if (isFeedCategory(p.category)) return p.category;
   return (p.images?.length ?? 0) > 0 ? '자랑' : '자유';
 }
 
@@ -682,7 +686,7 @@ function PostRow({ post, P, ts, tagStyle }: { post: FeedPost; P: Palette; ts: Ts
   const [lightbox, setLightbox] = useState<number | null>(null);
   const images = post.images ?? [];
   const hasThumb = images.length > 0;
-  const cat = hasThumb ? '자랑' : '자유';
+  const cat = postCat(post);
   const tgs = tagStyle(cat);
 
   const toggle = () =>

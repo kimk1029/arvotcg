@@ -11,6 +11,7 @@ import { StatusBar } from '@/components/ui/StatusBar';
 import { TextInput } from '@/components/ui/TextInput';
 import { TradeTypeButton } from '@/components/ui/TradeTypeButton';
 import { startRouteTransition } from '@/components/RouteProgress';
+import { DEFAULT_FEED_CATEGORY, FEED_CATEGORIES, type FeedCategory } from '@/lib/feedCategories';
 import type { Place, TradeType } from '@/lib/types';
 
 export type WriteMode = 'feed' | 'trade';
@@ -52,6 +53,9 @@ export function WriteScreen({ mode, places = [], prefill }: Props) {
   const [price, setPrice] = useState('');
   const [kakaoId, setKakaoId] = useState('');
   const [note, setNote] = useState(prefill?.body ?? '');
+  const [category, setCategory] = useState<FeedCategory>(
+    prefill?.body?.includes('자랑') ? '자랑' : DEFAULT_FEED_CATEGORY,
+  );
   const [images, setImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -98,6 +102,7 @@ export function WriteScreen({ mode, places = [], prefill }: Props) {
         await postJson('/api/feeds', {
           text: note,
           avatarId,
+          category,
           images: images.length > 0 ? images : undefined,
         });
         startRouteTransition();
@@ -180,6 +185,38 @@ export function WriteScreen({ mode, places = [], prefill }: Props) {
             <TradeImagePicker value={images} onChange={setImages} max={5} />
           </div>
         </>
+      )}
+
+      {isFeed && (
+        <div className="form-sect">
+          <div className="form-label">🏷 카테고리</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {FEED_CATEGORIES.map((c) => {
+              const on = category === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCategory(c)}
+                  style={{
+                    flex: 1,
+                    padding: '10px 0',
+                    fontFamily: 'var(--f2)',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    background: on ? 'var(--ink)' : 'var(--white)',
+                    color: on ? 'var(--white)' : 'var(--ink2)',
+                    border: '2px solid var(--ink)',
+                    borderRadius: 'var(--r-sm, 0)',
+                  }}
+                >
+                  {c}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       <div className="form-sect">

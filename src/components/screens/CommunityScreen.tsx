@@ -9,6 +9,7 @@ import { BookmarkButton } from '@/components/BookmarkButton';
 import { FeedComments, Lightbox } from '@/components/FeedRow';
 import { isAvatarId } from '@/lib/avatars';
 import { ShopSection, SHOP_REGIONS } from '@/components/screens/CommunityShop';
+import { isFeedCategory } from '@/lib/feedCategories';
 import type { FeedPost, Trade } from '@/lib/types';
 
 /**
@@ -103,9 +104,10 @@ function tagStyle(label: string, clean: boolean, P: Palette): { fg: string; bg: 
   return { fg: P.accentDk, bg: P.accentSoft };
 }
 
-/** 글의 카테고리 추정 — 현재 글에 카테고리 컬럼이 없어 사진 유무로 자랑/자유 구분.
- *  (PostRow 표시 로직과 동일 기준. 시세/정보는 데이터가 없어 비게 됨.) */
+/** 글 카테고리 — DB category 우선, 레거시 글(NULL)은 사진 유무로 자랑/자유 추정.
+ *  (PostRow 표시 로직과 동일 기준.) */
 function postCat(p: FeedPost): CatId {
+  if (isFeedCategory(p.category)) return p.category;
   return (p.images?.length ?? 0) > 0 ? '자랑' : '자유';
 }
 
@@ -525,7 +527,7 @@ function PostRow({ post, P, clean }: { post: FeedPost; P: Palette; clean: boolea
   const [lightbox, setLightbox] = useState<number | null>(null);
   const images = post.images ?? [];
   const hasThumb = images.length > 0;
-  const cat = hasThumb ? '자랑' : '자유';
+  const cat = postCat(post);
   const ts = tagStyle(cat, clean, P);
   const hasPixelAvatar = isAvatarId(post.user);
 

@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { defaultNameFor } from '../lib/defaultName.js';
 import { getFeedPage } from '../lib/queries.js';
 import { REWARDS } from '../../shared/rewards';
+import { DEFAULT_FEED_CATEGORY, isFeedCategory } from '../../shared/feedCategories';
 
 const router = Router();
 
@@ -87,9 +88,11 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     text?: string;
     avatarId?: string;
     images?: string[];
+    category?: string;
   };
   const text = body.text?.trim();
   if (!text) return res.status(400).json({ error: 'text required' });
+  const category = isFeedCategory(body.category) ? body.category : DEFAULT_FEED_CATEGORY;
   const images = Array.isArray(body.images)
     ? body.images.filter((u): u is string => typeof u === 'string' && u.length > 0).slice(0, 3)
     : [];
@@ -111,6 +114,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
           authorEmoji: body.avatarId ?? req.user!.name?.slice(0, 2) ?? '🐣',
           authorBgId: u?.backgroundId ?? 'default',
           authorFrameId: u?.frameId ?? 'none',
+          category,
           images: images.length > 0 ? images : undefined,
         },
       });

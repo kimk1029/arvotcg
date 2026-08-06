@@ -48,6 +48,8 @@ export interface FeedPost {
   authorName?: string | null; // 사용자 닉네임 (FeedRow 아바타 아래 표시용)
   authorBgId?: string;
   authorFrameId?: string;
+  /** 글 카테고리 (shared/feedCategories.ts). null/undefined = 레거시 글 → 사진 유무로 추정. */
+  category?: string | null;
   /** 첨부 사진 URL 배열. 빈 배열이거나 undefined 면 사진 없음. 펼침 시에만 렌더. */
   images?: string[];
   /** 댓글 수 (정렬·표시용). 서버 _count.comments. */
