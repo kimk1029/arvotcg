@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 
 import { HAS_NAVER_MAP_KEY, ShopNaverMap } from '@/components/ShopNaverMap';
+import { api } from '@/lib/apiClient';
 
 /**
  * 커뮤니티 Shop 모드 — Claude Design 'POKE30 커뮤니티' 프로토타입의 샵 화면 (네이티브).
  * 지도(핀 선택) · 선택 샵 요약 카드(오리파 도넛·후기 토글·지도앱 링크) ·
  * 후기 작성 폼 · 주변 카드샵 리스트 · 방문 후기 피드(무한 스크롤).
- * 샵/후기 데이터는 프로토타입 정적 편집 데이터. 웹 CommunityShop 과 페어.
+ * 샵 데이터는 어드민 관리 API(/api/shops), 후기는 프로토타입 정적 편집 데이터.
+ * 웹 CommunityShop 과 페어.
  */
 
 export interface ShopPalette {
@@ -53,12 +55,63 @@ interface ShopInfo {
   lng: number;
 }
 
-const SHOPS: ShopInfo[] = [
+/** API 실패 시 폴백 — server/routes/shops.ts 의 DEFAULT_SHOPS(시드)와 동일 내용. */
+const FALLBACK_SHOPS: ShopInfo[] = [
   { id: 's1', name: '포켓랩 성수점', official: true, addr: '서울 성동구 연무장길 21', dist: '320m', rating: '4.8', reviews: 214, oripa: '65%', single: '1,240종', priceLv: '저렴', priceColor: '#1E8E5A', tile: '#ff9a33', emoji: '🎁', x: 30, y: 38, lat: 37.5433, lng: 127.0512 },
   { id: 's2', name: '카드킹덤 홍대', official: true, addr: '서울 마포구 와우산로 105', dist: '1.2km', rating: '4.6', reviews: 158, oripa: '40%', single: '2,860종', priceLv: '보통', priceColor: '#16161a', tile: '#5595c8', emoji: '👑', x: 62, y: 30, lat: 37.5535, lng: 126.9256 },
   { id: 's3', name: 'TCG스테이션', addr: '서울 성동구 왕십리로 83', dist: '850m', rating: '4.4', reviews: 96, oripa: '80%', single: '420종', priceLv: '높음', priceColor: '#F5333F', tile: '#7169d9', emoji: '🚉', x: 46, y: 66, lat: 37.557, lng: 127.04 },
   { id: 's4', name: '몬스터카드샵', addr: '서울 광진구 아차산로 200', dist: '2.1km', rating: '4.2', reviews: 61, oripa: '25%', single: '3,150종', priceLv: '저렴', priceColor: '#1E8E5A', tile: '#25c486', emoji: '👾', x: 78, y: 58, lat: 37.5405, lng: 127.0715 },
 ];
+
+/** GET /api/shops 응답 행 (card_shops — 어드민 관리). */
+interface ShopApiRow {
+  id: number;
+  name: string;
+  official: boolean;
+  addr: string;
+  lat: number | null;
+  lng: number | null;
+  emoji: string;
+  gradFrom: string;
+  gradTo: string;
+  tileColor: string;
+  oripaPct: number;
+  singleText: string;
+  priceLevel: string;
+  rating: number;
+  reviewCount: number;
+  dist: string;
+}
+
+// 좌표 미입력 샵의 초기 위치 — 지도 Geocoder 가 주소 기준으로 곧바로 보정한다.
+const SEOUL_CENTER = { lat: 37.5665, lng: 126.978 };
+
+function priceColorOf(lv: string): string {
+  return lv === '저렴' ? '#1E8E5A' : lv === '높음' ? '#F5333F' : '#16161a';
+}
+
+function shopFromApi(r: ShopApiRow): ShopInfo {
+  return {
+    id: `s${r.id}`,
+    name: r.name,
+    official: r.official || undefined,
+    addr: r.addr,
+    dist: r.dist,
+    rating: r.rating.toFixed(1),
+    reviews: r.reviewCount,
+    oripa: `${r.oripaPct}%`,
+    single: r.singleText || '-',
+    priceLv: r.priceLevel,
+    priceColor: priceColorOf(r.priceLevel),
+    tile: r.tileColor,
+    emoji: r.emoji,
+    // 일러스트 폴백 지도용 근사 위치 — id 기반 고정 분산.
+    x: 22 + ((r.id * 37) % 56),
+    y: 28 + ((r.id * 53) % 46),
+    lat: r.lat ?? SEOUL_CENTER.lat,
+    lng: r.lng ?? SEOUL_CENTER.lng,
+  };
+}
 
 const REVIEW_TAGS = ['오리파 알참', '가격 착함', '응대 친절', '매장 쾌적', '재고 많음'];
 
@@ -86,10 +139,6 @@ const REVIEW_POOL: ReviewItem[] = [
   { sid: 's2', avatar: '🌟', avBg: '#ecbe3a', name: '사나피버', time: '5일 전', rating: '4.5', text: 'SR 싱글 시세가 착해요. 여자친구랑 같이 갔는데 입문자한테도 친절하게 설명해주심', tags: ['응대 친절', '가격 착함'] },
 ];
 
-function shopName(id: string): string {
-  return SHOPS.find((s) => s.id === id)?.name ?? '';
-}
-
 function OfficialBadge({ s = 15 }: { s?: number }) {
   return (
     <Svg width={s} height={s} viewBox="0 0 24 24">
@@ -113,7 +162,26 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
   const [reviewCount, setReviewCount] = useState(5);
   const [mapW, setMapW] = useState(0);
 
-  const shop = SHOPS.find((s) => s.id === shopId) ?? SHOPS[0];
+  // 어드민 관리 샵 목록 — null = 로딩 중 (네이버 지도 WebView 는 핀을 마운트 시
+  // 1회 생성하므로 목록 확정 후에만 렌더). 실패/빈 응답이면 폴백 유지.
+  const [shops, setShops] = useState<ShopInfo[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api<{ shops?: ShopApiRow[] }>('/api/shops', { auth: false })
+      .then((b) => {
+        if (cancelled) return;
+        const rows = Array.isArray(b?.shops) ? b.shops : [];
+        const next = rows.length > 0 ? rows.map(shopFromApi) : FALLBACK_SHOPS;
+        setShops(next);
+        setShopId((cur) => (next.some((s) => s.id === cur) ? cur : next[0].id));
+      })
+      .catch(() => { if (!cancelled) setShops(FALLBACK_SHOPS); });
+    return () => { cancelled = true; };
+  }, []);
+  const list = shops ?? FALLBACK_SHOPS;
+
+  const shopName = (id: string) => list.find((s) => s.id === id)?.name ?? '';
+  const shop = list.find((s) => s.id === shopId) ?? list[0];
   const donut = (parseInt(shop.oripa, 10) / 100) * 125.7;
 
   const selectShop = (id: string) => {
@@ -135,7 +203,7 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
   }
   const hasMore = count < total;
 
-  const filters = [{ id: 'all', label: '전체' }, ...SHOPS.map((s) => ({ id: s.id, label: s.name }))];
+  const filters = [{ id: 'all', label: '전체' }, ...list.map((s) => ({ id: s.id, label: s.name }))];
 
   const card = { backgroundColor: P.cardBg, borderRadius: 16 } as const;
 
@@ -159,7 +227,8 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
           style={{ position: 'relative', height: MAP_H, borderRadius: 18, overflow: 'hidden', backgroundColor: '#E8EDE6' }}
         >
           {HAS_NAVER_MAP_KEY ? (
-            <ShopNaverMap pins={SHOPS} selId={shopId} onSelect={selectShop} />
+            // 핀은 WebView HTML 생성 시 1회 — 샵 목록 로딩 완료 후에만 지도 마운트.
+            shops !== null && <ShopNaverMap pins={shops} selId={shopId} onSelect={selectShop} />
           ) : (
             <>
           <View style={{ position: 'absolute', left: 0, right: 0, top: 74, height: 13, backgroundColor: '#fff' }} />
@@ -169,7 +238,7 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
           <View style={{ position: 'absolute', left: 14, top: 16, width: 64, height: 44, borderRadius: 8, backgroundColor: '#D3DFCE' }} />
           <View style={{ position: 'absolute', right: 20, top: 104, width: 78, height: 40, borderRadius: 8, backgroundColor: '#C9DBEF' }} />
           <View style={{ position: 'absolute', left: 30, bottom: 18, width: 90, height: 34, borderRadius: 8, backgroundColor: '#D3DFCE' }} />
-          {mapW > 0 && SHOPS.map((s) => {
+          {mapW > 0 && list.map((s) => {
             const sel = s.id === shopId;
             return (
               <Pressable
@@ -283,7 +352,7 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
 
       {/* shop list */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 10 }}>
-        <Text style={ts(16, '800', P.ink)}>주변 카드샵 <Text style={{ color: P.ink3 }}>12</Text></Text>
+        <Text style={ts(16, '800', P.ink)}>주변 카드샵 <Text style={{ color: P.ink3 }}>{list.length}</Text></Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Text style={ts(12.5, '700', P.ink)}>평점순</Text>
           <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><Path d="m6 9 6 6 6-6" /></Svg>
@@ -291,7 +360,7 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
       </View>
       <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>
         <View style={[card, { overflow: 'hidden' }]}>
-          {SHOPS.map((s, i) => {
+          {list.map((s, i) => {
             const sel = s.id === shopId;
             return (
               <Pressable key={s.id} onPress={() => selectShop(s.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 15, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: P.line, backgroundColor: sel ? '#FFF9F4' : P.cardBg }}>

@@ -72,6 +72,42 @@ model Place {
   @@map("places")
 }
 
+/// 오프라인 카드샵 — 어드민에서 등록/관리, 커뮤니티 Shop 지도 핀 + 리스트 (웹·앱 공통).
+model CardShop {
+  id          Int      @id @default(autoincrement())
+  name        String
+  /// 공식 인증 뱃지 노출 여부.
+  official    Boolean  @default(false)
+  /// 도로명 주소 (어드민 주소찾기 입력) — 클라 네이버 Geocoder 가 이 주소로 핀 좌표를 보정.
+  addr        String
+  /// 좌표 (선택) — null 이면 클라가 주소 지오코딩 결과로만 핀을 찍는다.
+  lat         Float?
+  lng         Float?
+  emoji       String   @default("🏪")
+  /// 리스트 타일 그라디언트 시작/끝 색 (웹).
+  gradFrom    String   @default("#ffb347")
+  gradTo      String   @default("#ff7a1f")
+  /// 리스트 타일 단색 (앱).
+  tileColor   String   @default("#ff9a33")
+  /// 오리파 비중 (0-100, %).
+  oripaPct    Int      @default(0)
+  /// 싱글 카드 종수 표시 텍스트 (예: "1,240종"). 비우면 숨김.
+  singleText  String   @default("")
+  /// 가격대: '저렴' | '보통' | '높음'.
+  priceLevel  String   @default("보통")
+  /// 표시용 평점 (0-5) · 후기 수.
+  rating      Float    @default(0)
+  reviewCount Int      @default(0)
+  /// 거리 표시 텍스트 (예: "320m"). 비우면 숨김.
+  dist        String   @default("")
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("card_shops")
+}
+
 model Trade {
   id            Int       @id @default(autoincrement())
   placeId       String

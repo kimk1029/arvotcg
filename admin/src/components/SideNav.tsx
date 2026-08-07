@@ -16,6 +16,7 @@ const NAV = [
   { href: '/feeds', label: '피드 관리', icon: '📝' },
   { href: '/messages', label: '쪽지 목록', icon: '✉️' },
   { href: '/trades', label: '거래 관리', icon: '🤝' },
+  { href: '/shops', label: '카드샵 관리', icon: '🏪' },
   { href: '/oripa/packs', label: '오리파 팩', icon: '🎁' },
   { href: '/oripa', label: '오리파 티켓', icon: '🎟️' },
   { href: '/ads', label: '광고 분석', icon: '📢' },

@@ -49,6 +49,7 @@ import adminRouter from './routes/admin.ts';
 import bannersRouter from './routes/banners.ts';
 import eventsRouter from './routes/events.ts';
 import placesRouter from './routes/places.ts';
+import shopsRouter from './routes/shops.ts';
 import usersRouter from './routes/users.ts';
 import searchLogRouter from './routes/searchLog.ts';
 import cardLangRouter from './routes/cardLang.ts';
@@ -87,6 +88,7 @@ app.use('/api/admin', adminRouter);
 app.use('/api/banners', bannersRouter);
 app.use('/api/events', eventsRouter);
 app.use('/api/places', placesRouter);
+app.use('/api/shops', shopsRouter);
 app.use('/api/users', usersRouter);
 
 const NAVER_IMAGE_HOST_SUFFIX = '.pstatic.net';

@@ -8,7 +8,8 @@ import { HAS_NAVER_MAP_KEY, ShopNaverMap } from '@/components/screens/ShopNaverM
  * 커뮤니티 Shop 모드 — Claude Design 'POKE30 커뮤니티' 프로토타입의 샵 화면.
  * 지도(핀 선택) · 선택 샵 요약 카드(오리파 도넛·후기 토글·지도앱 링크) ·
  * 후기 작성 폼 · 주변 카드샵 리스트 · 방문 후기 피드(무한 스크롤).
- * 샵/후기 데이터는 프로토타입 정적 편집 데이터. 모바일 CommunityShop 과 페어.
+ * 샵 데이터는 어드민 관리 API(/api/shops), 후기는 프로토타입 정적 편집 데이터.
+ * 모바일 CommunityShop 과 페어.
  */
 
 export interface ShopPalette {
@@ -51,12 +52,63 @@ interface ShopInfo {
   lng: number;
 }
 
-const SHOPS: ShopInfo[] = [
+/** API 실패 시 폴백 — server/routes/shops.ts 의 DEFAULT_SHOPS(시드)와 동일 내용. */
+const FALLBACK_SHOPS: ShopInfo[] = [
   { id: 's1', name: '포켓랩 성수점', official: true, addr: '서울 성동구 연무장길 21', dist: '320m', rating: '4.8', reviews: 214, oripa: '65%', single: '1,240종', priceLv: '저렴', priceColor: '#1E8E5A', grad: 'linear-gradient(150deg,#ffb347,#ff7a1f)', emoji: '🎁', x: '30%', y: '38%', lat: 37.5433, lng: 127.0512 },
   { id: 's2', name: '카드킹덤 홍대', official: true, addr: '서울 마포구 와우산로 105', dist: '1.2km', rating: '4.6', reviews: 158, oripa: '40%', single: '2,860종', priceLv: '보통', priceColor: '#16161a', grad: 'linear-gradient(150deg,#6fb1e0,#3a6ea5)', emoji: '👑', x: '62%', y: '30%', lat: 37.5535, lng: 126.9256 },
   { id: 's3', name: 'TCG스테이션', addr: '서울 성동구 왕십리로 83', dist: '850m', rating: '4.4', reviews: 96, oripa: '80%', single: '420종', priceLv: '높음', priceColor: '#F5333F', grad: 'linear-gradient(150deg,#9d6bd6,#4568dc)', emoji: '🚉', x: '46%', y: '66%', lat: 37.557, lng: 127.04 },
   { id: 's4', name: '몬스터카드샵', addr: '서울 광진구 아차산로 200', dist: '2.1km', rating: '4.2', reviews: 61, oripa: '25%', single: '3,150종', priceLv: '저렴', priceColor: '#1E8E5A', grad: 'linear-gradient(150deg,#11998e,#38ef7d)', emoji: '👾', x: '78%', y: '58%', lat: 37.5405, lng: 127.0715 },
 ];
+
+/** GET /api/shops 응답 행 (card_shops — 어드민 관리). */
+interface ShopApiRow {
+  id: number;
+  name: string;
+  official: boolean;
+  addr: string;
+  lat: number | null;
+  lng: number | null;
+  emoji: string;
+  gradFrom: string;
+  gradTo: string;
+  tileColor: string;
+  oripaPct: number;
+  singleText: string;
+  priceLevel: string;
+  rating: number;
+  reviewCount: number;
+  dist: string;
+}
+
+// 좌표 미입력 샵의 초기 위치 — 지도 Geocoder 가 주소 기준으로 곧바로 보정한다.
+const SEOUL_CENTER = { lat: 37.5665, lng: 126.978 };
+
+function priceColorOf(lv: string): string {
+  return lv === '저렴' ? '#1E8E5A' : lv === '높음' ? '#F5333F' : '#16161a';
+}
+
+function shopFromApi(r: ShopApiRow): ShopInfo {
+  return {
+    id: `s${r.id}`,
+    name: r.name,
+    official: r.official || undefined,
+    addr: r.addr,
+    dist: r.dist,
+    rating: r.rating.toFixed(1),
+    reviews: r.reviewCount,
+    oripa: `${r.oripaPct}%`,
+    single: r.singleText || '-',
+    priceLv: r.priceLevel,
+    priceColor: priceColorOf(r.priceLevel),
+    grad: `linear-gradient(150deg,${r.gradFrom},${r.gradTo})`,
+    emoji: r.emoji,
+    // 일러스트 폴백 지도용 근사 위치 — id 기반 고정 분산.
+    x: `${22 + ((r.id * 37) % 56)}%`,
+    y: `${28 + ((r.id * 53) % 46)}%`,
+    lat: r.lat ?? SEOUL_CENTER.lat,
+    lng: r.lng ?? SEOUL_CENTER.lng,
+  };
+}
 
 const REVIEW_TAGS = ['오리파 알참', '가격 착함', '응대 친절', '매장 쾌적', '재고 많음'];
 
@@ -84,10 +136,6 @@ const REVIEW_POOL: ReviewItem[] = [
   { sid: 's2', avatar: '🌟', avGrad: 'linear-gradient(150deg,#f7d774,#e0a500)', name: '사나피버', time: '5일 전', rating: '4.5', text: 'SR 싱글 시세가 착해요. 여자친구랑 같이 갔는데 입문자한테도 친절하게 설명해주심', tags: ['응대 친절', '가격 착함'] },
 ];
 
-function shopName(id: string): string {
-  return SHOPS.find((s) => s.id === id)?.name ?? '';
-}
-
 const officialBadge = (
   <svg width="15" height="15" viewBox="0 0 24 24" style={{ flex: 'none' }}>
     <path d="M12 1.5 14.8 4l3.7-.4 1 3.6 3.2 1.9-1.6 3.4 1.6 3.4-3.2 1.9-1 3.6-3.7-.4L12 22.5 9.2 20l-3.7.4-1-3.6-3.2-1.9 1.6-3.4L1.3 8.1l3.2-1.9 1-3.6 3.7.4z" fill="#2C8FFF" />
@@ -104,7 +152,27 @@ export function ShopSection({ P }: { P: ShopPalette }) {
   const [reviewFilter, setReviewFilter] = useState('all');
   const [reviewCount, setReviewCount] = useState(5);
 
-  const shop = SHOPS.find((s) => s.id === shopId) ?? SHOPS[0];
+  // 어드민 관리 샵 목록 — null = 로딩 중 (네이버 지도는 마커를 마운트 시 1회
+  // 생성하므로 목록 확정 후에만 렌더). 실패/빈 응답이면 폴백 유지.
+  const [shops, setShops] = useState<ShopInfo[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/shops', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((b: { shops?: ShopApiRow[] }) => {
+        if (cancelled) return;
+        const rows = Array.isArray(b?.shops) ? b.shops : [];
+        const next = rows.length > 0 ? rows.map(shopFromApi) : FALLBACK_SHOPS;
+        setShops(next);
+        setShopId((cur) => (next.some((s) => s.id === cur) ? cur : next[0].id));
+      })
+      .catch(() => { if (!cancelled) setShops(FALLBACK_SHOPS); });
+    return () => { cancelled = true; };
+  }, []);
+  const list = shops ?? FALLBACK_SHOPS;
+
+  const shopName = (id: string) => list.find((s) => s.id === id)?.name ?? '';
+  const shop = list.find((s) => s.id === shopId) ?? list[0];
   const donut = ((parseInt(shop.oripa, 10) / 100) * 125.7).toFixed(1);
 
   const selectShop = (id: string) => {
@@ -138,7 +206,7 @@ export function ShopSection({ P }: { P: ShopPalette }) {
     return () => ob.disconnect();
   }, [hasMore, reviewFilter]);
 
-  const filters = [{ id: 'all', label: '전체' }, ...SHOPS.map((s) => ({ id: s.id, label: s.name }))];
+  const filters = [{ id: 'all', label: '전체' }, ...list.map((s) => ({ id: s.id, label: s.name }))];
 
   const cardSt: CSSProperties = { background: P.cardBg, borderRadius: 16, boxShadow: '0 2px 10px rgba(0,0,0,.05)' };
 
@@ -148,7 +216,8 @@ export function ShopSection({ P }: { P: ShopPalette }) {
       <div style={{ padding: '14px 16px 6px' }}>
         <div style={{ position: 'relative', height: 230, borderRadius: 18, overflow: 'hidden', background: '#E8EDE6', boxShadow: '0 2px 10px rgba(0,0,0,.06)' }}>
           {HAS_NAVER_MAP_KEY ? (
-            <ShopNaverMap pins={SHOPS} selId={shopId} onSelect={selectShop} />
+            // 마커는 마운트 시 1회 생성 — 샵 목록 로딩 완료 후에만 지도 마운트.
+            shops !== null && <ShopNaverMap pins={shops} selId={shopId} onSelect={selectShop} />
           ) : (
             <>
           <div style={{ position: 'absolute', left: 0, right: 0, top: 74, height: 13, background: '#fff' }} />
@@ -158,7 +227,7 @@ export function ShopSection({ P }: { P: ShopPalette }) {
           <div style={{ position: 'absolute', left: 14, top: 16, width: 64, height: 44, borderRadius: 8, background: '#D3DFCE' }} />
           <div style={{ position: 'absolute', right: 20, top: 104, width: 78, height: 40, borderRadius: 8, background: '#C9DBEF' }} />
           <div style={{ position: 'absolute', left: 30, bottom: 18, width: 90, height: 34, borderRadius: 8, background: '#D3DFCE' }} />
-          {SHOPS.map((s) => {
+          {list.map((s) => {
             const sel = s.id === shopId;
             return (
               <button key={s.id} type="button" onClick={() => selectShop(s.id)} style={{ position: 'absolute', left: s.x, top: s.y, transform: 'translate(-50%,-100%)', cursor: 'pointer', zIndex: sel ? 6 : 5, textAlign: 'center', background: 'none', border: 'none', padding: 0 }}>
@@ -246,14 +315,14 @@ export function ShopSection({ P }: { P: ShopPalette }) {
 
       {/* shop list */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px 10px' }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: P.ink }}>주변 카드샵 <span style={{ color: P.ink3 }}>12</span></div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: P.ink }}>주변 카드샵 <span style={{ color: P.ink3 }}>{list.length}</span></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700, color: P.ink }}>
           평점순 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
         </div>
       </div>
       <div style={{ padding: '0 16px 14px' }}>
         <div style={{ ...cardSt, overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,.04)' }}>
-          {SHOPS.map((s, i) => {
+          {list.map((s, i) => {
             const sel = s.id === shopId;
             return (
               <button key={s.id} type="button" onClick={() => selectShop(s.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 15px', width: '100%', borderTop: i === 0 ? 'none' : `1px solid ${P.line}`, cursor: 'pointer', background: sel ? '#FFF9F4' : P.cardBg, border: 'none', borderBottom: 'none', textAlign: 'left' }}>
