@@ -16,7 +16,8 @@ import { PixelPress } from '@/components/cv/PixelPress';
 import { LoadingState } from '@/components/cv/ListState';
 import { ThumbImage } from '@/components/cv/ThumbImage';
 import { fonts, space } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { isFlatTheme } from '@/lib/theme';
 import {
   downsamplePricePoints,
   fetchSnkrdunkApparel,
@@ -83,6 +84,8 @@ function searchToSeed(r: SnkrdunkSearchResult): DisplaySeed {
 export default function SnkrdunkLanding() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  const { theme } = useTheme();
+  const flat = isFlatTheme(theme);
   const [rows, setRows] = useState<CardRow[] | null>(null);
   const [q, setQ] = useState('');
 
@@ -214,7 +217,8 @@ export default function SnkrdunkLanding() {
                   inner={3}
                 >
                   <View style={{ flexDirection: 'row', gap: 12, padding: 12, alignItems: 'center' }}>
-                    <ThumbImage uri={apparel?.imageUrl} style={{ width: 56, height: 78 }} borderColor={tc.ink} emojiSize={22} />
+                    {/* 썸네일 — 보더 없이 +50% 확대 (2026-08-09), 플랫은 라운드. */}
+                    <ThumbImage uri={apparel?.imageUrl} style={{ width: 84, height: 117, borderRadius: flat ? 10 : 0 }} emojiSize={30} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       {seed.category ? (
                         <View style={{ alignSelf: 'flex-start', backgroundColor: CATEGORY_BG[seed.category], paddingHorizontal: 6, paddingVertical: 2 }}>

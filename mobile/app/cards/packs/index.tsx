@@ -10,7 +10,7 @@
  * 지났을 때만 백그라운드에서 갱신.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, View, Image, Text } from 'react-native';
+import { Pressable, ScrollView, TextInput, View, Image, Text } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
@@ -19,6 +19,7 @@ import { PixelFrame } from '@/components/cv/PixelFrame';
 import { LoadingState, ErrorView } from '@/components/cv/ListState';
 import { useThemeColors, useTheme } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
+import { fonts } from '@/theme/tokens';
 import { CARD_PACKS, packSetCode, type CardPackMeta, type CardPackGame } from '@/data/cardPacks';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { api } from '@/lib/apiClient';
@@ -90,21 +91,26 @@ export default function PackExplorerScreen() {
   const [data, setData] = useState<PackWithBox[] | null>(packsCache?.data ?? null);
   const [loading, setLoading] = useState<boolean>(!packsCache);
   const [error, setError] = useState<Error | null>(null);
-  // 설정의 "카드 게임 표시" 토글이 노출 게임을 정한다 (웹 PacksExplorer 동일).
+  // 게임 탭 — 단일 선택(라디오, 복수 불가). 포켓몬·원피스는 항상 노출, 그 외는
+  // 설정에서 켠 게임만 추가. 기본 포켓몬 (웹 PacksExplorer·홈 칩과 동일 규칙).
   const { enabledGames } = useGamePrefs();
-  const tabs = GAME_TABS.filter((t) => enabledGames.includes(t.key));
-  const multi = tabs.length > 1;
-  // null = 사용자가 아직 탭을 안 만짐 → 여러 게임이 켜져 있으면 전체, 1개면 그 게임.
-  const [picked, setPicked] = useState<CardPackGame | 'all' | null>(null);
-  const pickedValid =
-    picked === 'all' ? multi : picked != null && enabledGames.includes(picked);
-  const game: CardPackGame | 'all' =
-    (pickedValid ? picked : null) ?? (multi ? 'all' : tabs[0]?.key ?? 'pokemon');
-  const gameLabel = game === 'all' ? '전체' : GAME_TABS.find((t) => t.key === game)?.label ?? '카드';
-  const list = (data ?? []).filter((pack) => {
-    const g = pack.game ?? 'pokemon';
-    return game === 'all' ? enabledGames.includes(g) : g === game;
-  });
+  const tabs = GAME_TABS.filter(
+    (t) => t.key === 'pokemon' || t.key === 'onepiece' || enabledGames.includes(t.key),
+  );
+  const [game, setGame] = useState<CardPackGame>('pokemon');
+  const gameLabel = GAME_TABS.find((t) => t.key === game)?.label ?? '카드';
+  // 박스 검색 — 이미 받아둔 목록의 클라이언트 필터라 입력 즉시(깜빡임 없이) 반영.
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const list = (data ?? [])
+    .filter((pack) => (pack.game ?? 'pokemon') === game)
+    .filter(
+      (pack) =>
+        !q ||
+        [pack.name, pack.boxName, pack.boxKoName, pack.code, packSetCode(pack) ?? ''].some((s) =>
+          (s ?? '').toLowerCase().includes(q),
+        ),
+    );
   const tick = useRef(0);
 
   const refresh = useCallback(() => {
@@ -151,26 +157,39 @@ export default function PackExplorerScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: tc.bg }}>
       <AppBar onBack={() => router.back()} title="시세확인" />
-      {/* 게임 필터 탭 — 웹 PacksExplorer 동일 (설정에서 켠 게임만, 여러 개면 '전체' 탭 추가).
+      {/* 게임 탭 — 단일 선택(라디오), 웹 PacksExplorer 동일.
           클린은 웹 [data-theme=clean] .chip.on(잉크 배경+흰 글씨)과 동일. */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 14, paddingTop: 10 }}>
-        {multi && (
-          <PixelPress onPress={() => setPicked('all')} bg={game === 'all' ? (flat ? tc.ink : tc.gold) : tc.white} borderWidth={3} shadow={game === 'all' ? 2 : 4} inner={2}>
-            <View style={{ paddingHorizontal: 12, paddingVertical: 7 }}>
-              <PixelText variant="ko" size={10} weight="bold" color={flat && game === 'all' ? tc.paper : tc.ink}>전체</PixelText>
-            </View>
-          </PixelPress>
-        )}
         {tabs.map((t) => {
           const on = game === t.key;
           return (
-            <PixelPress key={t.key} onPress={() => setPicked(t.key)} bg={on ? (flat ? tc.ink : tc.gold) : tc.white} borderWidth={3} shadow={on ? 2 : 4} inner={2}>
+            <PixelPress key={t.key} onPress={() => setGame(t.key)} bg={on ? (flat ? tc.ink : tc.gold) : tc.white} borderWidth={3} shadow={on ? 2 : 4} inner={2}>
               <View style={{ paddingHorizontal: 12, paddingVertical: 7 }}>
                 <PixelText variant="ko" size={10} weight="bold" color={flat && on ? tc.paper : tc.ink}>{t.label}</PixelText>
               </View>
             </PixelPress>
           );
         })}
+      </View>
+      {/* 박스 검색 — 박스명·한/일 박스 이름·세트코드로 즉시 필터 (웹 동일) */}
+      <View style={{ marginHorizontal: 14, marginTop: 10 }}>
+        <PixelFrame bg={tc.white} shadow={4} inner={2}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 }}>
+            <PixelText variant="ko" size={12}>🔍</PixelText>
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="박스명·세트코드 검색 (예: 151, sv2a)"
+              placeholderTextColor={tc.ink3}
+              style={{ flex: 1, padding: 0, paddingVertical: 10, fontFamily: fonts.ko, fontSize: 13, color: tc.ink }}
+            />
+            {query ? (
+              <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityLabel="검색어 지우기">
+                <PixelText variant="ko" size={12} color={tc.ink3}>✕</PixelText>
+              </Pressable>
+            ) : null}
+          </View>
+        </PixelFrame>
       </View>
       {loading && !data ? (
         <LoadingState />
@@ -199,6 +218,13 @@ export default function PackExplorerScreen() {
             </PixelFrame>
           </View>
 
+          {list.length === 0 ? (
+            <View style={{ paddingVertical: 30, alignItems: 'center' }}>
+              <PixelText variant="ko" size={11} color={tc.ink3}>
+                {q ? `'${query.trim()}' 검색 결과가 없습니다.` : '표시할 박스가 없습니다.'}
+              </PixelText>
+            </View>
+          ) : null}
           {/* 박스 리스트 — 픽셀 테마는 입체 버튼, 플랫은 웹 .pack-list-item(라운드+소프트) 동일.
               플랫 간격은 웹 gap 10 에 맞춰 넓힘. */}
           <View style={{ marginHorizontal: 14, gap: flat ? 10 : 3 }}>

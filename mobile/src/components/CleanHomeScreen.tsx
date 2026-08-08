@@ -742,15 +742,17 @@ export function CleanHomeScreen() {
           </View>
         </View>
 
+        {/* 게임 선택 칩 — HOT 카드·인기 박스·실시간 급등이 모두 이 선택을 따르므로
+            섹션들 위에 배치 (단일 선택). '더보기'는 설정에서 전체 관리. */}
+        <GameChips />
+
         {/* HOT cards — 자동 슬라이딩 */}
         {snkrRows.length > 0 ? (
           <View style={{ paddingBottom: 24 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 10 }}>
-              <Text style={ts(18, '800', P.ink)}>HOT 카드</Text>
+              <Text style={ts(18, '800', P.ink)}>🔥 HOT 카드</Text>
               <MoreLink onPress={() => router.push('/cards/snkrdunk' as never)} />
             </View>
-            {/* 게임 필터 칩 — 포켓몬/원피스(+켜둔 게임) on/off. '더보기' 는 설정에서 전체 관리. */}
-            <GameChips />
             <AutoCarousel
               data={snkrRows}
               itemWidth={100}
@@ -784,7 +786,7 @@ export function CleanHomeScreen() {
         {snkrBoxRows.length > 0 ? (
           <View style={{ paddingBottom: 26 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 13 }}>
-              <Text style={ts(18, '800', P.ink)}>인기 박스</Text>
+              <Text style={ts(18, '800', P.ink)}>📦 인기 박스</Text>
               <MoreLink onPress={() => router.push('/cards/packs' as never)} />
             </View>
             <AutoCarousel

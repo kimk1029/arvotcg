@@ -659,12 +659,14 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
         </div>
       </div>
 
+      {/* 게임 선택 칩 — HOT 카드·인기 박스·실시간 급등이 모두 이 선택을 따르므로
+          섹션들 위에 배치 (단일 선택). '더보기'는 설정에서 전체 관리. */}
+      {gameChips}
+
       {/* HOT cards */}
       {hotRows.length > 0 && (
         <div style={{ padding: '0 0 24px' }}>
-          <SectionHead title="HOT 카드" href="/cards/snkrdunk" P={P} />
-          {/* 게임 필터 칩 — 포켓몬/원피스(+켜둔 게임) on/off. '더보기' 는 설정에서 전체 관리. */}
-          {gameChips}
+          <SectionHead title="🔥 HOT 카드" href="/cards/snkrdunk" P={P} />
           <div ref={hotRef} style={hrowStyle}>
             {hotDisplay.map((c, i) => {
               const rank = (i % hotRows.length) + 1;
@@ -714,7 +716,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
       {/* box hot cards */}
       {boxRows.length > 0 && (
         <div style={{ padding: '0 0 26px' }}>
-          <SectionHead title="인기 박스" href="/cards/packs" P={P} />
+          <SectionHead title="📦 인기 박스" href="/cards/packs" P={P} />
           <div ref={boxScrollRef} style={hrowStyle}>
             {boxDisplay.map((b, i) => (
               <Link

@@ -91,12 +91,13 @@ export function BrowseList({ initialItems }: { initialItems: BrowseItem[] }) {
             className="shop-card"
             style={{ textDecoration: 'none', color: 'inherit' }}
           >
+            {/* 썸네일 — +50% 확대 (2026-08-09, 기본 52 → 78). 클린 계열은 .sh-icon 이 보더 없이 라운드 처리. */}
             <CardThumb
               className="sh-icon"
-              style={{ background: 'var(--pap2)', color: 'var(--white)', overflow: 'hidden' }}
+              style={{ width: 78, height: 78, background: 'var(--pap2)', color: 'var(--white)', overflow: 'hidden' }}
               src={it.imageUrl}
               alt={it.name}
-              emojiSize={23}
+              emojiSize={30}
             />
             <div className="sh-main">
               {(() => {

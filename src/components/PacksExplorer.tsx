@@ -31,44 +31,83 @@ const GAME_TABS: Array<{ key: CardPackGame; label: string }> = [
 ];
 
 export function PacksExplorer({ packs }: { packs: PackListRow[] }) {
-  // 설정의 "카드 게임 표시" 토글이 노출 게임을 정한다 (테마와 무관).
+  // 게임 탭 — 단일 선택(라디오, 복수 불가). 포켓몬·원피스는 항상 노출, 그 외는
+  // 설정에서 켠 게임만 추가. 기본 포켓몬 (홈 게임 칩과 동일 규칙).
   const { enabledGames } = useGamePrefs();
-  const tabs = GAME_TABS.filter((t) => enabledGames.includes(t.key));
-  const multi = tabs.length > 1;
-  // null = 사용자가 아직 탭을 안 만짐 → 여러 게임이 켜져 있으면 전체, 1개면 그 게임.
-  const [picked, setPicked] = useState<CardPackGame | 'all' | null>(null);
-  const pickedValid =
-    picked === 'all' ? multi : picked != null && enabledGames.includes(picked);
-  const game: CardPackGame | 'all' =
-    (pickedValid ? picked : null) ?? (multi ? 'all' : tabs[0]?.key ?? 'pokemon');
-  const list = packs.filter((p) =>
-    game === 'all' ? enabledGames.includes(p.game) : p.game === game,
+  const tabs = GAME_TABS.filter(
+    (t) => t.key === 'pokemon' || t.key === 'onepiece' || enabledGames.includes(t.key),
   );
-  const label = game === 'all' ? '전체' : GAME_TABS.find((t) => t.key === game)?.label ?? '카드';
+  const [game, setGame] = useState<CardPackGame>('pokemon');
+  // 박스 검색 — 이미 받아둔 목록의 클라이언트 필터라 입력 즉시(깜빡임 없이) 반영.
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const list = packs
+    .filter((p) => (p.game ?? 'pokemon') === game)
+    .filter(
+      (p) =>
+        !q ||
+        [p.name, p.boxName, p.boxKoName, p.code, packSetCode(p) ?? ''].some((s) =>
+          (s ?? '').toLowerCase().includes(q),
+        ),
+    );
+  const label = GAME_TABS.find((t) => t.key === game)?.label ?? '카드';
 
   return (
     <>
       <div className="sect">
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {multi && (
-            <button
-              type="button"
-              className={`chip${game === 'all' ? ' on' : ''}`}
-              onClick={() => setPicked('all')}
-            >
-              전체
-            </button>
-          )}
           {tabs.map((t) => (
             <button
               key={t.key}
               type="button"
               className={`chip${game === t.key ? ' on' : ''}`}
-              onClick={() => setPicked(t.key)}
+              onClick={() => setGame(t.key)}
             >
               {t.label}
             </button>
           ))}
+        </div>
+        {/* 박스 검색 — 박스명·한/일 박스 이름·세트코드로 즉시 필터 */}
+        <div
+          style={{
+            marginTop: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            background: 'var(--pap2)',
+            border: '1px solid var(--pap3)',
+            borderRadius: 'var(--r, 0px)',
+            padding: '9px 12px',
+          }}
+        >
+          <span style={{ fontSize: 13 }} aria-hidden>
+            🔍
+          </span>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="박스명·세트코드 검색 (예: 151, sv2a, 배틀파트너즈)"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              fontFamily: 'var(--f1)',
+              fontSize: 12,
+              color: 'var(--ink)',
+            }}
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              aria-label="검색어 지우기"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink3)', fontSize: 13, padding: 0 }}
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 
@@ -84,6 +123,19 @@ export function PacksExplorer({ packs }: { packs: PackListRow[] }) {
       </div>
 
       <div className="sect">
+        {list.length === 0 && (
+          <div
+            style={{
+              padding: '30px 0',
+              textAlign: 'center',
+              fontFamily: 'var(--f1)',
+              fontSize: 11,
+              color: 'var(--ink3)',
+            }}
+          >
+            {q ? `'${query.trim()}' 검색 결과가 없습니다.` : '표시할 박스가 없습니다.'}
+          </div>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {list.flatMap((pack, i) => {
             const row = (

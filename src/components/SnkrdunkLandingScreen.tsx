@@ -196,11 +196,12 @@ export function SnkrdunkLandingScreen() {
                 className="shop-card"
                 style={{ textDecoration: 'none', color: 'inherit' }}
               >
+                {/* 썸네일 — +50% 확대 (2026-08-09). 클린 계열은 .sh-icon 이 보더 없이 라운드 처리. */}
                 <CardThumb
                   className="sh-icon"
                   style={{
-                    width: 88,
-                    height: 124,
+                    width: 132,
+                    height: 186,
                     background: bg,
                     color: 'var(--white)',
                     overflow: 'hidden',

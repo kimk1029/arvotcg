@@ -5,8 +5,8 @@ import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
 import { Chip } from '@/components/cv/Chip';
 import { ThumbImage } from '@/components/cv/ThumbImage';
-import { colors } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { isFlatTheme } from '@/lib/theme';
 import { fetchSnkrdunkBrowse, type SnkrdunkSearchResult } from '@/services/snkrdunk';
 import { jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
 
@@ -35,6 +35,9 @@ function shortenName(name: string): string {
 export default function SnkrdunkAll() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  const { theme } = useTheme();
+  // 클린·다크(플랫) — 픽셀 크롬(굵은 잉크 보더) 대신 소프트 구분선/보더리스 썸네일.
+  const flat = isFlatTheme(theme);
   const [items, setItems] = useState<SnkrdunkSearchResult[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -108,8 +111,8 @@ export default function SnkrdunkAll() {
           paddingTop: 10,
           paddingBottom: 8,
           backgroundColor: tc.paper,
-          borderBottomWidth: 3,
-          borderBottomColor: tc.ink,
+          borderBottomWidth: flat ? 1 : 3,
+          borderBottomColor: flat ? tc.pap3 : tc.ink,
         }}
       >
         {SORT_KEYS.map((k) => {
@@ -184,12 +187,12 @@ export default function SnkrdunkAll() {
                 {String(index + 1).padStart(2, '0')}
               </PixelText>
             </View>
+            {/* 썸네일 — 보더 없이 +50% 확대 (2026-08-09), 플랫은 라운드. */}
             <ThumbImage
               uri={item.imageUrl}
-              size={44}
-              borderColor={tc.ink}
-              emojiSize={18}
-              style={{ marginLeft: 6, marginRight: 10 }}
+              size={66}
+              emojiSize={26}
+              style={{ marginLeft: 6, marginRight: 10, borderRadius: flat ? 10 : 0 }}
             />
             <View style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}>
               <PixelText

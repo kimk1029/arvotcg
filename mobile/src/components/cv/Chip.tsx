@@ -1,6 +1,8 @@
 import { Pressable, View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { colors } from '@/theme/tokens';
 import { PixelText } from '../PixelText';
+import { useTheme, useThemeColors } from '../ThemeProvider';
+import { isFlatTheme } from '@/lib/theme';
 
 interface Props {
   on?: boolean;
@@ -25,6 +27,35 @@ export function Chip({
   style,
   children,
 }: Props) {
+  const { theme } = useTheme();
+  const tc = useThemeColors();
+  // 플랫 테마(clean·dark 등) — 픽셀 하드섀도/직각 대신 라운드 알약 칩.
+  // 호출부의 bg/fg 는 픽셀 팔레트 기준이라 무시하고 클린 표준(on=잉크/off=소프트)을 쓴다.
+  if (isFlatTheme(theme)) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={[
+          {
+            alignSelf: 'flex-start',
+            borderRadius: 999,
+            backgroundColor: on ? tc.ink : tc.pap2,
+            borderWidth: 1,
+            borderColor: on ? tc.ink : tc.pap3,
+            paddingHorizontal: px + 3,
+            height: 30,
+            alignItems: 'center',
+            justifyContent: 'center',
+          },
+          style,
+        ]}
+      >
+        <PixelText variant="ko" size={size + 2} weight="bold" color={on ? tc.paper : tc.ink2}>
+          {children as string}
+        </PixelText>
+      </Pressable>
+    );
+  }
   const shadow = 3;
   const finalBg = on ? colors.gold : bg || colors.white;
   const finalFg = on ? colors.ink : fg || colors.ink;
