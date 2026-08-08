@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { View, ScrollView, Pressable, Text, TextInput, Image, Animated, Easing, Modal } from 'react-native';
 import Svg, { Path, Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,6 +33,7 @@ import { useToast } from '@/components/ToastProvider';
 import { api } from '@/lib/apiClient';
 import { fetchMySummary, type MySummary } from '@/lib/myApi';
 import { isAuthenticated } from '@/lib/session';
+import { setHomeHotRows } from '@/lib/homeHotStore';
 import { trendChangePct } from '../../../shared/snkrdunkPrice';
 
 /**
@@ -130,24 +131,11 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// 설정에서 켠 게임별 인기 카드 검색 키워드 (웹 CleanHome 동일). 포켓몬은 browse 기본 풀.
+// 게임별 인기 카드 검색 키워드 (웹 CleanHome 동일). 포켓몬은 browse 기본 풀.
 const GAME_POPULAR_KEYWORD: Partial<Record<GameId, string>> = {
   onepiece: 'ワンピースカード',
   yugioh: '遊戯王',
-  sports: 'Topps',
 };
-
-/** 게임별 목록을 라운드로빈으로 섞어 한 캐러셀에 고르게 배치. */
-function interleaveRows<T>(pools: T[][]): T[] {
-  const out: T[] = [];
-  const max = Math.max(0, ...pools.map((p) => p.length));
-  for (let i = 0; i < max; i++) {
-    for (const p of pools) {
-      if (i < p.length) out.push(p[i]);
-    }
-  }
-  return out;
-}
 function rankBadgeColor(rank: number): string {
   if (rank === 1) return RISE;
   if (rank === 3) return ACCENT30;
@@ -201,7 +189,10 @@ function CardArt({
   );
 }
 
-/** 가로 캐러셀 자동 슬라이딩 — 카드를 두 벌 이어붙여 등속 좌측 무한 루프. 손대면 멈췄다 이어감. */
+/**
+ * 가로 캐러셀 — 사용자가 직접 좌우 스와이프(드래그)로 넘길 수 있고, 손대지 않으면
+ * 자동 슬라이딩(등속 좌측 루프). 카드를 두 벌 이어붙여 세트 폭에서 오프셋을 되감는다.
+ */
 function AutoCarousel<T>({
   data,
   itemWidth,
@@ -213,71 +204,67 @@ function AutoCarousel<T>({
   gap: number;
   renderItem: (item: T, indexInSet: number) => ReactNode;
 }) {
-  const tx = useRef(new Animated.Value(0)).current;
-  const txVal = useRef(0);
-  const animRef = useRef<Animated.CompositeAnimation | null>(null);
+  const ref = useRef<ScrollView>(null);
+  const offset = useRef(0);
+  const paused = useRef(false);
   const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const STEP = itemWidth + gap;
   const setWidth = data.length * STEP;
 
+  // 자동 슬라이딩 — 30ms 등속 틱(~22px/s). 유저가 잡고 있는 동안은 정지.
   useEffect(() => {
-    const id = tx.addListener(({ value }) => {
-      txVal.current = value;
-    });
-    return () => tx.removeListener(id);
-  }, [tx]);
-
-  const runMarquee = (fromTx: number) => {
     if (setWidth <= 0) return;
-    let v = fromTx % setWidth;
-    if (v > 0) v -= setWidth;
-    const dist = setWidth + v;
-    if (dist <= 0.5) {
-      tx.setValue(0);
-      runMarquee(0);
-      return;
-    }
-    tx.setValue(v);
-    animRef.current = Animated.timing(tx, {
-      toValue: -setWidth,
-      duration: (dist / 22) * 1000, // ~22px/s
-      easing: Easing.linear,
-      useNativeDriver: true,
-    });
-    animRef.current.start(({ finished }) => {
-      if (finished) runMarquee(0);
-    });
-  };
-
-  useEffect(() => {
-    runMarquee(0);
+    const id = setInterval(() => {
+      if (paused.current) return;
+      offset.current += 22 * 0.03;
+      if (offset.current >= setWidth) offset.current -= setWidth;
+      ref.current?.scrollTo({ x: offset.current, animated: false });
+    }, 30);
     return () => {
-      animRef.current?.stop();
+      clearInterval(id);
       if (resumeTimer.current) clearTimeout(resumeTimer.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setWidth]);
 
   const pause = () => {
-    animRef.current?.stop();
+    paused.current = true;
     if (resumeTimer.current) clearTimeout(resumeTimer.current);
   };
   const resumeSoon = () => {
     if (resumeTimer.current) clearTimeout(resumeTimer.current);
-    resumeTimer.current = setTimeout(() => runMarquee(txVal.current), 1600);
+    resumeTimer.current = setTimeout(() => {
+      paused.current = false;
+    }, 1600);
   };
 
   const display = [...data, ...data];
   return (
-    <View style={{ overflow: 'hidden', paddingTop: 8, paddingBottom: 4 }} onTouchStart={pause} onTouchEnd={resumeSoon} onTouchCancel={resumeSoon}>
-      <Animated.View style={{ flexDirection: 'row', paddingLeft: 20, transform: [{ translateX: tx }] }}>
-        {display.map((item, i) => (
-          <View key={i} style={{ width: itemWidth, marginRight: gap }}>
-            {renderItem(item, i % data.length)}
-          </View>
-        ))}
-      </Animated.View>
-    </View>
+    <ScrollView
+      ref={ref}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      scrollEventThrottle={16}
+      onScroll={(e) => {
+        let x = e.nativeEvent.contentOffset.x;
+        // 두 번째 세트로 넘어가면 같은 화면의 첫 세트 위치로 되감아 무한 루프 유지.
+        if (setWidth > 0 && x >= setWidth) {
+          x -= setWidth;
+          ref.current?.scrollTo({ x, animated: false });
+        }
+        offset.current = x;
+      }}
+      onScrollBeginDrag={pause}
+      onScrollEndDrag={resumeSoon}
+      onMomentumScrollEnd={resumeSoon}
+      style={{ paddingTop: 8, paddingBottom: 4 }}
+      contentContainerStyle={{ paddingLeft: 20 }}
+    >
+      {display.map((item, i) => (
+        <View key={i} style={{ width: itemWidth, marginRight: gap }}>
+          {renderItem(item, i % data.length)}
+        </View>
+      ))}
+    </ScrollView>
   );
 }
 
@@ -397,24 +384,23 @@ export function CleanHomeScreen() {
     }
   };
 
-  // 인기 카드 풀 — 설정에서 켠 게임별로 조회해 라운드로빈으로 섞는다 (웹 CleanHome 동일 컨셉).
-  // 포켓몬은 browse 기본 풀, 나머지 게임은 키워드 검색.
-  const { enabledGames, toggleGame } = useGamePrefs();
-  const gamesKey = enabledGames.join(',');
-  const [snkrRows, setSnkrRows] = useState<SnkrRow[]>([]);
+  // 홈 노출 게임 — 단일 선택(라디오). 기본 포켓몬, 다른 칩을 누르면 그 게임만 노출.
+  // enabledGames(설정)는 어떤 칩을 보여줄지에만 쓰인다 (웹 CleanHome 동일).
+  const { enabledGames } = useGamePrefs();
+  const [homeGame, setHomeGame] = useState<GameId>('pokemon');
+
+  // 인기 카드 — 선택 게임만 조회(포켓몬=browse, 그 외=키워드 검색) 후 게임별 캐시.
+  // 칩 전환 시 재조회 없이 즉시 복귀.
+  const [gameRows, setGameRows] = useState<Record<string, SnkrRow[]>>({});
+  const snkrRows = useMemo(() => gameRows[homeGame] ?? [], [gameRows, homeGame]);
   useEffect(() => {
+    if ((gameRows[homeGame]?.length ?? 0) > 0) return;
     let alive = true;
     (async () => {
-      // 이름엔 박스 마커가 빠진 박스가 섞일 수 있어 넉넉히 뽑고(상세 itemKind로 한 번 더 거름).
-      const per = Math.max(3, Math.ceil(12 / enabledGames.length));
-      const pools = await Promise.all(
-        enabledGames.map(async (g) => {
-          const kw = GAME_POPULAR_KEYWORD[g];
-          const list = kw ? await searchSnkrdunkByQuery(kw) : await fetchSnkrdunkBrowse(1);
-          return shuffle(list.filter((r) => !isBoxName(r.name))).slice(0, per);
-        }),
-      );
-      const pool = interleaveRows(pools).slice(0, 12);
+      // 이름엔 박스 마커가 빠진 박스가 섞일 수 있어 넉넉히(14) 뽑고 상세 itemKind로 한 번 더 거름.
+      const kw = GAME_POPULAR_KEYWORD[homeGame];
+      const list = kw ? await searchSnkrdunkByQuery(kw) : await fetchSnkrdunkBrowse(1);
+      const pool = shuffle(list.filter((r) => !isBoxName(r.name))).slice(0, 14);
       const seeds: SnkrDisplaySeed[] =
         pool.length > 0
           ? pool.map((r) => {
@@ -428,22 +414,21 @@ export function CleanHomeScreen() {
                   };
             })
           : shuffle(SNKRDUNK_FEATURED_CARDS)
-              .slice(0, 12)
+              .slice(0, 14)
               .map((s) => ({ apparelId: s.apparelId, shortName: s.shortName, category: s.category }));
       const fetched = await Promise.all(
         seeds.map(async (seed) => ({ seed, data: await fetchSnkrdunkApparel(seed.apparelId) })),
       );
       if (!alive) return;
-      // 상세 itemKind 가 박스인 행을 확실히 제외. 여러 게임이 섞였을 땐 게임 순서 유지를
-      // 위해 앞에서부터 6개(라운드로빈 결과라 게임별로 고르게 들어간다).
-      const rows = fetched.filter((row) => row.data?.itemKind !== 'box').slice(0, 6);
-      setSnkrRows(rows);
+      // 상세 itemKind 가 박스인 행을 확실히 제외하고 10개 노출.
+      const rows = fetched.filter((row) => row.data?.itemKind !== 'box').slice(0, 10);
+      if (rows.length > 0) setGameRows((p) => ({ ...p, [homeGame]: rows }));
     })();
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gamesKey]);
+  }, [homeGame]);
 
   // 등락률 + 대표 시세 — 표시된 인기 카드의 판매 차트/거래내역을 받아 채움(렌더 후 점진).
   // 대표 시세 = 시세상세 헤드라인과 동일(거래 많은 등급의 최근 체결가). 없으면 minPrice 폴백.
@@ -475,11 +460,32 @@ export function CleanHomeScreen() {
     };
   }, [snkrRows]);
 
-  const [snkrBoxRows, setSnkrBoxRows] = useState<SnkrRow[]>([]);
+  // '더보기'(/cards/snkrdunk) 목록이 홈 캐러셀과 동일한 항목·순서로 뜨도록 공유 저장 —
+  // 대표가·등락률이 점진적으로 채워질 때마다 최신 상태로 갱신 (웹 homeHotCache 페어).
   useEffect(() => {
+    if (snkrRows.length === 0) return;
+    setHomeHotRows(
+      homeGame,
+      snkrRows.map(({ seed, data }) => ({
+        apparelId: seed.apparelId,
+        shortName: seed.shortName,
+        localizedName: data?.localizedName || undefined,
+        imageUrl: data?.imageUrl ?? null,
+        minPrice: data?.minPrice ?? 0,
+        recentPrice: priceById[seed.apparelId],
+        changePct: changeById[seed.apparelId],
+        listingCountText: data?.listingCountText ?? '',
+      })),
+    );
+  }, [snkrRows, priceById, changeById, homeGame]);
+
+  const [gameBoxRows, setGameBoxRows] = useState<Record<string, SnkrRow[]>>({});
+  const snkrBoxRows = useMemo(() => gameBoxRows[homeGame] ?? [], [gameBoxRows, homeGame]);
+  useEffect(() => {
+    if ((gameBoxRows[homeGame]?.length ?? 0) > 0) return;
     let alive = true;
     (async () => {
-      // 설정에서 켠 게임의 최신 팩 라운드로빈 선별 — 정본 shared/homeBoxPacks (웹 동일).
+      // 선택 게임의 최신 팩 선별 — 정본 shared/homeBoxPacks (웹 동일, 칩 라디오 연동).
       // 팩 풀은 서버 카탈로그(/api/card-packs)가 정본 — 서버에 세트 추가만 해도 반영.
       // 번들 CARD_PACKS 는 서버 미응답 폴백.
       const catalog = await api<{ data?: HomePackMeta[] }>('/api/card-packs', { auth: false }).catch(
@@ -487,7 +493,7 @@ export function CleanHomeScreen() {
       );
       const pool: readonly HomePackMeta[] =
         catalog?.data && catalog.data.length > 0 ? catalog.data : CARD_PACKS;
-      const picked = pickHomeBoxPacks(pool, enabledGames);
+      const picked = pickHomeBoxPacks(pool, [homeGame]);
       const rows = await Promise.all(
         picked.map(async (pack): Promise<SnkrRow | null> => {
           // 웹 홈 fetchBoxRows 와 동일한 NAS 엔드포인트 (박스 전용 카테고리 그룹 조회).
@@ -500,13 +506,17 @@ export function CleanHomeScreen() {
           return { seed: { apparelId: box.id, shortName: pack.shortName, category: null }, data: box };
         }),
       );
-      if (alive) setSnkrBoxRows(rows.filter((r): r is SnkrRow => r !== null).slice(0, 6));
+      if (alive)
+        setGameBoxRows((p) => ({
+          ...p,
+          [homeGame]: rows.filter((r): r is SnkrRow => r !== null).slice(0, 6),
+        }));
     })();
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gamesKey]);
+  }, [homeGame]);
 
   const [banners, setBanners] = useState<HeroSlideData[]>([]);
   useEffect(() => {
@@ -576,7 +586,7 @@ export function CleanHomeScreen() {
     </View>
   );
 
-  // HOT 카드 위 게임 필터 칩 — 포켓몬·원피스는 항상, 그 외 켜둔 게임도 함께 노출해 on/off.
+  // HOT 카드 위 게임 칩 — 단일 선택(라디오): 포켓몬·원피스는 항상, 설정에서 켠 게임도 노출.
   // 끝의 '더보기' 칩은 설정(전체 게임 관리)으로 이동. 라벨/이모지는 GAME_OPTIONS 단일 소스.
   const chipGames = GAME_IDS.filter(
     (g) => g === 'pokemon' || g === 'onepiece' || enabledGames.includes(g),
@@ -589,11 +599,11 @@ export function CleanHomeScreen() {
     >
       {chipGames.map((g) => {
         const opt = GAME_OPTIONS.find((o) => o.id === g);
-        const on = enabledGames.includes(g);
+        const on = g === homeGame;
         return (
           <Pressable
             key={g}
-            onPress={() => toggleGame(g)}
+            onPress={() => setHomeGame(g)}
             hitSlop={4}
             style={{
               flexDirection: 'row', alignItems: 'center', gap: 5,

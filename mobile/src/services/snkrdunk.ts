@@ -33,10 +33,29 @@ function abortAfter(ms: number): AbortSignal {
   return c.signal;
 }
 
+/**
+ * GET 응답 메모리 캐시 — 화면 재진입/공유 조회를 즉시 응답해 페이지 전환을 빠르게 한다.
+ * 서버가 같은 데이터를 10분 캐시하므로 5분 TTL 은 신선도를 해치지 않는다.
+ * 실패(null)는 캐시하지 않고, 과다 증식 방지로 오래된 것부터 정리.
+ */
+const CACHE_TTL_MS = 5 * 60_000;
+const CACHE_MAX = 300;
+const proxyCache = new Map<string, { t: number; v: unknown }>();
+
 /** NAS 프록시 GET — 실패(네트워크·5xx)는 null. 웹 serverFetch 의 관대한 폴백과 동일. */
 async function getProxy<T>(path: string, timeoutMs = 8000): Promise<T | null> {
+  const hit = proxyCache.get(path);
+  if (hit && Date.now() - hit.t < CACHE_TTL_MS) return hit.v as T;
   try {
-    return await api<T>(path, { auth: false, signal: abortAfter(timeoutMs) });
+    const v = await api<T>(path, { auth: false, signal: abortAfter(timeoutMs) });
+    if (v !== null && v !== undefined) {
+      if (proxyCache.size >= CACHE_MAX) {
+        const firstKey = proxyCache.keys().next().value;
+        if (firstKey !== undefined) proxyCache.delete(firstKey);
+      }
+      proxyCache.set(path, { t: Date.now(), v });
+    }
+    return v;
   } catch {
     return null;
   }

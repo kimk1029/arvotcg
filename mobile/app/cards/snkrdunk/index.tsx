@@ -1,10 +1,12 @@
 /**
  * /cards/snkrdunk — 스니덩크 시세 랜딩. 웹 src/app/cards/snkrdunk/page.tsx 패리티:
- * 히어로 배너(상품/매물 요약) + 검색바 + 추천 6종(browse 상단 6장 · 스파크라인 ·
- * 카테고리 칩 · 최저가) + 전체 보기(/cards/snkrdunk/all) 링크.
+ * 검색바 + HOT 카드 목록 + 전체 보기(/cards/snkrdunk/all) 링크.
+ * 목록은 홈 HOT 캐러셀 공유 스토어(homeHotStore)를 그대로 재사용해 같은 항목·순서로
+ * 즉시 뜬다(진입 속도 개선). 홈을 안 거치면 browse 상단 10종 폴백.
+ * 스파크라인 차트는 목록이 뜬 뒤 점진 로드. ('SNKRDUNK 일본시세' 배너는 2026-08-09 제거.)
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { router } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
@@ -26,6 +28,7 @@ import {
   type SnkrdunkSearchResult,
 } from '@/services/snkrdunk';
 import { jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
+import { getHomeHotRows } from '@/lib/homeHotStore';
 
 type Category = 'SAR' | '프로모' | 'SR' | '원피스';
 
@@ -91,37 +94,70 @@ export default function SnkrdunkLanding() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      // 추천 6장은 전체보기 리스트 상단 6장과 동일 — browse 순서 그대로 (웹 동일).
-      let seeds: DisplaySeed[];
-      try {
-        const pool = await fetchSnkrdunkBrowse(1);
-        // 일→한 표시명 — 서버 공통 엔진 배치 선번역(캐시).
-        await jaToKoBatch(pool.slice(0, 6).map((r) => r.name)).catch(() => undefined);
-        seeds =
-          pool.length > 0
-            ? pool.slice(0, 6).map(searchToSeed)
-            : SNKRDUNK_FEATURED_CARDS.slice(0, 6).map((s) => ({ apparelId: s.apparelId, shortName: s.shortName, category: s.category }));
-      } catch {
-        seeds = SNKRDUNK_FEATURED_CARDS.slice(0, 6).map((s) => ({ apparelId: s.apparelId, shortName: s.shortName, category: s.category }));
+      // 홈 HOT 캐러셀 공유 스토어 우선 — 같은 항목·순서로 재조회 없이 즉시 표시.
+      const stored = getHomeHotRows();
+      let base: CardRow[];
+      if (stored) {
+        base = stored.rows.map((r) => ({
+          seed: {
+            apparelId: r.apparelId,
+            shortName: r.shortName,
+            localizedName: r.localizedName,
+            category: null,
+          },
+          apparel: {
+            id: r.apparelId,
+            name: r.localizedName ?? r.shortName,
+            localizedName: r.localizedName ?? '',
+            imageUrl: r.imageUrl,
+            itemKind: 'single',
+            minPrice: r.minPrice,
+            regularPrice: 0,
+            displayPrice: '',
+            listingCount: 0,
+            listingCountText: r.listingCountText ?? '',
+            releasedAt: null,
+            productNumber: '',
+          } as SnkrdunkApparel,
+          chart: null,
+        }));
+      } else {
+        // 폴백 — 홈을 안 거친 직접 진입: browse 상단 10종 (웹 동일).
+        let seeds: DisplaySeed[];
+        try {
+          const pool = await fetchSnkrdunkBrowse(1);
+          // 일→한 표시명 — 서버 공통 엔진 배치 선번역(캐시).
+          await jaToKoBatch(pool.slice(0, 10).map((r) => r.name)).catch(() => undefined);
+          seeds =
+            pool.length > 0
+              ? pool.slice(0, 10).map(searchToSeed)
+              : SNKRDUNK_FEATURED_CARDS.slice(0, 10).map((s) => ({ apparelId: s.apparelId, shortName: s.shortName, category: s.category }));
+        } catch {
+          seeds = SNKRDUNK_FEATURED_CARDS.slice(0, 10).map((s) => ({ apparelId: s.apparelId, shortName: s.shortName, category: s.category }));
+        }
+        base = await Promise.all(
+          seeds.map(async (seed) => ({
+            seed,
+            apparel: await fetchSnkrdunkApparel(seed.apparelId).catch(() => null),
+            chart: null as SnkrdunkSalesChart | null,
+          })),
+        );
       }
-      const loaded = await Promise.all(
-        seeds.map(async (seed) => {
-          const [apparel, chart] = await Promise.all([
-            fetchSnkrdunkApparel(seed.apparelId).catch(() => null),
-            fetchSnkrdunkSalesChart(seed.apparelId).catch(() => null),
-          ]);
-          return { seed, apparel, chart };
-        }),
-      );
-      if (alive) setRows(loaded);
+      if (!alive) return;
+      setRows(base);
+      // 스파크라인 차트 — 목록이 뜬 뒤 점진 로드 (진입을 막지 않음).
+      base.forEach(async (row) => {
+        const chart = await fetchSnkrdunkSalesChart(row.seed.apparelId).catch(() => null);
+        if (!alive || !chart) return;
+        setRows((prev) =>
+          prev ? prev.map((r) => (r.seed.apparelId === row.seed.apparelId ? { ...r, chart } : r)) : prev,
+        );
+      });
     })();
     return () => {
       alive = false;
     };
   }, []);
-
-  const okCount = (rows ?? []).filter((r) => r.apparel).length;
-  const totalListings = (rows ?? []).reduce((s, r) => s + (r.apparel?.listingCount ?? 0), 0);
 
   const goSearch = () => {
     const t = q.trim();
@@ -133,23 +169,6 @@ export default function SnkrdunkLanding() {
     <View style={{ flex: 1, backgroundColor: tc.paper }}>
       <AppBar onBack={() => router.back()} title="스니덩크 시세" />
       <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
-        {/* 히어로 배너 — 웹 동일 요약 */}
-        <View style={{ marginHorizontal: space.gap, marginBottom: 12 }}>
-          <PixelFrame bg={tc.ink} borderWidth={4} shadow={6} hi={tc.ink2} lo="rgba(0,0,0,0.5)" inner={3}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 }}>
-              <Text style={{ fontSize: 30 }}>🇯🇵</Text>
-              <View style={{ flex: 1 }}>
-                <PixelText variant={txt} size={12} color={tc.yel} style={{ letterSpacing: 1 }}>
-                  SNKRDUNK 일본 시세
-                </PixelText>
-                <PixelText variant={txt} size={9} color="rgba(255,255,255,0.7)" style={{ marginTop: 6, lineHeight: 14, letterSpacing: 0.3 }}>
-                  상품 {okCount}/{rows?.length ?? 6}종 · 매물 총 {totalListings.toLocaleString()}건{'\n'}v1 API 기준 · 10분 캐시 · JPY
-                </PixelText>
-              </View>
-            </View>
-          </PixelFrame>
-        </View>
-
         {/* 검색바 */}
         <View style={{ marginHorizontal: space.gap, marginBottom: 14 }}>
           <PixelFrame bg={tc.white} shadow={5} inner={3}>
@@ -171,9 +190,9 @@ export default function SnkrdunkLanding() {
           </PixelFrame>
         </View>
 
-        {/* 추천 6종 */}
+        {/* HOT 카드 — 홈 캐러셀과 동일 목록 */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: space.gap, marginBottom: 10 }}>
-          <PixelText variant="ko" size={14} weight="bold" color={tc.ink}>추천 6종</PixelText>
+          <PixelText variant="ko" size={14} weight="bold" color={tc.ink}>HOT 카드</PixelText>
           <Pressable onPress={() => router.push('/cards/snkrdunk/all' as never)} hitSlop={6}>
             <PixelText variant={txt} size={10} color={tc.blu}>전체 보기 ▶</PixelText>
           </Pressable>

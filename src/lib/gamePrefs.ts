@@ -5,11 +5,11 @@
  */
 export type GameId = 'pokemon' | 'onepiece' | 'yugioh' | 'sports';
 
+// 스포츠는 노출 옵션에서 제외(2026-08-09) — 타입/팩 데이터엔 남아 있지만 설정·홈 칩에 안 나옴.
 export const GAME_OPTIONS: Array<{ id: GameId; label: string; emoji: string }> = [
   { id: 'pokemon', label: '포켓몬', emoji: '⚡' },
   { id: 'onepiece', label: '원피스', emoji: '🏴‍☠️' },
   { id: 'yugioh', label: '유희왕', emoji: '🎴' },
-  { id: 'sports', label: '스포츠', emoji: '⚾' },
 ];
 
 export const GAME_IDS: GameId[] = GAME_OPTIONS.map((g) => g.id);

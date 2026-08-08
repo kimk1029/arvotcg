@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { useUnread } from '@/components/UnreadProvider';
 import { useTheme } from '@/components/ThemeProvider';
@@ -17,6 +17,7 @@ import { pickHomeBoxPacks } from '../../../shared/homeBoxPacks';
 /** 홈 인기박스 선별에 필요한 최소 팩 메타 — 서버 /api/card-packs 응답과 번들 공용. */
 type HomePackMeta = Pick<CardPackMeta, 'game' | 'apparelGroupId' | 'releasedAt' | 'shortName'>;
 import { headlineFromHistory, trendChangePct } from '@/lib/snkrdunkPrice';
+import { saveHomeHotRows } from '@/lib/homeHotCache';
 import type { SnkrdunkRow } from '@/components/dashboard/DashboardScreen';
 import type { MvcAuctionItem } from '@/lib/navercafe';
 
@@ -144,16 +145,12 @@ function shuffleRows<T>(arr: T[]): T[] {
   return a;
 }
 
-/** 게임별 목록을 라운드로빈으로 섞어 한 캐러셀에 고르게 배치. */
-function interleaveRows<T>(pools: T[][]): T[] {
-  const out: T[] = [];
-  const max = Math.max(0, ...pools.map((p) => p.length));
-  for (let i = 0; i < max; i++) {
-    for (const p of pools) {
-      if (i < p.length) out.push(p[i]);
-    }
-  }
-  return out;
+/** 검색 결과 이름에서 SAR/SR/프로모 카테고리를 추측 — /cards/snkrdunk 목록 칩용. */
+function inferSnkrCategory(name: string): SnkrdunkRow['category'] {
+  if (/プロモ|PROMO/i.test(name)) return '프로모';
+  if (/\bSAR\b/.test(name)) return 'SAR';
+  if (/\bSR\b/.test(name)) return 'SR';
+  return null;
 }
 
 function searchHitToRow(r: PopularSearchHit): SnkrdunkRow {
@@ -163,11 +160,39 @@ function searchHitToRow(r: PopularSearchHit): SnkrdunkRow {
     apparelId: r.apparelId,
     shortName: cut.length > 22 ? cut.slice(0, 21) + '…' : cut,
     localizedName: r.name,
-    category: null,
+    category: inferSnkrCategory(r.name),
     imageUrl: r.imageUrl,
     minPrice: Number((r.priceText ?? '').replace(/[^\d]/g, '')) || 0,
     listingCountText: '',
   };
+}
+
+/** 행에 대표가·등락률을 채운다 — sales-history 헤드라인가 + sales-chart trendChangePct (정본 /shared). */
+async function enrichRow(row: SnkrdunkRow): Promise<SnkrdunkRow> {
+  if (row.changePct !== undefined || row.recentPrice !== undefined) return row;
+  try {
+    const [cr, hr] = await Promise.all([
+      fetch(`/api/snkrdunk/apparels/${row.apparelId}/sales-chart`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+      fetch(`/api/snkrdunk/apparels/${row.apparelId}/sales-history`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]);
+    const points = (cr as { data?: { points?: Array<[number, number]> } } | null)?.data?.points;
+    const history =
+      (hr as { data?: { history?: Parameters<typeof headlineFromHistory>[0] } } | null)?.data
+        ?.history ?? [];
+    const { price: recent, basis } = headlineFromHistory(history, row.minPrice);
+    return {
+      ...row,
+      recentPrice: recent > 0 ? recent : undefined,
+      basis,
+      changePct: points ? trendChangePct(points) : undefined,
+    };
+  } catch {
+    return row;
+  }
 }
 
 interface Props {
@@ -178,7 +203,10 @@ interface Props {
   mvcAuctions?: MvcAuctionItem[];
 }
 
-/** 캐러셀 자동 좌측 무한 스크롤(로테이션). 손대면 멈췄다 이어감. */
+/**
+ * 캐러셀 자동 좌측 무한 스크롤(로테이션). 손대면 멈췄다 이어감.
+ * 터치 스와이프는 네이티브 가로 스크롤 그대로, 데스크톱은 마우스 드래그로도 넘길 수 있다.
+ */
 function useMarquee(ref: RefObject<HTMLDivElement>, enabled: boolean, depCount: number) {
   useEffect(() => {
     if (!enabled) return;
@@ -188,12 +216,53 @@ function useMarquee(ref: RefObject<HTMLDivElement>, enabled: boolean, depCount: 
     let paused = false;
     let acc = el.scrollLeft;
     let last = 0;
+    let dragging = false;
+    let dragMoved = false;
+    let dragStartX = 0;
+    let dragStartScroll = 0;
     const pause = () => { paused = true; };
-    const resume = () => { paused = false; acc = el.scrollLeft; };
+    const resume = () => {
+      if (dragging) return;
+      paused = false;
+      acc = el.scrollLeft;
+    };
+    // 마우스 드래그 스크롤 — 드래그 중엔 마퀴 정지, 놓으면 그 위치에서 재개.
+    const onDown = (e: MouseEvent) => {
+      dragging = true;
+      dragMoved = false;
+      paused = true;
+      dragStartX = e.clientX;
+      dragStartScroll = el.scrollLeft;
+    };
+    const onMove = (e: MouseEvent) => {
+      if (!dragging) return;
+      const dx = e.clientX - dragStartX;
+      if (Math.abs(dx) > 4) dragMoved = true;
+      el.scrollLeft = dragStartScroll - dx;
+      e.preventDefault(); // 이미지 기본 드래그/텍스트 선택 방지
+    };
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      paused = false;
+      acc = el.scrollLeft;
+    };
+    // 드래그로 움직인 직후의 클릭은 카드 이동(링크)으로 새지 않게 무시.
+    const onClickCapture = (e: MouseEvent) => {
+      if (dragMoved) {
+        e.preventDefault();
+        e.stopPropagation();
+        dragMoved = false;
+      }
+    };
     el.addEventListener('mouseenter', pause);
     el.addEventListener('mouseleave', resume);
     el.addEventListener('touchstart', pause, { passive: true });
     el.addEventListener('touchend', resume, { passive: true });
+    el.addEventListener('mousedown', onDown);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    el.addEventListener('click', onClickCapture, true);
     const step = (t: number) => {
       if (!paused && el.scrollWidth > el.clientWidth) {
         const dt = last ? t - last : 16;
@@ -212,6 +281,10 @@ function useMarquee(ref: RefObject<HTMLDivElement>, enabled: boolean, depCount: 
       el.removeEventListener('mouseleave', resume);
       el.removeEventListener('touchstart', pause);
       el.removeEventListener('touchend', resume);
+      el.removeEventListener('mousedown', onDown);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      el.removeEventListener('click', onClickCapture, true);
     };
   }, [ref, enabled, depCount]);
 }
@@ -224,6 +297,9 @@ const hrowStyle: CSSProperties = {
   // overflow-x:auto 면 overflow-y 가 auto 로 계산돼 카드 그림자가 잘리므로
   // 상하 패딩으로 그림자가 들어갈 여백을 확보한다.
   padding: '10px 20px 26px',
+  // 마우스 드래그 스크롤 지원 표시 + 드래그 중 텍스트/이미지 선택 방지.
+  cursor: 'grab',
+  userSelect: 'none',
 };
 
 function SectionHead({ title, href, P }: { title: ReactNode; href: string; P: Palette }) {
@@ -289,9 +365,9 @@ function CardArt({
   );
 }
 
-// snkrdunkBoxRows prop 은 레거시 DashboardScreen 경로용으로 Props 에만 남음 —
-// CleanHome 의 인기 박스는 앱과 동일하게 클라이언트에서 직접 선별·조회한다.
-export function CleanHome({ heroBanners, isLoggedIn, snkrdunkRows = [] }: Props) {
+// snkrdunkRows/snkrdunkBoxRows prop 은 레거시 경로용으로 Props 에만 남음 —
+// CleanHome 의 HOT/박스는 앱과 동일하게 클라이언트에서 직접 조회한다 (홈 서버 렌더 블로킹 제거).
+export function CleanHome({ heroBanners, isLoggedIn }: Props) {
   const { format } = useCurrency();
   const { count: unread } = useUnread();
   const { theme } = useTheme();
@@ -325,107 +401,84 @@ export function CleanHome({ heroBanners, isLoggedIn, snkrdunkRows = [] }: Props)
     return () => { alive = false; };
   }, [drawerOpen, isLoggedIn, drawerMe]);
 
-  // 설정에서 켠 게임들의 인기 카드/박스를 조회해 섞는다 (테마와 무관).
-  // 포켓몬은 서버 기본 rows 사용, 나머지 게임은 키워드 검색으로 조회.
-  // 포켓몬만 켜져 있으면 조회 없이 서버 rows 그대로 (기존 기본 동작과 동일).
-  const { enabledGames, toggleGame } = useGamePrefs();
-  const gamesKey = enabledGames.join(',');
-  const extraGames = enabledGames.filter((g) => GAME_POPULAR_KEYWORD[g]);
-  const needsMix = extraGames.length > 0;
-  const [mixPopular, setMixPopular] = useState<Record<string, SnkrdunkRow[]>>({});
+  // 홈 노출 게임 — 단일 선택(라디오). 기본 포켓몬, 다른 칩을 누르면 그 게임만 노출.
+  // enabledGames(설정)는 어떤 칩을 보여줄지에만 쓰인다.
+  const { enabledGames } = useGamePrefs();
+  const [homeGame, setHomeGame] = useState<GameId>('pokemon');
+
+  // HOT 카드 — 선택 게임만 클라이언트 조회(포켓몬=브라우즈, 그 외=키워드 검색) 후 게임별 캐시.
+  // 서버 렌더를 막지 않아 홈 첫 진입이 빠르고(앱과 동일 컨셉), 칩 전환 시 재조회 없이 즉시 복귀.
+  const [gameRows, setGameRows] = useState<Record<string, SnkrdunkRow[]>>({});
+  const hotRows = useMemo(() => gameRows[homeGame] ?? [], [gameRows, homeGame]);
   useEffect(() => {
-    if (!needsMix || mixPopular[gamesKey]) return;
+    if ((gameRows[homeGame]?.length ?? 0) > 0) return;
     let alive = true;
-    // 게임당 뽑는 개수 — 섞어도 캐러셀이 과하게 길어지지 않게 켠 게임 수로 나눔.
-    const per = Math.max(2, Math.ceil(8 / enabledGames.length));
-    const search = async (q: string): Promise<PopularSearchHit[]> => {
-      try {
-        const r = await fetch(`/api/snkrdunk/search?q=${encodeURIComponent(q)}`);
-        if (!r.ok) return [];
-        const j = (await r.json()) as { results?: PopularSearchHit[] };
-        return j.results ?? [];
-      } catch {
-        return [];
-      }
-    };
-    // 이름 휴리스틱은 박스 마커 없는 박스를 놓친다 — 상세 itemKind 로 확정 검증.
-    // (조회 실패 시엔 이름 필터를 통과한 후보를 그대로 둬 섹션이 비지 않게.)
-    const verifySingles = async (hits: PopularSearchHit[]): Promise<PopularSearchHit[]> => {
-      const checked = await Promise.all(
-        hits.map(async (h) => {
+    (async () => {
+      const kw = GAME_POPULAR_KEYWORD[homeGame];
+      const url = kw
+        ? `/api/snkrdunk/search?q=${encodeURIComponent(kw)}`
+        : '/api/snkrdunk/browse?page=1';
+      const j = await fetch(url)
+        .then((r) => (r.ok ? (r.json() as Promise<{ results?: PopularSearchHit[] }>) : null))
+        .catch(() => null);
+      if (!alive) return;
+      // 이름에 박스 마커가 없는 박스가 섞일 수 있어 넉넉히(14) 뽑고 상세 itemKind로 한 번 더 거른다.
+      const pool = (j?.results ?? []).filter((h) => !isBoxName(h.name));
+      const picked = shuffleRows(pool).slice(0, 14).map(searchHitToRow);
+      const detailed = await Promise.all(
+        picked.map(async (row): Promise<SnkrdunkRow | null> => {
           try {
-            const r = await fetch(`/api/snkrdunk/apparels/${h.apparelId}`);
-            if (!r.ok) return h;
-            const j = (await r.json()) as { data?: { itemKind?: string } };
-            return j.data?.itemKind === 'box' ? null : h;
+            const r = await fetch(`/api/snkrdunk/apparels/${row.apparelId}`);
+            if (!r.ok) return row;
+            const d = ((await r.json()) as {
+              data?: {
+                itemKind?: string;
+                imageUrl?: string | null;
+                minPrice?: number;
+                localizedName?: string;
+                listingCountText?: string;
+              };
+            }).data;
+            if (!d) return row;
+            if (d.itemKind === 'box') return null;
+            return {
+              ...row,
+              imageUrl: d.imageUrl ?? row.imageUrl,
+              minPrice: d.minPrice ?? row.minPrice,
+              localizedName: d.localizedName ?? row.localizedName,
+              listingCountText: d.listingCountText ?? row.listingCountText,
+            };
           } catch {
-            return h;
+            return row;
           }
         }),
       );
-      return checked.filter((h): h is PopularSearchHit => h !== null);
-    };
-    (async () => {
-      const popularLists = await Promise.all(
-        extraGames.map(async (g) => {
-          const hits = shuffleRows(
-            (await search(GAME_POPULAR_KEYWORD[g]!)).filter((h) => !isBoxName(h.name)),
-          ).slice(0, per * 2);
-          return (await verifySingles(hits)).slice(0, per).map(searchHitToRow);
-        }),
-      );
       if (!alive) return;
-      // 검색 경로 행(추가 게임)에도 대표가·등락률을 채운다 — 포켓몬 seedToRow 와
-      // 동일한 소스(sales-history 헤드라인가 + sales-chart trendChangePct, 정본 /shared).
-      const enrichRow = async (row: SnkrdunkRow): Promise<SnkrdunkRow> => {
-        if (row.changePct !== undefined || row.recentPrice !== undefined) return row;
-        try {
-          const [cr, hr] = await Promise.all([
-            fetch(`/api/snkrdunk/apparels/${row.apparelId}/sales-chart`)
-              .then((r) => (r.ok ? r.json() : null))
-              .catch(() => null),
-            fetch(`/api/snkrdunk/apparels/${row.apparelId}/sales-history`)
-              .then((r) => (r.ok ? r.json() : null))
-              .catch(() => null),
-          ]);
-          const points = (cr as { data?: { points?: Array<[number, number]> } } | null)?.data?.points;
-          const history =
-            (hr as { data?: { history?: Parameters<typeof headlineFromHistory>[0] } } | null)?.data
-              ?.history ?? [];
-          const { price: recent, basis } = headlineFromHistory(history, row.minPrice);
-          return {
-            ...row,
-            recentPrice: recent > 0 ? recent : undefined,
-            basis,
-            changePct: points ? trendChangePct(points) : undefined,
-          };
-        } catch {
-          return row;
-        }
-      };
-      const enrichedPopular = await Promise.all(
-        popularLists.map((list) => Promise.all(list.map(enrichRow))),
-      );
+      const base = detailed.filter((r): r is SnkrdunkRow => r !== null).slice(0, 10);
+      if (base.length === 0) return;
+      setGameRows((p) => ({ ...p, [homeGame]: base }));
+      // 대표가·등락률은 뒤이어 채움 — 첫 페인트를 막지 않게 (정본 /shared 로직).
+      const enriched = await Promise.all(base.map(enrichRow));
       if (!alive) return;
-      const withPokemon = (lists: SnkrdunkRow[][], pokemonRows: SnkrdunkRow[]) =>
-        interleaveRows(
-          enabledGames.includes('pokemon') ? [pokemonRows.slice(0, per), ...lists] : lists,
-        ).slice(0, 10);
-      const popRows = withPokemon(enrichedPopular, snkrdunkRows);
-      if (popRows.length > 0) setMixPopular((p) => ({ ...p, [gamesKey]: popRows }));
+      setGameRows((p) => ({ ...p, [homeGame]: enriched }));
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gamesKey, needsMix, snkrdunkRows]);
+  }, [homeGame]);
 
-  const hotRows = (needsMix && mixPopular[gamesKey]) || snkrdunkRows;
+  // '더보기'(/cards/snkrdunk) 목록이 홈 캐러셀과 동일하게 뜨도록 노출 목록을 공유 저장.
+  useEffect(() => {
+    if (hotRows.length > 0) saveHomeHotRows(homeGame, hotRows);
+  }, [homeGame, hotRows]);
 
   // 인기 박스 — 앱 CleanHomeScreen 과 동일 로직: 선별은 shared pickHomeBoxPacks,
-  // 각 팩의 대표 박스는 apparel-groups(cat 14) 1건 조회. 켠 게임 전체를 라운드로빈.
+  // 각 팩의 대표 박스는 apparel-groups(cat 14) 1건 조회. 선택 게임 하나만 (칩 라디오 연동).
   // 팩 풀은 서버 카탈로그(/api/card-packs)가 정본 — 서버에 세트 추가만 해도 반영.
   // 번들 CARD_PACKS 는 서버 미응답 폴백.
-  const [boxRows, setBoxRows] = useState<SnkrdunkRow[]>([]);
+  const [gameBoxRows, setGameBoxRows] = useState<Record<string, SnkrdunkRow[]>>({});
+  const boxRows = gameBoxRows[homeGame] ?? [];
   useEffect(() => {
+    if ((gameBoxRows[homeGame]?.length ?? 0) > 0) return;
     let alive = true;
     (async () => {
       const catalog = await fetch('/api/card-packs')
@@ -433,7 +486,7 @@ export function CleanHome({ heroBanners, isLoggedIn, snkrdunkRows = [] }: Props)
         .catch(() => null);
       const pool: readonly HomePackMeta[] =
         catalog?.data && catalog.data.length > 0 ? catalog.data : CARD_PACKS;
-      const picked = pickHomeBoxPacks(pool, enabledGames);
+      const picked = pickHomeBoxPacks(pool, [homeGame]);
       const rows = await Promise.all(
         picked.map(async (pack): Promise<SnkrdunkRow | null> => {
           try {
@@ -468,13 +521,17 @@ export function CleanHome({ heroBanners, isLoggedIn, snkrdunkRows = [] }: Props)
           }
         }),
       );
-      if (alive) setBoxRows(rows.filter((r): r is SnkrdunkRow => r !== null).slice(0, 6));
+      if (alive)
+        setGameBoxRows((p) => ({
+          ...p,
+          [homeGame]: rows.filter((r): r is SnkrdunkRow => r !== null).slice(0, 6),
+        }));
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gamesKey]);
+  }, [homeGame]);
 
-  // HOT 카드 위 게임 필터 칩 — 포켓몬·원피스는 항상, 그 외 켜둔 게임도 함께 노출해 on/off.
+  // HOT 카드 위 게임 칩 — 단일 선택(라디오): 포켓몬·원피스는 항상, 설정에서 켠 게임도 노출.
   // 끝의 '더보기' 칩은 설정(전체 게임 관리)으로 이동. 앱 CleanHomeScreen GameChips 와 동일.
   const chipGames = GAME_IDS.filter(
     (g) => g === 'pokemon' || g === 'onepiece' || enabledGames.includes(g),
@@ -483,12 +540,12 @@ export function CleanHome({ heroBanners, isLoggedIn, snkrdunkRows = [] }: Props)
     <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none', padding: '0 20px 13px' }}>
       {chipGames.map((g) => {
         const opt = GAME_OPTIONS.find((o) => o.id === g);
-        const on = enabledGames.includes(g);
+        const on = g === homeGame;
         return (
           <button
             key={g}
             type="button"
-            onClick={() => toggleGame(g)}
+            onClick={() => setHomeGame(g)}
             style={{
               flex: 'none', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
               padding: '7px 12px', borderRadius: 999, fontFamily: 'var(--f1)',
