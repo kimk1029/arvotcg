@@ -35,6 +35,7 @@ import { fetchMySummary, type MySummary } from '@/lib/myApi';
 import { isAuthenticated } from '@/lib/session';
 import { setHomeHotRows } from '@/lib/homeHotStore';
 import { trendChangePct } from '../../../shared/snkrdunkPrice';
+import { SNKRDUNK_GAME_KEYWORD } from '../../../shared/gameKeyword';
 
 /**
  * 메인화면 — Claude Design 'ARVOTCG App' 프로토타입 레이아웃 (네이티브).
@@ -131,11 +132,8 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// 게임별 인기 카드 검색 키워드 (웹 CleanHome 동일). 포켓몬은 browse 기본 풀.
-const GAME_POPULAR_KEYWORD: Partial<Record<GameId, string>> = {
-  onepiece: 'ワンピースカード',
-  yugioh: '遊戯王',
-};
+// 게임별 인기 카드 검색 키워드 — 정본 /shared/gameKeyword (웹 CleanHome·랜딩·전체시세와 공유).
+const GAME_POPULAR_KEYWORD = SNKRDUNK_GAME_KEYWORD;
 function rankBadgeColor(rank: number): string {
   if (rank === 1) return RISE;
   if (rank === 3) return ACCENT30;
@@ -805,7 +803,7 @@ export function CleanHomeScreen() {
           <View style={{ paddingBottom: 24 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 10 }}>
               <Text style={ts(18, '800', P.ink)}>🔥 HOT 카드</Text>
-              <MoreLink onPress={() => router.push('/cards/snkrdunk' as never)} />
+              <MoreLink onPress={() => router.push(`/cards/snkrdunk?game=${homeGame}` as never)} />
             </View>
             <AutoCarousel
               data={snkrRows}
@@ -841,7 +839,8 @@ export function CleanHomeScreen() {
           <View style={{ paddingBottom: 26 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 13 }}>
               <Text style={ts(18, '800', P.ink)}>📦 인기 박스</Text>
-              <MoreLink onPress={() => router.push('/cards/packs' as never)} />
+              {/* 더보기에 선택 게임을 실어 보내 시세확인도 같은 게임(IP) 탭으로 열린다. */}
+              <MoreLink onPress={() => router.push(`/cards/packs?game=${homeGame}` as never)} />
             </View>
             <AutoCarousel
               data={snkrBoxRows}
@@ -871,7 +870,7 @@ export function CleanHomeScreen() {
                 </Svg>
                 <Text style={ts(18, '800', P.ink)}>실시간 급등 카드</Text>
               </View>
-              <MoreLink onPress={() => router.push('/cards/snkrdunk' as never)} />
+              <MoreLink onPress={() => router.push(`/cards/snkrdunk?game=${homeGame}` as never)} />
             </View>
             {[...snkrRows]
               .sort((a, b) => (changeById[b.seed.apparelId] ?? -Infinity) - (changeById[a.seed.apparelId] ?? -Infinity))

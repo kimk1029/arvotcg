@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Price } from '@/components/Price';
 import { ListAdRow } from '@/components/ListAdRow';
 import { useGamePrefs } from '@/components/GamePrefsProvider';
@@ -38,6 +38,11 @@ export function PacksExplorer({ packs }: { packs: PackListRow[] }) {
     (t) => t.key === 'pokemon' || t.key === 'onepiece' || enabledGames.includes(t.key),
   );
   const [game, setGame] = useState<CardPackGame>('pokemon');
+  // 홈 '인기 박스 더보기' 딥링크 — ?game= 으로 넘어온 게임(IP)을 초기 선택 (하이드레이션 안전하게 마운트 후).
+  useEffect(() => {
+    const g = new URLSearchParams(window.location.search).get('game');
+    if (g === 'pokemon' || g === 'onepiece' || g === 'yugioh' || g === 'sports') setGame(g);
+  }, []);
   // 박스 검색 — 이미 받아둔 목록의 클라이언트 필터라 입력 즉시(깜빡임 없이) 반영.
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();

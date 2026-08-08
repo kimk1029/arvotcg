@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, TextInput, View, Image, Text } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
 import { PixelPress } from '@/components/cv/PixelPress';
@@ -98,6 +98,13 @@ export default function PackExplorerScreen() {
     (t) => t.key === 'pokemon' || t.key === 'onepiece' || enabledGames.includes(t.key),
   );
   const [game, setGame] = useState<CardPackGame>('pokemon');
+  // 홈 '인기 박스 더보기' 딥링크 — ?game= 으로 넘어온 게임(IP)을 초기 선택 (웹 PacksExplorer 동일).
+  const { game: gameParam } = useLocalSearchParams<{ game?: string }>();
+  useEffect(() => {
+    if (gameParam === 'pokemon' || gameParam === 'onepiece' || gameParam === 'yugioh' || gameParam === 'sports') {
+      setGame(gameParam);
+    }
+  }, [gameParam]);
   const gameLabel = GAME_TABS.find((t) => t.key === game)?.label ?? '카드';
   // 박스 검색 — 이미 받아둔 목록의 클라이언트 필터라 입력 즉시(깜빡임 없이) 반영.
   const [query, setQuery] = useState('');

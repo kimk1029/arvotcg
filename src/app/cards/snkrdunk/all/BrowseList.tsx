@@ -7,6 +7,7 @@ import { ListAdRow } from '@/components/ListAdRow';
 import { SectionTitle } from '@/components/ui/SectionTitle';
 import { translateKnownCardNameToKo } from '@/lib/cardTranslate';
 import { autoPriceSize } from '../../../../../shared/util/autoPriceSize';
+import { SNKRDUNK_GAME_KEYWORD } from '../../../../../shared/gameKeyword';
 
 export interface BrowseItem {
   apparelId: number;
@@ -16,7 +17,7 @@ export interface BrowseItem {
 }
 
 interface BrowseResponse {
-  page: number;
+  page?: number;
   results: BrowseItem[];
 }
 
@@ -28,8 +29,9 @@ function shortenName(name: string): string {
 /**
  * 무한스크롤 카드 그리드. 첫 페이지는 서버에서 SSR 로 받아 props 로 주입되고
  * (검색엔진 인덱싱·초기 페인트용), 2페이지부터 클라이언트가 이어 받는다.
+ * game(IP)이 포켓몬이 아니면 브라우즈 대신 해당 게임 키워드 검색으로 페이지를 잇는다.
  */
-export function BrowseList({ initialItems }: { initialItems: BrowseItem[] }) {
+export function BrowseList({ initialItems, game = 'pokemon' }: { initialItems: BrowseItem[]; game?: string }) {
   const [items, setItems] = useState<BrowseItem[]>(initialItems);
   // 서버가 1페이지를 채웠으니 클라이언트는 2페이지부터.
   const [page, setPage] = useState(1);
@@ -43,7 +45,11 @@ export function BrowseList({ initialItems }: { initialItems: BrowseItem[] }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/snkrdunk/browse?page=${p}`, { cache: 'no-store' });
+      const kw = SNKRDUNK_GAME_KEYWORD[game];
+      const url = kw
+        ? `/api/snkrdunk/search?q=${encodeURIComponent(kw)}&page=${p}`
+        : `/api/snkrdunk/browse?page=${p}`;
+      const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) throw new Error(`status ${res.status}`);
       const json = (await res.json()) as BrowseResponse;
       const fresh = json.results.filter((r) => !seenIdsRef.current.has(r.apparelId));
@@ -58,7 +64,7 @@ export function BrowseList({ initialItems }: { initialItems: BrowseItem[] }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [game]);
 
   // IntersectionObserver 로 sentinel 가 보이면 다음 페이지 요청
   useEffect(() => {

@@ -4,6 +4,7 @@ import { StatusBar } from '@/components/ui/StatusBar';
 import { JsonLd } from '@/components/JsonLd';
 import { absUrl } from '@/lib/seo';
 import { serverFetch } from '@/lib/apiServer';
+import { SNKRDUNK_GAME_KEYWORD } from '../../../../../shared/gameKeyword';
 import { BrowseList, type BrowseItem } from './BrowseList';
 
 export const revalidate = 600;
@@ -20,10 +21,18 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ game?: string }>;
+}) {
+  // 홈에서 선택한 게임(IP)이 ?game= 으로 이어진다 — 포켓몬은 브라우즈, 그 외는 키워드 검색.
+  const sp = await searchParams;
+  const game = sp?.game ?? 'pokemon';
+  const kw = SNKRDUNK_GAME_KEYWORD[game];
   // 첫 페이지는 서버에서 받아 SSR — 검색엔진 인덱싱·초기 페인트용. 이후는 클라이언트 무한스크롤.
-  const r = await serverFetch<{ page: number; results: BrowseItem[] }>(
-    '/api/snkrdunk/browse?page=1',
+  const r = await serverFetch<{ page?: number; results: BrowseItem[] }>(
+    kw ? `/api/snkrdunk/search?q=${encodeURIComponent(kw)}` : '/api/snkrdunk/browse?page=1',
     { auth: false },
   );
   const initialItems = r.data?.results ?? [];
@@ -46,7 +55,7 @@ export default async function Page() {
 
       <div style={{ height: 14 }} />
 
-      <BrowseList initialItems={initialItems} />
+      <BrowseList initialItems={initialItems} game={game} />
 
       <div style={{ height: 80 }} />
     </>

@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
 import { PixelFrame } from '@/components/cv/PixelFrame';
@@ -23,6 +23,7 @@ import {
   fetchSnkrdunkApparel,
   fetchSnkrdunkBrowse,
   fetchSnkrdunkSalesChart,
+  searchSnkrdunkByQuery,
   SNKRDUNK_FEATURED_CARDS,
   type SnkrdunkApparel,
   type SnkrdunkSalesChart,
@@ -30,6 +31,7 @@ import {
 } from '@/services/snkrdunk';
 import { jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
 import { getHomeHotRows } from '@/lib/homeHotStore';
+import { SNKRDUNK_GAME_KEYWORD } from '../../../../shared/gameKeyword';
 
 type Category = 'SAR' | '프로모' | 'SR' | '원피스';
 
@@ -86,6 +88,9 @@ export default function SnkrdunkLanding() {
   const txt = useThemeTextVariant();
   const { theme } = useTheme();
   const flat = isFlatTheme(theme);
+  // 홈에서 선택한 게임(IP) — ?game= 으로 넘어온다. 전체보기에도 그대로 실어 보낸다.
+  const { game: gameParam } = useLocalSearchParams<{ game?: string }>();
+  const game = typeof gameParam === 'string' && gameParam ? gameParam : 'pokemon';
   const [rows, setRows] = useState<CardRow[] | null>(null);
   const [q, setQ] = useState('');
 
@@ -97,10 +102,10 @@ export default function SnkrdunkLanding() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      // 홈 HOT 캐러셀 공유 스토어 우선 — 같은 항목·순서로 재조회 없이 즉시 표시.
+      // 홈 HOT 캐러셀 공유 스토어 우선 — 같은 게임(IP)일 때만 재사용해 같은 항목·순서로 즉시 표시.
       const stored = getHomeHotRows();
       let base: CardRow[];
-      if (stored) {
+      if (stored && stored.game === game) {
         base = stored.rows.map((r) => ({
           seed: {
             apparelId: r.apparelId,
@@ -125,10 +130,11 @@ export default function SnkrdunkLanding() {
           chart: null,
         }));
       } else {
-        // 폴백 — 홈을 안 거친 직접 진입: browse 상단 10종 (웹 동일).
+        // 폴백 — 홈을 안 거친 직접 진입/다른 게임 요청: 해당 게임 상단 10종 (웹 동일).
         let seeds: DisplaySeed[];
         try {
-          const pool = await fetchSnkrdunkBrowse(1);
+          const kw = SNKRDUNK_GAME_KEYWORD[game];
+          const pool = kw ? await searchSnkrdunkByQuery(kw) : await fetchSnkrdunkBrowse(1);
           // 일→한 표시명 — 서버 공통 엔진 배치 선번역(캐시).
           await jaToKoBatch(pool.slice(0, 10).map((r) => r.name)).catch(() => undefined);
           seeds =
@@ -160,7 +166,8 @@ export default function SnkrdunkLanding() {
     return () => {
       alive = false;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game]);
 
   const goSearch = () => {
     const t = q.trim();
@@ -196,7 +203,10 @@ export default function SnkrdunkLanding() {
         {/* HOT 카드 — 홈 캐러셀과 동일 목록 */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: space.gap, marginBottom: 10 }}>
           <PixelText variant="ko" size={14} weight="bold" color={tc.ink}>HOT 카드</PixelText>
-          <Pressable onPress={() => router.push('/cards/snkrdunk/all' as never)} hitSlop={6}>
+          <Pressable
+            onPress={() => router.push(`/cards/snkrdunk/all${game !== 'pokemon' ? `?game=${game}` : ''}` as never)}
+            hitSlop={6}
+          >
             <PixelText variant={txt} size={10} color={tc.blu}>전체 보기 ▶</PixelText>
           </Pressable>
         </View>

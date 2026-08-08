@@ -11,6 +11,7 @@ import { StatusBar } from '@/components/ui/StatusBar';
 import { SnkrdunkSearchBar } from '@/components/SnkrdunkSearchBar';
 import { shortenName as shortenNameShared } from '../../shared/util/shortenName';
 import { autoPriceSize } from '../../shared/util/autoPriceSize';
+import { SNKRDUNK_GAME_KEYWORD } from '../../shared/gameKeyword';
 import { downsamplePricePoints } from '@/lib/snkrdunk';
 import { translateKnownCardNameToKo } from '@/lib/cardTranslate';
 import { loadHomeHotRows } from '@/lib/homeHotCache';
@@ -36,6 +37,7 @@ function inferCategory(name: string): SnkrdunkRow['category'] {
   if (/\bSR\b/.test(name)) return 'SR';
   return null;
 }
+
 
 function Sparkline({
   points,
@@ -104,16 +106,23 @@ function Sparkline({
 export function SnkrdunkLandingScreen() {
   const [rows, setRows] = useState<SnkrdunkRow[] | null>(null);
   const [charts, setCharts] = useState<Record<number, Array<[number, number]>>>({});
+  // 홈에서 선택한 게임(IP) — ?game= 으로 넘어온다. 전체보기 링크에도 그대로 실어 보낸다.
+  const [game, setGame] = useState<string>('pokemon');
 
   useEffect(() => {
     let alive = true;
+    const urlGame = new URLSearchParams(window.location.search).get('game') ?? 'pokemon';
+    setGame(urlGame);
+    // 홈 HOT 캐시는 같은 게임일 때만 재사용 — 다른 게임 요청이면 그 게임 목록을 새로 조회.
     const cached = loadHomeHotRows();
-    if (cached) {
+    if (cached && cached.game === urlGame) {
       setRows(cached.rows);
       return () => { alive = false; };
     }
     (async () => {
-      const j = await fetch('/api/snkrdunk/browse?page=1')
+      const kw = SNKRDUNK_GAME_KEYWORD[urlGame];
+      const url = kw ? `/api/snkrdunk/search?q=${encodeURIComponent(kw)}` : '/api/snkrdunk/browse?page=1';
+      const j = await fetch(url)
         .then((r) =>
           r.ok
             ? (r.json() as Promise<{
@@ -164,7 +173,11 @@ export function SnkrdunkLandingScreen() {
         <SectionTitle
           title="HOT 카드"
           right={
-            <Link href="/cards/snkrdunk/all" className="more" style={{ textDecoration: 'none' }}>
+            <Link
+              href={`/cards/snkrdunk/all${game !== 'pokemon' ? `?game=${game}` : ''}`}
+              className="more"
+              style={{ textDecoration: 'none' }}
+            >
               전체보기 →
             </Link>
           }

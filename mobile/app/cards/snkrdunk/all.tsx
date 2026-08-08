@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
 import { Chip } from '@/components/cv/Chip';
 import { ThumbImage } from '@/components/cv/ThumbImage';
 import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
-import { fetchSnkrdunkBrowse, type SnkrdunkSearchResult } from '@/services/snkrdunk';
+import { fetchSnkrdunkBrowse, searchSnkrdunkByQuery, type SnkrdunkSearchResult } from '@/services/snkrdunk';
 import { jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
+import { SNKRDUNK_GAME_KEYWORD } from '../../../../shared/gameKeyword';
 
 type SortKey = 'default' | 'priceDesc' | 'priceAsc' | 'name';
 
@@ -38,6 +39,9 @@ export default function SnkrdunkAll() {
   const { theme } = useTheme();
   // 클린·다크(플랫) — 픽셀 크롬(굵은 잉크 보더) 대신 소프트 구분선/보더리스 썸네일.
   const flat = isFlatTheme(theme);
+  // 홈/랜딩에서 선택한 게임(IP) — ?game= 으로 이어진다. 포켓몬은 브라우즈, 그 외는 키워드 검색.
+  const { game: gameParam } = useLocalSearchParams<{ game?: string }>();
+  const game = typeof gameParam === 'string' && gameParam ? gameParam : 'pokemon';
   const [items, setItems] = useState<SnkrdunkSearchResult[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -50,7 +54,8 @@ export default function SnkrdunkAll() {
     setLoading(true);
     setError(null);
     try {
-      const results = await fetchSnkrdunkBrowse(p);
+      const kw = SNKRDUNK_GAME_KEYWORD[game];
+      const results = kw ? await searchSnkrdunkByQuery(kw, p) : await fetchSnkrdunkBrowse(p);
       // 표시명 일→한 — 서버 공통 엔진 배치 선번역(캐시), 렌더는 jaToKoCached 조회.
       await jaToKoBatch(results.map((r) => r.name)).catch(() => undefined);
       const fresh = results.filter((r) => !seenRef.current.has(r.apparelId));
@@ -65,7 +70,7 @@ export default function SnkrdunkAll() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [game]);
 
   useEffect(() => {
     loadPage(1);

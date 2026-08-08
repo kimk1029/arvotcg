@@ -18,6 +18,7 @@ import { pickHomeBoxPacks } from '../../../shared/homeBoxPacks';
 type HomePackMeta = Pick<CardPackMeta, 'game' | 'apparelGroupId' | 'releasedAt' | 'shortName'>;
 import { headlineFromHistory, trendChangePct } from '@/lib/snkrdunkPrice';
 import { saveHomeHotRows } from '@/lib/homeHotCache';
+import { SNKRDUNK_GAME_KEYWORD } from '../../../shared/gameKeyword';
 import type { SnkrdunkRow } from '@/components/dashboard/DashboardScreen';
 import type { MvcAuctionItem } from '@/lib/navercafe';
 
@@ -172,12 +173,8 @@ function saveMeCache(me: DrawerSummary): void {
   }
 }
 
-// 설정에서 켠 게임별 인기 카드/박스 검색 키워드. 포켓몬은 서버 기본 rows 를 그대로 쓴다.
-const GAME_POPULAR_KEYWORD: Partial<Record<GameId, string>> = {
-  onepiece: 'ワンピースカード',
-  yugioh: '遊戯王',
-  sports: 'Topps',
-};
+// 게임별 인기 카드 검색 키워드 — 정본 /shared/gameKeyword (랜딩·전체시세와 공유).
+const GAME_POPULAR_KEYWORD = SNKRDUNK_GAME_KEYWORD;
 const BOX_NAME_RE = /ボックス|box|booster|ブースター|デッキビルド|スターター|拡張パック|ハイクラスパック|ポケモンセンターセット|シュリンク/i;
 const isBoxName = (name: string) => BOX_NAME_RE.test(name || '');
 
@@ -732,7 +729,8 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
       {/* HOT cards */}
       {hotRows.length > 0 && (
         <div style={{ padding: '0 0 24px' }}>
-          <SectionHead title="🔥 HOT 카드" href="/cards/snkrdunk" P={P} />
+          {/* 더보기에 선택 게임을 실어 보내 목록/전체보기도 같은 게임(IP)으로 이어진다. */}
+          <SectionHead title="🔥 HOT 카드" href={`/cards/snkrdunk?game=${homeGame}`} P={P} />
           <div ref={hotRef} style={hrowStyle}>
             {hotDisplay.map((c, i) => {
               const rank = (i % hotRows.length) + 1;
@@ -782,7 +780,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
       {/* box hot cards */}
       {boxRows.length > 0 && (
         <div style={{ padding: '0 0 26px' }}>
-          <SectionHead title="📦 인기 박스" href="/cards/packs" P={P} />
+          <SectionHead title="📦 인기 박스" href={`/cards/packs?game=${homeGame}`} P={P} />
           <div ref={boxScrollRef} style={hrowStyle}>
             {boxDisplay.map((b, i) => (
               <Link
@@ -814,7 +812,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
               </svg>
               실시간 급등 카드
             </div>
-            <Link href="/cards/snkrdunk" style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 13, fontWeight: 600, color: P.ink3, textDecoration: 'none' }}>
+            <Link href={`/cards/snkrdunk?game=${homeGame}`} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 13, fontWeight: 600, color: P.ink3, textDecoration: 'none' }}>
               더보기
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={P.ink3} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
                 <path d="m9 6 6 6-6 6" />
