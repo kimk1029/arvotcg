@@ -103,15 +103,39 @@ function rankBadgeColor(rank: number): string {
   return '#2B2B2B';
 }
 
-// 사이드 드로어 메뉴 — 디자인 'POKE30 App' drawerMenus. 앱 CleanHomeScreen 과 동일 구성.
-const DRAWER_MENUS: { emoji: string; label: string; href: string; badge?: string }[] = [
-  { emoji: '📊', label: '시세 확인', href: '/cards/packs' },
-  { emoji: '🔨', label: '경매', href: '/cards/mvc-auction', badge: 'LIVE' },
-  { emoji: '💬', label: '커뮤니티', href: '/feed' },
-  { emoji: '📈', label: '내 자산', href: '/my/portfolio' },
-  { emoji: '🃏', label: '카드 추가', href: '/cards/add' },
-  { emoji: '👤', label: '마이페이지', href: '/my' },
-  { emoji: '📢', label: '공지사항', href: '/my/notices' },
+// 사이드 드로어 메뉴 — 사이트맵형 섹션 그룹. 앱 CleanHomeScreen 과 동일 구성.
+interface DrawerItem {
+  emoji: string;
+  label: string;
+  href: string;
+  badge?: string;
+}
+const DRAWER_SECTIONS: { label: string | null; items: DrawerItem[] }[] = [
+  { label: null, items: [{ emoji: '🏠', label: '홈', href: '/' }] },
+  {
+    label: '카드',
+    items: [
+      { emoji: '🗂️', label: '내 컬렉션', href: '/my/cards' },
+      { emoji: '🃏', label: '카드 등록', href: '/cards/add' },
+      { emoji: '📦', label: '박스별 카드', href: '/cards/packs' },
+      { emoji: '📊', label: '시세 확인', href: '/cards/snkrdunk' },
+    ],
+  },
+  {
+    label: '소셜',
+    items: [
+      { emoji: '💬', label: '커뮤니티', href: '/feed' },
+      { emoji: '🔨', label: '경매', href: '/cards/mvc-auction', badge: 'LIVE' },
+      { emoji: '🏪', label: '카드샵', href: '/my/shop' },
+    ],
+  },
+  {
+    label: '내 정보',
+    items: [
+      { emoji: '📢', label: '공지사항', href: '/my/notices' },
+      { emoji: '👤', label: '마이페이지', href: '/my' },
+    ],
+  },
 ];
 
 /** 드로어 프로필 카드에 필요한 최소 요약 — /api/me/summary 응답의 부분집합. */
@@ -780,7 +804,8 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
         </div>
       )}
 
-      {/* side drawer — 디자인 'POKE30 App' 좌측 드로어. 오버레이 페이드 + 패널 슬라이드. */}
+      {/* side drawer — 사이트맵형 섹션 메뉴. 오버레이 페이드 + 패널 스프링 슬라이드(튀어나옴) +
+          항목 스태거. 픽셀 테마(pokemon·sports)는 직각/잉크 보더/하드섀도 크롬, 그 외는 소프트. */}
       <div
         onClick={() => setDrawerOpen(false)}
         style={{
@@ -793,11 +818,17 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
         aria-label="사이드 메뉴"
         style={{
           position: 'fixed', top: 0, bottom: 0, left: 0, width: 290, maxWidth: '82vw', zIndex: 1001,
-          background: P.bg, boxShadow: '12px 0 40px rgba(0,0,0,.18)', display: 'flex', flexDirection: 'column',
-          padding: '24px 0', transform: drawerOpen ? 'translateX(0)' : 'translateX(-104%)', transition: 'transform .28s ease',
+          background: P.bg, display: 'flex', flexDirection: 'column', padding: '24px 0',
+          borderRight: pixelTiles ? '4px solid var(--ink)' : 'none',
+          boxShadow: pixelTiles ? '8px 0 0 rgba(0,0,0,.3)' : '12px 0 40px rgba(0,0,0,.18)',
+          transform: drawerOpen ? 'translateX(0)' : 'translateX(-108%)',
+          // 열릴 땐 오버슈트 스프링(살짝 튀어나왔다 자리잡음), 닫힐 땐 빠른 이즈.
+          transition: drawerOpen
+            ? 'transform .38s cubic-bezier(0.34, 1.56, 0.64, 1)'
+            : 'transform .22s ease',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px 16px' }}>
           <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-.5px' }}>
             <span style={{ color: P.ink }}>ARVO</span>
             <span style={{ color: ACCENT30 }}>TCG</span>
@@ -817,9 +848,15 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
         <Link
           href={isLoggedIn ? '/my' : '/login'}
           onClick={() => setDrawerOpen(false)}
-          style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12, margin: '0 16px 14px', background: P.tileBg, borderRadius: 16, padding: 14 }}
+          style={{
+            textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12,
+            margin: '0 16px 12px', background: P.tileBg, padding: 14,
+            borderRadius: pixelTiles ? 0 : 16,
+            border: pixelTiles ? '3px solid var(--ink)' : 'none',
+            boxShadow: pixelTiles ? '4px 4px 0 var(--ink)' : 'none',
+          }}
         >
-          <div style={{ width: 44, height: 44, borderRadius: 14, background: 'linear-gradient(150deg,#3b5bdb,#1e2f8f)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flex: 'none' }}>💎</div>
+          <div style={{ width: 44, height: 44, borderRadius: pixelTiles ? 0 : 14, background: 'linear-gradient(150deg,#3b5bdb,#1e2f8f)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flex: 'none' }}>💎</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14.5, fontWeight: 800, color: P.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {isLoggedIn ? drawerMe?.user.name ?? '트레이너' : '로그인이 필요해요'}
@@ -835,25 +872,59 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
           </svg>
         </Link>
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px' }}>
-          {DRAWER_MENUS.map((dm) => (
-            <Link
-              key={dm.label}
-              href={dm.href}
-              onClick={() => setDrawerOpen(false)}
-              style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 13, padding: '13px 12px', borderRadius: 12 }}
-            >
-              <span style={{ fontSize: 19, width: 26, textAlign: 'center', flex: 'none' }}>{dm.emoji}</span>
-              <span style={{ flex: 1, fontSize: 14.5, fontWeight: 700, color: P.ink }}>{dm.label}</span>
-              {dm.badge && (
-                <span style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: RISE, padding: '2px 8px', borderRadius: 9, flex: 'none' }}>{dm.badge}</span>
-              )}
-            </Link>
-          ))}
+          {(() => {
+            let rowIdx = 0;
+            return DRAWER_SECTIONS.map((sec) => (
+              <div key={sec.label ?? 'root'}>
+                {sec.label && (
+                  <div
+                    style={{
+                      fontSize: 11, fontWeight: 800, color: P.ink3, letterSpacing: 1,
+                      padding: '14px 14px 6px',
+                      borderTop: `1px ${pixelTiles ? 'dashed var(--ink3)' : `solid ${P.line}`}`,
+                      marginTop: 8,
+                    }}
+                  >
+                    {sec.label}
+                  </div>
+                )}
+                {sec.items.map((dm) => {
+                  const i = rowIdx++;
+                  return (
+                    <Link
+                      key={dm.label}
+                      href={dm.href}
+                      onClick={() => setDrawerOpen(false)}
+                      style={{
+                        textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 13,
+                        padding: '12px 12px', borderRadius: pixelTiles ? 0 : 12,
+                        // 항목 스태거 — 패널이 튀어나온 뒤 위→아래 순서로 살짝 밀려 들어온다.
+                        opacity: drawerOpen ? 1 : 0,
+                        transform: drawerOpen ? 'none' : 'translateX(-14px)',
+                        transition: drawerOpen
+                          ? `opacity .28s ease ${70 + i * 30}ms, transform .32s cubic-bezier(0.34, 1.56, 0.64, 1) ${70 + i * 30}ms`
+                          : 'opacity .12s ease, transform .16s ease',
+                      }}
+                    >
+                      <span style={{ fontSize: 19, width: 26, textAlign: 'center', flex: 'none' }}>{dm.emoji}</span>
+                      <span style={{ flex: 1, fontSize: 14.5, fontWeight: 700, color: P.ink }}>{dm.label}</span>
+                      {dm.badge && (
+                        <span style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: RISE, padding: '2px 8px', borderRadius: pixelTiles ? 0 : 9, flex: 'none' }}>{dm.badge}</span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            ));
+          })()}
         </div>
         <Link
           href="/my/settings"
           onClick={() => setDrawerOpen(false)}
-          style={{ textDecoration: 'none', padding: '14px 24px 0', borderTop: `1px solid ${P.line}`, display: 'flex', alignItems: 'center', gap: 13 }}
+          style={{
+            textDecoration: 'none', padding: '14px 24px 0', display: 'flex', alignItems: 'center', gap: 13,
+            borderTop: pixelTiles ? '3px solid var(--ink)' : `1px solid ${P.line}`,
+          }}
         >
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={P.ink3} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3" />

@@ -142,16 +142,41 @@ function rankBadgeColor(rank: number): string {
   return '#2B2B2B';
 }
 
-// 사이드 드로어 메뉴 — 디자인 'POKE30 App' drawerMenus. 웹 CleanHome 과 동일 구성.
-const DRAWER_MENUS: { emoji: string; label: string; href: string; badge?: string }[] = [
-  { emoji: '📊', label: '시세 확인', href: '/cards/packs' },
-  { emoji: '🔨', label: '경매', href: '/cards/mvc-auction', badge: 'LIVE' },
-  { emoji: '💬', label: '커뮤니티', href: '/feed' },
-  { emoji: '📈', label: '내 자산', href: '/my/portfolio' },
-  { emoji: '🃏', label: '카드 추가', href: '/cards/add' },
-  { emoji: '👤', label: '마이페이지', href: '/my' },
-  { emoji: '📢', label: '공지사항', href: '/my/notices' },
+// 사이드 드로어 메뉴 — 사이트맵형 섹션 그룹. 웹 CleanHome 과 동일 구성.
+interface DrawerItem {
+  emoji: string;
+  label: string;
+  href: string;
+  badge?: string;
+}
+const DRAWER_SECTIONS: { label: string | null; items: DrawerItem[] }[] = [
+  { label: null, items: [{ emoji: '🏠', label: '홈', href: '/' }] },
+  {
+    label: '카드',
+    items: [
+      { emoji: '🗂️', label: '내 컬렉션', href: '/my/cards' },
+      { emoji: '🃏', label: '카드 등록', href: '/cards/add' },
+      { emoji: '📦', label: '박스별 카드', href: '/cards/packs' },
+      { emoji: '📊', label: '시세 확인', href: '/cards/snkrdunk' },
+    ],
+  },
+  {
+    label: '소셜',
+    items: [
+      { emoji: '💬', label: '커뮤니티', href: '/feed' },
+      { emoji: '🔨', label: '경매', href: '/cards/mvc-auction', badge: 'LIVE' },
+      { emoji: '🏪', label: '카드샵', href: '/my/shop' },
+    ],
+  },
+  {
+    label: '내 정보',
+    items: [
+      { emoji: '📢', label: '공지사항', href: '/my/notices' },
+      { emoji: '👤', label: '마이페이지', href: '/my' },
+    ],
+  },
 ];
+const DRAWER_ROW_COUNT = DRAWER_SECTIONS.reduce((n, s) => n + s.items.length, 0);
 
 /**
  * 카드 아트 — 웹 홈과 동일: 컨테이너/보더 없이 이미지만 떠 보이게(둥근 모서리 + 은은한 그림자).
@@ -307,16 +332,28 @@ export function CleanHomeScreen() {
   const fmtPrice = (jpy: number) => (jpy > 0 ? format(jpy) : '—');
 
   // 사이드 드로어 — 헤더 햄버거로 열고, 오버레이/X/메뉴 이동으로 닫는다.
-  // Modal 이라 탭바 위까지 덮는다(웹 fixed 오버레이 패리티). 오버레이 페이드 + 패널 슬라이드.
+  // Modal 이라 탭바 위까지 덮는다(웹 fixed 오버레이 패리티).
+  // 열릴 땐 패널 스프링(살짝 튀어나왔다 자리잡음) + 항목 위→아래 스태거, 닫힐 땐 빠른 이즈.
   const insets = useSafeAreaInsets();
   const [drawerVisible, setDrawerVisible] = useState(false);
   const drawerAnim = useRef(new Animated.Value(0)).current;
+  const drawerItemAnims = useRef(
+    Array.from({ length: DRAWER_ROW_COUNT }, () => new Animated.Value(0)),
+  ).current;
   const openDrawer = () => {
     setDrawerVisible(true);
-    Animated.timing(drawerAnim, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    drawerAnim.setValue(0);
+    drawerItemAnims.forEach((v) => v.setValue(0));
+    Animated.spring(drawerAnim, { toValue: 1, friction: 8, tension: 70, useNativeDriver: true }).start();
+    Animated.stagger(
+      32,
+      drawerItemAnims.map((v) =>
+        Animated.spring(v, { toValue: 1, friction: 7, tension: 90, useNativeDriver: true }),
+      ),
+    ).start();
   };
   const closeDrawer = () => {
-    Animated.timing(drawerAnim, { toValue: 0, duration: 200, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(({ finished }) => {
+    Animated.timing(drawerAnim, { toValue: 0, duration: 190, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(({ finished }) => {
       if (finished) setDrawerVisible(false);
     });
   };
@@ -846,17 +883,27 @@ export function CleanHomeScreen() {
         ) : null}
       </ScrollView>
 
-      {/* side drawer — 디자인 'POKE30 App' 좌측 드로어. 오버레이 페이드 + 패널 슬라이드. */}
+      {/* side drawer — 사이트맵형 섹션 메뉴. 패널 스프링 슬라이드(튀어나옴) + 항목 스태거.
+          픽셀 테마는 직각/잉크 보더 크롬, 플랫(clean·dark)은 소프트 (웹 CleanHome 동일). */}
       <Modal visible={drawerVisible} transparent animationType="none" statusBarTranslucent onRequestClose={closeDrawer}>
         <View style={{ flex: 1 }}>
-          <Animated.View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(22,22,26,.45)', opacity: drawerAnim }}>
+          <Animated.View
+            style={{
+              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(22,22,26,.45)',
+              // 스프링 오버슈트가 1을 넘어도 오버레이는 완전 불투명 이상으로 가지 않게 클램프.
+              opacity: drawerAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
+            }}
+          >
             <Pressable style={{ flex: 1 }} onPress={closeDrawer} accessibilityLabel="메뉴 닫기" />
           </Animated.View>
           <Animated.View
             style={{
               position: 'absolute', top: 0, bottom: 0, left: 0, width: 290, backgroundColor: P.bg,
               paddingTop: insets.top + 18, paddingBottom: insets.bottom + 24,
+              // 오버슈트를 그대로 살려 열릴 때 살짝 '튀어나오는' 느낌 (translateX > 0 순간 허용).
               transform: [{ translateX: drawerAnim.interpolate({ inputRange: [0, 1], outputRange: [-300, 0] }) }],
+              borderRightWidth: pixel ? 4 : 0,
+              borderRightColor: tc.ink,
               shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 20, shadowOffset: { width: 12, height: 0 }, elevation: 16,
             }}
           >
@@ -874,9 +921,15 @@ export function CleanHomeScreen() {
             {/* profile card — 로그인 시 닉네임·레벨(마이페이지와 동일 아바타 레시피), 미로그인 시 로그인 유도 */}
             <Pressable
               onPress={() => goFromDrawer(drawerAuthed ? '/my' : '/login')}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginBottom: 14, backgroundColor: P.tileBg, borderRadius: 16, padding: 14 }}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginBottom: 12,
+                backgroundColor: P.tileBg, padding: 14,
+                borderRadius: pixel ? 0 : 16,
+                borderWidth: pixel ? 3 : 0,
+                borderColor: tc.ink,
+              }}
             >
-              <View style={{ width: 44, height: 44, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 44, height: 44, borderRadius: pixel ? 0 : 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
                 <Svg width={44} height={44} style={{ position: 'absolute' }}>
                   <Defs>
                     <LinearGradient id="drawer-av" x1="0" y1="0" x2="0.6" y2="1">
@@ -901,25 +954,58 @@ export function CleanHomeScreen() {
               <Chevron size={15} color={P.chev} w={2.4} />
             </Pressable>
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12 }} showsVerticalScrollIndicator={false}>
-              {DRAWER_MENUS.map((dm) => (
-                <Pressable
-                  key={dm.label}
-                  onPress={() => goFromDrawer(dm.href)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 13, paddingHorizontal: 12, borderRadius: 12 }}
-                >
-                  <Text style={{ fontSize: 19, width: 26, textAlign: 'center' }}>{dm.emoji}</Text>
-                  <Text style={[ts(14.5, '700', P.ink), { flex: 1 }]}>{dm.label}</Text>
-                  {dm.badge ? (
-                    <View style={{ backgroundColor: RISE, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 9 }}>
-                      <Text style={ts(10.5, '800', '#fff')}>{dm.badge}</Text>
-                    </View>
-                  ) : null}
-                </Pressable>
-              ))}
+              {(() => {
+                let rowIdx = 0;
+                return DRAWER_SECTIONS.map((sec) => (
+                  <View key={sec.label ?? 'root'}>
+                    {sec.label ? (
+                      <View
+                        style={{
+                          marginTop: 8, paddingTop: 14, paddingHorizontal: 14, paddingBottom: 6,
+                          borderTopWidth: 1,
+                          borderTopColor: pixel ? tc.ink3 : P.line,
+                          borderStyle: pixel ? 'dashed' : 'solid',
+                        }}
+                      >
+                        <Text style={[ts(11, '800', P.ink3), { letterSpacing: 1 }]}>{sec.label}</Text>
+                      </View>
+                    ) : null}
+                    {sec.items.map((dm) => {
+                      const anim = drawerItemAnims[rowIdx++];
+                      return (
+                        <Animated.View
+                          key={dm.label}
+                          style={{
+                            opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
+                            transform: [{ translateX: anim.interpolate({ inputRange: [0, 1], outputRange: [-16, 0] }) }],
+                          }}
+                        >
+                          <Pressable
+                            onPress={() => goFromDrawer(dm.href)}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 12, paddingHorizontal: 12, borderRadius: pixel ? 0 : 12 }}
+                          >
+                            <Text style={{ fontSize: 19, width: 26, textAlign: 'center' }}>{dm.emoji}</Text>
+                            <Text style={[ts(14.5, '700', P.ink), { flex: 1 }]}>{dm.label}</Text>
+                            {dm.badge ? (
+                              <View style={{ backgroundColor: RISE, paddingVertical: 2, paddingHorizontal: 8, borderRadius: pixel ? 0 : 9 }}>
+                                <Text style={ts(10.5, '800', '#fff')}>{dm.badge}</Text>
+                              </View>
+                            ) : null}
+                          </Pressable>
+                        </Animated.View>
+                      );
+                    })}
+                  </View>
+                ));
+              })()}
             </ScrollView>
             <Pressable
               onPress={() => goFromDrawer('/settings')}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingTop: 14, paddingHorizontal: 24, borderTopWidth: 1, borderTopColor: P.line }}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 13, paddingTop: 14, paddingHorizontal: 24,
+                borderTopWidth: pixel ? 3 : 1,
+                borderTopColor: pixel ? tc.ink : P.line,
+              }}
             >
               <Svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke={P.ink3} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <Circle cx={12} cy={12} r={3} />
