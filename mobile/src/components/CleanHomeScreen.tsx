@@ -148,6 +148,8 @@ interface DrawerItem {
   label: string;
   href: string;
   badge?: string;
+  /** 배지 배경색 — 생략 시 빨강(RISE). */
+  badgeBg?: string;
 }
 const DRAWER_SECTIONS: { label: string | null; items: DrawerItem[] }[] = [
   { label: null, items: [{ emoji: '🏠', label: '홈', href: '/' }] },
@@ -164,8 +166,9 @@ const DRAWER_SECTIONS: { label: string | null; items: DrawerItem[] }[] = [
     label: '소셜',
     items: [
       { emoji: '💬', label: '커뮤니티', href: '/feed' },
-      { emoji: '🔨', label: '경매', href: '/cards/mvc-auction', badge: 'LIVE' },
-      { emoji: '🏪', label: '카드샵', href: '/my/shop' },
+      { emoji: '🔨', label: 'MVC 경매', href: '/cards/mvc-auction', badge: '베타', badgeBg: ACCENT30 },
+      // 카드샵 = 커뮤니티의 Shop 탭 화면 (딥링크 ?tab=shop).
+      { emoji: '🏪', label: '카드샵', href: '/feed?tab=shop' },
     ],
   },
   {
@@ -987,7 +990,7 @@ export function CleanHomeScreen() {
                             <Text style={{ fontSize: 19, width: 26, textAlign: 'center' }}>{dm.emoji}</Text>
                             <Text style={[ts(14.5, '700', P.ink), { flex: 1 }]}>{dm.label}</Text>
                             {dm.badge ? (
-                              <View style={{ backgroundColor: RISE, paddingVertical: 2, paddingHorizontal: 8, borderRadius: pixel ? 0 : 9 }}>
+                              <View style={{ backgroundColor: dm.badgeBg ?? RISE, paddingVertical: 2, paddingHorizontal: 8, borderRadius: pixel ? 0 : 9 }}>
                                 <Text style={ts(10.5, '800', '#fff')}>{dm.badge}</Text>
                               </View>
                             ) : null}

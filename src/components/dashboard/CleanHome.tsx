@@ -109,6 +109,8 @@ interface DrawerItem {
   label: string;
   href: string;
   badge?: string;
+  /** 배지 배경색 — 생략 시 빨강(RISE). */
+  badgeBg?: string;
 }
 const DRAWER_SECTIONS: { label: string | null; items: DrawerItem[] }[] = [
   { label: null, items: [{ emoji: '🏠', label: '홈', href: '/' }] },
@@ -125,8 +127,9 @@ const DRAWER_SECTIONS: { label: string | null; items: DrawerItem[] }[] = [
     label: '소셜',
     items: [
       { emoji: '💬', label: '커뮤니티', href: '/feed' },
-      { emoji: '🔨', label: '경매', href: '/cards/mvc-auction', badge: 'LIVE' },
-      { emoji: '🏪', label: '카드샵', href: '/my/shop' },
+      { emoji: '🔨', label: 'MVC 경매', href: '/cards/mvc-auction', badge: '베타', badgeBg: ACCENT30 },
+      // 카드샵 = 커뮤니티의 Shop 탭 화면 (딥링크 ?tab=shop).
+      { emoji: '🏪', label: '카드샵', href: '/feed?tab=shop' },
     ],
   },
   {
@@ -909,7 +912,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
                       <span style={{ fontSize: 19, width: 26, textAlign: 'center', flex: 'none' }}>{dm.emoji}</span>
                       <span style={{ flex: 1, fontSize: 14.5, fontWeight: 700, color: P.ink }}>{dm.label}</span>
                       {dm.badge && (
-                        <span style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: RISE, padding: '2px 8px', borderRadius: pixelTiles ? 0 : 9, flex: 'none' }}>{dm.badge}</span>
+                        <span style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: dm.badgeBg ?? RISE, padding: '2px 8px', borderRadius: pixelTiles ? 0 : 9, flex: 'none' }}>{dm.badge}</span>
                       )}
                     </Link>
                   );

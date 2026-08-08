@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ScrollView, View, Pressable, Text, TextInput, Animated, Easing, Image, LayoutAnimation, Modal, Platform, RefreshControl, UIManager } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme, useThemeColors } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import { PixelFrame } from '@/components/cv/PixelFrame';
@@ -252,6 +252,11 @@ export default function CommunityScreen() {
   const tagStyle = (label: string) => (isClean ? TAG_COLOR[label] ?? TAG_COLOR['자유'] : { fg: P.accentDk, bg: P.accentSoft });
 
   const [mode, setMode] = useState<'feed' | 'shop'>('feed');
+  // 드로어 '카드샵' 딥링크 — /feed?tab=shop 진입 시 Shop 모드로 시작 (웹 CommunityScreen 동일 규칙).
+  const { tab } = useLocalSearchParams<{ tab?: string }>();
+  useEffect(() => {
+    if (tab === 'shop') setMode('shop');
+  }, [tab]);
   const [region, setRegion] = useState('전체');
   const [cat, setCat] = useState<CatId>('전체');
   const [sort, setSort] = useState<SortId>('최신순');

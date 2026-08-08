@@ -189,6 +189,11 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
   const P = clean ? CLEAN_P : VAR_P;
 
   const [mode, setMode] = useState<'feed' | 'shop'>('feed');
+  // 드로어 '카드샵' 딥링크 — /feed?tab=shop 진입 시 Shop 모드로 시작.
+  // (하이드레이션 불일치를 피하려고 마운트 후 전환. 앱 feed.tsx 와 동일 규칙.)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('tab') === 'shop') setMode('shop');
+  }, []);
   const [region, setRegion] = useState('전체');
   const [cat, setCat] = useState<CatId>('전체');
   const [sort, setSort] = useState<SortId>('최신순');
