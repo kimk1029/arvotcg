@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { View, ScrollView, Pressable, Text, TextInput, Image, Animated, Easing } from 'react-native';
-import Svg, { Path, Circle } from 'react-native-svg';
+import { View, ScrollView, Pressable, Text, TextInput, Image, Animated, Easing, Modal } from 'react-native';
+import Svg, { Path, Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { HeroBanner, type HeroSlideData } from '@/components/HeroBanner';
 import { useCurrency } from '@/components/CurrencyProvider';
@@ -30,6 +31,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { uploadScanImage, CardScanError } from '@/services/cardScanApi';
 import { useToast } from '@/components/ToastProvider';
 import { api } from '@/lib/apiClient';
+import { fetchMySummary, type MySummary } from '@/lib/myApi';
+import { isAuthenticated } from '@/lib/session';
 import { trendChangePct } from '../../../shared/snkrdunkPrice';
 
 /**
@@ -150,6 +153,17 @@ function rankBadgeColor(rank: number): string {
   if (rank === 3) return ACCENT30;
   return '#2B2B2B';
 }
+
+// 사이드 드로어 메뉴 — 디자인 'POKE30 App' drawerMenus. 웹 CleanHome 과 동일 구성.
+const DRAWER_MENUS: { emoji: string; label: string; href: string; badge?: string }[] = [
+  { emoji: '📊', label: '시세 확인', href: '/cards/packs' },
+  { emoji: '🔨', label: '경매', href: '/cards/mvc-auction', badge: 'LIVE' },
+  { emoji: '💬', label: '커뮤니티', href: '/feed' },
+  { emoji: '📈', label: '내 자산', href: '/my/portfolio' },
+  { emoji: '🃏', label: '카드 추가', href: '/cards/add' },
+  { emoji: '👤', label: '마이페이지', href: '/my' },
+  { emoji: '📢', label: '공지사항', href: '/my/notices' },
+];
 
 /**
  * 카드 아트 — 웹 홈과 동일: 컨테이너/보더 없이 이미지만 떠 보이게(둥근 모서리 + 은은한 그림자).
@@ -304,6 +318,35 @@ export function CleanHomeScreen() {
   });
 
   const fmtPrice = (jpy: number) => (jpy > 0 ? format(jpy) : '—');
+
+  // 사이드 드로어 — 헤더 햄버거로 열고, 오버레이/X/메뉴 이동으로 닫는다.
+  // Modal 이라 탭바 위까지 덮는다(웹 fixed 오버레이 패리티). 오버레이 페이드 + 패널 슬라이드.
+  const insets = useSafeAreaInsets();
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const drawerAnim = useRef(new Animated.Value(0)).current;
+  const openDrawer = () => {
+    setDrawerVisible(true);
+    Animated.timing(drawerAnim, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  };
+  const closeDrawer = () => {
+    Animated.timing(drawerAnim, { toValue: 0, duration: 200, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(({ finished }) => {
+      if (finished) setDrawerVisible(false);
+    });
+  };
+  const goFromDrawer = (href: string) => {
+    setDrawerVisible(false);
+    drawerAnim.setValue(0);
+    router.push(href as never);
+  };
+  // 프로필 카드(닉네임·레벨) — 처음 열 때 1회 조회 (웹 CleanHome 동일).
+  const drawerAuthed = isAuthenticated();
+  const [drawerMe, setDrawerMe] = useState<MySummary | null>(null);
+  useEffect(() => {
+    if (!drawerVisible || drawerMe || !isAuthenticated()) return;
+    let alive = true;
+    fetchMySummary().then((s) => { if (alive) setDrawerMe(s); }).catch(() => {});
+    return () => { alive = false; };
+  }, [drawerVisible, drawerMe]);
 
   // 빠른스캔 두 타일의 공통 높이(측정된 최댓값). onTileLayout 이 되먹인다.
   const [tileH, setTileH] = useState(0);
@@ -585,10 +628,17 @@ export function CleanHomeScreen() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
         {/* header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 8 }}>
-          <Text style={ts(24, '900', P.ink)}>
-            <Text style={ts(24, '900', P.ink)}>ARVO</Text>
-            <Text style={ts(24, '900', ACCENT30)}>TCG</Text>
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Pressable onPress={openDrawer} hitSlop={8} accessibilityLabel="메뉴 열기">
+              <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={2.1} strokeLinecap="round">
+                <Path d="M3 6h18M3 12h18M3 18h12" />
+              </Svg>
+            </Pressable>
+            <Text style={ts(24, '900', P.ink)}>
+              <Text style={ts(24, '900', P.ink)}>ARVO</Text>
+              <Text style={ts(24, '900', ACCENT30)}>TCG</Text>
+            </Text>
+          </View>
           <Pressable onPress={() => router.push('/my/messages' as never)} hitSlop={8}>
             <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
               <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -783,6 +833,91 @@ export function CleanHomeScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      {/* side drawer — 디자인 'POKE30 App' 좌측 드로어. 오버레이 페이드 + 패널 슬라이드. */}
+      <Modal visible={drawerVisible} transparent animationType="none" statusBarTranslucent onRequestClose={closeDrawer}>
+        <View style={{ flex: 1 }}>
+          <Animated.View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(22,22,26,.45)', opacity: drawerAnim }}>
+            <Pressable style={{ flex: 1 }} onPress={closeDrawer} accessibilityLabel="메뉴 닫기" />
+          </Animated.View>
+          <Animated.View
+            style={{
+              position: 'absolute', top: 0, bottom: 0, left: 0, width: 290, backgroundColor: P.bg,
+              paddingTop: insets.top + 18, paddingBottom: insets.bottom + 24,
+              transform: [{ translateX: drawerAnim.interpolate({ inputRange: [0, 1], outputRange: [-300, 0] }) }],
+              shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 20, shadowOffset: { width: 12, height: 0 }, elevation: 16,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, paddingBottom: 18 }}>
+              <Text style={ts(22, '900', P.ink)}>
+                <Text style={ts(22, '900', P.ink)}>ARVO</Text>
+                <Text style={ts(22, '900', ACCENT30)}>TCG</Text>
+              </Text>
+              <Pressable onPress={closeDrawer} hitSlop={8} accessibilityLabel="메뉴 닫기" style={{ padding: 4 }}>
+                <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={2.2} strokeLinecap="round">
+                  <Path d="M18 6 6 18M6 6l12 12" />
+                </Svg>
+              </Pressable>
+            </View>
+            {/* profile card — 로그인 시 닉네임·레벨(마이페이지와 동일 아바타 레시피), 미로그인 시 로그인 유도 */}
+            <Pressable
+              onPress={() => goFromDrawer(drawerAuthed ? '/my' : '/login')}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginBottom: 14, backgroundColor: P.tileBg, borderRadius: 16, padding: 14 }}
+            >
+              <View style={{ width: 44, height: 44, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+                <Svg width={44} height={44} style={{ position: 'absolute' }}>
+                  <Defs>
+                    <LinearGradient id="drawer-av" x1="0" y1="0" x2="0.6" y2="1">
+                      <Stop offset="0" stopColor="#3b5bdb" />
+                      <Stop offset="1" stopColor="#1e2f8f" />
+                    </LinearGradient>
+                  </Defs>
+                  <Rect width={44} height={44} fill="url(#drawer-av)" />
+                </Svg>
+                <Text style={{ fontSize: 22 }}>💎</Text>
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={ts(14.5, '800', P.ink)}>
+                  {drawerAuthed ? drawerMe?.user.name ?? '트레이너' : '로그인이 필요해요'}
+                </Text>
+                <Text style={[ts(11.5, '600', P.ink3), { marginTop: 2 }]}>
+                  {drawerAuthed
+                    ? `LV.${drawerMe?.level.level ?? 1} · ${drawerMe?.level.title ?? '트레이너'}`
+                    : '로그인하고 시작하기'}
+                </Text>
+              </View>
+              <Chevron size={15} color={P.chev} w={2.4} />
+            </Pressable>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12 }} showsVerticalScrollIndicator={false}>
+              {DRAWER_MENUS.map((dm) => (
+                <Pressable
+                  key={dm.label}
+                  onPress={() => goFromDrawer(dm.href)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 13, paddingHorizontal: 12, borderRadius: 12 }}
+                >
+                  <Text style={{ fontSize: 19, width: 26, textAlign: 'center' }}>{dm.emoji}</Text>
+                  <Text style={[ts(14.5, '700', P.ink), { flex: 1 }]}>{dm.label}</Text>
+                  {dm.badge ? (
+                    <View style={{ backgroundColor: RISE, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 9 }}>
+                      <Text style={ts(10.5, '800', '#fff')}>{dm.badge}</Text>
+                    </View>
+                  ) : null}
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Pressable
+              onPress={() => goFromDrawer('/settings')}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingTop: 14, paddingHorizontal: 24, borderTopWidth: 1, borderTopColor: P.line }}
+            >
+              <Svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke={P.ink3} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <Circle cx={12} cy={12} r={3} />
+                <Path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+              </Svg>
+              <Text style={ts(13, '700', P.ink3)}>설정</Text>
+            </Pressable>
+          </Animated.View>
+        </View>
+      </Modal>
     </View>
   );
 }

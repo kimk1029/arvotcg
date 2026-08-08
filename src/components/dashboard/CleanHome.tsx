@@ -102,6 +102,23 @@ function rankBadgeColor(rank: number): string {
   return '#2B2B2B';
 }
 
+// 사이드 드로어 메뉴 — 디자인 'POKE30 App' drawerMenus. 앱 CleanHomeScreen 과 동일 구성.
+const DRAWER_MENUS: { emoji: string; label: string; href: string; badge?: string }[] = [
+  { emoji: '📊', label: '시세 확인', href: '/cards/packs' },
+  { emoji: '🔨', label: '경매', href: '/cards/mvc-auction', badge: 'LIVE' },
+  { emoji: '💬', label: '커뮤니티', href: '/feed' },
+  { emoji: '📈', label: '내 자산', href: '/my/portfolio' },
+  { emoji: '🃏', label: '카드 추가', href: '/cards/add' },
+  { emoji: '👤', label: '마이페이지', href: '/my' },
+  { emoji: '📢', label: '공지사항', href: '/my/notices' },
+];
+
+/** 드로어 프로필 카드에 필요한 최소 요약 — /api/me/summary 응답의 부분집합. */
+interface DrawerSummary {
+  user: { name: string | null };
+  level: { level: number; title: string };
+}
+
 // 설정에서 켠 게임별 인기 카드/박스 검색 키워드. 포켓몬은 서버 기본 rows 를 그대로 쓴다.
 const GAME_POPULAR_KEYWORD: Partial<Record<GameId, string>> = {
   onepiece: 'ワンピースカード',
@@ -274,7 +291,7 @@ function CardArt({
 
 // snkrdunkBoxRows prop 은 레거시 DashboardScreen 경로용으로 Props 에만 남음 —
 // CleanHome 의 인기 박스는 앱과 동일하게 클라이언트에서 직접 선별·조회한다.
-export function CleanHome({ heroBanners, snkrdunkRows = [] }: Props) {
+export function CleanHome({ heroBanners, isLoggedIn, snkrdunkRows = [] }: Props) {
   const { format } = useCurrency();
   const { count: unread } = useUnread();
   const { theme } = useTheme();
@@ -286,6 +303,27 @@ export function CleanHome({ heroBanners, snkrdunkRows = [] }: Props) {
   const pixel = pixelTiles;
 
   const fmtPrice = (jpy: number) => (jpy > 0 ? format(jpy) : '—');
+
+  // 사이드 드로어 — 헤더 햄버거로 열고, 오버레이/X/메뉴 이동으로 닫는다.
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  // 열려 있는 동안 뒤 페이지 스크롤 잠금.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [drawerOpen]);
+  // 프로필 카드(닉네임·레벨) — 처음 열 때 1회 조회.
+  const [drawerMe, setDrawerMe] = useState<DrawerSummary | null>(null);
+  useEffect(() => {
+    if (!drawerOpen || !isLoggedIn || drawerMe) return;
+    let alive = true;
+    fetch('/api/me/summary')
+      .then((r) => (r.ok ? (r.json() as Promise<DrawerSummary>) : null))
+      .then((j) => { if (alive && j?.user) setDrawerMe(j); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [drawerOpen, isLoggedIn, drawerMe]);
 
   // 설정에서 켠 게임들의 인기 카드/박스를 조회해 섞는다 (테마와 무관).
   // 포켓몬은 서버 기본 rows 사용, 나머지 게임은 키워드 검색으로 조회.
@@ -496,9 +534,21 @@ export function CleanHome({ heroBanners, snkrdunkRows = [] }: Props) {
     <div className="pagebg" style={{ fontFamily: 'var(--f1)', background: P.bg }}>
       {/* header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px 8px' }}>
-        <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-.5px' }}>
-          <span style={{ color: P.ink }}>ARVO</span>
-          <span style={{ color: ACCENT30 }}>TCG</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            type="button"
+            aria-label="메뉴 열기"
+            onClick={() => setDrawerOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', margin: -6, padding: 6, background: 'none', border: 'none' }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="2.1" strokeLinecap="round">
+              <path d="M3 6h18M3 12h18M3 18h12" />
+            </svg>
+          </button>
+          <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-.5px' }}>
+            <span style={{ color: P.ink }}>ARVO</span>
+            <span style={{ color: ACCENT30 }}>TCG</span>
+          </div>
         </div>
         <Link href="/my/messages" aria-label="알림" style={{ position: 'relative', display: 'block', color: P.ink }}>
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -670,6 +720,89 @@ export function CleanHome({ heroBanners, snkrdunkRows = [] }: Props) {
           })}
         </div>
       )}
+
+      {/* side drawer — 디자인 'POKE30 App' 좌측 드로어. 오버레이 페이드 + 패널 슬라이드. */}
+      <div
+        onClick={() => setDrawerOpen(false)}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(22,22,26,.45)',
+          opacity: drawerOpen ? 1 : 0, pointerEvents: drawerOpen ? 'auto' : 'none', transition: 'opacity .25s ease',
+        }}
+      />
+      <div
+        role="dialog"
+        aria-label="사이드 메뉴"
+        style={{
+          position: 'fixed', top: 0, bottom: 0, left: 0, width: 290, maxWidth: '82vw', zIndex: 1001,
+          background: P.bg, boxShadow: '12px 0 40px rgba(0,0,0,.18)', display: 'flex', flexDirection: 'column',
+          padding: '24px 0', transform: drawerOpen ? 'translateX(0)' : 'translateX(-104%)', transition: 'transform .28s ease',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px 18px' }}>
+          <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-.5px' }}>
+            <span style={{ color: P.ink }}>ARVO</span>
+            <span style={{ color: ACCENT30 }}>TCG</span>
+          </div>
+          <button
+            type="button"
+            aria-label="메뉴 닫기"
+            onClick={() => setDrawerOpen(false)}
+            style={{ cursor: 'pointer', padding: 4, background: 'none', border: 'none', display: 'flex' }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="2.2" strokeLinecap="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        {/* profile card — 로그인 시 닉네임·레벨(마이페이지와 동일 아바타 레시피), 미로그인 시 로그인 유도 */}
+        <Link
+          href={isLoggedIn ? '/my' : '/login'}
+          onClick={() => setDrawerOpen(false)}
+          style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12, margin: '0 16px 14px', background: P.tileBg, borderRadius: 16, padding: 14 }}
+        >
+          <div style={{ width: 44, height: 44, borderRadius: 14, background: 'linear-gradient(150deg,#3b5bdb,#1e2f8f)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flex: 'none' }}>💎</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14.5, fontWeight: 800, color: P.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {isLoggedIn ? drawerMe?.user.name ?? '트레이너' : '로그인이 필요해요'}
+            </div>
+            <div style={{ fontSize: 11.5, color: P.ink3, fontWeight: 600, marginTop: 2 }}>
+              {isLoggedIn
+                ? `LV.${drawerMe?.level.level ?? 1} · ${drawerMe?.level.title ?? '트레이너'}`
+                : '로그인하고 시작하기'}
+            </div>
+          </div>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={P.chev} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}>
+            <path d="m9 6 6 6-6 6" />
+          </svg>
+        </Link>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px' }}>
+          {DRAWER_MENUS.map((dm) => (
+            <Link
+              key={dm.label}
+              href={dm.href}
+              onClick={() => setDrawerOpen(false)}
+              style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 13, padding: '13px 12px', borderRadius: 12 }}
+            >
+              <span style={{ fontSize: 19, width: 26, textAlign: 'center', flex: 'none' }}>{dm.emoji}</span>
+              <span style={{ flex: 1, fontSize: 14.5, fontWeight: 700, color: P.ink }}>{dm.label}</span>
+              {dm.badge && (
+                <span style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: RISE, padding: '2px 8px', borderRadius: 9, flex: 'none' }}>{dm.badge}</span>
+              )}
+            </Link>
+          ))}
+        </div>
+        <Link
+          href="/my/settings"
+          onClick={() => setDrawerOpen(false)}
+          style={{ textDecoration: 'none', padding: '14px 24px 0', borderTop: `1px solid ${P.line}`, display: 'flex', alignItems: 'center', gap: 13 }}
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={P.ink3} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+          </svg>
+          <span style={{ fontSize: 13, fontWeight: 700, color: P.ink3 }}>설정</span>
+        </Link>
+      </div>
 
       <div className="bggap" />
     </div>
