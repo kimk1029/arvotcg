@@ -143,8 +143,33 @@ const DRAWER_SECTIONS: { label: string | null; items: DrawerItem[] }[] = [
 
 /** 드로어 프로필 카드에 필요한 최소 요약 — /api/me/summary 응답의 부분집합. */
 interface DrawerSummary {
-  user: { name: string | null };
+  user: { name: string | null; email: string | null };
   level: { level: number; title: string };
+}
+
+// 프로필 요약 세션 캐시 — /api/me/summary 가 무거워(집계 수 초) 드로어를 열 때마다
+// 기다리지 않게, 홈 진입 시 선조회한 결과를 탭 세션 동안 재사용한다.
+const ME_CACHE_KEY = 'pf30:homeMe';
+const ME_TTL_MS = 5 * 60_000;
+
+function loadMeCache(): DrawerSummary | null {
+  try {
+    const raw = window.sessionStorage.getItem(ME_CACHE_KEY);
+    if (!raw) return null;
+    const j = JSON.parse(raw) as { me: DrawerSummary; at: number };
+    if (!j?.me?.user || Date.now() - j.at > ME_TTL_MS) return null;
+    return j.me;
+  } catch {
+    return null;
+  }
+}
+
+function saveMeCache(me: DrawerSummary): void {
+  try {
+    window.sessionStorage.setItem(ME_CACHE_KEY, JSON.stringify({ me, at: Date.now() }));
+  } catch {
+    // ignore
+  }
 }
 
 // 설정에서 켠 게임별 인기 카드/박스 검색 키워드. 포켓몬은 서버 기본 rows 를 그대로 쓴다.
@@ -416,17 +441,31 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
   }, [drawerOpen]);
-  // 프로필 카드(닉네임·레벨) — 처음 열 때 1회 조회.
+  // 프로필 카드(닉네임·레벨·이메일) — 홈 진입 시 선조회해 드로어를 열 때 즉시 뜨게 한다.
+  // 세션 캐시(5분)로 페이지 이동 후 재진입도 즉시. 로그인 직후를 위해 드로어 오픈 시 재시도.
   const [drawerMe, setDrawerMe] = useState<DrawerSummary | null>(null);
   useEffect(() => {
-    if (!drawerOpen || !isLoggedIn || drawerMe) return;
+    if (!isLoggedIn || drawerMe) return;
+    const cached = loadMeCache();
+    if (cached) {
+      setDrawerMe(cached);
+      return;
+    }
     let alive = true;
     fetch('/api/me/summary')
       .then((r) => (r.ok ? (r.json() as Promise<DrawerSummary>) : null))
-      .then((j) => { if (alive && j?.user) setDrawerMe(j); })
+      .then((j) => {
+        if (!alive || !j?.user) return;
+        const me: DrawerSummary = {
+          user: { name: j.user.name, email: j.user.email },
+          level: { level: j.level.level, title: j.level.title },
+        };
+        setDrawerMe(me);
+        saveMeCache(me);
+      })
       .catch(() => {});
     return () => { alive = false; };
-  }, [drawerOpen, isLoggedIn, drawerMe]);
+  }, [isLoggedIn, drawerMe, drawerOpen]);
 
   // 홈 노출 게임 — 단일 선택(라디오). 기본 포켓몬, 다른 칩을 누르면 그 게임만 노출.
   // enabledGames(설정)는 어떤 칩을 보여줄지에만 쓰인다.
@@ -862,13 +901,24 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
           <div style={{ width: 44, height: 44, borderRadius: pixelTiles ? 0 : 14, background: 'linear-gradient(150deg,#3b5bdb,#1e2f8f)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flex: 'none' }}>💎</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14.5, fontWeight: 800, color: P.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {isLoggedIn ? drawerMe?.user.name ?? '트레이너' : '로그인이 필요해요'}
+              {!isLoggedIn ? '로그인이 필요해요' : drawerMe ? drawerMe.user.name ?? '트레이너' : '프로필 불러오는 중…'}
             </div>
-            <div style={{ fontSize: 11.5, color: P.ink3, fontWeight: 600, marginTop: 2 }}>
-              {isLoggedIn
-                ? `LV.${drawerMe?.level.level ?? 1} · ${drawerMe?.level.title ?? '트레이너'}`
-                : '로그인하고 시작하기'}
-            </div>
+            {isLoggedIn && drawerMe ? (
+              <>
+                <div style={{ fontSize: 11.5, color: P.ink3, fontWeight: 600, marginTop: 2 }}>
+                  LV.{drawerMe.level.level} · {drawerMe.level.title}
+                </div>
+                {drawerMe.user.email ? (
+                  <div style={{ fontSize: 10.5, color: P.ink3, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {drawerMe.user.email}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div style={{ fontSize: 11.5, color: P.ink3, fontWeight: 600, marginTop: 2 }}>
+                {isLoggedIn ? '잠시만요…' : '로그인하고 시작하기'}
+              </div>
+            )}
           </div>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={P.chev} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}>
             <path d="m9 6 6 6-6 6" />

@@ -181,6 +181,11 @@ const DRAWER_SECTIONS: { label: string | null; items: DrawerItem[] }[] = [
 ];
 const DRAWER_ROW_COUNT = DRAWER_SECTIONS.reduce((n, s) => n + s.items.length, 0);
 
+// 프로필 요약 메모리 캐시 — /api/me/summary 가 무거워(집계 수 초) 드로어를 열 때마다
+// 기다리지 않게, 홈 진입 시 선조회한 결과를 앱 세션 동안 재사용한다 (웹 세션캐시 페어).
+const ME_TTL_MS = 5 * 60_000;
+let meCache: { me: MySummary; at: number } | null = null;
+
 /**
  * 카드 아트 — 웹 홈과 동일: 컨테이너/보더 없이 이미지만 떠 보이게(둥근 모서리 + 은은한 그림자).
  * 모든 테마 공통(색/폰트만 테마별로 다르고 아트 크롬은 동일).
@@ -365,15 +370,24 @@ export function CleanHomeScreen() {
     drawerAnim.setValue(0);
     router.push(href as never);
   };
-  // 프로필 카드(닉네임·레벨) — 처음 열 때 1회 조회 (웹 CleanHome 동일).
+  // 프로필 카드(닉네임·레벨·이메일) — 홈 진입 시 선조회해 드로어를 열 때 즉시 뜨게 한다.
+  // 캐시(5분)로 홈 재진입도 즉시. 로그인 직후를 위해 드로어 오픈 시 재시도 (웹 CleanHome 동일).
   const drawerAuthed = isAuthenticated();
-  const [drawerMe, setDrawerMe] = useState<MySummary | null>(null);
+  const [drawerMe, setDrawerMe] = useState<MySummary | null>(() =>
+    meCache && Date.now() - meCache.at < ME_TTL_MS ? meCache.me : null,
+  );
   useEffect(() => {
-    if (!drawerVisible || drawerMe || !isAuthenticated()) return;
+    if (drawerMe || !isAuthenticated()) return;
     let alive = true;
-    fetchMySummary().then((s) => { if (alive) setDrawerMe(s); }).catch(() => {});
+    fetchMySummary()
+      .then((s) => {
+        if (!alive) return;
+        meCache = { me: s, at: Date.now() };
+        setDrawerMe(s);
+      })
+      .catch(() => {});
     return () => { alive = false; };
-  }, [drawerVisible, drawerMe]);
+  }, [drawerMe, drawerVisible]);
 
   // 빠른스캔 두 타일의 공통 높이(측정된 최댓값). onTileLayout 이 되먹인다.
   const [tileH, setTileH] = useState(0);
@@ -946,13 +960,24 @@ export function CleanHomeScreen() {
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text numberOfLines={1} style={ts(14.5, '800', P.ink)}>
-                  {drawerAuthed ? drawerMe?.user.name ?? '트레이너' : '로그인이 필요해요'}
+                  {!drawerAuthed ? '로그인이 필요해요' : drawerMe ? drawerMe.user.name ?? '트레이너' : '프로필 불러오는 중…'}
                 </Text>
-                <Text style={[ts(11.5, '600', P.ink3), { marginTop: 2 }]}>
-                  {drawerAuthed
-                    ? `LV.${drawerMe?.level.level ?? 1} · ${drawerMe?.level.title ?? '트레이너'}`
-                    : '로그인하고 시작하기'}
-                </Text>
+                {drawerAuthed && drawerMe ? (
+                  <>
+                    <Text style={[ts(11.5, '600', P.ink3), { marginTop: 2 }]}>
+                      LV.{drawerMe.level.level} · {drawerMe.level.title}
+                    </Text>
+                    {drawerMe.user.email ? (
+                      <Text numberOfLines={1} style={[ts(10.5, '400', P.ink3), { marginTop: 2 }]}>
+                        {drawerMe.user.email}
+                      </Text>
+                    ) : null}
+                  </>
+                ) : (
+                  <Text style={[ts(11.5, '600', P.ink3), { marginTop: 2 }]}>
+                    {drawerAuthed ? '잠시만요…' : '로그인하고 시작하기'}
+                  </Text>
+                )}
               </View>
               <Chevron size={15} color={P.chev} w={2.4} />
             </Pressable>
