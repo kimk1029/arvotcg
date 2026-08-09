@@ -1,5 +1,5 @@
 /**
- * 시세 비교 — SNKRDUNK(엔화) vs KREAM(원화)를 원화로 환산해 나란히 보여준다.
+ * 시세 비교 — SNKRDUNK(엔화) vs KREAM(원화)를 통화 설정(엔/원)에 맞춰 나란히 보여준다.
  * 웹 src/components/cards/KreamCompare.tsx 의 모바일 포팅.
  * KREAM 은 코드(세트코드+번호) 우선 검색 → 빈결과면 카드명 폴백(웹 동일).
  * 코드 결과는 pickKreamByCode, 이름 결과는 bestKreamMatch 로 선별.
@@ -21,11 +21,6 @@ import {
 
 type KreamItem = KreamItemLite; // { id, name, price(KRW), imageUrl, productUrl }
 
-function fmtKrw(v: number): string {
-  if (!v || v <= 0) return '—';
-  return `₩${Math.round(v).toLocaleString('ko-KR')}`;
-}
-
 export function KreamCompare({
   query,
   snkrPriceJpy,
@@ -41,7 +36,9 @@ export function KreamCompare({
 }) {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
-  const { rate } = useCurrency();
+  const { rate, mode, format } = useCurrency();
+  // 비교 계산은 JPY 단일 기준 — 표시만 통화 설정(format)에 따른다. KREAM price 는 원화 원본.
+  const fmt = (jpy: number) => (!jpy || jpy <= 0 ? '—' : format(jpy));
   const [state, setState] = useState<'loading' | 'done'>('loading');
   const [items, setItems] = useState<KreamItem[]>([]);
   // 코드(setCode+번호) 검색으로 받은 결과인지 — 선별 로직이 갈린다(웹 동일).
@@ -94,16 +91,17 @@ export function KreamCompare({
   );
 
   const searchUrl = `https://kream.co.kr/search?keyword=${encodeURIComponent(searchKw || query)}`;
-  const snkrKrw = snkrPriceJpy > 0 ? snkrPriceJpy * rate : 0;
-  const kreamKrw = item?.price ?? 0;
+  const snkrJpy = snkrPriceJpy > 0 ? snkrPriceJpy : 0;
+  // KREAM price 는 원화 → 환율로 엔화 환산해 동일 기준으로 비교.
+  const kreamJpy = item?.price && rate > 0 ? item.price / rate : 0;
 
   const cmp = useMemo(() => {
-    if (snkrKrw <= 0 || kreamKrw <= 0) return null;
-    const diff = kreamKrw - snkrKrw;
+    if (snkrJpy <= 0 || kreamJpy <= 0) return null;
+    const diff = kreamJpy - snkrJpy;
     const cheaper = diff > 0 ? 'snkr' : diff < 0 ? 'kream' : 'same';
-    const pct = (Math.abs(diff) / Math.min(snkrKrw, kreamKrw)) * 100;
+    const pct = (Math.abs(diff) / Math.min(snkrJpy, kreamJpy)) * 100;
     return { diff, cheaper, pct };
-  }, [snkrKrw, kreamKrw]);
+  }, [snkrJpy, kreamJpy]);
 
   return (
     <>
@@ -122,14 +120,14 @@ export function KreamCompare({
               </View>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: 10 }}>
-              <Col tc={tc} txt={txt} name="SNKRDUNK" sub="RAW 최근거래가 · 엔화환산" price={fmtKrw(snkrKrw)} highlight={cmp?.cheaper === 'snkr'} />
+              <Col tc={tc} txt={txt} name="SNKRDUNK" sub={mode === 'krw' ? 'RAW 최근거래가 · 원화환산' : 'RAW 최근거래가'} price={fmt(snkrJpy)} highlight={cmp?.cheaper === 'snkr'} />
               <View style={{ width: 1, backgroundColor: tc.pap3 }} />
               <Col
                 tc={tc}
                 txt={txt}
                 name="크림 KREAM"
-                sub="RAW 즉시판매가"
-                price={state === 'loading' ? '조회 중…' : fmtKrw(kreamKrw)}
+                sub={mode === 'jpy' ? 'RAW 즉시판매가 · 엔화환산' : 'RAW 즉시판매가'}
+                price={state === 'loading' ? '조회 중…' : fmt(kreamJpy)}
                 highlight={cmp?.cheaper === 'kream'}
                 onPress={item?.productUrl ? () => Linking.openURL(item.productUrl).catch(() => {}) : undefined}
               />
@@ -147,7 +145,7 @@ export function KreamCompare({
                       {cmp.cheaper === 'snkr' ? 'SNKRDUNK' : '크림'}
                     </PixelText>
                     {' 이 '}
-                    <PixelText variant={txt} size={11} weight="bold" color={tc.red}>{fmtKrw(Math.abs(cmp.diff))}</PixelText>
+                    <PixelText variant={txt} size={11} weight="bold" color={tc.red}>{fmt(Math.abs(cmp.diff))}</PixelText>
                     {` 저렴 (${cmp.pct.toFixed(1)}%)`}
                   </PixelText>
                 )}

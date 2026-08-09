@@ -669,19 +669,7 @@ export function CleanHomeScreen() {
           </Pressable>
         );
       })}
-      {/* 더보기 → 설정: 유희왕·스포츠 등 다른 카드도 켜고 끈다. */}
-      <Pressable
-        onPress={() => router.push('/settings' as never)}
-        hitSlop={4}
-        style={{
-          flexDirection: 'row', alignItems: 'center', gap: 3,
-          paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
-          backgroundColor: P.tileBg, borderWidth: 1, borderColor: P.line,
-        }}
-      >
-        <Text style={ts(13, '700', P.ink2)}>더보기</Text>
-        <Chevron size={13} color={P.ink3} w={2.6} />
-      </Pressable>
+      {/* '더보기' 칩(→설정)은 2026-08 요청으로 임시 제거 — 게임 on/off 는 설정에서 계속 가능. */}
     </ScrollView>
   );
 

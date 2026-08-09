@@ -25,6 +25,9 @@ import { searchSnkrdunkByQuery } from '@/services/snkrdunk';
 import { koToJaServer, jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
 import { createMyCard } from '@/lib/myApi';
 import { api } from '@/lib/apiClient';
+import { useNavPrefs } from '@/components/NavPrefsProvider';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { parseCardStatics } from '../../shared/cardStatics';
 
 /** "¥2,000" → 2000. 못 읽으면 0. */
 function parseYen(t?: string): number {
@@ -59,8 +62,9 @@ const MAN_RARITY_RANK: Record<string, number> = {
   RR: 10,
 };
 
-/** 카드명에서 레어도 토큰 추출. 프로모(프로모/PROMO/세트코드 -P)는 PROMO 로. */
+/** 레어도 — 파싱된 rarityToken 우선, 없으면 카드명 토큰. 프로모(프로모/PROMO/세트코드 -P)는 PROMO 로. */
 function manRarityOf(c: CardItem): string | null {
+  if (c.rarityToken) return c.rarityToken.toUpperCase();
   const raw = c.name ?? '';
   const up = `${raw} ${c.set ?? ''}`.toUpperCase();
   if (/프로모|PROMO/.test(raw) || /-P[\s\]\)]|-P$/.test(up)) return 'PROMO';
@@ -116,6 +120,8 @@ function ScanScreenInner() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
   const { theme } = useTheme();
+  const { navStyle } = useNavPrefs();
+  const insets = useSafeAreaInsets();
   // 직접입력 팔레트 — 웹 ManualAddForm CLEAN_P/VAR_P 미러 (클린=프로토타입 고정색, 그 외=테마 토큰).
   const mclean = theme === 'clean';
   const MP = {
@@ -387,10 +393,14 @@ function ScanScreenInner() {
     const koNames = await jaToKoBatch(matched.map((r) => r.name)).catch(() => new Map<string, string>());
     const items = matched.map((row) => {
       const price = parseYen(row.priceText);
+      // 일본어 원문에서 세트코드/카드번호/레어도 파싱 (포켓몬·원피스 공통, 웹 동일).
+      const parsed = parseCardStatics(row.name);
       return buildManualCard({
         name: koNames.get(row.name) || jaToKoCached(row.name) || row.name,
-        set: manSet || '-',
-        num: manNum || '-',
+        nameJa: row.name,
+        set: manSet || parsed.setCode || '-',
+        num: manNum || parsed.cardNumber || '-',
+        rarityToken: parsed.rarity ?? undefined,
         price,
         priceSingle: price > 0 ? price : undefined,
         priceCurrency: 'JPY',
@@ -598,9 +608,10 @@ function ScanScreenInner() {
           mode === 'manual' ? (
             <Pressable
               onPress={() => setMode('choose')}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: MP.btnBg, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 }}
+              hitSlop={6}
+              style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: MP.btnBg, alignItems: 'center', justifyContent: 'center' }}
             >
-              <PixelText variant="ko" size={11} weight="bold" color={MP.btnFg}>📷 스캔</PixelText>
+              <PixelText variant="ko" size={14} color={MP.btnFg}>📷</PixelText>
             </Pressable>
           ) : undefined
         }
@@ -958,6 +969,9 @@ function ScanScreenInner() {
                       </View>
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <PixelText variant="ko" size={13} weight="bold" color={MP.ink} numberOfLines={1}>{displayCardName(c.name)}</PixelText>
+                        {c.nameJa && c.nameJa !== c.name ? (
+                          <PixelText variant="ko" size={10} color={MP.ink3} numberOfLines={1} style={{ marginTop: 2 }}>{c.nameJa}</PixelText>
+                        ) : null}
                         {sub ? (
                           <PixelText variant="ko" size={11} color={MP.ink3} numberOfLines={1} style={{ marginTop: 3 }}>{sub}</PixelText>
                         ) : null}
@@ -1300,6 +1314,10 @@ function ScanScreenInner() {
             borderTopWidth: 1,
             borderTopColor: MP.line,
             backgroundColor: MP.pageBg,
+            borderBottomWidth: navStyle === 'floating' ? 1 : 0,
+            borderBottomColor: MP.line,
+            // 플로팅 탭바(마진 12 + 바 ≈58 + 제스처 인셋)가 하단을 덮으므로 그 위로 띄운다.
+            marginBottom: navStyle === 'floating' ? insets.bottom + 82 : 0,
           }}
         >
           <View style={{ maxWidth: 120 }}>

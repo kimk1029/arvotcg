@@ -14,6 +14,10 @@ export interface RegisterCardInput {
   cardNumber?: string | null;
   /** 표시용 이름 (한국어 우선). */
   name?: string | null;
+  /** 일본어 원문 이름 — 검색결과 상세표시용. */
+  nameJa?: string | null;
+  /** 레어도 토큰 (SAR/SR/OP 리더 등) — 이름 파싱(parseCardStatics) 결과. */
+  rarity?: string | null;
   /** 표시/저장용 카드 이미지. snkrdunkApparelId 가 있으면 서버가 우선 사용. */
   imageUrl?: string | null;
   snkrdunkApparelId?: number | null;

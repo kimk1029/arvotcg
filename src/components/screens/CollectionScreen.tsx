@@ -8,6 +8,7 @@ import { GradeMark } from '@/components/cards/GradeMark';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { usePriceMode } from '@/components/PriceModeProvider';
 import { Panel } from '@/components/ui/Panel';
+import { parseCardStatics } from '../../../shared/cardStatics';
 
 interface HistPoint {
   date: string;
@@ -47,6 +48,8 @@ interface CardRow {
   createdAt: string;
   region: string | null;
   series: string | null;
+  /** 카드 게임 종류 ('pokemon'|'onepiece'|'yugioh'|'other') — 테마순 정렬용. */
+  game?: string | null;
   selfPulled: boolean;
   graded: boolean;
   gradeCompany: string | null;
@@ -64,11 +67,17 @@ function sliceColor(i: number): string {
   return SLICE[i] ?? 'var(--ink3)';
 }
 
-type SortKey = 'value' | 'recent' | 'name' | 'change';
+type SortKey = 'value' | 'recent' | 'name' | 'change' | 'game';
 type View = 'grid' | 'list';
 
 function cardName(c: CardRow): string {
   return c.snkrdunkName || c.nickname || '이름 미상';
+}
+/** 테마순 정렬 순서 — 포켓몬 → 원피스 → 유희왕 → 기타/미분류. */
+const GAME_SORT_ORDER: Record<string, number> = { pokemon: 0, onepiece: 1, yugioh: 2, sports: 3 };
+function gameRank(c: CardRow): number {
+  const g = c.game || parseCardStatics(cardName(c)).game;
+  return GAME_SORT_ORDER[g] ?? 9;
 }
 function cardSub(c: CardRow): string {
   if (c.graded) return `${c.gradeCompany ?? 'PSA'} ${c.gradeValue ?? ''}`.trim();
@@ -170,6 +179,8 @@ export function CollectionScreen() {
     else if (sort === 'change') arr.sort((a, b) => (b.changePct ?? -Infinity) - (a.changePct ?? -Infinity));
     else if (sort === 'name') arr.sort((a, b) => cardName(a.c).localeCompare(cardName(b.c), 'ko'));
     else if (sort === 'recent') arr.sort((a, b) => (b.c.createdAt || '').localeCompare(a.c.createdAt || ''));
+    // 테마순 — 게임(포켓몬→원피스→…)별로 묶고 그룹 안은 가격 내림차순.
+    else if (sort === 'game') arr.sort((a, b) => gameRank(a.c) - gameRank(b.c) || b.value - a.value);
     return arr;
   }, [allRows, sort]);
 
@@ -471,6 +482,7 @@ export function CollectionScreen() {
             { k: 'change', label: '등락순' },
             { k: 'recent', label: '등록일' },
             { k: 'name', label: '이름순' },
+            { k: 'game', label: '테마순' },
           ] as Array<{ k: SortKey; label: string }>).map((s) => {
             const on = sort === s.k;
             return (

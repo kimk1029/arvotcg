@@ -47,11 +47,12 @@ export function Tabbar() {
   const c = useThemeColors();
   const flat = isFlatTheme(theme);
   const { navStyle } = useNavPrefs();
+  const textVariant = useThemeTextVariant();
   const floating = navStyle === 'floating';
 
   const barBg = flat ? c.paper : theme === 'onepiece' ? c.bluDk : c.ink;
 
-  // ── 분리형(플로팅) ── 아이콘만(라벨 숨김) + 가운데 강조 버튼을 바 안으로(돌출 X).
+  // ── 분리형(플로팅) ── 아이콘 + 작은 한글 라벨 + 가운데 강조 버튼을 바 안으로(돌출 X).
   // 웹 .tabbar--floating 과 동일하게 전 테마 공통 '어두운 잉크 반투명' 바 —
   // 클린 테마에서 흰 바가 흰 콘텐츠·시스템 네비게이션과 한 덩어리로 보이던 문제 해결.
   // (RN 은 backdrop blur 미지원이라 웹 60%+blur 대신 가독성 있는 88% 불투명.)
@@ -75,7 +76,17 @@ export function Tabbar() {
                   <TabIcon name="plus" color={c.white} size={22} />
                 </View>
               ) : (
-                <TabIcon name={t.icon!} color={isOn ? iconOn : iconOff} size={24} />
+                <>
+                  <TabIcon name={t.icon!} color={isOn ? iconOn : iconOff} size={24} />
+                  <PixelText
+                    variant={textVariant}
+                    size={10}
+                    color={isOn ? iconOn : iconOff}
+                    style={{ marginTop: 3, letterSpacing: 0.3 }}
+                  >
+                    {t.label}
+                  </PixelText>
+                </>
               )}
             </Pressable>
           );

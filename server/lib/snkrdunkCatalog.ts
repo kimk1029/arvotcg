@@ -179,6 +179,8 @@ export interface CatalogEntry {
   packCode: string | null;
   /** 파싱된 세트 코드 (예: "SV4a"). 시리즈 폴백용. 없으면 null. */
   setCode: string | null;
+  /** 카드 게임 종류 ('pokemon'|'onepiece'|'yugioh'|'other'). 미분류면 null. */
+  game: string | null;
   /** 최신 스냅샷 — 없으면 null. */
   snapshot: {
     minPrice: number;
@@ -231,6 +233,7 @@ export async function loadCatalogEntries(ids: number[]): Promise<Map<number, Cat
         imageUrl: c.cdnImageUrl ?? c.imageUrl,
         packCode: c.packCode ?? null,
         setCode: c.setCode ?? null,
+        game: c.game || null,
         snapshot: s
           ? {
               minPrice: Number(s.minPrice),

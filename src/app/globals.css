@@ -4374,8 +4374,10 @@ a{color:inherit;text-decoration:none;}
   box-shadow:0 6px 18px rgba(0,0,0,.16);
   align-items:center;
 }
-.tabbar.tabbar--floating .tab{padding:6px 0;gap:0;min-height:0;}
+.tabbar.tabbar--floating .tab{padding:4px 0;gap:3px;min-height:0;}
 .tabbar.tabbar--floating .tab svg{width:24px;height:24px;}
+/* 아이콘 아래 작은 한글 라벨 — 색은 아이콘과 같은 .tab/.on 규칙을 그대로 상속 */
+.tabbar.tabbar--floating .tab span{font-size:10px;line-height:1;letter-spacing:.3px;}
 /* 가운데 강조 버튼 — 바 안에 들어간 작은 원형 강조 버튼(돌출 없음). */
 .tabbar.tabbar--floating .fab-mini{
   width:42px;height:42px;border-radius:50%;
@@ -4384,16 +4386,19 @@ a{color:inherit;text-decoration:none;}
   box-shadow:0 3px 8px rgba(0,0,0,.28),inset 0 2px 0 rgba(255,255,255,.25);
 }
 /* 플로팅이면 탭바가 absolute 라 콘텐츠가 그 아래로 지나가도록 screen 하단 여백 확보. */
-.screen--floatnav{padding-bottom:100px;}
+.screen--floatnav{padding-bottom:112px;}
+/* 하단 고정(sticky) 액션 바 — 통합 네비에선 바닥에, 플로팅 네비에선 탭바 위로 올린다. */
+.addbar-sticky{bottom:0;}
+.screen--floatnav .addbar-sticky{bottom:112px;border-bottom:1px solid var(--pap3);}
 /* 풀배경 페이지 래퍼 — 자체 배경(minHeight 100%)을 가진 페이지 루트는 이 클래스로.
    플로팅 네비일 땐 screen 하단 스페이서(100px)까지 자기 배경으로 연장해,
    스크롤 끝/페이지 이동 시 바 주변에 phone 기본 배경 띠·경계선이 보이지 않게 한다.
    (margin -100px + padding 100px = 스크롤 길이 불변, 배경만 아래로 연장) */
 .pagebg{min-height:100%;}
 .screen--floatnav > .pagebg{
-  min-height:calc(100% + 100px);
-  margin-bottom:-100px;
-  padding-bottom:100px;
+  min-height:calc(100% + 112px);
+  margin-bottom:-112px;
+  padding-bottom:112px;
 }
 /* 페이지 이동 중 로딩 화면 — 기본(통합형)은 기존 그라데이션+골드 글로우.
    플로팅 네비에선 불투명 배경을 칠하지 않고 phone 배경을 그대로 두어(투명)

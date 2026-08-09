@@ -28,3 +28,4 @@ mobile/.env.*.local
 
 # Claude Code local artifacts
 .claude/
+apk/

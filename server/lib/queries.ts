@@ -390,6 +390,8 @@ export interface MyCardWithPrice extends MyCardRow {
   currentPriceJpy: number;
   /** 소속 시리즈(박스) 한국어명 — 카탈로그 packCode→CARD_PACKS, 폴백 setCode. 없으면 null. */
   series: string | null;
+  /** 카드 게임 종류 ('pokemon'|'onepiece'|'yugioh'|'other') — 카탈로그 game. 없으면 null. */
+  game: string | null;
 }
 
 export async function getMyCardsWithPrices(
@@ -424,6 +426,8 @@ export async function getMyCardsWithPrices(
   >();
   // apparelId → 시리즈(박스) 한국어명. 카탈로그 packCode→CARD_PACKS, 폴백 setCode.
   const seriesById = new Map<number, string | null>();
+  // apparelId → 카드 게임 종류. 테마순 정렬용.
+  const gameById = new Map<number, string | null>();
   if (apparelIds.length > 0) {
     // 1) 우리 DB(마스터 카탈로그 + 최신 시세 스냅샷) 우선 — 신선하면 스니덩 호출 생략.
     const catalog = await loadCatalogEntries(apparelIds);
@@ -432,6 +436,7 @@ export async function getMyCardsWithPrices(
       const fromPack = e.packCode ? getCardPackMeta(e.packCode)?.shortName ?? null : null;
       const fromSet = e.setCode ? getCardPackMeta(e.setCode.toLowerCase())?.shortName ?? e.setCode : null;
       seriesById.set(id, fromPack ?? fromSet ?? null);
+      gameById.set(id, e.game ?? null);
     }
     const staleIds = apparelIds.filter((id) => !isFreshEntry(catalog.get(id)));
 
@@ -505,6 +510,7 @@ export async function getMyCardsWithPrices(
         pricePsa8Jpy: 0,
         currentPriceJpy: 0,
         series: null,
+        game: null,
       };
     }
     const info = apparelInfo.get(c.snkrdunkApparelId);
@@ -532,6 +538,7 @@ export async function getMyCardsWithPrices(
       pricePsa8Jpy: info?.pricePsa8Jpy ?? 0,
       currentPriceJpy: current,
       series: seriesById.get(c.snkrdunkApparelId) ?? null,
+      game: gameById.get(c.snkrdunkApparelId) ?? null,
     };
   };
 

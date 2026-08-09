@@ -55,6 +55,10 @@ export interface CardItem {
   gradeEstimate?: string;
   /** 센터링 점수(가까운 변 %, 50 = 완벽 중앙). */
   centeringScore?: number;
+  /** 일본어 원문 이름 — 검색결과 상세표시용 (웹 RegisterCardInput.nameJa 동일). */
+  nameJa?: string;
+  /** 레어도 토큰 (SAR/SR 등) — 이름 파싱(parseCardStatics) 결과. `rar` 와 별개. */
+  rarityToken?: string;
 }
 
 export interface MarketItem {

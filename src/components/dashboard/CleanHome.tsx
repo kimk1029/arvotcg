@@ -621,20 +621,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
           </button>
         );
       })}
-      {/* 더보기 → 설정: 유희왕·스포츠 등 다른 카드도 켜고 끈다. */}
-      <Link
-        href="/my/settings"
-        style={{
-          flex: 'none', display: 'flex', alignItems: 'center', gap: 3, textDecoration: 'none',
-          padding: '7px 12px', borderRadius: 999,
-          background: P.tileBg, border: `1px solid ${P.line}`,
-        }}
-      >
-        <span style={{ fontSize: 13, fontWeight: 700, color: P.ink2 }}>더보기</span>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={P.ink3} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-          <path d="m9 6 6 6-6 6" />
-        </svg>
-      </Link>
+      {/* '더보기' 칩(→설정)은 2026-08 요청으로 임시 제거 — 게임 on/off 는 설정에서 계속 가능. */}
     </div>
   );
   // 실시간 급등 = 등락률 내림차순(데이터 없는 행은 뒤로). 이름값이 '급등'이도록 정렬.

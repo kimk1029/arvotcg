@@ -59,7 +59,7 @@ export function Tabbar(_props: { onFab?: () => void } = {}) {
     requestAnimationFrame(() => setBallAnim(true));
   };
 
-  // ── 분리형(플로팅) ── 아이콘만(라벨 숨김) + 가운데 강조 버튼을 바 안으로(돌출 X).
+  // ── 분리형(플로팅) ── 아이콘 + 작은 한글 라벨 + 가운데 강조 버튼을 바 안으로(돌출 X).
   if (navStyle === 'floating') {
     return (
       <nav className="tabbar tabbar--floating" aria-label="하단 네비게이션" style={{ visibility: hideUntilReady }}>
@@ -79,6 +79,7 @@ export function Tabbar(_props: { onFab?: () => void } = {}) {
           return (
             <Link key={t.id} href={t.href} className={`tab${on ? ' on' : ''}`} aria-label={t.label}>
               {t.icon && <LineIcon name={t.icon} />}
+              <span>{t.label}</span>
             </Link>
           );
         })}

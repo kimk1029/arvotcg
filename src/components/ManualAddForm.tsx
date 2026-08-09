@@ -6,6 +6,7 @@ import { CardRegisterSheet, type RegisterCardInput } from '@/components/cards/Ca
 import { CardThumb } from '@/components/CardThumb';
 import { useTheme } from '@/components/ThemeProvider';
 import { translate, translateKnownCardNameToKo } from '@/lib/cardTranslate';
+import { parseCardStatics } from '../../shared/cardStatics';
 
 /** snkrdunk 검색 결과 한 건. */
 interface SnkSearchRow {
@@ -75,8 +76,9 @@ const RARITY_RANK: Record<string, number> = {
   RR: 10,
 };
 
-/** 카드명에서 레어도 토큰 추출. 프로모(프로모/PROMO/세트코드 -P)는 PROMO 로. */
+/** 레어도 — 파싱된 rarity 필드 우선, 없으면 카드명 토큰. 프로모(프로모/PROMO/세트코드 -P)는 PROMO 로. */
 function rarityOf(c: RegisterCardInput): string | null {
+  if (c.rarity) return c.rarity.toUpperCase();
   const raw = c.name ?? '';
   const up = `${raw} ${c.setCode ?? ''}`.toUpperCase();
   if (/프로모|PROMO/.test(raw) || /-P[\s\]\)]|-P$/.test(up)) return 'PROMO';
@@ -255,14 +257,18 @@ export function ManualAddForm(_props: Props) {
         for (const row of rows) {
           if (!row?.apparelId || seen.has(row.apparelId)) continue;
           seen.add(row.apparelId);
+          // 일본어 원문에서 세트코드/카드번호/레어도 파싱 (포켓몬·원피스 공통).
+          const parsed = parseCardStatics(row.name);
           items.push({
             snkrdunkApparelId: row.apparelId,
             // 일본어 원문 → 한국어(사전+음역) — 결과 리스트/등록 별칭 모두 한글로.
             name: translateKnownCardNameToKo(row.name) || row.name,
+            nameJa: row.name,
             imageUrl: row.imageUrl ?? null,
             currentPriceJpy: parseYen(row.priceText),
-            setCode: setCode.trim() || null,
-            cardNumber: cardNumber.trim() || null,
+            setCode: setCode.trim() || parsed.setCode,
+            cardNumber: cardNumber.trim() || parsed.cardNumber,
+            rarity: parsed.rarity,
           });
         }
       } catch {
@@ -732,6 +738,11 @@ export function ManualAddForm(_props: Props) {
                       <div style={{ fontSize: 14.5, fontWeight: 800, color: P.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {c.name ?? '이름 미상'}
                       </div>
+                      {c.nameJa && c.nameJa !== c.name && (
+                        <div style={{ fontSize: 11, color: P.ink3, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {c.nameJa}
+                        </div>
+                      )}
                       {sub && (
                         <div style={{ fontSize: 12, color: P.ink3, fontWeight: 600, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {sub}
@@ -811,9 +822,9 @@ export function ManualAddForm(_props: Props) {
       {/* ── 하단 고정 추가 바 ── */}
       {searched && (
         <div
+          className="addbar-sticky"
           style={{
             position: 'sticky',
-            bottom: 0,
             zIndex: 20,
             background: P.barBg,
             backdropFilter: 'blur(12px)',

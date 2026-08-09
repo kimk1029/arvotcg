@@ -83,6 +83,8 @@ export interface MyCardRow {
   region?: string | null;
   /** 카탈로그 시리즈명 — 시리즈별 비중 TOP5 에 사용. */
   series?: string | null;
+  /** 카드 게임 종류 ('pokemon'|'onepiece'|'yugioh'|'other') — 테마순 정렬용. */
+  game?: string | null;
 }
 
 export interface MyFavoriteRow {
