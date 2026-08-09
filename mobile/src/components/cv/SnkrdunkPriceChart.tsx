@@ -4,6 +4,7 @@ import Svg, { Path, Circle, Line, Text as SvgText } from 'react-native-svg';
 import { PixelText } from '@/components/PixelText';
 import { colors } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useCurrency } from '@/components/CurrencyProvider';
 
 export interface ChartSeries {
   label: string;
@@ -43,16 +44,16 @@ function fmtDateAxis(ms: number, spanMs: number): string {
   return `${yy}.${month}`;
 }
 
-/** Adaptive yen label — picks the unit so the label stays 3-4 chars wide
- *  regardless of card price magnitude (¥350 vs ¥850K vs ¥1.2M). */
-function fmtYenAxis(n: number, maxValue: number): string {
+/** Adaptive price label — picks the unit so the label stays 3-4 chars wide
+ *  regardless of card price magnitude (¥350 vs ¥850K vs ₩1.2M). */
+function fmtPriceAxis(n: number, maxValue: number, sym: string): string {
   if (maxValue >= 1_000_000) {
-    return `¥${(n / 1_000_000).toFixed(n >= 100_000_000 ? 0 : 1)}M`;
+    return `${sym}${(n / 1_000_000).toFixed(n >= 100_000_000 ? 0 : 1)}M`;
   }
   if (maxValue >= 10_000) {
-    return `¥${Math.round(n / 1000)}K`;
+    return `${sym}${Math.round(n / 1000)}K`;
   }
-  return `¥${n.toLocaleString('en-US')}`;
+  return `${sym}${n.toLocaleString('en-US')}`;
 }
 
 function niceTicks(min: number, max: number, n = 4): number[] {
@@ -82,6 +83,10 @@ export function SnkrdunkPriceChart({
 }: Props) {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  // 축·툴팁 가격도 통화 설정(엔/원)을 따른다 — 데이터는 JPY 원본, 표시만 환산.
+  const { mode, rate } = useCurrency();
+  const toDisp = (jpy: number) => (mode === 'krw' ? jpy * (rate > 0 ? rate : 9.5) : jpy);
+  const sym = mode === 'krw' ? '₩' : '¥';
   // 터치 툴팁 — 손가락 X 위치(0~1, 플롯 영역 기준). 웹 MiniChart 호버와 동일 컨셉.
   const [layoutW, setLayoutW] = useState(0);
   const [touchRel, setTouchRel] = useState<number | null>(null);
@@ -180,7 +185,7 @@ export function SnkrdunkPriceChart({
               <React.Fragment key={`y-${v}`}>
                 <Line x1={PAD_L} y1={y} x2={width - PAD_R} y2={y} stroke="rgba(0,0,0,0.08)" strokeWidth={1} />
                 <SvgText x={PAD_L - 6} y={y + 3} textAnchor="end" fontSize={7} fill={tc.ink3}>
-                  {fmtYenAxis(v, maxY)}
+                  {fmtPriceAxis(toDisp(v), toDisp(maxY), sym)}
                 </SvgText>
               </React.Fragment>
             );
@@ -230,7 +235,7 @@ export function SnkrdunkPriceChart({
           ) : null}
 
           <SvgText x={PAD_L} y={PAD_T - 4} textAnchor="start" fontSize={7} fill={tc.ink3}>
-            가격 (JPY)
+            {`가격 (${mode === 'krw' ? 'KRW' : 'JPY'})`}
           </SvgText>
           <SvgText x={width - PAD_R} y={height - 4} textAnchor="end" fontSize={7} fill={tc.ink3}>
             거래일
@@ -272,7 +277,7 @@ export function SnkrdunkPriceChart({
             </PixelText>
             {touchHits.map((h, i) => (
               <PixelText key={`tip-${i}`} variant={txt} size={10} weight="bold" color={tc.white} style={{ marginTop: 2 }}>
-                {touchHits.length > 1 ? `${h.label} ` : ''}¥{Math.round(h.point[1]).toLocaleString('ja-JP')}
+                {touchHits.length > 1 ? `${h.label} ` : ''}{sym}{Math.round(toDisp(h.point[1])).toLocaleString('ja-JP')}
               </PixelText>
             ))}
           </View>
@@ -283,7 +288,7 @@ export function SnkrdunkPriceChart({
           기간: {fmtDateAxis(minX, rangeX)} ~ {fmtDateAxis(maxX, rangeX)} · {unitLabel} · 거래 {rawCount}건
         </PixelText>
         <PixelText variant={txt} size={8} color={tc.ink3}>
-          최저 ¥{dataMinY.toLocaleString('ja-JP')} · 최고 ¥{dataMaxY.toLocaleString('ja-JP')}
+          최저 {sym}{Math.round(toDisp(dataMinY)).toLocaleString('ja-JP')} · 최고 {sym}{Math.round(toDisp(dataMaxY)).toLocaleString('ja-JP')}
         </PixelText>
       </View>
     </View>

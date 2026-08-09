@@ -26,13 +26,9 @@ import {
   type SnkrdunkSalesHistory,
 } from '@/services/snkrdunk';
 import { jaToKoCached, jaToKoServer } from '@/lib/cardLang';
+import { useCurrency } from '@/components/CurrencyProvider';
 import { parseKreamHints } from '../../../../shared/util/kreamMatch';
 import { gradeUplift } from '../../../../shared/snkrdunkPrice';
-
-function fmtYen(n: number): string {
-  if (!n) return '—';
-  return `¥${n.toLocaleString('ja-JP')}`;
-}
 
 /* ── 등급 집계 — 웹 page.tsx gradeAgg 와 동일 ── */
 interface GradeAgg {
@@ -94,6 +90,9 @@ export default function SnkrdunkDetail() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
   const { theme } = useTheme();
+  // 모든 가격은 통화 설정(엔/원)을 따른다 — 웹 <Price jpy> 동일 (JPY 원본 → format).
+  const { format } = useCurrency();
+  const fmtYen = (n: number) => (!n ? '—' : format(n));
   const flat = isFlatTheme(theme);
   const { id } = useLocalSearchParams<{ id: string }>();
   const apparelId = Number(id);
@@ -293,11 +292,11 @@ export default function SnkrdunkDetail() {
                     <View style={{ flexDirection: 'row', gap: 20, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: tc.pap3 }}>
                       <View style={{ flex: 1 }}>
                         <PixelText variant={txt} size={10} color={tc.ink3}>전일 대비</PixelText>
-                        <View style={{ marginTop: 5 }}><Delta tc={tc} txt={txt} diff={change.prevDiff} pct={change.prevPct} /></View>
+                        <View style={{ marginTop: 5 }}><Delta tc={tc} txt={txt} diff={change.prevDiff} pct={change.prevPct} fmt={fmtYen} /></View>
                       </View>
                       <View style={{ flex: 1 }}>
                         <PixelText variant={txt} size={10} color={tc.ink3}>7일 변동률</PixelText>
-                        <View style={{ marginTop: 5 }}><Delta tc={tc} txt={txt} diff={change.wkDiff} pct={change.wkPct} /></View>
+                        <View style={{ marginTop: 5 }}><Delta tc={tc} txt={txt} diff={change.wkDiff} pct={change.wkPct} fmt={fmtYen} /></View>
                       </View>
                     </View>
                     <PixelText variant={txt} size={9} color={tc.ink3} style={{ marginTop: 12 }}>
@@ -560,12 +559,12 @@ function GradeRow({ tc, txt, label, value }: { tc: ReturnType<typeof useThemeCol
   );
 }
 
-function Delta({ tc, txt, diff, pct }: { tc: ReturnType<typeof useThemeColors>; txt: 'pixel' | 'ko'; diff: number; pct: number | null }) {
+function Delta({ tc, txt, diff, pct, fmt }: { tc: ReturnType<typeof useThemeColors>; txt: 'pixel' | 'ko'; diff: number; pct: number | null; fmt: (n: number) => string }) {
   if (pct == null) return <PixelText variant={txt} size={13} weight="bold" color={tc.ink3}>—</PixelText>;
   const up = diff >= 0;
   return (
     <PixelText variant={txt} size={13} weight="bold" color={up ? tc.red : tc.blu}>
-      {up ? '+' : '−'} {fmtYen(Math.abs(diff))} ({up ? '+' : ''}{pct.toFixed(2)}%)
+      {up ? '+' : '−'} {fmt(Math.abs(diff))} ({up ? '+' : ''}{pct.toFixed(2)}%)
     </PixelText>
   );
 }

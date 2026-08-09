@@ -2,11 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Panel } from '@/components/ui/Panel';
+import { useCurrency } from '@/components/CurrencyProvider';
 import { fetchKoPrices, type KoPriceRow, type KoPriceQuery } from '@/lib/koreaPrice';
-
-function fmtKrw(v: number): string {
-  return `₩${Math.round(v).toLocaleString('ko-KR')}`;
-}
 
 /**
  * 한국판 멀티소스 시세 — KREAM·TCGBox·네이버카페 등 국내 소스의 체결/판매가를
@@ -14,6 +11,12 @@ function fmtKrw(v: number): string {
  */
 export function MultiSourceKoPrice(props: KoPriceQuery) {
   const { name, setCode, cardNumber, rarity } = props;
+  // 국내 소스 가격은 KRW 원본 — 통화 설정이 엔화면 환율로 엔화 환산해 표시.
+  const { mode, rate } = useCurrency();
+  const fmt = (krw: number) =>
+    mode === 'jpy' && rate > 0
+      ? `¥${Math.round(krw / rate).toLocaleString('ja-JP')}`
+      : `₩${Math.round(krw).toLocaleString('ko-KR')}`;
   const [state, setState] = useState<'loading' | 'done'>('loading');
   const [rows, setRows] = useState<KoPriceRow[]>([]);
 
@@ -85,7 +88,7 @@ export function MultiSourceKoPrice(props: KoPriceQuery) {
                     color: isLow ? 'var(--red)' : 'var(--ink)',
                   }}
                 >
-                  {fmtKrw(r.price)}
+                  {fmt(r.price)}
                 </span>
               </a>
             );

@@ -9,16 +9,19 @@ import { PixelText } from '@/components/PixelText';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { SectHd } from '@/components/cv/SectHd';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useCurrency } from '@/components/CurrencyProvider';
 import { fetchKoPrices, type KoPriceQuery, type KoPriceRow } from '@/lib/koreaPrice';
-
-function fmtKrw(v: number): string {
-  return `₩${Math.round(v).toLocaleString('ko-KR')}`;
-}
 
 export function MultiSourceKoPrice(props: KoPriceQuery) {
   const { name, setCode, cardNumber, rarity } = props;
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
+  // 국내 소스 가격은 KRW 원본 — 통화 설정이 엔화면 환율로 엔화 환산해 표시.
+  const { mode, rate } = useCurrency();
+  const fmt = (krw: number) =>
+    mode === 'jpy' && rate > 0
+      ? `¥${Math.round(krw / rate).toLocaleString('ja-JP')}`
+      : `₩${Math.round(krw).toLocaleString('ko-KR')}`;
   const [state, setState] = useState<'loading' | 'done'>('loading');
   const [rows, setRows] = useState<KoPriceRow[]>([]);
 
@@ -79,7 +82,7 @@ export function MultiSourceKoPrice(props: KoPriceQuery) {
                     </View>
                     <View style={{ flex: 1 }} />
                     <PixelText variant={txt} size={13} weight="bold" color={isLow ? tc.red : tc.ink}>
-                      {fmtKrw(r.price)}
+                      {fmt(r.price)}
                     </PixelText>
                   </Pressable>
                 );
