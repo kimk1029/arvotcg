@@ -2,7 +2,7 @@
   "expo": {
     "name": "아르보TCG",
     "slug": "pokefesta30",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "pokefesta30",
     "userInterfaceStyle": "light",
@@ -16,6 +16,10 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.pokefesta30.app",
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "거래글·피드 게시물에 카드 사진을 첨부하기 위해 사진 보관함 접근이 필요합니다.",
+        "NSCameraUsageDescription": "카드를 스캔하거나 촬영해 게시물에 첨부하려면 카메라 접근이 필요합니다.",
+        "NSMicrophoneUsageDescription": "카메라 촬영 기능에 포함된 시스템 요구사항입니다. 음성은 수집하지 않습니다.",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true,
           "NSExceptionDomains": {

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { HAS_NAVER_MAP_KEY, ShopNaverMap } from '@/components/screens/ShopNaverMap';
 
 /**
- * 커뮤니티 Shop 모드 — Claude Design 'POKE30 커뮤니티' 프로토타입의 샵 화면.
+ * 커뮤니티 Shop 모드 — Claude Design 'ARVOTCG 커뮤니티' 프로토타입의 샵 화면.
  * 지도(핀 선택) · 선택 샵 요약 카드(오리파 도넛·후기 토글·지도앱 링크) ·
  * 후기 작성 폼 · 주변 카드샵 리스트 · 방문 후기 피드(무한 스크롤).
  * 샵 데이터는 어드민 관리 API(/api/shops), 후기는 프로토타입 정적 편집 데이터.

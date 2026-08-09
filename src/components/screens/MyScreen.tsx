@@ -10,7 +10,7 @@ import { signOut } from '@/lib/session';
 import type { LevelInfo } from '@/lib/level';
 
 /**
- * /my — 마이페이지. Claude Design 'POKE30 마이페이지' 프로토타입 레이아웃
+ * /my — 마이페이지. Claude Design 'ARVOTCG 마이페이지' 프로토타입 레이아웃
  * (홈·커뮤니티와 동일하게 모든 테마 공통 단일 디자인 — 라이트/화이트 카드/오렌지 포인트).
  * 모바일 mobile/app/my.tsx 와 페어.
  */

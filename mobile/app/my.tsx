@@ -1,5 +1,5 @@
 /**
- * /my — 마이페이지. Claude Design 'POKE30 마이페이지' 프로토타입 레이아웃
+ * /my — 마이페이지. Claude Design 'ARVOTCG 마이페이지' 프로토타입 레이아웃
  * (홈·커뮤니티와 동일하게 모든 테마 공통 단일 디자인 — 라이트/화이트 카드/오렌지 포인트).
  * 실시간 데이터: /api/me/summary(카드·거래·찜·포인트·레벨) + /api/me/portfolio + 미읽음 쪽지.
  * 미인증 시 InlineLoginGate. 웹 MyScreen 과 페어.
