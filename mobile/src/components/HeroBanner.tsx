@@ -35,23 +35,34 @@ export interface HeroSlideData {
 const FALLBACK_SLIDES: HeroSlideData[] = [
   {
     cls: 'slide-a',
-    badge: '★ 팬 프로젝트',
-    title: '스탬프 랠리!',
-    // IP 이미지(잉어킹 프로모 카드) 사용 금지 — 이모지 비주얼로 대체. 웹 HeroSlider 동일.
-    sub: '성수 6곳 스탬프 랠리 · 탭해서 이벤트 상세 보기',
+    badge: '📈 실시간 시세',
+    title: '카드 시세 한눈에',
+    sub: '포켓몬·원피스 TCG · 실시간 시세 검색',
     visualType: 'emoji',
-    visualValue: '🎪',
-    onClick: 'stamp-rally',
+    visualValue: '📈',
+    onClick: null,
+    linkUrl: '/cards',
     ctaHint: '👉 TAP',
   },
   {
     cls: 'slide-b',
     badge: '⚡ 실시간 거래 활성',
     title: '삽니다 팝니다',
-    sub: '성수 현장 직거래 · 장소 태그로 빠르게 연결',
+    sub: '카드 직거래 게시판 · 쪽지로 빠르게 연결',
     visualType: 'emoji',
     visualValue: '💬',
     onClick: null,
+    linkUrl: '/trade',
+  },
+  {
+    cls: 'slide-c',
+    badge: '💬 커뮤니티',
+    title: '오늘의 피드',
+    sub: '카드 이야기와 정보를 피드에서 나눠보세요',
+    visualType: 'emoji',
+    visualValue: '📣',
+    onClick: null,
+    linkUrl: '/feed',
   },
   // 오리파 슬라이드는 서비스 숨김 상태(2026-07)라 폴백에서 제외. 웹 HeroSlider 동일.
 ];
