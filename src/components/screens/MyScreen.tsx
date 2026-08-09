@@ -77,6 +77,21 @@ export function MyScreen({ user, level, cardCount, tradeCount, savedCount, isGue
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // 회원 탈퇴 — App Store 5.1.1(v) 계정 삭제 요건. 확인 후 DELETE /api/me. 앱 my.tsx 와 페어.
+  const handleDeleteAccount = async () => {
+    const ok = window.confirm(
+      '계정과 컬렉션·관심카드·알림·쪽지가 모두 삭제됩니다.\n작성한 게시물은 익명으로 남습니다.\n이 작업은 되돌릴 수 없습니다.\n\n정말 탈퇴할까요?',
+    );
+    if (!ok) return;
+    try {
+      const r = await fetch('/api/me', { method: 'DELETE', credentials: 'include' });
+      if (!r.ok) throw new Error('delete failed');
+      await signOut('/');
+    } catch {
+      window.alert('탈퇴 처리에 실패했어요. 잠시 후 다시 시도해 주세요.');
+    }
+  };
+
   // 포트폴리오 컴팩트 카드 — /api/me/portfolio.
   const [pf, setPf] = useState<{ totalJpy: number; changePct: number | null; history: number[] } | null>(null);
   useEffect(() => {
@@ -276,6 +291,18 @@ export function MyScreen({ user, level, cardCount, tradeCount, savedCount, isGue
           </button>
         )}
       </div>
+      {/* 회원 탈퇴 — 구석 작은 텍스트 링크 (앱 my.tsx 와 페어) */}
+      {!isGuest && (
+        <div style={{ padding: '0 24px 8px', textAlign: 'right' }}>
+          <button
+            type="button"
+            onClick={handleDeleteAccount}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 11.5, fontWeight: 600, color: P.sub, textDecoration: 'underline', fontFamily: 'inherit' }}
+          >
+            회원 탈퇴
+          </button>
+        </div>
+      )}
       <div className="bggap" />
     </div>
   );

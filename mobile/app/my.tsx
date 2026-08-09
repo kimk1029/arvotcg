@@ -5,14 +5,14 @@
  * 미인증 시 InlineLoginGate. 웹 MyScreen 과 페어.
  */
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { InlineLoginGate } from '@/components/InlineLoginGate';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { useToast } from '@/components/ToastProvider';
 import {
-  fetchMySummary, fetchPortfolio, fetchUnreadCount, updateMyName,
+  deleteMyAccount, fetchMySummary, fetchPortfolio, fetchUnreadCount, updateMyName,
   type MySummary, type PortfolioSummary,
 } from '@/lib/myApi';
 import { useAsync } from '@/lib/useAsync';
@@ -200,6 +200,31 @@ export default function MyScreen() {
     }
   };
 
+  // 회원 탈퇴 — App Store 5.1.1(v) 계정 삭제 요건. 확인 다이얼로그 후 DELETE /api/me.
+  const confirmDeleteAccount = () => {
+    Alert.alert(
+      '회원 탈퇴',
+      '계정과 컬렉션·관심카드·알림·쪽지가 모두 삭제됩니다.\n작성한 게시물은 익명으로 남습니다.\n이 작업은 되돌릴 수 없습니다.',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '탈퇴하기',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteMyAccount();
+              setSession(null);
+              toast.success('탈퇴가 완료되었습니다');
+              router.replace('/login' as never);
+            } catch {
+              toast.error('탈퇴 처리에 실패했어요. 잠시 후 다시 시도해 주세요.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   // 내 활동 — 디자인의 5행 + 기존 기능 행(관심카드·내 피드) 동일 스타일로 이어붙임.
   const activity: MenuItem[] = [
     { emoji: '✉️', iconBg: '#E3F6EC', label: '쪽지함', sub: '새 쪽지를 확인하세요', badge: unread > 0 ? `${unread > 99 ? '99+' : unread}` : undefined, onPress: () => router.push('/my/messages' as never) },
@@ -345,6 +370,15 @@ export default function MyScreen() {
             style={({ pressed }) => [{ backgroundColor: P.card, borderRadius: 18, paddingVertical: 15, alignItems: 'center', opacity: pressed ? 0.85 : 1 }, CARD_SHADOW, { shadowOpacity: 0.04 }]}
           >
             <Text style={{ fontSize: 14.5, fontWeight: '800', color: P.red }}>로그아웃</Text>
+          </Pressable>
+        </View>
+
+        {/* 회원 탈퇴 — 구석 작은 텍스트 링크 (웹 MyScreen 과 페어) */}
+        <View style={{ paddingHorizontal: 24, paddingBottom: 8, alignItems: 'flex-end' }}>
+          <Pressable onPress={confirmDeleteAccount} hitSlop={8}>
+            <Text style={{ fontSize: 11.5, fontWeight: '600', color: P.sub, textDecorationLine: 'underline' }}>
+              회원 탈퇴
+            </Text>
           </Pressable>
         </View>
       </ScrollView>

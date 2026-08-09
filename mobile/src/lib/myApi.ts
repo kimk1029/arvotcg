@@ -173,6 +173,11 @@ export function fetchUnreadCount(): Promise<number> {
     .catch(() => 0);
 }
 
+/** 회원 탈퇴 — 웹 MyScreen 과 동일 DELETE /api/me. 성공 후 클라이언트가 세션을 비운다. */
+export function deleteMyAccount(): Promise<{ ok?: boolean; error?: string }> {
+  return api<{ ok?: boolean; error?: string }>('/api/me', { method: 'DELETE' });
+}
+
 /** 닉네임 변경 — 웹 EditableName 과 동일 PATCH /api/me/name. */
 export function updateMyName(name: string): Promise<{ ok?: boolean; error?: string }> {
   return api<{ ok?: boolean; error?: string }>('/api/me/name', { method: 'PATCH', body: { name } });
