@@ -319,7 +319,6 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
                 </button>
               );
             })}
-            <span style={{ flex: 'none', paddingBottom: 10 }}>{Ic.chevD(P.ink3, 18)}</span>
             {/* 슬라이딩 밑줄 인디케이터 — 선택 탭 위치로 부드럽게 이동 */}
             <span
               aria-hidden

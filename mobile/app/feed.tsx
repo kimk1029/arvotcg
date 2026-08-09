@@ -470,7 +470,6 @@ export default function CommunityScreen() {
               </Pressable>
             );
           })}
-          <View style={{ paddingBottom: 10 }}><ChevD c={P.ink3} s={18} /></View>
           {/* 슬라이딩 밑줄 인디케이터 */}
           <Animated.View pointerEvents="none" style={{ position: 'absolute', bottom: 0, height: 2.5, borderRadius: 2, backgroundColor: P.accent, left: indLeft, width: indWidth }} />
         </ScrollView>
