@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.pokefesta30.app",
+      "bundleIdentifier": "com.arvotcg.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "거래글·피드 게시물에 카드 사진을 첨부하기 위해 사진 보관함 접근이 필요합니다.",
@@ -32,7 +32,7 @@
       }
     },
     "android": {
-      "package": "com.pokefesta30.app",
+      "package": "com.arvotcg.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#129782"
