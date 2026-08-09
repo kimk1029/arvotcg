@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic';
 const MENU = [
   { lb: '히어로 배너 관리', href: '/admin/banners', em: '🎏', bg: '#FFD23F' },
   { lb: '오리파 티켓 히스토리', href: '/admin/oripa-tickets', em: '🎴', bg: '#3A5BD9' },
+  { lb: '신고 · 차단 관리', href: '/admin/reports', em: '🚩', bg: '#F5333F' },
 ];
 
 export default function AdminHomePage() {

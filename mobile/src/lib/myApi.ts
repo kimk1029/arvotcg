@@ -173,6 +173,60 @@ export function fetchUnreadCount(): Promise<number> {
     .catch(() => 0);
 }
 
+/* --- 신고/차단 (App Store 심사 지침 1.2) — 웹과 동일 엔드포인트 --- */
+
+export type ReportTargetType = 'trade' | 'feed' | 'feedComment' | 'eventPost' | 'eventPostComment';
+
+/** 신고 사유 선택지 — 서버 REPORT_REASONS 와 동일 목록. */
+export const REPORT_REASONS = [
+  '스팸/광고',
+  '욕설/비하',
+  '사기 의심',
+  '음란/부적절한 콘텐츠',
+  '개인정보 노출',
+  '기타',
+] as const;
+
+/** 콘텐츠 신고 — POST /api/reports. 중복 신고는 서버가 사유만 갱신. */
+export function reportContent(
+  targetType: ReportTargetType,
+  targetId: number,
+  reason: string,
+  detail?: string,
+): Promise<{ ok?: boolean; error?: string }> {
+  return api<{ ok?: boolean; error?: string }>('/api/reports', {
+    method: 'POST',
+    body: { targetType, targetId, reason, detail },
+  });
+}
+
+export interface BlockedUser {
+  userId: string;
+  name: string;
+  avatarId: string | null;
+  createdAt: string;
+}
+
+/** 내가 차단한 사용자 목록 — GET /api/me/blocks. */
+export function fetchMyBlocks(): Promise<BlockedUser[]> {
+  return api<{ data: BlockedUser[] }>('/api/me/blocks').then((r) => r.data ?? []);
+}
+
+/** 사용자 차단 — POST /api/me/blocks. 이후 목록 API 에서 해당 작성자 글이 숨겨진다. */
+export function blockUser(userId: string): Promise<{ ok?: boolean; error?: string }> {
+  return api<{ ok?: boolean; error?: string }>('/api/me/blocks', {
+    method: 'POST',
+    body: { userId },
+  });
+}
+
+/** 차단 해제 — DELETE /api/me/blocks/:userId. */
+export function unblockUser(userId: string): Promise<{ ok?: boolean; error?: string }> {
+  return api<{ ok?: boolean; error?: string }>(`/api/me/blocks/${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+  });
+}
+
 /** 회원 탈퇴 — 웹 MyScreen 과 동일 DELETE /api/me. 성공 후 클라이언트가 세션을 비운다. */
 export function deleteMyAccount(): Promise<{ ok?: boolean; error?: string }> {
   return api<{ ok?: boolean; error?: string }>('/api/me', { method: 'DELETE' });

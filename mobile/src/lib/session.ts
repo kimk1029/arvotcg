@@ -78,6 +78,24 @@ export function isAuthenticated(): boolean {
   return readSync() !== null;
 }
 
+/**
+ * JWT payload 의 sub(userId) — 서명 검증 없이 표시/비교용으로만 디코드.
+ * (내 글에 신고/차단 메뉴 숨김 등. 권한 판단은 항상 서버가 한다.)
+ */
+export function getUserId(): string | null {
+  const s = readSync();
+  if (!s) return null;
+  try {
+    const payload = s.token.split('.')[1];
+    if (!payload) return null;
+    const b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const json = JSON.parse(globalThis.atob(b64)) as { sub?: string };
+    return typeof json.sub === 'string' ? json.sub : null;
+  } catch {
+    return null;
+  }
+}
+
 export function subscribeSession(fn: () => void): () => void {
   listeners.add(fn);
   return () => {

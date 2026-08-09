@@ -7,6 +7,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { ComposedAvatar } from '@/components/ComposedAvatar';
 import { BookmarkButton } from '@/components/BookmarkButton';
 import { FeedComments, Lightbox } from '@/components/FeedRow';
+import { ReportMenu } from '@/components/ReportMenu';
 import { isAvatarId } from '@/lib/avatars';
 import { ShopSection, SHOP_REGIONS } from '@/components/screens/CommunityShop';
 import { isFeedCategory } from '@/lib/feedCategories';
@@ -596,6 +597,9 @@ function PostRow({ post, P, clean }: { post: FeedPost; P: Palette; clean: boolea
           {hasThumb && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12.5, fontWeight: 700, color: P.ink3 }}>📷 {images.length}</span>
           )}
+          <span style={{ marginLeft: 'auto' }}>
+            <ReportMenu targetType="feed" targetId={post.id} authorId={post.authorId} authorName={post.authorName} />
+          </span>
         </div>
       </div>
 

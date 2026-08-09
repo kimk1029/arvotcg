@@ -383,4 +383,140 @@ router.get('/users/:id', async (req: Request, res: Response) => {
   }
 });
 
+// ── 신고/차단 관리 (App Store 심사 지침 1.2) ────────────────────────────────
+
+const REPORT_STATUSES = ['open', 'resolved', 'dismissed'] as const;
+
+/** GET /api/admin/reports?status=open|resolved|dismissed|all — 신고 목록. */
+router.get('/reports', async (req: Request, res: Response) => {
+  const statusQ = typeof req.query.status === 'string' ? req.query.status : 'open';
+  const where =
+    statusQ === 'all' ? {} : { status: REPORT_STATUSES.includes(statusQ as never) ? statusQ : 'open' };
+  try {
+    const rows = await prisma.contentReport.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: { reporter: { select: { id: true, name: true } } },
+    });
+    // 피신고자 이름 일괄 조회 (탈퇴 시 null).
+    const targetUserIds = Array.from(
+      new Set(rows.map((r) => r.targetUserId).filter((v): v is string => !!v)),
+    );
+    const targetUsers = targetUserIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: targetUserIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const nameById = new Map(targetUsers.map((u) => [u.id, u.name]));
+    const counts = await prisma.contentReport.groupBy({ by: ['status'], _count: { _all: true } });
+    res.json({
+      data: rows.map((r) => ({
+        id: r.id,
+        targetType: r.targetType,
+        targetId: r.targetId,
+        reason: r.reason,
+        detail: r.detail,
+        snapshot: r.snapshot,
+        status: r.status,
+        createdAt: r.createdAt,
+        resolvedAt: r.resolvedAt,
+        reporter: r.reporter ? { id: r.reporter.id, name: r.reporter.name } : null,
+        targetUser: r.targetUserId
+          ? { id: r.targetUserId, name: nameById.get(r.targetUserId) ?? '탈퇴' }
+          : null,
+      })),
+      counts: Object.fromEntries(counts.map((c) => [c.status, c._count._all])),
+    });
+  } catch (err) {
+    console.error('[admin.reports.GET]', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+/** PATCH /api/admin/reports/:id { status } — 신고 상태 변경. */
+router.patch('/reports/:id', async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const status = String((req.body as { status?: unknown } | null)?.status ?? '');
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'invalid id' });
+  if (!REPORT_STATUSES.includes(status as never)) {
+    return res.status(400).json({ error: 'invalid status' });
+  }
+  try {
+    const row = await prisma.contentReport.update({
+      where: { id },
+      data: { status, resolvedAt: status === 'open' ? null : new Date() },
+    });
+    res.json({ ok: true, data: row });
+  } catch (err) {
+    console.error('[admin.reports.PATCH]', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+/**
+ * DELETE /api/admin/reports/:id/target — 신고된 콘텐츠 자체를 삭제하고,
+ * 같은 대상의 모든 열린 신고를 resolved 처리.
+ */
+router.delete('/reports/:id/target', async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'invalid id' });
+  try {
+    const report = await prisma.contentReport.findUnique({ where: { id } });
+    if (!report) return res.status(404).json({ error: 'not found' });
+    const targetId = Number(report.targetId);
+    const del = async () => {
+      switch (report.targetType) {
+        case 'trade':
+          return prisma.trade.deleteMany({ where: { id: targetId } });
+        case 'feed':
+          return prisma.feed.deleteMany({ where: { id: targetId } });
+        case 'feedComment':
+          return prisma.feedComment.deleteMany({ where: { id: targetId } });
+        case 'eventPost':
+          return prisma.eventPost.deleteMany({ where: { id: targetId } });
+        case 'eventPostComment':
+          return prisma.eventPostComment.deleteMany({ where: { id: targetId } });
+        default:
+          return { count: 0 };
+      }
+    };
+    const removed = await del();
+    await prisma.contentReport.updateMany({
+      where: { targetType: report.targetType, targetId: report.targetId, status: 'open' },
+      data: { status: 'resolved', resolvedAt: new Date() },
+    });
+    res.json({ ok: true, removed: removed.count });
+  } catch (err) {
+    console.error('[admin.reports.DELETE target]', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+/** GET /api/admin/blocks — 최근 차단 현황 (참고용). */
+router.get('/blocks', async (_req: Request, res: Response) => {
+  try {
+    const rows = await prisma.userBlock.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: {
+        blocker: { select: { id: true, name: true } },
+        blocked: { select: { id: true, name: true } },
+      },
+    });
+    res.json({
+      data: rows.map((r) => ({
+        id: r.id,
+        createdAt: r.createdAt,
+        blocker: r.blocker ? { id: r.blocker.id, name: r.blocker.name } : null,
+        blocked: r.blocked ? { id: r.blocked.id, name: r.blocked.name } : null,
+      })),
+    });
+  } catch (err) {
+    console.error('[admin.blocks.GET]', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
 export default router;

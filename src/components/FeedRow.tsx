@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { BookmarkButton } from './BookmarkButton';
 import { ComposedAvatar } from './ComposedAvatar';
+import { ReportMenu } from './ReportMenu';
 import { isAvatarId } from '@/lib/avatars';
 import type { FeedPost } from '@/lib/types';
 
@@ -194,6 +195,7 @@ export function FeedRow({ post }: { post: FeedPost }) {
 interface FeedComment {
   id: number;
   text: string;
+  authorId?: string | null;
   authorName: string;
   createdAt: string;
 }
@@ -277,9 +279,10 @@ export function FeedComments({ feedId, dateLabel }: { feedId: number; dateLabel:
               <span style={{ fontFamily: 'var(--f1)', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
                 {c.authorName}
               </span>
-              <span style={{ fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink2)', lineHeight: 1.6, wordBreak: 'break-word' }}>
+              <span style={{ fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink2)', lineHeight: 1.6, wordBreak: 'break-word', flex: 1, minWidth: 0 }}>
                 {c.text}
               </span>
+              <ReportMenu targetType="feedComment" targetId={c.id} authorId={c.authorId} authorName={c.authorName} size={13} />
             </div>
           ))}
         </div>

@@ -8,6 +8,7 @@ import { BumpButton } from '@/components/BumpButton';
 import { ComposedAvatar } from '@/components/ComposedAvatar';
 import { KakaoButton } from '@/components/KakaoButton';
 import { TradeStatusActions } from '@/components/TradeStatusActions';
+import { ReportMenu } from '@/components/ReportMenu';
 import { AppBar } from '@/components/ui/AppBar';
 import { StatusBar } from '@/components/ui/StatusBar';
 import { Tag } from '@/components/ui/Tag';
@@ -149,6 +150,9 @@ export default async function Page({ params }: Props) {
             {formatPrice(trade.price)}
           </span>
           <BookmarkButton tradeId={trade.id} />
+          {!isAuthor && (
+            <ReportMenu targetType="trade" targetId={trade.id} authorId={trade.authorId} authorName={trade.authorName} />
+          )}
         </div>
 
         {trade.images && trade.images.length > 0 && (

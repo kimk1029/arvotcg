@@ -801,6 +801,72 @@ router.delete('/listing-favorites/:source/:externalId', async (req: Request, res
   }
 });
 
+// ── 사용자 차단 (App Store 심사 지침 1.2) ─────────────────────────────────
+// 차단하면 피드·거래글·댓글 목록에서 해당 작성자 콘텐츠가 나에게 숨겨진다.
+
+/** GET /api/me/blocks — 내가 차단한 사용자 목록. */
+router.get('/blocks', async (req: Request, res: Response) => {
+  try {
+    const rows = await prisma.userBlock.findMany({
+      where: { blockerId: req.user!.userId },
+      orderBy: { createdAt: 'desc' },
+      include: { blocked: { select: { id: true, name: true, avatarId: true } } },
+      take: 500,
+    });
+    res.json({
+      data: rows.map((r) => ({
+        userId: r.blockedId,
+        name: r.blocked?.name ?? '탈퇴한 사용자',
+        avatarId: r.blocked?.avatarId ?? null,
+        createdAt: r.createdAt,
+      })),
+    });
+  } catch (err) {
+    console.error('[me.blocks.GET]', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+/** POST /api/me/blocks { userId } — 사용자 차단. */
+router.post('/blocks', async (req: Request, res: Response) => {
+  const blockerId = req.user!.userId;
+  const blockedId = String((req.body as { userId?: unknown } | null)?.userId ?? '').trim();
+  if (!blockedId) return res.status(400).json({ error: 'userId 필요' });
+  if (blockedId === blockerId) return res.status(400).json({ error: '자신은 차단할 수 없어요' });
+  try {
+    const target = await prisma.user.findUnique({ where: { id: blockedId }, select: { id: true } });
+    if (!target) return res.status(404).json({ error: '사용자를 찾을 수 없어요' });
+    // 차단자 User 행 보장 (소셜 로그인 직후 미생성 케이스 — 기존 upsert 패턴).
+    await prisma.user.upsert({
+      where: { id: blockerId },
+      update: {},
+      create: { id: blockerId, name: defaultNameFor(blockerId) },
+    });
+    await prisma.userBlock.upsert({
+      where: { blockerId_blockedId: { blockerId, blockedId } },
+      update: {},
+      create: { blockerId, blockedId },
+    });
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    console.error('[me.blocks.POST]', blockerId, blockedId, err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+/** DELETE /api/me/blocks/:userId — 차단 해제. */
+router.delete('/blocks/:userId', async (req: Request, res: Response) => {
+  try {
+    await prisma.userBlock.deleteMany({
+      where: { blockerId: req.user!.userId, blockedId: req.params.userId },
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[me.blocks.DELETE]', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
 /**
  * DELETE /api/me — 회원 탈퇴 (App Store 5.1.1(v) 계정 삭제 요건).
  * User 행 삭제 → 개인 데이터(컬렉션·관심·알림·쪽지 등)는 스키마 onDelete: Cascade 로

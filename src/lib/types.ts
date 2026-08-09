@@ -46,6 +46,8 @@ export interface FeedPost {
   createdAt: string;
   user: string;         // authorEmoji (아바타 id or 이모지)
   authorName?: string | null; // 사용자 닉네임 (FeedRow 아바타 아래 표시용)
+  /** 작성자 id — 차단(신고) 기능용. null = 탈퇴/익명. */
+  authorId?: string | null;
   authorBgId?: string;
   authorFrameId?: string;
   /** 글 카테고리 (shared/feedCategories.ts). null/undefined = 레거시 글 → 사진 유무로 추정. */

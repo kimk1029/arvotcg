@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { requireAuth } from '../middleware/requireAuth.js';
+import { requireAuth, optionalAuth } from '../middleware/requireAuth.js';
+import { getBlockedIds } from '../lib/queries.js';
 import { EVENT_CATEGORIES } from '@/lib/events';
 
 const router = Router();
@@ -67,16 +68,20 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
-/** 댓글 목록 — 공개 글에만. */
-router.get('/:id/comments', async (req: Request, res: Response) => {
+/** 댓글 목록 — 공개 글에만. 로그인 시 차단한 작성자 댓글 제외. */
+router.get('/:id/comments', optionalAuth, async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).json({ error: 'invalid id' });
     return;
   }
   try {
+    const blocked = await getBlockedIds(req.user?.userId);
     const rows = await prisma.eventPostComment.findMany({
-      where: { postId: id },
+      where: {
+        postId: id,
+        ...(blocked.length ? { NOT: { authorId: { in: blocked } } } : {}),
+      },
       orderBy: { createdAt: 'asc' },
       take: 200,
       include: AUTHOR_INCLUDE,
@@ -85,6 +90,7 @@ router.get('/:id/comments', async (req: Request, res: Response) => {
       data: rows.map((r) => ({
         id: r.id,
         text: r.text,
+        authorId: r.authorId,
         authorName: r.author?.name ?? '트레이너',
         createdAt: r.createdAt.toISOString(),
       })),

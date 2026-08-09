@@ -9,6 +9,7 @@ import { ShopSection, SHOP_REGIONS } from '@/components/CommunityShop';
 import { isFeedCategory } from '@/lib/feedCategories';
 import { fonts } from '@/theme/tokens';
 import { api } from '@/lib/apiClient';
+import { ReportMenu } from '@/components/ReportMenu';
 
 /**
  * 커뮤니티 — Claude Design 'ARVOTCG 커뮤니티' 프로토타입 레이아웃 (네이티브).
@@ -120,6 +121,8 @@ interface FeedPost {
   createdAt: string;
   user: string; // authorEmoji (아바타 id or 이모지)
   authorName?: string | null;
+  /** 작성자 id — 차단(신고) 기능용. null = 탈퇴/익명. */
+  authorId?: string | null;
   authorBgId?: string;
   authorFrameId?: string;
   /** 글 카테고리 (shared/feedCategories.ts). null/undefined = 레거시 글 → 사진 유무로 추정. */
@@ -276,9 +279,10 @@ export default function CommunityScreen() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
+    // 로그인 상태면 Bearer 첨부 → 서버가 차단한 작성자 글을 걸러서 내려준다.
     const [f, t] = await Promise.all([
-      api<{ items: FeedPost[] }>('/api/feeds?limit=20', { auth: false }).catch(() => ({ items: [] as FeedPost[] })),
-      api<{ data: Trade[] }>('/api/trades?limit=30', { auth: false }).catch(() => ({ data: [] as Trade[] })),
+      api<{ items: FeedPost[] }>('/api/feeds?limit=20').catch(() => ({ items: [] as FeedPost[] })),
+      api<{ data: Trade[] }>('/api/trades?limit=30').catch(() => ({ data: [] as Trade[] })),
     ]);
     setFeed(f.items ?? []);
     setTrades(t.data ?? []);
@@ -648,7 +652,7 @@ export default function CommunityScreen() {
                 />
               ) : (
                 visiblePosts.map((p) => (
-                  <PostRow key={p.id} post={p} P={P} ts={ts} tagStyle={tagStyle} />
+                  <PostRow key={p.id} post={p} P={P} ts={ts} tagStyle={tagStyle} onReload={load} />
                 ))
               )}
             </View>
@@ -684,7 +688,7 @@ function EmptyRow({ label, cta, onPress, P, ts }: { label: string; cta: string; 
 
 /* ---------------- 글 행 (펼침: 사진 + 댓글) — 웹 PostRow 동일 로직 ---------------- */
 
-function PostRow({ post, P, ts, tagStyle }: { post: FeedPost; P: Palette; ts: TsFn; tagStyle: (label: string) => { fg: string; bg: string } }) {
+function PostRow({ post, P, ts, tagStyle, onReload }: { post: FeedPost; P: Palette; ts: TsFn; tagStyle: (label: string) => { fg: string; bg: string }; onReload?: () => void }) {
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null);
@@ -749,6 +753,9 @@ function PostRow({ post, P, ts, tagStyle }: { post: FeedPost; P: Palette; ts: Ts
             {(post.likeCount ?? 0) > 0 ? <Text style={ts(12.5, '700', P.ink3)}>{post.likeCount}</Text> : null}
           </View>
           {hasThumb ? <Text style={ts(12.5, '700', P.ink3)}>📷 {images.length}</Text> : null}
+          <View style={{ marginLeft: 'auto' }}>
+            <ReportMenu targetType="feed" targetId={post.id} authorId={post.authorId} authorName={post.authorName} onBlocked={onReload} />
+          </View>
         </View>
       </View>
 
@@ -792,6 +799,7 @@ function BookmarkHeart({ feedId, tradeId }: { feedId?: number; tradeId?: number 
 interface FeedComment {
   id: number;
   text: string;
+  authorId?: string | null;
   authorName: string;
   createdAt: string;
 }
@@ -804,7 +812,7 @@ function FeedComments({ feedId, dateLabel, P, ts }: { feedId: number; dateLabel:
 
   useEffect(() => {
     let alive = true;
-    api<{ data?: FeedComment[] }>(`/api/feeds/${feedId}/comments`, { auth: false })
+    api<{ data?: FeedComment[] }>(`/api/feeds/${feedId}/comments`)
       .then((j) => alive && setComments(j.data ?? []))
       .catch(() => alive && setComments([]));
     return () => {
@@ -838,6 +846,7 @@ function FeedComments({ feedId, dateLabel, P, ts }: { feedId: number; dateLabel:
         <View key={c.id} style={{ flexDirection: 'row', gap: 7, marginTop: 9, alignItems: 'flex-start' }}>
           <Text style={[ts(12, '800', P.ink), { flexShrink: 0 }]}>{c.authorName}</Text>
           <Text style={[ts(12.5, '400', P.ink2), { flex: 1 }]}>{c.text}</Text>
+          <ReportMenu targetType="feedComment" targetId={c.id} authorId={c.authorId} authorName={c.authorName} size={13} />
         </View>
       ))}
       {hint ? <Text style={[ts(11.5, '600', P.red), { marginTop: 8 }]}>{hint}</Text> : null}

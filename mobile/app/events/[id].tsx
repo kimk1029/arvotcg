@@ -12,6 +12,7 @@ import { LoadingState, ErrorView } from '@/components/cv/ListState';
 import { space } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { api } from '@/lib/apiClient';
+import { ReportMenu } from '@/components/ReportMenu';
 import {
   EVENT_CATEGORY_STYLE,
   EVENT_STATUS_LABEL,
@@ -23,6 +24,7 @@ import {
 interface EventComment {
   id: number;
   text: string;
+  authorId?: string | null;
   authorName: string;
   createdAt: string;
 }
@@ -130,7 +132,7 @@ function EventComments({ postId, tc, txt }: { postId: number; tc: ReturnType<typ
 
   useEffect(() => {
     let alive = true;
-    api<{ data?: EventComment[] }>(`/api/events/${postId}/comments`, { auth: false })
+    api<{ data?: EventComment[] }>(`/api/events/${postId}/comments`)
       .then((j) => alive && setComments(j.data ?? []))
       .catch(() => alive && setComments([]));
     return () => {
@@ -164,6 +166,7 @@ function EventComments({ postId, tc, txt }: { postId: number; tc: ReturnType<typ
         <View key={c.id} style={{ flexDirection: 'row', gap: 7, marginTop: 9, alignItems: 'flex-start' }}>
           <PixelText variant="ko" size={11} weight="bold" color={tc.ink}>{c.authorName}</PixelText>
           <PixelText variant="ko" size={11} color={tc.ink2} style={{ flex: 1, lineHeight: 16 }}>{c.text}</PixelText>
+          <ReportMenu targetType="eventPostComment" targetId={c.id} authorId={c.authorId} authorName={c.authorName} size={13} />
         </View>
       ))}
       {hint ? (

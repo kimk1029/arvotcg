@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
-import { requireAuth } from '../middleware/requireAuth.js';
+import { requireAuth, optionalAuth } from '../middleware/requireAuth.js';
 import { defaultNameFor } from '../lib/defaultName.js';
 import { getTradeById, getTrades } from '../lib/queries.js';
 import { REWARDS } from '../../shared/rewards';
@@ -19,7 +19,7 @@ function parseId(raw: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', optionalAuth, async (req: Request, res: Response) => {
   const limitRaw = Number(req.query.limit ?? 60);
   const limit = Math.min(Number.isFinite(limitRaw) ? limitRaw : 60, MAX_LIMIT);
   const type = typeof req.query.type === 'string' ? req.query.type : null;
@@ -27,7 +27,7 @@ router.get('/', async (req: Request, res: Response) => {
     ? (type as 'buy' | 'sell')
     : 'all';
   try {
-    const data = await getTrades(filter, limit);
+    const data = await getTrades(filter, limit, req.user?.userId ?? null);
     res.json({ data });
   } catch (err) {
     console.error('[trades.GET]', err);

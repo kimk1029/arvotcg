@@ -18,7 +18,8 @@ export const metadata: Metadata = {
 export const revalidate = 30;
 
 export default async function Page() {
-  const r = await serverFetch<{ data: Trade[] }>('/api/trades?limit=60', { auth: false });
+  // 세션 쿠키 포워딩 — 차단한 작성자 글 숨김 필터 적용.
+  const r = await serverFetch<{ data: Trade[] }>('/api/trades?limit=60');
   const trades = r.data?.data ?? [];
   return <TradeScreen trades={trades} />;
 }

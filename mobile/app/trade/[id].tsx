@@ -16,6 +16,7 @@ import { space } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { api } from '@/lib/apiClient';
 import { fetchMySummary } from '@/lib/myApi';
+import { ReportMenu } from '@/components/ReportMenu';
 import { formatPrice } from '@/lib/numberFormat';
 import { REWARDS } from '@/lib/rewards';
 import { isAuthenticated } from '@/lib/session';
@@ -150,6 +151,15 @@ export default function TradeDetailScreen() {
           </View>
           <PixelText variant={txt} size={14} weight="bold" color={tc.grnDk}>{formatPrice(trade.price) || '협의'}</PixelText>
           <TradeBookmark tradeId={trade.id} />
+          {!isAuthor ? (
+            <ReportMenu
+              targetType="trade"
+              targetId={trade.id}
+              authorId={trade.authorId}
+              authorName={trade.authorName}
+              onBlocked={() => router.back()}
+            />
+          ) : null}
         </View>
 
         {/* 이미지 그리드 */}

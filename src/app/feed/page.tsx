@@ -18,12 +18,10 @@ export const metadata: Metadata = {
 export const revalidate = 30;
 
 export default async function Page() {
+  // 세션 쿠키 포워딩 — 로그인 사용자가 차단한 작성자 글을 서버가 걸러서 내려준다.
   const [feedResp, tradesResp] = await Promise.all([
-    serverFetch<{ items: FeedPost[]; nextCursor: string | null }>(
-      '/api/feeds?limit=20',
-      { auth: false },
-    ),
-    serverFetch<{ data: Trade[] }>('/api/trades?limit=30', { auth: false }),
+    serverFetch<{ items: FeedPost[]; nextCursor: string | null }>('/api/feeds?limit=20'),
+    serverFetch<{ data: Trade[] }>('/api/trades?limit=30'),
   ]);
   return (
     <CommunityScreen

@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ReportMenu } from '@/components/ReportMenu';
 
 interface EventComment {
   id: number;
   text: string;
+  authorId?: string | null;
   authorName: string;
   createdAt: string;
 }
@@ -81,9 +83,10 @@ export function EventComments({ postId }: { postId: number }) {
               <span style={{ fontFamily: 'var(--f1)', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
                 {c.authorName}
               </span>
-              <span style={{ fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink2)', lineHeight: 1.6, wordBreak: 'break-word' }}>
+              <span style={{ fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink2)', lineHeight: 1.6, wordBreak: 'break-word', flex: 1, minWidth: 0 }}>
                 {c.text}
               </span>
+              <ReportMenu targetType="eventPostComment" targetId={c.id} authorId={c.authorId} authorName={c.authorName} size={13} />
             </div>
           ))}
         </div>

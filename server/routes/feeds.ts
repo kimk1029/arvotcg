@@ -1,9 +1,9 @@
 import { Router, type Request, type Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
-import { requireAuth } from '../middleware/requireAuth.js';
+import { requireAuth, optionalAuth } from '../middleware/requireAuth.js';
 import { defaultNameFor } from '../lib/defaultName.js';
-import { getFeedPage } from '../lib/queries.js';
+import { getFeedPage, getBlockedIds } from '../lib/queries.js';
 import { REWARDS } from '../../shared/rewards';
 import { DEFAULT_FEED_CATEGORY, isFeedCategory } from '../../shared/feedCategories';
 
@@ -14,23 +14,27 @@ function parseId(raw: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', optionalAuth, async (req: Request, res: Response) => {
   const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
   const limitRaw = Number(req.query.limit ?? 20);
   const limit = Number.isFinite(limitRaw) ? limitRaw : 20;
 
-  const page = await getFeedPage({ cursor, limit });
+  const page = await getFeedPage({ cursor, limit, viewerId: req.user?.userId ?? null });
   res.json(page);
 });
 
 /* ── 댓글 (피드 상세 펼침 시 노출) ─────────────────────────────── */
 
-router.get('/:id/comments', async (req: Request, res: Response) => {
+router.get('/:id/comments', optionalAuth, async (req: Request, res: Response) => {
   const feedId = parseId(req.params.id);
   if (feedId === null) return res.status(400).json({ error: 'invalid id' });
   try {
+    const blocked = await getBlockedIds(req.user?.userId);
     const rows = await prisma.feedComment.findMany({
-      where: { feedId },
+      where: {
+        feedId,
+        ...(blocked.length ? { NOT: { authorId: { in: blocked } } } : {}),
+      },
       orderBy: { createdAt: 'asc' },
       take: 100,
       include: { author: { select: { name: true } } },
@@ -39,6 +43,7 @@ router.get('/:id/comments', async (req: Request, res: Response) => {
       data: rows.map((r) => ({
         id: r.id,
         text: r.text,
+        authorId: r.authorId,
         authorName: r.author?.name ?? '트레이너',
         createdAt: r.createdAt.toISOString(),
       })),

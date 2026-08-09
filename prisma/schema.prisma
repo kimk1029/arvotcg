@@ -54,8 +54,57 @@ model User {
   scanLogs         ScanLog[]
   eventPosts       EventPost[]
   eventPostComments EventPostComment[]
+  reportsFiled     ContentReport[] @relation("ReportsFiled")
+  blocksMade       UserBlock[]     @relation("BlocksMade")
+  blocksReceived   UserBlock[]     @relation("BlocksReceived")
 
   @@map("users")
+}
+
+/// 콘텐츠 신고 — 게시글/댓글 등 UGC 신고 접수 (App Store 심사 지침 1.2 요건).
+/// 어드민 "신고 관리" 화면에서 처리(status 변경·콘텐츠 삭제).
+model ContentReport {
+  id           Int       @id @default(autoincrement())
+  /// 신고자 — 탈퇴해도 신고 기록은 유지 (SetNull).
+  reporterId   String?
+  reporter     User?     @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: SetNull)
+  /// 신고 대상: 'trade' | 'feed' | 'feedComment' | 'eventPost' | 'eventPostComment'
+  targetType   String
+  /// 대상 행 id (문자열 통일).
+  targetId     String
+  /// 대상 작성자 id (신고 시점 스냅) — 사용자별 신고 집계용.
+  targetUserId String?
+  /// 신고 사유 선택지 라벨 ('스팸/광고' 등).
+  reason       String
+  /// 상세 설명 (선택).
+  detail       String?
+  /// 신고 시점 대상 본문 미리보기 — 원본이 삭제돼도 어드민에서 맥락 확인용.
+  snapshot     String?
+  /// 'open' | 'resolved'(조치함) | 'dismissed'(문제없음)
+  status       String    @default("open")
+  createdAt    DateTime  @default(now())
+  resolvedAt   DateTime?
+
+  /// 같은 사람이 같은 대상 중복 신고 방지.
+  @@unique([reporterId, targetType, targetId])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([targetType, targetId])
+  @@map("content_reports")
+}
+
+/// 사용자 차단 — 차단하면 피드·거래글·댓글 목록에서 해당 작성자 콘텐츠가
+/// 차단자에게 숨겨진다 (App Store 심사 지침 1.2 요건).
+model UserBlock {
+  id        Int      @id @default(autoincrement())
+  blockerId String
+  blocker   User     @relation("BlocksMade", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   User     @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@map("user_blocks")
 }
 
 /// 거래 시 만남 장소 (지하철역 등). 페스타 혼잡도 추적은 제거됨.

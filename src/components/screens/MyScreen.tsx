@@ -158,6 +158,7 @@ export function MyScreen({ user, level, cardCount, tradeCount, savedCount, isGue
     { emoji: '❓', iconBg: '#E0EDFF', label: 'FAQ · 자주 묻는 질문', href: '/my/faq' },
     { emoji: '📜', iconBg: '#F0F0F2', label: '이용약관', href: '/terms' },
     { emoji: '🔒', iconBg: '#E3F6EC', label: '개인정보처리방침', href: '/privacy' },
+    ...(!isGuest ? [{ emoji: '🚫', iconBg: '#FFECEC', label: '차단 관리', sub: '차단한 사용자 보기·해제', href: '/my/blocks' } satisfies MenuItem] : []),
     { emoji: '🔔', iconBg: '#F0F0F2', label: '알림 설정', sub: '준비중', disabled: true },
   ];
 

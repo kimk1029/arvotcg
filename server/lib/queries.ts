@@ -77,6 +77,7 @@ function asTradeStatus(s: string): TradeStatus {
 type FeedRow = {
   id: number;
   text: string;
+  authorId?: string | null;
   authorEmoji: string;
   authorBgId?: string;
   authorFrameId?: string;
@@ -95,6 +96,7 @@ function toFeedPost(r: FeedRow): FeedPost {
     createdAt: r.createdAt.toISOString(),
     user: r.authorEmoji ?? '🐣',
     authorName: r.author?.name ?? null,
+    authorId: r.authorId ?? null,
     authorBgId: r.authorBgId,
     authorFrameId: r.authorFrameId,
     category: r.category ?? null,
@@ -146,17 +148,36 @@ export interface FeedPage {
   nextCursor: string | null;
 }
 
+/** 뷰어가 차단한 사용자 id 목록 — 피드/거래 목록에서 해당 작성자 글 숨김용. */
+export async function getBlockedIds(viewerId: string | null | undefined): Promise<string[]> {
+  if (!viewerId) return [];
+  try {
+    const rows = await prisma.userBlock.findMany({
+      where: { blockerId: viewerId },
+      select: { blockedId: true },
+    });
+    return rows.map((r) => r.blockedId);
+  } catch {
+    return [];
+  }
+}
+
 export async function getFeedPage(opts: {
   cursor?: string | null;
   limit?: number;
   authorId?: string;
+  /** 로그인 뷰어 id — 차단한 작성자 글 제외 (App Store 1.2). */
+  viewerId?: string | null;
 } = {}): Promise<FeedPage> {
   const limit = Math.min(Math.max(opts.limit ?? 20, 1), 50);
   try {
+    const blocked = await getBlockedIds(opts.viewerId);
     const rows = await prisma.feed.findMany({
       where: {
         ...(opts.authorId ? { authorId: opts.authorId } : {}),
         ...(opts.cursor ? { createdAt: { lt: new Date(opts.cursor) } } : {}),
+        // NOT-in 필터는 authorId=null(탈퇴/익명) 글을 유지한다.
+        ...(blocked.length ? { NOT: { authorId: { in: blocked } } } : {}),
       },
       orderBy: { createdAt: 'desc' },
       take: limit + 1,
@@ -198,10 +219,18 @@ function asImages(v: unknown): string[] {
 /* trades                                                              */
 /* ------------------------------------------------------------------ */
 
-export async function getTrades(filter: 'all' | TradeType = 'all', limit = 60): Promise<Trade[]> {
+export async function getTrades(
+  filter: 'all' | TradeType = 'all',
+  limit = 60,
+  viewerId?: string | null,
+): Promise<Trade[]> {
   try {
+    const blocked = await getBlockedIds(viewerId);
     const rows = await prisma.trade.findMany({
-      where: filter === 'all' ? {} : { type: filter },
+      where: {
+        ...(filter === 'all' ? {} : { type: filter }),
+        ...(blocked.length ? { NOT: { authorId: { in: blocked } } } : {}),
+      },
       orderBy: [{ bumpedAt: 'desc' }, { createdAt: 'desc' }],
       take: Math.min(Math.max(limit, 1), 100),
       include: {
