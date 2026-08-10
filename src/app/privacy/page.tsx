@@ -32,7 +32,8 @@ export default function PrivacyPage() {
           <P>
             「아르보TCG」(이하 “서비스”)은 이용자의 개인정보를
             중요하게 생각하며, 「개인정보 보호법」을 비롯한 관련 법령을
-            준수하기 위해 다음과 같은 처리방침을 두고 있습니다.
+            준수하기 위해 다음과 같은 처리방침을 두고 있습니다.{' '}
+            <Link href="/privacy/en">English version</Link>
           </P>
 
           <H>1. 수집하는 개인정보 항목</H>

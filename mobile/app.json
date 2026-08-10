@@ -29,7 +29,8 @@
             }
           }
         }
-      }
+      },
+      "buildNumber": "2"
     },
     "android": {
       "package": "com.arvotcg.app",
@@ -63,6 +64,13 @@
     ],
     "experiments": {
       "typedRoutes": false
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2c43f639-65c3-4f0f-a49c-7289bc28e232"
+      }
+    },
+    "owner": "kimk1029"
   }
 }
