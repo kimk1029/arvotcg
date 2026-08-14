@@ -4,6 +4,7 @@
     "slug": "pokefesta30",
     "version": "1.0.0",
     "orientation": "portrait",
+    "newArchEnabled": false,
     "scheme": "pokefesta30",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",

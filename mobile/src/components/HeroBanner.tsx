@@ -193,22 +193,31 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
     <View style={{ marginHorizontal: 0, marginBottom: 8 }}>
       {/* 웹 홈과 동일 — 컨테이너 보더 없이 좌우 풀블리드 슬라이드만 (모든 테마 공통). */}
       {track}
-      {/* dots */}
-      {data.length > 1 ? (
-        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: 6 }}>
-          {data.map((_, i) => (
-            <View
-              key={i}
-              style={{
-                width: i === idx ? 14 : 6,
-                height: 6,
-                backgroundColor: i === idx ? tc.ink : tc.pap3,
-                borderRadius: 3,
-              }}
-            />
-          ))}
-        </View>
-      ) : null}
+      {/* dots — 배너 내부 하단 중앙 오버레이. 슬라이드 1개여도 항상 표시. */}
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 10,
+          flexDirection: 'row',
+          justifyContent: 'center',
+          gap: 5,
+        }}
+      >
+        {data.map((_, i) => (
+          <View
+            key={i}
+            style={{
+              width: i === idx ? 14 : 6,
+              height: 6,
+              backgroundColor: i === idx ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.45)',
+              borderRadius: 3,
+            }}
+          />
+        ))}
+      </View>
     </View>
   );
 }

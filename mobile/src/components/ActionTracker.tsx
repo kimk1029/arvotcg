@@ -82,17 +82,9 @@ export function ActionTracker({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  return (
-    <View
-      style={{ flex: 1 }}
-      // 캡처 단계에서 모든 탭을 관찰만 하고(return false) 터치는 자식이 정상 처리.
-      onStartShouldSetResponderCapture={(e) => {
-        const { pageX, pageY } = e.nativeEvent;
-        enqueue({ type: 'tap', path: pathRef.current ?? '', target: `@${Math.round(pageX)},${Math.round(pageY)}` });
-        return false;
-      }}
-    >
-      {children}
-    </View>
-  );
+  // 탭 좌표 추적은 하지 않는다 — 루트 View 의 onStartShouldSetResponderCapture 는
+  // 새 아키텍처(Fabric) iOS 에서 false 를 반환해도 자식 Pressable 의 터치를 삼켜
+  // 앱 전체 버튼이 안 눌리는 치명적 문제를 일으킨다 (스크롤만 동작하는 증상).
+  // 화면 이동(pageview) 추적만 유지. 웹은 DOM 캡처 리스너라 영향 없음.
+  return <View style={{ flex: 1 }}>{children}</View>;
 }

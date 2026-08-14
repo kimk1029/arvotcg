@@ -1,8 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Stack } from 'expo-router';
+import { Slot } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, LogBox } from 'react-native';
+
+// 구 아키텍처에서 react-native-screens 헤더 설정이 던지는 무해한(캐치되는) 예외.
+// 헤더를 쓰지 않아(headerShown:false) 기능 영향 없음 — 개발 LogBox 만 소음이라 억제.
+// (프로덕션 빌드에는 LogBox 가 없고 예외도 RN 이 잡아서 무시한다.)
+LogBox.ignoreLogs([
+  /Exception thrown while executing UI block/,
+  /Animated node with tag \d+ does not exist/,
+  /Error setting property 'color' of RNSScreenStackHeaderConfig/,
+]);
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import {
@@ -111,27 +120,13 @@ export default function RootLayout() {
              * PhoneShell 이 외부에 있으므로 StatusBar / Tabbar 는 고정되고,
              * 페이지 컨텐츠 영역만 애니메이션된다.
              */}
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                animation: 'slide_from_right',
-                animationDuration: 260,
-                contentStyle: { backgroundColor: colors.paper },
-              }}
-            >
-              {/* 홈 — 탭 사이 이동 느낌이 더 부드러운 fade */}
-              <Stack.Screen name="index" options={{ animation: 'fade', animationDuration: 180 }} />
-              {/* 스캔 — 하단에서 솟구치는 모달 느낌 */}
-              <Stack.Screen
-                name="scan"
-                options={{ animation: 'slide_from_bottom', animationDuration: 320 }}
-              />
-              {/* 로그인 — 전체화면 페이드 */}
-              <Stack.Screen
-                name="login"
-                options={{ animation: 'fade', animationDuration: 220 }}
-              />
-            </Stack>
+            {/*
+             * Slot(일반 View 아울렛) 사용 — react-native-screens 네이티브 스택(Stack)은
+             * PhoneShell(StatusBar 밴드+SafeArea) 래퍼와 조합 시 화면 터치 판정이
+             * 어긋나 모든 버튼이 눌리지 않는 치명적 문제가 있었다 (iOS 네이티브 빌드).
+             * 전환 애니메이션은 잃지만 터치가 100% 보장되는 구조.
+             */}
+            <Slot />
                 </ActionTracker>
                 </PhoneShell>
               </PriceModeProvider>

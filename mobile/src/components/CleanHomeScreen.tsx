@@ -221,8 +221,11 @@ function CardArt({
 }
 
 /**
- * 가로 캐러셀 — 사용자가 직접 좌우 스와이프(드래그)로 넘길 수 있고, 손대지 않으면
- * 자동 슬라이딩(등속 좌측 루프). 카드를 두 벌 이어붙여 세트 폭에서 오프셋을 되감는다.
+ * 가로 캐러셀 — 등속 좌측 루프(마퀴). 카드를 두 벌 이어붙여 세트 폭에서 되감는다.
+ * ⚠️ ScrollView.scrollTo 30ms 틱 방식 절대 금지 — iOS 는 스크롤 중 터치를 취소하므로
+ * 앱이 상시 스크롤 상태가 되어 화면 전체 버튼이 눌리지 않는 치명적 버그가 됐었다.
+ * 대신 스크롤 시스템 밖에서 transform(setNativeProps)으로만 움직인다.
+ * 손가락이 닿으면 즉시 정지(카드 탭 명중 보장) → 떼고 1.6초 뒤 재개.
  */
 function AutoCarousel<T>({
   data,
@@ -235,21 +238,22 @@ function AutoCarousel<T>({
   gap: number;
   renderItem: (item: T, indexInSet: number) => ReactNode;
 }) {
-  const ref = useRef<ScrollView>(null);
+  const rowRef = useRef<View>(null);
   const offset = useRef(0);
   const paused = useRef(false);
   const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const STEP = itemWidth + gap;
   const setWidth = data.length * STEP;
 
-  // 자동 슬라이딩 — 30ms 등속 틱(~22px/s). 유저가 잡고 있는 동안은 정지.
   useEffect(() => {
     if (setWidth <= 0) return;
     const id = setInterval(() => {
       if (paused.current) return;
-      offset.current += 22 * 0.03;
+      offset.current += 22 * 0.03; // ~22px/s 등속
       if (offset.current >= setWidth) offset.current -= setWidth;
-      ref.current?.scrollTo({ x: offset.current, animated: false });
+      rowRef.current?.setNativeProps({
+        style: { transform: [{ translateX: -offset.current }] },
+      });
     }, 30);
     return () => {
       clearInterval(id);
@@ -270,32 +274,20 @@ function AutoCarousel<T>({
 
   const display = [...data, ...data];
   return (
-    <ScrollView
-      ref={ref}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      scrollEventThrottle={16}
-      onScroll={(e) => {
-        let x = e.nativeEvent.contentOffset.x;
-        // 두 번째 세트로 넘어가면 같은 화면의 첫 세트 위치로 되감아 무한 루프 유지.
-        if (setWidth > 0 && x >= setWidth) {
-          x -= setWidth;
-          ref.current?.scrollTo({ x, animated: false });
-        }
-        offset.current = x;
-      }}
-      onScrollBeginDrag={pause}
-      onScrollEndDrag={resumeSoon}
-      onMomentumScrollEnd={resumeSoon}
-      style={{ paddingTop: 8, paddingBottom: 4 }}
-      contentContainerStyle={{ paddingLeft: 20 }}
+    <View
+      style={{ overflow: 'hidden', paddingTop: 8, paddingBottom: 4 }}
+      onTouchStart={pause}
+      onTouchEnd={resumeSoon}
+      onTouchCancel={resumeSoon}
     >
-      {display.map((item, i) => (
-        <View key={i} style={{ width: itemWidth, marginRight: gap }}>
-          {renderItem(item, i % data.length)}
-        </View>
-      ))}
-    </ScrollView>
+      <View ref={rowRef} style={{ flexDirection: 'row', paddingLeft: 20 }}>
+        {display.map((item, i) => (
+          <View key={i} style={{ width: itemWidth, marginRight: gap }}>
+            {renderItem(item, i % data.length)}
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -570,7 +562,9 @@ export function CleanHomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeGame]);
 
-  const [banners, setBanners] = useState<HeroSlideData[]>([]);
+  // null = 로딩 중 (플레이스홀더 노출). 로드 전에 폴백 슬라이드를 그리면
+  // "슬라이드 3개 → DB 1개"로 인디케이터가 줄어드는 깜빡임이 생긴다.
+  const [banners, setBanners] = useState<HeroSlideData[] | null>(null);
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -698,7 +692,12 @@ export function CleanHomeScreen() {
         </View>
 
         {/* promo banner — 비면 컴포넌트 내장 폴백 슬라이드 */}
-        <HeroBanner slides={banners} />
+        {banners === null ? (
+          // 배너 로딩 플레이스홀더 — 실배너와 같은 높이(176+dots)로 레이아웃 점프 방지.
+          <View style={{ height: 176, marginBottom: 8, backgroundColor: tc.pap2 }} />
+        ) : (
+          <HeroBanner slides={banners} />
+        )}
 
         {/* search — 픽셀: 직각 PixelFrame 박스 / 플랫: 둥근 소프트 타일 */}
         <View style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 14 }}>
