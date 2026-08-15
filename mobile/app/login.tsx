@@ -6,7 +6,10 @@
  * 루트 레이아웃의 딥링크 핸들러가 토큰을 저장한다.
  */
 import { useState } from 'react';
-import { View, ScrollView, Pressable, StatusBar } from 'react-native';
+import { Alert, Platform, View, ScrollView, Pressable, StatusBar } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { api } from '@/lib/apiClient';
+import { persistTokenAndGoHome } from '@/lib/oauth';
 import { router } from 'expo-router';
 import { PixelText } from '@/components/PixelText';
 import { PixelPress } from '@/components/cv/PixelPress';
@@ -27,6 +30,39 @@ export default function LoginScreen() {
     setBusy(true);
     try {
       await startSocialLogin(provider);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Sign in with Apple — 심사 지침 4.8 필수(서드파티 로그인 제공 시). iOS 전용.
+  // 네이티브 시트에서 identityToken 을 받아 서버 /auth/apple/native 로 검증·세션 발급.
+  const startAppleLogin = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const cred = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      if (!cred.identityToken) throw new Error('identityToken 없음');
+      // 이름은 최초 승인 시 1회만 내려온다 — 그때만 서버에 전달.
+      const name =
+        [cred.fullName?.familyName, cred.fullName?.givenName].filter(Boolean).join('') || undefined;
+      const r = await api<{ token?: string; error?: string }>('/auth/apple/native', {
+        method: 'POST',
+        body: { identityToken: cred.identityToken, name },
+        auth: false,
+      });
+      if (!r.token) throw new Error(r.error ?? '토큰 발급 실패');
+      persistTokenAndGoHome(r.token);
+    } catch (e) {
+      const code = (e as { code?: string })?.code;
+      if (code !== 'ERR_REQUEST_CANCELED') {
+        Alert.alert('Apple 로그인 실패', '잠시 후 다시 시도해 주세요.');
+      }
     } finally {
       setBusy(false);
     }
@@ -95,6 +131,16 @@ export default function LoginScreen() {
         {/* 프로바이더 브랜드색은 테마와 무관하게 리터럴 고정 — tc.white/tc.ink 는 clean·dark
             에서 뒤집혀(overload) 배경↔글자 대비가 깨진다(다크에서 글자가 안 보이던 버그). */}
         <View style={{ gap: 12 }}>
+          {Platform.OS === 'ios' ? (
+            <LoginBtn
+              bg="#000000"
+              fg="#FFFFFF"
+              provider="apple"
+              name="Apple로 로그인"
+              desc="Apple 계정으로 간편 로그인"
+              onPress={startAppleLogin}
+            />
+          ) : null}
           <LoginBtn
             bg="#FEE500"
             fg="#3A1D00"
@@ -161,7 +207,7 @@ export default function LoginScreen() {
 interface BtnProps {
   bg: string;
   fg: string;
-  provider: AuthProvider;
+  provider: AuthProvider | 'apple';
   name: string;
   desc: string;
   onPress: () => void;

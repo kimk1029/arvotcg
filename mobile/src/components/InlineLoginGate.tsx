@@ -7,8 +7,11 @@
  * 루트 레이아웃에서 처리한다.
  */
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { router } from 'expo-router';
+import { api } from '@/lib/apiClient';
+import { persistTokenAndGoHome } from '@/lib/oauth';
 import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
 import { PixelFrame } from '@/components/cv/PixelFrame';
@@ -39,6 +42,37 @@ export function InlineLoginGate({ title, feature, description, icon = '🔒' }: 
     setBusy(true);
     try {
       await startSocialLogin(provider);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Sign in with Apple — /login 과 동일 플로우 (심사 지침 4.8, iOS 전용).
+  const startAppleLogin = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const cred = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      if (!cred.identityToken) throw new Error('identityToken 없음');
+      const name =
+        [cred.fullName?.familyName, cred.fullName?.givenName].filter(Boolean).join('') || undefined;
+      const r = await api<{ token?: string; error?: string }>('/auth/apple/native', {
+        method: 'POST',
+        body: { identityToken: cred.identityToken, name },
+        auth: false,
+      });
+      if (!r.token) throw new Error(r.error ?? '토큰 발급 실패');
+      persistTokenAndGoHome(r.token);
+    } catch (e) {
+      const code = (e as { code?: string })?.code;
+      if (code !== 'ERR_REQUEST_CANCELED') {
+        Alert.alert('Apple 로그인 실패', '잠시 후 다시 시도해 주세요.');
+      }
     } finally {
       setBusy(false);
     }
@@ -129,6 +163,15 @@ export function InlineLoginGate({ title, feature, description, icon = '🔒' }: 
             프로바이더 브랜드색은 테마와 무관하게 리터럴 고정 — colors.white 를 넘기면
             PixelPress 가 테마 white 로 치환해 clean·dark 에서 대비가 깨진다. */}
         <View style={{ gap: 10 }}>
+          {Platform.OS === 'ios' ? (
+            <CompactLoginBtn
+              bg="#000000"
+              fg="#FFFFFF"
+              provider="apple"
+              name="Apple로 로그인"
+              onPress={startAppleLogin}
+            />
+          ) : null}
           <CompactLoginBtn
             bg="#FEE500"
             fg="#3A1D00"
@@ -169,7 +212,7 @@ export function InlineLoginGate({ title, feature, description, icon = '🔒' }: 
 interface CompactBtnProps {
   bg: string;
   fg: string;
-  provider: AuthProvider;
+  provider: AuthProvider | 'apple';
   name: string;
   onPress: () => void;
 }

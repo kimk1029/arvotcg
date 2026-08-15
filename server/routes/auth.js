@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { prisma } from '../lib/prisma.js';
 import { signSession, extractToken, verifySession } from '../lib/auth.js';
 import { setSessionCookie, clearSessionCookie } from '../lib/cookies.js';
@@ -91,6 +92,50 @@ router.get('/app-callback', (_req, res) => {
         '<title>로그인 완료</title>' +
         '<body style="font-family:sans-serif;text-align:center;padding-top:48px;color:#333">로그인 완료. 앱으로 돌아갑니다…</body>',
     );
+});
+
+// ── Sign in with Apple (네이티브) ─────────────────────────────────────────────
+// App Store 심사 지침 4.8: 서드파티 소셜 로그인 제공 앱은 Apple 로그인 필수.
+// 앱이 expo-apple-authentication 으로 받은 identityToken(JWT)을 보내면
+// Apple 공개키(JWKS)로 서명·발급자·수신자(번들ID)를 검증하고 세션을 발급한다.
+// 웹은 Apple Services ID 도메인 검증이 별도로 필요해 앱 전용 (플랫폼 예외).
+const APPLE_JWKS = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'));
+const APPLE_BUNDLE_ID = process.env.APPLE_BUNDLE_ID ?? 'com.arvotcg.app';
+
+router.post('/apple/native', async (req, res) => {
+  const body = req.body ?? {};
+  const identityToken = typeof body.identityToken === 'string' ? body.identityToken : '';
+  if (!identityToken) return res.status(400).json({ error: 'identityToken required' });
+  try {
+    const { payload } = await jwtVerify(identityToken, APPLE_JWKS, {
+      issuer: 'https://appleid.apple.com',
+      audience: APPLE_BUNDLE_ID,
+    });
+    if (!payload.sub) return res.status(401).json({ error: 'missing sub' });
+    const userId = `apple_${payload.sub}`;
+    const email = typeof payload.email === 'string' ? payload.email : null;
+    // Apple 은 이름을 "최초 승인 시 1회"만 앱에 준다 — create 에만 반영, update 시 보존.
+    const givenName = typeof body.name === 'string' ? body.name.trim().slice(0, 20) : '';
+    const user = await prisma.user.upsert({
+      where: { id: userId },
+      update: email ? { email } : {},
+      create: {
+        id: userId,
+        name: givenName || defaultNameFor(userId),
+        ...(email ? { email } : {}),
+      },
+    });
+    const token = await signSession({
+      userId: user.id,
+      provider: 'apple',
+      email: user.email ?? undefined,
+      name: user.name,
+    });
+    res.json({ token });
+  } catch (err) {
+    console.error('[auth.apple.native]', err);
+    res.status(401).json({ error: 'invalid identity token' });
+  }
 });
 
 router.get('/:provider', (req, res) => {

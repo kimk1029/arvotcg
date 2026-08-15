@@ -7,11 +7,22 @@ import Svg, { Path } from 'react-native-svg';
 import type { AuthProvider } from '@/lib/oauth';
 
 interface Props {
-  provider: AuthProvider;
+  provider: AuthProvider | 'apple';
   size?: number;
 }
 
 export function ProviderLogo({ provider, size = 22 }: Props) {
+  if (provider === 'apple') {
+    // Apple 로고 — 검정 버튼 위 흰색 (Sign in with Apple HIG)
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <Path
+          fill="#FFFFFF"
+          d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8.98-.2 1.92-.91 3.16-.84 1.79.14 3.05.94 3.79 2.4-3.34 2.07-2.79 6.44.66 7.88-.65 1.29-1.48 2.56-2.69 3.73zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"
+        />
+      </Svg>
+    );
+  }
   if (provider === 'kakao') {
     // 카카오톡 말풍선 심볼 — 버튼 텍스트색과 동일한 다크브라운
     return (
