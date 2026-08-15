@@ -641,7 +641,7 @@ function ScanScreenInner() {
           }}
         />
       ) : mode === 'batchResult' ? (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 14, paddingBottom: 40 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 14, paddingBottom: navStyle === 'floating' ? insets.bottom + 82 + 40 : 40 }}>
           <View style={{ marginHorizontal: 14, marginBottom: 12 }}>
             <PixelText variant={txt} size={12} color={tc.grnDk} weight="bold" style={{ letterSpacing: 1 }}>
               ✓ {batchFound.length}장 인식 완료
@@ -697,7 +697,16 @@ function ScanScreenInner() {
         </ScrollView>
       ) : (
       <>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 14, paddingBottom: 40 }}>
+      {/* 플로팅 탭바(마진 12 + 바 ≈58 + 제스처 인셋)가 스크롤 하단을 덮으므로 여백 확보.
+          단, manual 검색 후엔 하단 고정 바가 이미 그 마진을 갖고 있어 중복 불필요. */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingTop: 14,
+          paddingBottom:
+            navStyle === 'floating' && !(mode === 'manual' && manSearched) ? insets.bottom + 82 + 40 : 40,
+        }}
+      >
         {mode === 'choose' && (
           <>
             <View style={{ alignItems: 'center', paddingVertical: 24, gap: 10 }}>
