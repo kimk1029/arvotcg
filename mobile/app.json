@@ -32,7 +32,7 @@
           }
         }
       },
-      "buildNumber": "7"
+      "buildNumber": "8"
     },
     "android": {
       "package": "com.arvotcg.app",
