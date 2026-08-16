@@ -60,7 +60,10 @@ export async function api<T>(path: string, opts: ApiOpts = {}): Promise<T> {
       signal: opts.signal,
     });
   } catch (err) {
-    throw new ApiError(0, null, err instanceof Error ? err.message : 'network');
+    // 전송 단계 실패 — 원인 추적용으로 메서드·경로를 메시지에 포함 (토스트에 그대로 노출).
+    const cause = err instanceof Error ? err.message : 'network';
+    console.warn('[api] transport fail:', opts.method ?? 'GET', url, cause);
+    throw new ApiError(0, null, `${cause} — ${opts.method ?? 'GET'} ${path}`);
   }
 
   const txt = await res.text();
