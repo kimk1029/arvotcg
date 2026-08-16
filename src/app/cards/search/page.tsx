@@ -131,7 +131,7 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
         <input type="hidden" name="mode" value={mode} />
         <div className="ko-search-hint">
           {mode === 'illustrator'
-            ? '일러스트레이터 이름 (한국어 OK)'
+            ? '일러스트레이터 이름 (한국어·영어 OK)'
             : '카드명 / 카드 코드 입력 (한·영 혼용 OK)'}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -156,8 +156,8 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
         <div style={{ margin: '0 var(--gap)', padding: 20, fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink3)', textAlign: 'center', lineHeight: 1.7 }}>
           {mode === 'illustrator' ? (
             <>
-              일러스트레이터 이름을 한국어로 입력해 보세요.<br />
-              예) <b style={{ color: 'var(--ink)' }}>신지칸다</b>, <b style={{ color: 'var(--ink)' }}>아리타</b>, <b style={{ color: 'var(--ink)' }}>사이토 나오키</b>
+              일러스트레이터 이름을 한국어나 영어로 입력해 보세요.<br />
+              예) <b style={{ color: 'var(--ink)' }}>신지칸다</b>, <b style={{ color: 'var(--ink)' }}>아리타</b>, <b style={{ color: 'var(--ink)' }}>Mitsuhiro Arita</b>
             </>
           ) : (
             <>

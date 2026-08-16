@@ -27,8 +27,18 @@ export interface IllustratorSearchResp {
 }
 
 export async function searchByIllustrator(q: string, limit = 30): Promise<IllustratorSearchResp> {
-  return api<IllustratorSearchResp>(
-    `/api/cards/by-illustrator?q=${encodeURIComponent(q)}&limit=${limit}`,
-    { auth: false },
-  );
+  // RN fetch 는 기본 타임아웃이 없어 서버/외부 API 가 매달리면 스피너가 영원히 돈다.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15_000);
+  try {
+    return await api<IllustratorSearchResp>(
+      `/api/cards/by-illustrator?q=${encodeURIComponent(q)}&limit=${limit}`,
+      { auth: false, signal: ctrl.signal },
+    );
+  } catch (e) {
+    if (ctrl.signal.aborted) throw new Error('검색이 너무 오래 걸려요. 잠시 후 다시 시도해 주세요.');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }

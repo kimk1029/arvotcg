@@ -27,9 +27,7 @@ import { GAME_IDS, GAME_OPTIONS, type GameId } from '@/lib/gamePrefs';
 import { CARD_PACKS, type CardPackMeta } from '@/data/cardPacks';
 import { pickHomeBoxPacks } from '../../../shared/homeBoxPacks';
 import { jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
-import * as ImagePicker from 'expo-image-picker';
-import { uploadScanImage, CardScanError } from '@/services/cardScanApi';
-import { useToast } from '@/components/ToastProvider';
+import { useScanToSearch } from '@/lib/useScanToSearch';
 import { api } from '@/lib/apiClient';
 import { fetchMySummary, type MySummary } from '@/lib/myApi';
 import { isAuthenticated } from '@/lib/session';
@@ -295,7 +293,6 @@ export function CleanHomeScreen() {
   const { format } = useCurrency();
   const { theme } = useTheme();
   const tc = useThemeColors();
-  const toast = useToast();
   const flat = isFlatTheme(theme);
   const pixel = !flat; // 픽셀 테마(pokemon·onepiece·yugioh·sports) — 직각/하드섀도 크롬.
   const isClean = theme === 'clean';
@@ -390,43 +387,8 @@ export function CleanHomeScreen() {
   };
 
   // 홈 카메라 = 웹 HomeKoSearchBar 동일: 촬영 → OCR(세트코드+번호) → 검색 목록으로.
-  // 목록에서 카드 선택 → 시세상세 → '내 컬렉션에 추가'로 등록하는 흐름.
-  const [scanBusy, setScanBusy] = useState(false);
-  const scanToSearch = async () => {
-    if (scanBusy) return;
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    const result = perm.granted
-      ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.85 })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
-    if (result.canceled || !result.assets?.[0]) return;
-    const a = result.assets[0];
-    setScanBusy(true);
-    try {
-      const r = await uploadScanImage({
-        uri: a.uri,
-        guideRect: { x: 0, y: 0, w: a.width ?? 0, h: a.height ?? 0 },
-        imageWidth: a.width ?? 0,
-        imageHeight: a.height ?? 0,
-        capturedAt: new Date().toISOString(),
-        useAi: true,
-        language: 'ko',
-      });
-      const setCode = (r.extracted?.setCode ?? '').trim();
-      const num = (r.extracted?.cardNumber ?? '').split('/')[0].trim();
-      const q = [setCode, num].filter(Boolean).join(' ');
-      if (q) router.push(`/cards/snkrdunk/search?q=${encodeURIComponent(q)}` as never);
-      else toast.error('카드 정보를 인식하지 못했어요. 하단이 잘 보이게 다시 찍어주세요.');
-    } catch (e) {
-      if (e instanceof CardScanError && e.code === 'AUTH') {
-        toast.error('로그인 후 이용할 수 있어요');
-        router.push('/login' as never);
-      } else {
-        toast.error(e instanceof Error ? e.message : '스캔 실패');
-      }
-    } finally {
-      setScanBusy(false);
-    }
-  };
+  // 카드 추가 화면 우상단 카메라와 공용 훅 (useScanToSearch).
+  const { scanBusy, scanToSearch } = useScanToSearch();
 
   // 홈 노출 게임 — 단일 선택(라디오). 기본 포켓몬, 다른 칩을 누르면 그 게임만 노출.
   // enabledGames(설정)는 어떤 칩을 보여줄지에만 쓰인다 (웹 CleanHome 동일).

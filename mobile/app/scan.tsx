@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, View, Pressable, TextInput, Text } from 'react-native';
+import Svg, { Path, Circle } from 'react-native-svg';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
@@ -27,6 +28,7 @@ import { createMyCard } from '@/lib/myApi';
 import { api } from '@/lib/apiClient';
 import { useNavPrefs } from '@/components/NavPrefsProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useScanToSearch } from '@/lib/useScanToSearch';
 import { parseCardStatics } from '../../shared/cardStatics';
 
 /** "¥2,000" → 2000. 못 읽으면 0. */
@@ -122,6 +124,8 @@ function ScanScreenInner() {
   const { theme } = useTheme();
   const { navStyle } = useNavPrefs();
   const insets = useSafeAreaInsets();
+  // 우상단 카메라 — 홈 검색 인풋 카메라와 동일한 촬영→OCR→검색 플로우.
+  const { scanBusy: camSearchBusy, scanToSearch: camSearch } = useScanToSearch();
   // 직접입력 팔레트 — 웹 ManualAddForm CLEAN_P/VAR_P 미러 (클린=프로토타입 고정색, 그 외=테마 토큰).
   const mclean = theme === 'clean';
   const MP = {
@@ -607,11 +611,16 @@ function ScanScreenInner() {
         right={
           mode === 'manual' ? (
             <Pressable
-              onPress={() => setMode('choose')}
+              onPress={camSearch}
+              disabled={camSearchBusy}
               hitSlop={6}
-              style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: MP.btnBg, alignItems: 'center', justifyContent: 'center' }}
+              accessibilityLabel="카드 사진 스캔"
+              style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: MP.btnBg, alignItems: 'center', justifyContent: 'center', opacity: camSearchBusy ? 0.5 : 1 }}
             >
-              <PixelText variant="ko" size={14} color={MP.btnFg}>📷</PixelText>
+              <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={MP.btnFg} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+                <Path d="M14.5 4h-5L7 7H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-3l-2.5-3Z" />
+                <Circle cx={12} cy={13} r={3.2} />
+              </Svg>
             </Pressable>
           ) : undefined
         }
@@ -1049,7 +1058,7 @@ function ScanScreenInner() {
             </View>
 
             {/* 직접뽑기 — 웹 cv-reg-check */}
-            <MCheckRow P={MP} on={selfPulled} onPress={() => setSelfPulled((v) => !v)} label="직접 뽑은 카드예요 (구입가 대신 현재시세를 기준가로)" />
+            <MCheckRow P={MP} on={selfPulled} onPress={() => setSelfPulled((v) => !v)} label="직접 뽑은 카드예요" sub="(구입가 대신 현재시세를 기준가로)" />
 
             {/* 구입가격 — 라벨 우측 통화 토글, 인풋 안 단위 (웹 동일) */}
             <View>
@@ -1409,7 +1418,7 @@ function MMenuItem({ P, active, onPress, label }: { P: ManualPalette; active: bo
   );
 }
 
-function MCheckRow({ P, on, onPress, label }: { P: ManualPalette; on: boolean; onPress: () => void; label: string }) {
+function MCheckRow({ P, on, onPress, label, sub }: { P: ManualPalette; on: boolean; onPress: () => void; label: string; sub?: string }) {
   return (
     <Pressable
       onPress={onPress}
@@ -1423,7 +1432,12 @@ function MCheckRow({ P, on, onPress, label }: { P: ManualPalette; on: boolean; o
       <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: on ? P.accent : P.radioBd, backgroundColor: on ? P.accent : P.pageBg, alignItems: 'center', justifyContent: 'center' }}>
         {on ? <PixelText variant="ko" size={11} weight="bold" color="#ffffff">✓</PixelText> : null}
       </View>
-      <PixelText variant="ko" size={12} weight="bold" color={P.ink} style={{ flex: 1 }}>{label}</PixelText>
+      <View style={{ flex: 1 }}>
+        <PixelText variant="ko" size={12} weight="bold" color={P.ink}>{label}</PixelText>
+        {sub ? (
+          <PixelText variant="ko" size={10} color={P.ink3} style={{ marginTop: 2, fontStyle: 'italic' }}>{sub}</PixelText>
+        ) : null}
+      </View>
     </Pressable>
   );
 }

@@ -403,21 +403,13 @@ export default function SnkrdunkSearchScreen() {
 
             <View style={{ height: 12 }} />
 
-            {/* 유의사항 배너 */}
-            <PixelFrame bg={tc.red} borderWidth={3} shadow={6} hi="rgba(255,255,255,0.18)" lo="rgba(0,0,0,0.36)">
-              <View style={{ padding: 14, flexDirection: 'row', gap: 12 }}>
-                <Text style={{ fontSize: 24, lineHeight: 26 }}>📢</Text>
-                <View style={{ flex: 1 }}>
-                  <PixelText variant={txt} size={10} color={tc.gold}>
-                    유의사항
-                  </PixelText>
-                  <PixelText variant="ko" size={11} color={tc.white} style={{ marginTop: 8, lineHeight: 18 }}>
-                    SNKRDUNK는 한글 → 일본어로 번역 후 검색해요. 일본명이 다른 카드(예: 이슬이 → 카스미)는 결과가 안 나올 수 있어요. 이럴 땐 번개장터 탭에서 국내매물을 확인해 주세요.
-                  </PixelText>
-                  <PixelText variant="ko" size={11} color="rgba(255,255,255,0.85)" style={{ marginTop: 6, lineHeight: 18 }}>
-                    결과가 0건인 카드는 현재 파악 중이며, 2~3일 내로 SNKRDUNK 검색에도 나오도록 업데이트할 예정이에요.
-                  </PixelText>
-                </View>
+            {/* 유의사항 배너 — 컴팩트 (얇은 소형 텍스트·좁은 행간·요약 문구) */}
+            <PixelFrame bg={tc.red} borderWidth={2} shadow={3} hi="rgba(255,255,255,0.18)" lo="rgba(0,0,0,0.36)">
+              <View style={{ paddingVertical: 7, paddingHorizontal: 10, flexDirection: 'row', gap: 8 }}>
+                <Text style={{ fontSize: 12, lineHeight: 14 }}>📢</Text>
+                <PixelText variant="ko" size={9} color="rgba(255,255,255,0.92)" style={{ flex: 1, lineHeight: 13, fontWeight: '400' }}>
+                  SNKRDUNK는 한글→일본어 번역 검색이라 일본명이 다른 카드(예: 이슬이→카스미)는 안 나올 수 있어요 — 번개장터 탭에서 국내매물을 확인하세요. 0건 카드는 2~3일 내 검색되도록 업데이트 중이에요.
+                </PixelText>
               </View>
             </PixelFrame>
 

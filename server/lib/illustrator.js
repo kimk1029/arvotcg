@@ -24,21 +24,40 @@ function normalize(s) {
   return String(s ?? '').replace(/\s+/g, '').toLowerCase();
 }
 
+/** 어순 무시 비교용 — 공백 단위 토큰을 정렬 후 이어붙임 ("arita mitsuhiro" ≡ "Mitsuhiro Arita"). */
+function normalizeSorted(s) {
+  return String(s ?? '').trim().toLowerCase().split(/\s+/).sort().join('');
+}
+
 /**
  * 입력(한/영/일) → TCGdex 가 인식하는 정식 이름.
- * 매칭 실패 시 입력 그대로 반환 (사전에 없어도 영문 직접 입력 케이스 대응).
+ * 영문은 어순이 달라도(성·이름 순서) 매칭하고, 4자 이상이면 부분 일치도 허용
+ * (예: "arita" → Mitsuhiro Arita). 매칭 실패 시 입력 그대로 반환.
  */
 export function lookupIllustrator(query) {
   const raw = String(query ?? '').trim();
   if (!raw) return { matched: null, tcgdexName: '' };
   const norm = normalize(raw);
+  const sorted = normalizeSorted(raw);
   for (const e of ILLUSTRATORS) {
     if (e.koAliases.some((a) => normalize(a) === norm)) return { matched: e, tcgdexName: e.tcgdexName };
     if (e.ja && normalize(e.ja) === norm) return { matched: e, tcgdexName: e.tcgdexName };
-    if (normalize(e.en) === norm) return { matched: e, tcgdexName: e.tcgdexName };
-    if (normalize(e.tcgdexName) === norm) return { matched: e, tcgdexName: e.tcgdexName };
+    if (normalize(e.en) === norm || normalizeSorted(e.en) === sorted) return { matched: e, tcgdexName: e.tcgdexName };
+    if (normalize(e.tcgdexName) === norm || normalizeSorted(e.tcgdexName) === sorted) return { matched: e, tcgdexName: e.tcgdexName };
+  }
+  // 부분 일치 폴백 — 정확 일치가 전부 실패했을 때만 (짧은 입력 오매칭 방지 4자+).
+  if (norm.length >= 4) {
+    const hit = ILLUSTRATORS.find(
+      (e) => normalize(e.en).includes(norm) || normalize(e.tcgdexName).includes(norm),
+    );
+    if (hit) return { matched: hit, tcgdexName: hit.tcgdexName };
   }
   return { matched: null, tcgdexName: raw };
+}
+
+/** "mitsuhiro arita" → "Mitsuhiro Arita" — 사전 미등록 영문 입력의 TCGdex 정확검색(eq:) 보정. */
+function titleCase(s) {
+  return String(s ?? '').replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
 /**
@@ -52,12 +71,16 @@ export async function searchTcgdexByIllustrator(illustratorName, limit = 30) {
   if (!name) return [];
 
   // TCGdex REST API 직접 호출 (SDK 의 list query 가 illustrator 필터 미지원).
-  // ?illustrator=eq:Shinji%20Kanda 형식.
+  // ?illustrator=eq:Shinji%20Kanda 형식 — 대소문자 정확 일치라, 사전 미등록 영문
+  // 소문자 입력은 Title Case 로도 재시도한다.
+  const candidates = [...new Set([name, titleCase(name)])];
   const langs = ['ja', 'en'];
+  for (const tryName of candidates) {
   for (const lang of langs) {
-    const url = `https://api.tcgdex.net/v2/${lang}/cards?illustrator=eq:${encodeURIComponent(name)}`;
+    const url = `https://api.tcgdex.net/v2/${lang}/cards?illustrator=eq:${encodeURIComponent(tryName)}`;
     try {
-      const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+      // 외부 API 가 매달리면 클라이언트 스피너가 영원히 돈다 — 12초 컷.
+      const resp = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(12_000) });
       if (!resp.ok) continue;
       /** @type {Array<{id:string, localId?:string, name?:string, image?:string}>} */
       const brief = await resp.json();
@@ -85,6 +108,7 @@ export async function searchTcgdexByIllustrator(illustratorName, limit = 30) {
     } catch (e) {
       console.warn('[illustrator] tcgdex fetch failed:', e?.message ?? e);
     }
+  }
   }
 
   return [];

@@ -258,9 +258,12 @@ export function CardRegisterSheet({
                 }}
               >
                 <PixelText variant={txt} size={11}>{selfPulled ? '☑' : '☐'}</PixelText>
-                <PixelText variant="ko" size={11} style={{ flex: 1 }}>
-                  🎁 직접 뽑은 카드예요 (현재시세를 기준가로)
-                </PixelText>
+                <View style={{ flex: 1 }}>
+                  <PixelText variant="ko" size={11}>🎁 직접 뽑은 카드예요</PixelText>
+                  <PixelText variant="ko" size={9} color={tc.ink3} style={{ marginTop: 2, fontStyle: 'italic' }}>
+                    (구입가 대신 현재시세를 기준가로)
+                  </PixelText>
+                </View>
               </Pressable>
 
               {/* 등급여부 */}

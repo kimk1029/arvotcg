@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { startRouteTransition } from '@/components/RouteProgress';
 import { CardRegisterSheet, type RegisterCardInput } from '@/components/cards/CardRegisterSheet';
 import { CardThumb } from '@/components/CardThumb';
 import { useTheme } from '@/components/ThemeProvider';
@@ -14,6 +16,20 @@ interface SnkSearchRow {
   name: string;
   imageUrl: string | null;
   priceText?: string;
+}
+
+/** File → HTMLImageElement (스캔용 디코드) — HomeKoSearchBar 동일. */
+function fileToImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('image decode failed'));
+    };
+    img.src = url;
+  });
 }
 
 /** "¥2,000" → 2000. 못 읽으면 null. */
@@ -172,11 +188,12 @@ function IcBack({ c }: { c: string }) {
     </svg>
   );
 }
-function IcScan({ c }: { c: string }) {
+/** 홈 검색 인풋(HomeKoSearchBar)과 동일한 카메라 아이콘. */
+function IcCamera({ c }: { c: string }) {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9V6a2 2 0 0 1 2-2h2M17 4h2a2 2 0 0 1 2 2v3M21 15v3a2 2 0 0 1-2 2h-2M7 20H5a2 2 0 0 1-2-2v-3" />
-      <circle cx="12" cy="12" r="3" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.5 4h-5L7 7H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-3l-2.5-3Z" />
+      <circle cx="12" cy="13" r="3.2" />
     </svg>
   );
 }
@@ -210,9 +227,37 @@ function IcCaret({ c, size = 14 }: { c: string; size?: number }) {
  *  스캔과 동일한 "카드 등록" 시트로 진입.
  */
 export function ManualAddForm(_props: Props) {
+  const router = useRouter();
   const { theme } = useTheme();
   const clean = theme === 'clean';
   const P = clean ? CLEAN_P : VAR_P;
+
+  // 우상단 카메라 — 홈 검색 인풋(HomeKoSearchBar) 카메라와 동일한 촬영→OCR→검색 플로우.
+  const [scanning, setScanning] = useState(false);
+  const camFileRef = useRef<HTMLInputElement>(null);
+  async function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // 같은 파일 재선택 허용
+    if (!file) return;
+    setScanning(true);
+    try {
+      const img = await fileToImage(file);
+      const { recognizeCard } = await import('@/components/grading/cardOcr');
+      const r = await recognizeCard(img, null, { useAi: true, language: 'ko' });
+      const num = r.cardNumber?.left ?? '';
+      const q = r.setCode && num ? `${r.setCode} ${num}` : (r.name ?? num ?? '').trim();
+      if (q) {
+        startRouteTransition();
+        router.push(`/cards/snkrdunk/search?q=${encodeURIComponent(q)}`);
+      } else {
+        alert('카드 정보를 읽지 못했어요. 더 또렷한 사진으로 다시 시도해 주세요.');
+      }
+    } catch {
+      alert('스캔에 실패했어요. 다시 시도해 주세요.');
+    } finally {
+      setScanning(false);
+    }
+  }
 
   const [setCode, setSetCode] = useState('');
   const [cardNumber, setCardNumber] = useState('');
@@ -480,21 +525,32 @@ export function ManualAddForm(_props: Props) {
             <IcBack c={clean ? '#16161a' : 'var(--ink)'} />
           </Link>
           <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: P.ink, letterSpacing: -0.3 }}>카드 추가</div>
-          <Link
-            href="/cards/grading"
+          {/* 우상단 카메라 — 촬영 → OCR → 카드 검색 (앱 scan.tsx 우상단 카메라 페어) */}
+          <input ref={camFileRef} type="file" accept="image/*" capture="environment" onChange={onPickPhoto} style={{ display: 'none' }} />
+          <button
+            type="button"
+            onClick={() => camFileRef.current?.click()}
+            disabled={scanning}
+            aria-label="카드 사진 스캔"
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 5,
+              justifyContent: 'center',
+              width: 34,
+              height: 34,
               background: P.btnBg,
-              padding: '7px 12px',
-              borderRadius: 20,
-              textDecoration: 'none',
+              border: 'none',
+              borderRadius: 17,
+              cursor: scanning ? 'default' : 'pointer',
+              opacity: scanning ? 0.5 : 1,
             }}
           >
-            <IcScan c={clean ? '#fff' : 'var(--paper)'} />
-            <span style={{ fontSize: 12.5, fontWeight: 800, color: P.btnFg, whiteSpace: 'nowrap' }}>스캔</span>
-          </Link>
+            {scanning ? (
+              <span style={{ fontSize: 11, color: P.btnFg }}>…</span>
+            ) : (
+              <IcCamera c={clean ? '#fff' : 'var(--paper)'} />
+            )}
+          </button>
         </div>
 
         <div style={{ padding: '2px 16px 12px' }}>

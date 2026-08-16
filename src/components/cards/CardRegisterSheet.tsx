@@ -204,7 +204,12 @@ export function CardRegisterSheet({
       {/* 직접뽑기 */}
       <label className={`cv-reg-check${selfPulled ? ' on' : ''}`}>
         <input type="checkbox" checked={selfPulled} onChange={(e) => setSelfPulled(e.target.checked)} />
-        <span>직접 뽑은 카드예요 (구입가 대신 현재시세를 기준가로)</span>
+        <span>
+          직접 뽑은 카드예요
+          <em style={{ display: 'block', marginTop: 2, fontSize: 11, fontStyle: 'italic', fontWeight: 400, color: 'var(--ink3)' }}>
+            (구입가 대신 현재시세를 기준가로)
+          </em>
+        </span>
       </label>
 
       {/* 구입가격 — 라벨 우측 통화 토글, 인풋 안에 단위 표시 */}

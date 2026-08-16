@@ -215,7 +215,11 @@ app.get('/api/cards/by-illustrator', async (req, res) => {
   }
   const lookup = lookupIllustrator(q);
   try {
-    const cards = await searchTcgdexByIllustrator(lookup.tcgdexName, limit);
+    // TCGdex(목록+상세 다발 호출)가 매달려도 응답은 반드시 돌아가게 전체 30초 가드.
+    const cards = await Promise.race([
+      searchTcgdexByIllustrator(lookup.tcgdexName, limit),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('tcgdex timeout')), 30_000)),
+    ]);
     res.json({
       ok: true,
       query: q,
