@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { startRouteTransition } from '@/components/RouteProgress';
+import { ScanProgressOverlay } from '@/components/ScanProgressOverlay';
 import { CardRegisterSheet, type RegisterCardInput } from '@/components/cards/CardRegisterSheet';
 import { CardThumb } from '@/components/CardThumb';
 import { useTheme } from '@/components/ThemeProvider';
@@ -518,6 +519,7 @@ export function ManualAddForm(_props: Props) {
 
   return (
     <div className="pagebg" style={{ background: P.pageBg, display: 'flex', flexDirection: 'column' }}>
+      <ScanProgressOverlay visible={scanning} />
       {/* ── 헤더 + 입력 폼 (스크롤 시 상단 고정) ── */}
       <div style={{ position: 'sticky', top: 0, zIndex: 20, background: P.pageBg, borderBottom: `1px solid ${P.line}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 16px 8px' }}>

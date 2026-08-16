@@ -75,6 +75,8 @@ export default function WriteTrade() {
 
   const pickImages = useCallback(async () => {
     if (uploading || images.length >= MAX_IMAGES) return;
+    // 시스템 사진 접근 권한 팝업이 뜨도록 명시 요청 (write/feed 동일 — 심사 데모 노출용).
+    await ImagePicker.requestMediaLibraryPermissionsAsync();
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsMultipleSelection: true,

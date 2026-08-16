@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { api, ApiError } from '@/lib/apiClient';
+import { deleteMyCard } from '@/lib/myApi';
+import { loadCollection, removeCard } from '@/lib/collection';
 import { useToast } from '@/components/ToastProvider';
 import { PixelText } from '@/components/PixelText';
 import { PixelPress } from '@/components/cv/PixelPress';
@@ -49,7 +51,7 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
       try {
         const [favRes, cardRes] = await Promise.all([
           api<{ data?: Array<{ snkrdunkApparelId: number }> }>('/api/me/favorites'),
-          api<{ data?: Array<{ snkrdunkApparelId: number | null }> }>('/api/me/cards'),
+          api<{ data?: Array<{ id: number; snkrdunkApparelId: number | null }> }>('/api/me/cards'),
         ]);
         if (!alive) return;
         setIsFav((favRes?.data ?? []).some((r) => r.snkrdunkApparelId === apparelId));
@@ -66,12 +68,41 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
   const goLogin = () => router.push('/login');
 
   // 바로 추가하지 않고 "카드 등록" 팝업을 띄운다 — 구매가/직접뽑기/등급 입력 (웹 패리티).
+  // 이미 담긴 카드면 제거 확인 → 확인 시 컬렉션에서 제거 후 버튼 원복.
   const openRegisterSheet = () => {
     if (!authed) {
       goLogin();
       return;
     }
+    if (isCollected) {
+      Alert.alert('내 컬렉션', '내 컬렉션에서 제거하겠습니까?', [
+        { text: '취소', style: 'cancel' },
+        { text: '확인', style: 'destructive', onPress: removeFromCollection },
+      ]);
+      return;
+    }
     setSheetOpen(true);
+  };
+
+  const removeFromCollection = async () => {
+    try {
+      // 이 카드(apparelId)로 등록된 서버 행을 찾아 전부 삭제.
+      const res = await api<{ data?: Array<{ id: number; snkrdunkApparelId: number | null }> }>('/api/me/cards');
+      const rows = (res?.data ?? []).filter((r) => r.snkrdunkApparelId === apparelId);
+      for (const r of rows) await deleteMyCard(r.id);
+      // 로컬 캐시(홈 등)에서도 제거.
+      loadCollection()
+        .filter((c) => c.snkrdunkApparelId === apparelId)
+        .forEach((c) => removeCard(c.id));
+      setIsCollected(false);
+      toast.success('내 컬렉션에서 제거되었습니다');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        goLogin();
+        return;
+      }
+      toast.error('컬렉션 제거 실패 — 잠시 후 다시 시도해 주세요');
+    }
   };
 
   const toggleFavorite = async () => {

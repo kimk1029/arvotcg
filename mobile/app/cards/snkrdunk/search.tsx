@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
@@ -25,6 +25,8 @@ import {
 } from '@/services/marketplace';
 import { jaToKoBatch, koToJaServer } from '@/lib/cardLang';
 import { api } from '@/lib/apiClient';
+import { uploadScanImage, CardScanError } from '@/services/cardScanApi';
+import { useToast } from '@/components/ToastProvider';
 import { fetchEbaySnapshot, type EbaySearchResp } from '@/services/ebay';
 import { searchByIllustrator, type IllustratorSearchResp } from '@/services/illustrator';
 import { ThumbImage } from '@/components/cv/ThumbImage';
@@ -74,7 +76,8 @@ function fmtYen(n: number): string {
 export default function SnkrdunkSearchScreen() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
-  const params = useLocalSearchParams<{ q?: string }>();
+  const toast = useToast();
+  const params = useLocalSearchParams<{ q?: string; scanUri?: string; scanW?: string; scanH?: string }>();
   const initialQuery = useMemo(() => (params.q ?? '').trim(), [params.q]);
   const [query, setQuery] = useState(initialQuery);
   const [cat, setCat] = useState<Category>('snkrdunk');
@@ -108,6 +111,66 @@ export default function SnkrdunkSearchScreen() {
   const [illu, setIllu] = useState<IllustratorSearchResp | null>(null);
   const [illuLoading, setIlluLoading] = useState(false);
   const [illuError, setIlluError] = useState<string | null>(null);
+
+  // 카메라 스캔 (scanUri 파라미터) — 홈/카드추가 카메라가 사진만 넘기고, 업로드·OCR 은
+  // 이 화면에서 스피너+단계 문구를 보여주며 진행한다. 완료 시 q 파라미터로 전환.
+  const [scanPhase, setScanPhase] = useState<'idle' | 'busy' | 'error'>('idle');
+  const [scanStep, setScanStep] = useState('');
+  const [scanError, setScanError] = useState('');
+  const scanHandledRef = useRef<string | null>(null);
+  useEffect(() => {
+    const uri = typeof params.scanUri === 'string' ? params.scanUri : '';
+    if (!uri || scanHandledRef.current === uri) return;
+    scanHandledRef.current = uri;
+    const w = Number(params.scanW ?? 0) || 0;
+    const h = Number(params.scanH ?? 0) || 0;
+    let alive = true;
+    (async () => {
+      setScanPhase('busy');
+      setScanStep('사진 업로드 중...');
+      // 업로드+OCR 은 단일 요청 — 경과 기반으로 단계 문구만 전환.
+      const t1 = setTimeout(() => alive && setScanStep('카드 인식 중 (AI 분석)...'), 1600);
+      try {
+        const r = await uploadScanImage({
+          uri,
+          guideRect: { x: 0, y: 0, w, h },
+          imageWidth: w,
+          imageHeight: h,
+          capturedAt: new Date().toISOString(),
+          useAi: true,
+          language: 'ko',
+        });
+        if (!alive) return;
+        const setCode = (r.extracted?.setCode ?? '').trim();
+        const num = (r.extracted?.cardNumber ?? '').split('/')[0].trim();
+        const q = [setCode, num].filter(Boolean).join(' ');
+        if (q) {
+          setScanStep(`"${q}" 인식 — 시세 검색 중...`);
+          setQuery(q);
+          router.setParams({ q, scanUri: undefined, scanW: undefined, scanH: undefined } as never);
+          setScanPhase('idle');
+        } else {
+          setScanPhase('error');
+          setScanError('카드 정보를 인식하지 못했어요. 하단 코드가 잘 보이게 다시 찍어주세요.');
+        }
+      } catch (e) {
+        if (!alive) return;
+        if (e instanceof CardScanError && e.code === 'AUTH') {
+          toast.error('로그인 후 이용할 수 있어요');
+          router.push('/login' as never);
+          return;
+        }
+        setScanPhase('error');
+        setScanError(e instanceof Error ? e.message : '스캔 실패');
+      } finally {
+        clearTimeout(t1);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.scanUri]);
 
   // 웹과 동일하게 로컬 공통 엔진으로 영문 쿼리 파생 (eBay 검색용).
   const enQuery = useMemo(() => (initialQuery ? translate(initialQuery, 'en') : ''), [initialQuery]);
@@ -359,7 +422,15 @@ export default function SnkrdunkSearchScreen() {
 
         <View style={{ height: 12 }} />
 
-        {!initialQuery ? (
+        {scanPhase === 'busy' ? (
+          /* 카메라 스캔 진행 — 스피너 + 현재 단계 문구 (작게) */
+          <View style={{ paddingVertical: 70, alignItems: 'center', gap: 14 }}>
+            <ActivityIndicator size="large" color={tc.ink} />
+            <PixelText variant="ko" size={10} color={tc.ink3}>{scanStep}</PixelText>
+          </View>
+        ) : scanPhase === 'error' ? (
+          <EmptyState icon="📷" title="카드 인식 실패" desc={scanError} />
+        ) : !initialQuery ? (
           mode === 'illustrator' ? (
             <EmptyState icon="🎨" title="일러스트레이터를 검색하세요" desc="예: 아리타 미츠히로, Mitsuhiro Arita" />
           ) : (

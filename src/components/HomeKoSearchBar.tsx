@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { PIXEL_BORDER } from '@/components/pixelBorder';
 import { startRouteTransition } from '@/components/RouteProgress';
+import { ScanProgressOverlay } from '@/components/ScanProgressOverlay';
 import { useTheme } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 
@@ -78,6 +79,7 @@ export function HomeKoSearchBar() {
 
   return (
     <div>
+      <ScanProgressOverlay visible={scanning} />
       <form
         onSubmit={(e) => {
           e.preventDefault();

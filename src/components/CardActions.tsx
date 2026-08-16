@@ -69,12 +69,37 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
   };
 
   // 바로 추가하지 않고 "카드 등록" 시트를 띄운다 (구매가/직접뽑기/등급 입력).
+  // 이미 담긴 카드면 제거 확인 → 확인 시 컬렉션에서 제거 후 버튼 원복 (모바일 동일).
   const openSheet = () => {
     if (!authed) {
       goLogin();
       return;
     }
+    if (isCollected) {
+      if (window.confirm('내 컬렉션에서 제거하겠습니까?')) void removeFromCollection();
+      return;
+    }
     setSheetOpen(true);
+  };
+
+  const removeFromCollection = async () => {
+    try {
+      const res = await fetch('/api/me/cards', { credentials: 'include', cache: 'no-store' });
+      if (res.status === 401) {
+        goLogin();
+        return;
+      }
+      const j = (await res.json()) as { data?: Array<{ id: number; snkrdunkApparelId: number | null }> };
+      const rows = (j.data ?? []).filter((r) => r.snkrdunkApparelId === apparelId);
+      for (const r of rows) {
+        const d = await fetch(`/api/me/cards/${r.id}`, { method: 'DELETE', credentials: 'include' });
+        if (!d.ok) throw new Error(`HTTP ${d.status}`);
+      }
+      setIsCollected(false);
+      toast.success('내 컬렉션에서 제거되었습니다');
+    } catch {
+      toast.error('컬렉션 제거 실패 — 잠시 후 다시 시도해 주세요');
+    }
   };
 
   const toggleFavorite = async () => {

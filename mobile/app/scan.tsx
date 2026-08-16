@@ -24,11 +24,11 @@ import { InlineLoginGate } from '@/components/InlineLoginGate';
 import { useAuthed } from '@/lib/useAuthed';
 import { searchSnkrdunkByQuery } from '@/services/snkrdunk';
 import { koToJaServer, jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
-import { createMyCard } from '@/lib/myApi';
 import { api } from '@/lib/apiClient';
 import { useNavPrefs } from '@/components/NavPrefsProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useScanToSearch } from '@/lib/useScanToSearch';
+import { CardRegisterForm, useManualPalette, type ManualPalette } from '@/components/CardRegisterForm';
 import { parseCardStatics } from '../../shared/cardStatics';
 
 /** "¥2,000" → 2000. 못 읽으면 0. */
@@ -95,12 +95,6 @@ import type { GuideRect, ScanLanguage } from '@/types/cardScan';
 
 type Mode = 'choose' | 'camera' | 'preview' | 'batch' | 'manual' | 'register' | 'result' | 'batchResult';
 
-/** 오늘을 YYYY-MM-DD 로. 등록 시트 구매일 기본값 (웹 CardRegisterSheet todayStr 동일). */
-function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 export default function ScanScreen() {
   // 서버 /api/cards/scan 이 로그인 필수가 됨 — 미로그인은 게이트만 렌더.
   // 본체(Inner)는 로그인 시에만 마운트해 로그인 상태 전환에도 훅 순서가 안전.
@@ -126,27 +120,8 @@ function ScanScreenInner() {
   const insets = useSafeAreaInsets();
   // 우상단 카메라 — 홈 검색 인풋 카메라와 동일한 촬영→OCR→검색 플로우.
   const { scanBusy: camSearchBusy, scanToSearch: camSearch } = useScanToSearch();
-  // 직접입력 팔레트 — 웹 ManualAddForm CLEAN_P/VAR_P 미러 (클린=프로토타입 고정색, 그 외=테마 토큰).
-  const mclean = theme === 'clean';
-  const MP = {
-    pageBg: mclean ? '#ffffff' : tc.paper,
-    ink: mclean ? '#16161a' : tc.ink,
-    ink2: mclean ? '#8E8E93' : tc.ink2,
-    ink3: mclean ? '#9A9AA0' : tc.ink3,
-    accent: mclean ? '#FF7A00' : tc.gold,
-    accentSoft: mclean ? '#FFF6EE' : tc.pap2,
-    line: mclean ? '#F0F0F2' : tc.pap3,
-    fieldBg: mclean ? '#F7F7F9' : tc.pap2,
-    fieldBd: mclean ? '#E5E5EA' : tc.pap3,
-    nameBg: mclean ? '#F2F2F4' : tc.pap2,
-    radioBd: mclean ? '#D2D2D8' : tc.ink3,
-    btnBg: mclean ? '#16161a' : tc.ink,
-    btnFg: mclean ? '#ffffff' : tc.paper,
-    disBg: mclean ? '#F2F2F4' : tc.pap2,
-    disFg: mclean ? '#B0B0B6' : tc.ink3,
-    red: mclean ? '#F5333F' : tc.red,
-    cta: mclean ? '#0E7C66' : tc.grn,
-  } as const;
+  // 직접입력 팔레트 — 정본은 CardRegisterForm.useManualPalette (등록 폼과 공유).
+  const MP = useManualPalette();
   const params = useLocalSearchParams<{
     mode?: string;
     regApparelId?: string;
@@ -206,19 +181,9 @@ function ScanScreenInner() {
   const [manVolumes, setManVolumes] = useState<Record<number, number>>({});
   const manVolFetchedRef = useRef<Set<number>>(new Set());
 
-  // 5단계 — 구매정보 입력 시트 상태. 카드 확인 직후 이 카드를 받아 띄운다.
+  // 5단계 — 구매정보 입력(등록 폼) 대상 카드. 폼 자체는 CardRegisterForm 공용 컴포넌트.
   const [pendingCard, setPendingCard] = useState<CardItem | null>(null);
   const [pendingFrom, setPendingFrom] = useState<'scan' | 'manual'>('scan');
-  const [buyYm, setBuyYm] = useState(todayStr());
-  const [region, setRegion] = useState<'jp' | 'kr' | 'en'>('jp');
-  const [memo, setMemo] = useState('');
-  const [buyPriceStr, setBuyPriceStr] = useState('');
-  const [buyCur, setBuyCur] = useState<PriceCurrency>('KRW');
-  const [buyQty, setBuyQty] = useState(1);
-  const [selfPulled, setSelfPulled] = useState(false);
-  const [graded, setGraded] = useState(false);
-  const [gradeCompany, setGradeCompany] = useState('PSA');
-  const [gradeValue, setGradeValue] = useState('');
 
   /** 스캔/직접입력 카드 확정 → 시세상세(카드정보)로 — 등록은 상세의 '내 컬렉션에
    *  추가'에서(웹과 통일). 스니덩크 매칭 없으면 코드+번호 검색 목록으로,
@@ -239,22 +204,10 @@ function ScanScreenInner() {
     openRegister(card, from);
   };
 
-  /** 확정된 카드를 받아 구매정보 입력 단계로. 입력값은 매번 초기화. */
+  /** 확정된 카드를 받아 구매정보 입력 단계로 (입력값 초기화는 CardRegisterForm 마운트 시). */
   const openRegister = (card: CardItem, from: 'scan' | 'manual') => {
     setPendingCard(card);
     setPendingFrom(from);
-    setBuyYm(todayStr());
-    setRegion('jp');
-    setMemo('');
-    setBuyPriceStr('');
-    // 시세가 JPY 인 카드는 구매가도 JPY 로 입력할 확률이 높다 → 기본 통화 맞춤.
-    setBuyCur(inferCardCurrency(card));
-    setBuyQty(1);
-    setSelfPulled(false);
-    // 스캔 센터링 추정이 있으면 등급 토글 기본 ON (웹 CardRegisterSheet 동일).
-    setGraded(card.grade != null || !!card.gradeEstimate);
-    setGradeCompany('PSA');
-    setGradeValue(card.grade != null ? String(card.grade) : '');
     setMode('register');
   };
 
@@ -295,66 +248,8 @@ function ScanScreenInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** 6단계로 — 구매정보를 카드에 반영(또는 건너뛰고)해 저장. */
-  const finalizeRegister = (skip: boolean) => {
-    if (!pendingCard) return;
-    // 등급(그레이딩) 정보는 건너뛰기와 무관하게 항상 반영.
-    const gradingPatch: Partial<CardItem> = graded
-      ? { graded: true, gradeCompany: gradeCompany.trim() || undefined, gradeValue: gradeValue.trim() || undefined }
-      : { graded: false };
-
-    let card: CardItem;
-    if (selfPulled) {
-      // 직접뽑기 — 등록 시점 현재시세를 기준가로 박는다.
-      const basis = pendingCard.priceSingle ?? pendingCard.price;
-      card = {
-        ...pendingCard,
-        ...gradingPatch,
-        selfPulled: true,
-        buyPrice: basis > 0 ? basis : undefined,
-        buyCurrency: inferCardCurrency(pendingCard),
-        qty: Math.max(1, buyQty),
-        buyDate: buyYm || undefined,
-      };
-    } else {
-      const price = parseInt(buyPriceStr, 10);
-      card =
-        skip || !(price > 0)
-          ? { ...pendingCard, ...gradingPatch, selfPulled: false, qty: Math.max(1, buyQty) }
-          : {
-              ...pendingCard,
-              ...gradingPatch,
-              selfPulled: false,
-              buyPrice: price,
-              buyCurrency: buyCur,
-              qty: Math.max(1, buyQty),
-              buyDate: buyYm || undefined,
-            };
-    }
-    // 로컬 캐시(홈 등 로컬 기반 화면용) + 서버 DB 양쪽에 저장.
-    addCards([card]);
-    // 서버 컬렉션(/api/me/cards)에도 등록 — 내 카드 화면은 서버에서 불러오므로 필수.
-    createMyCard({
-      snkrdunkApparelId: card.snkrdunkApparelId ?? null,
-      ocrSetCode: card.set && card.set !== '-' ? card.set : null,
-      ocrCardNumber: card.num && card.num !== '-' ? card.num.split('/')[0] : null,
-      nickname: card.name ?? null,
-      photoUrl: card.snkrdunkApparelId ? null : card.imageUrl ?? null,
-      buyPrice: card.buyPrice ?? null,
-      buyCurrency: card.buyCurrency ?? 'KRW',
-      qty: card.qty ?? 1,
-      buyDate: card.buyDate ?? null,
-      region,
-      memo: memo.trim() || null,
-      selfPulled: card.selfPulled ?? false,
-      graded: card.graded ?? false,
-      gradeCompany: card.gradeCompany ?? null,
-      gradeValue: card.gradeValue ?? null,
-      gradeEstimate: card.gradeEstimate ?? null,
-      centeringScore: card.centeringScore ?? null,
-    }).catch((e) => {
-      console.warn('[scan] createMyCard 실패:', e?.message ?? e);
-    });
+  /** 6단계로 — 등록 폼(CardRegisterForm) 저장 완료 시 결과 화면으로. */
+  const onRegisterSaved = (card: CardItem) => {
     setFound(card);
     setMode('result');
   };
@@ -1037,183 +932,10 @@ function ScanScreenInner() {
           </View>
         )}
 
-        {/* ── 카드 등록 — 웹 CardRegisterSheet 와 동일 구성/순서 (미리보기 → 직접뽑기 →
-            구입가격 → 날짜+수량 → 발매지역 → 등급 → 메모 → 등록 CTA) ── */}
+        {/* ── 카드 등록 — 공용 폼(CardRegisterForm). 시세상세 팝업과 동일 내용 ── */}
         {mode === 'register' && pendingCard && (
-          <View style={{ paddingHorizontal: 16, gap: 14 }}>
-            {/* 카드 미리보기 — 웹 cv-reg-preview */}
-            <View style={{ flexDirection: 'row', gap: 12, padding: 12, alignItems: 'center', backgroundColor: MP.fieldBg, borderRadius: 14 }}>
-              <View style={{ width: 56, height: 78, borderRadius: 8, overflow: 'hidden', backgroundColor: MP.pageBg }}>
-                <CardThumb card={pendingCard} height={78} emojiSize={26} showLabel={false} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <PixelText variant="ko" size={13} weight="bold" color={MP.ink} numberOfLines={2}>{displayCardName(pendingCard.name)}</PixelText>
-                <PixelText variant="ko" size={11} color={MP.ink3} style={{ marginTop: 3 }}>
-                  {[pendingCard.set !== '-' ? pendingCard.set : '', pendingCard.num !== '-' ? pendingCard.num : ''].filter(Boolean).join(' · ') || '세트/번호 미상'}
-                </PixelText>
-                <PixelText variant="ko" size={11} weight="bold" color={MP.ink} style={{ marginTop: 6 }}>
-                  현재시세 {priceLabel(cardProfit(pendingCard, priceMode).currentKrw, 'KRW')}
-                </PixelText>
-              </View>
-            </View>
-
-            {/* 직접뽑기 — 웹 cv-reg-check */}
-            <MCheckRow P={MP} on={selfPulled} onPress={() => setSelfPulled((v) => !v)} label="직접 뽑은 카드예요" sub="(구입가 대신 현재시세를 기준가로)" />
-
-            {/* 구입가격 — 라벨 우측 통화 토글, 인풋 안 단위 (웹 동일) */}
-            <View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ paddingLeft: 2 }}>구입가격</PixelText>
-                {!selfPulled ? (
-                  <View style={{ flexDirection: 'row', backgroundColor: MP.fieldBg, borderRadius: 999, padding: 2 }}>
-                    {(['KRW', 'JPY'] as PriceCurrency[]).map((c) => (
-                      <Pressable
-                        key={c}
-                        onPress={() => setBuyCur(c)}
-                        style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: buyCur === c ? MP.btnBg : 'transparent' }}
-                      >
-                        <PixelText variant="ko" size={10} weight="bold" color={buyCur === c ? MP.btnFg : MP.ink3}>
-                          {c === 'JPY' ? '¥ 엔화' : '₩ 원화'}
-                        </PixelText>
-                      </Pressable>
-                    ))}
-                  </View>
-                ) : null}
-              </View>
-              {selfPulled ? (
-                <View style={{ backgroundColor: MP.fieldBg, borderRadius: 12, padding: 12 }}>
-                  <PixelText variant="ko" size={11} color={MP.ink3} style={{ lineHeight: 17 }}>
-                    현재시세 {priceLabel(cardProfit(pendingCard, priceMode).currentKrw / Math.max(1, buyQty), 'KRW')} 적용
-                  </PixelText>
-                </View>
-              ) : (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: MP.pageBg, borderWidth: 1.5, borderColor: MP.fieldBd, borderRadius: 12, paddingHorizontal: 12 }}>
-                  <PixelText variant="ko" size={14} weight="bold" color={MP.ink2}>{buyCur === 'JPY' ? '¥' : '₩'}</PixelText>
-                  <TextInput
-                    value={buyPriceStr}
-                    onChangeText={setBuyPriceStr}
-                    placeholder={buyCur === 'JPY' ? '엔화 금액' : '원화 금액'}
-                    placeholderTextColor={MP.ink3}
-                    keyboardType="numeric"
-                    style={{ flex: 1, paddingVertical: 12, fontSize: 15, fontWeight: '700', color: MP.ink, padding: 0, paddingLeft: 2 }}
-                  />
-                </View>
-              )}
-            </View>
-
-            {/* 구입 날짜 + 수량 — 나란히 (웹 cv-manual-row) */}
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ marginBottom: 6, paddingLeft: 2 }}>구입 날짜</PixelText>
-                <View style={{ backgroundColor: MP.pageBg, borderWidth: 1.5, borderColor: MP.fieldBd, borderRadius: 12, paddingHorizontal: 12 }}>
-                  <TextInput
-                    value={buyYm}
-                    onChangeText={setBuyYm}
-                    placeholder="2026-08-04"
-                    placeholderTextColor={MP.ink3}
-                    style={{ paddingVertical: 12, fontSize: 13, fontWeight: '700', color: MP.ink, padding: 0 }}
-                  />
-                </View>
-              </View>
-              <View style={{ flex: 1 }}>
-                <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ marginBottom: 6, paddingLeft: 2 }}>수량</PixelText>
-                <View style={{ flexDirection: 'row', alignItems: 'stretch', borderWidth: 1.5, borderColor: MP.fieldBd, borderRadius: 12, backgroundColor: MP.pageBg, overflow: 'hidden' }}>
-                  <Pressable onPress={() => setBuyQty((q) => Math.max(1, q - 1))} style={{ width: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: MP.fieldBg }}>
-                    <PixelText variant="ko" size={15} weight="bold" color={MP.ink}>−</PixelText>
-                  </Pressable>
-                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 }}>
-                    <PixelText variant="ko" size={14} weight="bold" color={MP.ink}>{buyQty}</PixelText>
-                  </View>
-                  <Pressable onPress={() => setBuyQty((q) => Math.min(999, q + 1))} style={{ width: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: MP.fieldBg }}>
-                    <PixelText variant="ko" size={15} weight="bold" color={MP.ink}>＋</PixelText>
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-
-            {/* 발매 지역 — 웹 동일 3버튼 */}
-            <View>
-              <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ marginBottom: 6, paddingLeft: 2 }}>발매 지역</PixelText>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {([
-                  ['jp', '일본판'],
-                  ['kr', '한국판'],
-                  ['en', '영문판'],
-                ] as const).map(([k, lb]) => (
-                  <MCatBtn key={k} P={MP} active={region === k} onPress={() => setRegion(k)} label={lb} />
-                ))}
-              </View>
-            </View>
-
-            {/* 등급여부 — 웹 cv-reg-check + 등급사/등급 */}
-            <MCheckRow P={MP} on={graded} onPress={() => setGraded((v) => !v)} label="등급(그레이딩) 카드예요" />
-            {graded ? (
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1.4 }}>
-                  <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ marginBottom: 6, paddingLeft: 2 }}>등급사</PixelText>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                    {['PSA', 'BGS', 'CGC', 'SGC', 'ARS'].map((co) => (
-                      <MCatBtn key={co} P={MP} active={gradeCompany === co} onPress={() => setGradeCompany(co)} label={co} compact />
-                    ))}
-                  </View>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ marginBottom: 6, paddingLeft: 2 }}>등급</PixelText>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
-                    {['10', '9', '8'].map((v) => (
-                      <MCatBtn key={v} P={MP} active={gradeValue === v} onPress={() => setGradeValue(v)} label={v} compact />
-                    ))}
-                  </View>
-                  <View style={{ backgroundColor: MP.pageBg, borderWidth: 1.5, borderColor: MP.fieldBd, borderRadius: 12, paddingHorizontal: 12 }}>
-                    <TextInput
-                      value={gradeValue}
-                      onChangeText={setGradeValue}
-                      placeholder="예) 10"
-                      placeholderTextColor={MP.ink3}
-                      keyboardType="numeric"
-                      maxLength={6}
-                      style={{ paddingVertical: 10, fontSize: 13, fontWeight: '700', color: MP.ink, padding: 0 }}
-                    />
-                  </View>
-                </View>
-              </View>
-            ) : null}
-
-            {/* 메모 — 웹 동일 */}
-            <View>
-              <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ marginBottom: 6, paddingLeft: 2 }}>메모 (선택)</PixelText>
-              <View style={{ backgroundColor: MP.pageBg, borderWidth: 1.5, borderColor: MP.fieldBd, borderRadius: 12, paddingHorizontal: 12 }}>
-                <TextInput
-                  value={memo}
-                  onChangeText={setMemo}
-                  placeholder="구입 경로, 보관 위치, 컨디션 등"
-                  placeholderTextColor={MP.ink3}
-                  multiline
-                  maxLength={500}
-                  style={{ paddingVertical: 11, fontSize: 13, fontWeight: '600', color: MP.ink, minHeight: 72, textAlignVertical: 'top', padding: 0 }}
-                />
-              </View>
-            </View>
-
-            {/* 등록 CTA — 웹 cv-manual-submit(clean: 에메랄드 채움 라운드) */}
-            <Pressable
-              onPress={() => finalizeRegister(false)}
-              style={{
-                height: 50,
-                borderRadius: 14,
-                backgroundColor: MP.cta,
-                alignItems: 'center',
-                justifyContent: 'center',
-                elevation: 4,
-                shadowColor: MP.cta,
-                shadowOpacity: 0.3,
-                shadowRadius: 10,
-                shadowOffset: { width: 0, height: 4 },
-                marginTop: 2,
-              }}
-            >
-              <PixelText variant="ko" size={14} weight="bold" color="#ffffff">＋ 컬렉션에 등록</PixelText>
-            </Pressable>
+          <View style={{ paddingHorizontal: 16 }}>
+            <CardRegisterForm key={pendingCard.id} card={pendingCard} onSaved={onRegisterSaved} />
           </View>
         )}
 
@@ -1374,12 +1096,6 @@ function ScanScreenInner() {
 }
 
 /* ── 직접입력 전용 — 웹 ManualAddForm 의 Chip/Menu/MenuItem 미러 ── */
-interface ManualPalette {
-  pageBg: string; ink: string; ink2: string; ink3: string; accent: string; accentSoft: string;
-  line: string; fieldBg: string; fieldBd: string; nameBg: string; radioBd: string;
-  btnBg: string; btnFg: string; disBg: string; disFg: string; red: string;
-}
-
 function MChip({ P, active, onPress, label }: { P: ManualPalette; active: boolean; onPress: () => void; label: string }) {
   return (
     <Pressable
@@ -1414,50 +1130,6 @@ function MMenuItem({ P, active, onPress, label }: { P: ManualPalette; active: bo
   return (
     <Pressable onPress={onPress} style={{ paddingHorizontal: 14, paddingVertical: 11, backgroundColor: active ? P.accentSoft : 'transparent' }}>
       <PixelText variant="ko" size={12} weight={active ? 'bold' : 'normal'} color={active ? P.accent : P.ink}>{label}</PixelText>
-    </Pressable>
-  );
-}
-
-function MCheckRow({ P, on, onPress, label, sub }: { P: ManualPalette; on: boolean; onPress: () => void; label: string; sub?: string }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={{
-        flexDirection: 'row', alignItems: 'center', gap: 10,
-        padding: 12, borderRadius: 12,
-        backgroundColor: on ? P.accentSoft : P.fieldBg,
-        borderWidth: 1.5, borderColor: on ? P.accent : P.fieldBd,
-      }}
-    >
-      <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: on ? P.accent : P.radioBd, backgroundColor: on ? P.accent : P.pageBg, alignItems: 'center', justifyContent: 'center' }}>
-        {on ? <PixelText variant="ko" size={11} weight="bold" color="#ffffff">✓</PixelText> : null}
-      </View>
-      <View style={{ flex: 1 }}>
-        <PixelText variant="ko" size={12} weight="bold" color={P.ink}>{label}</PixelText>
-        {sub ? (
-          <PixelText variant="ko" size={10} color={P.ink3} style={{ marginTop: 2, fontStyle: 'italic' }}>{sub}</PixelText>
-        ) : null}
-      </View>
-    </Pressable>
-  );
-}
-
-function MCatBtn({ P, active, onPress, label, compact }: { P: ManualPalette; active: boolean; onPress: () => void; label: string; compact?: boolean }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={{
-        flex: compact ? undefined : 1,
-        paddingHorizontal: compact ? 10 : 0,
-        paddingVertical: compact ? 7 : 10,
-        alignItems: 'center',
-        borderRadius: 12,
-        backgroundColor: active ? P.btnBg : P.pageBg,
-        borderWidth: 1.5,
-        borderColor: active ? P.btnBg : P.fieldBd,
-      }}
-    >
-      <PixelText variant="ko" size={compact ? 11 : 12} weight="bold" color={active ? P.btnFg : P.ink}>{label}</PixelText>
     </Pressable>
   );
 }
