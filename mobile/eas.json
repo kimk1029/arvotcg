@@ -24,10 +24,7 @@
       }
     },
     "production": {
-      "autoIncrement": true,
-      "env": {
-        "EXPO_USE_PRECOMPILED_MODULES": "false"
-      }
+      "autoIncrement": true
     }
   },
   "submit": {
