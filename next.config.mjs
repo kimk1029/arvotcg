@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 // host so `next dev` works without extra env setup; override with
 // NEXT_PUBLIC_API_ORIGIN (e.g. http://localhost:3030) when running the
 // server locally for back-end development.
-const API_ORIGIN = process.env.NEXT_PUBLIC_API_ORIGIN ?? 'http://kimk1029.synology.me:3030';
+const API_ORIGIN = process.env.NEXT_PUBLIC_API_ORIGIN ?? 'https://kimk1029.synology.me:3031';
 
 // 상단 StatusBar 버전 표시용 — package.json version 을 빌드 시점에 인라인.
 // 버전은 githooks/pre-commit 이 커밋마다 patch 자동 +1 한다.

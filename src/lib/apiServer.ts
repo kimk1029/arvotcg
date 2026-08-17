@@ -9,7 +9,7 @@ import { cookies } from 'next/headers';
 const SESSION_COOKIE = process.env.SESSION_COOKIE_NAME ?? 'pf30_session';
 
 function baseUrl(): string {
-  const raw = process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_ORIGIN ?? 'http://kimk1029.synology.me:3030';
+  const raw = process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_ORIGIN ?? 'https://kimk1029.synology.me:3031';
   return raw.replace(/\/$/, '');
 }
 

@@ -2,7 +2,7 @@
  * Express 백엔드 (`server/`) 호출용 클라이언트.
  *
  * baseUrl 은 `EXPO_PUBLIC_API_BASE_URL` 환경 변수에서 가져온다.
- * 운영: http://kimk1029.synology.me:3030
+ * 운영: https://kimk1029.synology.me:3031 (DSM 리버스 프록시 → localhost:3030, Let's Encrypt TLS)
  * 로컬 dev: EXPO_PUBLIC_API_BASE_URL=http://<WSL2-IP>:3030 또는 adb reverse 후 localhost.
  *
  * 인증은 `/auth/{provider}` 가 발급한 JWT 를 `Authorization: Bearer ...` 헤더로
@@ -10,8 +10,8 @@
  */
 import { getAuthHeader } from './session';
 
-// EXPO_PUBLIC_API_BASE_URL 이 비어있을 때 폴백 — 운영 Synology 호스트.
-const DEFAULT_BASE = 'http://kimk1029.synology.me:3030';
+// EXPO_PUBLIC_API_BASE_URL 이 비어있을 때 폴백 — 운영 Synology 호스트 (HTTPS 리버스 프록시).
+const DEFAULT_BASE = 'https://kimk1029.synology.me:3031';
 
 export function getApiBaseUrl(): string {
   const v = process.env.EXPO_PUBLIC_API_BASE_URL;

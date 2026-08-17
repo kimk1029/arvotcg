@@ -24,7 +24,7 @@ function deriveBaseUrl(): string {
     ?? '';
   // Embedded debug/release builds do not always expose Expo's hostUri.
   // Production fallback: hit the Synology server directly.
-  if (!hostUri) return 'http://kimk1029.synology.me:3030';
+  if (!hostUri) return 'https://kimk1029.synology.me:3031';
   // Tunnel URLs already include scheme via .exp.direct (use https). LAN URLs use http.
   const isTunnel = /\.exp\.direct/.test(hostUri);
   const scheme = isTunnel ? 'https' : 'http';
