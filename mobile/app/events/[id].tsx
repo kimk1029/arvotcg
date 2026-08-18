@@ -13,6 +13,7 @@ import { space } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { api } from '@/lib/apiClient';
 import { ReportMenu } from '@/components/ReportMenu';
+import { shotSource } from '@/lib/shotMode';
 import {
   EVENT_CATEGORY_STYLE,
   EVENT_STATUS_LABEL,
@@ -103,7 +104,7 @@ export default function EventDetail() {
 
         {post.imageUrl ? (
           <Image
-            source={{ uri: post.imageUrl }}
+            source={shotSource(post.imageUrl)}
             style={{ width: '100%', aspectRatio: 2, backgroundColor: tc.pap2, borderColor: tc.ink, borderWidth: 2 }}
             resizeMode="cover"
           />

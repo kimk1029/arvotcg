@@ -5,6 +5,10 @@
  * 모바일이 자체 mock 으로 폴백할 수 있도록 [[ApiError]] 를 그대로 던진다.
  */
 import { api, ApiError, getApiBaseUrl } from './apiClient';
+import { SHOT } from './shotMode';
+import {
+  SHOT_MY_CARDS, SHOT_PORTFOLIO, SHOT_PRICE_ALERTS, SHOT_SUMMARY, SHOT_UNREAD,
+} from './shotFixtures';
 import { CARD_PACKS } from '@/data/cardPacks';
 
 export type TradeType = 'buy' | 'sell';
@@ -168,6 +172,7 @@ export interface LevelInfo {
 
 /** 미읽음 쪽지 수 — 웹 UnreadProvider 와 동일 엔드포인트. */
 export function fetchUnreadCount(): Promise<number> {
+  if (SHOT) return Promise.resolve(SHOT_UNREAD);
   return api<{ count: number }>('/api/messages/unread')
     .then((r) => (Number.isFinite(r.count) ? r.count : 0))
     .catch(() => 0);
@@ -247,6 +252,7 @@ export interface MySummary {
 /* --- endpoints ---------------------------------------------------- */
 
 export function fetchMySummary(): Promise<MySummary> {
+  if (SHOT) return Promise.resolve(SHOT_SUMMARY);
   return api<MySummary>('/api/me/summary');
 }
 
@@ -273,6 +279,7 @@ export function absApiUrl(u: string | null | undefined): string | null {
 }
 
 export function fetchMyCards(): Promise<MyCardRow[]> {
+  if (SHOT) return Promise.resolve(SHOT_MY_CARDS);
   return api<{ data: MyCardRow[] }>('/api/me/cards/with-prices').then((r) =>
     r.data.map((c) => ({
       ...c,
@@ -317,6 +324,7 @@ export function createMyCard(input: CreateMyCardInput): Promise<{ data: MyCardRo
 }
 
 export function fetchPortfolio(): Promise<PortfolioSummary> {
+  if (SHOT) return Promise.resolve(SHOT_PORTFOLIO);
   return api<{ data: PortfolioSummary }>('/api/me/portfolio').then((r) => r.data);
 }
 
@@ -334,6 +342,7 @@ export interface PriceAlertRow {
 
 /** 내 가격 알림 목록. 미설정/실패 시 빈 배열. */
 export function fetchPriceAlerts(): Promise<PriceAlertRow[]> {
+  if (SHOT) return Promise.resolve(SHOT_PRICE_ALERTS);
   return api<{ data: PriceAlertRow[] }>('/api/me/price-alerts')
     .then((r) => r.data ?? [])
     .catch(() => []);

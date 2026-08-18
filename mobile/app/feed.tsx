@@ -10,6 +10,7 @@ import { isFeedCategory } from '@/lib/feedCategories';
 import { fonts } from '@/theme/tokens';
 import { api } from '@/lib/apiClient';
 import { ReportMenu } from '@/components/ReportMenu';
+import { shotSource, shotText } from '@/lib/shotMode';
 
 /**
  * 커뮤니티 — Claude Design 'ARVOTCG 커뮤니티' 프로토타입 레이아웃 (네이티브).
@@ -86,17 +87,17 @@ interface FeatureItem {
   heat?: string;
 }
 const FEATURE_HOT: FeatureItem[] = [
-  { rank: 1, title: 'PSA 10 리자몽 가격 미쳤네요...🔥', comments: 123, likes: '1,234', bg: '#ff5a2b', emoji: '🔥', heat: '999+' },
-  { rank: 2, title: '포켓몬 카드 재테크 현실 수익률', comments: 89, likes: '987', bg: '#5a3aa0', emoji: '👻', heat: '999+' },
+  { rank: 1, title: shotText('PSA 10 리자몽 가격 미쳤네요...🔥'), comments: 123, likes: '1,234', bg: '#ff5a2b', emoji: '🔥', heat: '999+' },
+  { rank: 2, title: shotText('포켓몬 카드 재테크 현실 수익률'), comments: 89, likes: '987', bg: '#5a3aa0', emoji: '👻', heat: '999+' },
   { rank: 3, title: '이거 진짜 사야 하나요? 의견 부탁드려요', comments: 67, likes: '523', bg: '#c98ce0', emoji: '✨', heat: '999+' },
 ];
 const FEATURE_BEST: FeatureItem[] = [
-  { rank: 1, title: '초보자를 위한 포켓몬 카드 등급 가이드', comments: 45, likes: '1,234', bg: '#ff7a2f', emoji: '🦎' },
-  { rank: 2, title: 'PSA 제출 전 꼭 알아야 할 10가지', comments: 32, likes: '987', bg: '#2a2a34', emoji: '📋' },
-  { rank: 3, title: '2024년 상반기 포켓몬 카드 시세 총정리', comments: 25, likes: '523', bg: '#6a5ad0', emoji: '📊' },
+  { rank: 1, title: shotText('초보자를 위한 포켓몬 카드 등급 가이드'), comments: 45, likes: '1,234', bg: '#ff7a2f', emoji: '🦎' },
+  { rank: 2, title: shotText('PSA 제출 전 꼭 알아야 할 10가지'), comments: 32, likes: '987', bg: '#2a2a34', emoji: '📋' },
+  { rank: 3, title: shotText('2024년 상반기 포켓몬 카드 시세 총정리'), comments: 25, likes: '523', bg: '#6a5ad0', emoji: '📊' },
 ];
 
-const KEYWORDS = ['# 리자몽', '# PSA10', '# 흑염의지배자', '# 일본판', '# 시세폭등', '# 크림'];
+const KEYWORDS = ['# 리자몽', '# PSA10', '# 흑염의지배자', '# 일본판', '# 시세폭등', '# 크림'].map((k) => shotText(k));
 
 interface NoticeItem {
   badge: string;
@@ -617,7 +618,7 @@ export default function CommunityScreen() {
                       <Pressable key={t.id} onPress={() => router.push(`/trade/${t.id}` as never)} style={{ flexDirection: 'row', gap: 12, paddingVertical: 16, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: P.line }}>
                         <View style={{ width: 62, height: 84, borderRadius: 8, backgroundColor: P.accentSoft, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                           {t.images && t.images.length > 0 ? (
-                            <Image source={{ uri: t.images[0] }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                            <Image source={shotSource(t.images[0])} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                           ) : (
                             <Text style={{ fontSize: 26 }}>{isSell ? '🏷' : '🛒'}</Text>
                           )}
@@ -722,7 +723,7 @@ function PostRow({ post, P, ts, tagStyle, onReload }: { post: FeedPost; P: Palet
           <Text numberOfLines={open ? undefined : 2} style={[ts(13.5, '400', P.ink2), { flex: 1 }]}>{post.text}</Text>
           {hasThumb && !open ? (
             <View style={{ width: 62, height: 84, borderRadius: 8, backgroundColor: P.accentSoft, overflow: 'hidden' }}>
-              <Image source={{ uri: images[0] }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+              <Image source={shotSource(images[0])} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
             </View>
           ) : null}
         </View>
@@ -734,7 +735,7 @@ function PostRow({ post, P, ts, tagStyle, onReload }: { post: FeedPost; P: Palet
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 11 }}>
                 {images.map((url, i) => (
                   <Pressable key={url} onPress={() => setLightbox(i)} style={{ width: `${images.length === 1 ? 100 : images.length === 2 ? 48 : 31}%`, aspectRatio: 1, borderRadius: 8, overflow: 'hidden', backgroundColor: P.accentSoft }}>
-                    <Image source={{ uri: url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    <Image source={shotSource(url)} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                   </Pressable>
                 ))}
               </View>
@@ -876,7 +877,7 @@ function Lightbox({ urls, startIdx, onClose }: { urls: string[]; startIdx: numbe
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center' }}>
-        <Image source={{ uri: urls[idx] }} style={{ width: '94%', height: '76%' }} resizeMode="contain" />
+        <Image source={shotSource(urls[idx])} style={{ width: '94%', height: '76%' }} resizeMode="contain" />
         {urls.length > 1 ? (
           <View style={{ flexDirection: 'row', gap: 14, marginTop: 14 }}>
             <Pressable onPress={(e) => { e.stopPropagation(); setIdx((i) => (i - 1 + urls.length) % urls.length); }} hitSlop={10}>

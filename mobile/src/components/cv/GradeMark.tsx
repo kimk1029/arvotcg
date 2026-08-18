@@ -6,6 +6,7 @@
  */
 import { Image, View } from 'react-native';
 import { PixelText } from '@/components/PixelText';
+import { SHOT } from '@/lib/shotMode';
 
 /**
  * 그레이딩사 로고 이미지 (assets/grading/*.webp) — PSA·CGC 는 Wikipedia,
@@ -33,8 +34,26 @@ interface Props {
 
 export function GradeMark({ company, grade, height = 12, gold }: Props) {
   const key = (company ?? '').trim().toUpperCase();
-  const logo = GRADE_LOGOS[key];
+  // 스토어 스크린샷 모드 — 그레이딩사 로고는 제3자 상표라 메타데이터에 노출하지 않는다.
+  // 로고 없이 등급 숫자만 담긴 중립 배지로 대체.
+  const logo = SHOT ? undefined : GRADE_LOGOS[key];
   if (!logo) {
+    if (SHOT && grade?.trim()) {
+      return (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute', bottom: 5, right: 5, zIndex: 4, backgroundColor: '#fff',
+            paddingHorizontal: 6, paddingVertical: 2.5, borderRadius: 6,
+            shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 2,
+          }}
+        >
+          <PixelText variant="ko" size={Math.max(8.5, height * 0.75)} weight="bold" color="#111">
+            {`GRADE ${grade.trim()}`}
+          </PixelText>
+        </View>
+      );
+    }
     if (!gold) return null;
     // 미등록 회사 폴백 — 골드 '그레이딩' 라벨.
     return (

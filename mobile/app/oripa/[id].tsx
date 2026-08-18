@@ -17,6 +17,7 @@ import { space } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { api } from '@/lib/apiClient';
 import { consumeOripaPass } from '@/lib/oripaPass';
+import { shotSource } from '@/lib/shotMode';
 
 type OripaGrade = 'S' | 'A' | 'B' | 'C' | 'last';
 
@@ -363,7 +364,7 @@ export default function OripaPlay() {
                   <PixelText variant={txt} size={12} color={tc.ink}>{activeReveal.grade}상</PixelText>
                 </View>
                 {activeReveal.imageUrl ? (
-                  <Image source={{ uri: activeReveal.imageUrl }} style={{ width: 96, height: 96 }} resizeMode="contain" />
+                  <Image source={shotSource(activeReveal.imageUrl)} style={{ width: 96, height: 96 }} resizeMode="contain" />
                 ) : (
                   <Text style={{ fontSize: 58, lineHeight: 66 }}>{activeReveal.emoji}</Text>
                 )}

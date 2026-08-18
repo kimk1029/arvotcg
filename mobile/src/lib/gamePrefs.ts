@@ -4,14 +4,16 @@
  * 기본은 포켓몬·원피스만 켜짐. 최소 1개는 켜져 있어야 한다.
  */
 import { getString, setString } from '@/lib/kvStore';
+import { shotText } from '@/lib/shotMode';
 
 export type GameId = 'pokemon' | 'onepiece' | 'yugioh' | 'sports';
 
 // 스포츠는 노출 옵션에서 제외(2026-08-09) — 타입/팩 데이터엔 남아 있지만 설정·홈 칩에 안 나옴 (웹 동일).
 export const GAME_OPTIONS: Array<{ id: GameId; label: string; emoji: string }> = [
-  { id: 'pokemon', label: '포켓몬', emoji: '⚡' },
-  { id: 'onepiece', label: '원피스', emoji: '🏴‍☠️' },
-  { id: 'yugioh', label: '유희왕', emoji: '🎴' },
+  // 라벨은 스토어 스크린샷 모드에서만 가상 명칭으로 치환된다 (제3자 상표 노출 금지).
+  { id: 'pokemon', label: shotText('포켓몬'), emoji: '⚡' },
+  { id: 'onepiece', label: shotText('원피스'), emoji: '🏴‍☠️' },
+  { id: 'yugioh', label: shotText('유희왕'), emoji: '🎴' },
 ];
 
 export const GAME_IDS: GameId[] = GAME_OPTIONS.map((g) => g.id);

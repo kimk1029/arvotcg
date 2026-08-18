@@ -14,6 +14,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useThemeColors } from '../ThemeProvider';
+import { shotSource } from '@/lib/shotMode';
 
 interface Props {
   /** 원격 이미지 URL — 없으면 이모지 폴백. */
@@ -66,7 +67,7 @@ export function ThumbImage({
     >
       {uri ? (
         <Image
-          source={{ uri }}
+          source={shotSource(uri)}
           style={{ width: '100%', height: '100%' }}
           resizeMode={resizeMode}
           resizeMethod={resizeMethod}

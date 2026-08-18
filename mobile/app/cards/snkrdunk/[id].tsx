@@ -29,6 +29,7 @@ import { jaToKoCached, jaToKoServer } from '@/lib/cardLang';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { parseKreamHints } from '../../../../shared/util/kreamMatch';
 import { gradeUplift } from '../../../../shared/snkrdunkPrice';
+import { shotSetCode, shotSource, shotText } from '@/lib/shotMode';
 
 /* ── 등급 집계 — 웹 page.tsx gradeAgg 와 동일 ── */
 interface GradeAgg {
@@ -248,7 +249,7 @@ export default function SnkrdunkDetail() {
               >
                 <View style={{ width: 150, height: 210, backgroundColor: tc.pap2, borderColor: tc.ink, borderWidth: 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                   {apparel.imageUrl ? (
-                    <Image source={{ uri: apparel.imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    <Image source={shotSource(apparel.imageUrl)} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                   ) : (
                     <Text style={{ fontSize: 44 }}>🃏</Text>
                   )}
@@ -276,7 +277,7 @@ export default function SnkrdunkDetail() {
                 ) : null}
                 {apparel.productNumber ? (
                   <Chip tc={tc} txt={txt} muted>
-                    <PixelText variant={txt} size={10} color={tc.ink3}>{apparel.productNumber}</PixelText>
+                    <PixelText variant={txt} size={10} color={tc.ink3}>{shotSetCode(apparel.productNumber)}</PixelText>
                   </Chip>
                 ) : null}
               </View>
@@ -285,7 +286,7 @@ export default function SnkrdunkDetail() {
               <View style={{ marginTop: 14 }}>
                 <PixelFrame bg={tc.white}>
                   <View style={{ padding: 16 }}>
-                    <PixelText variant={txt} size={11} weight="bold" color={tc.ink3}>최근 거래가 ({effectiveGrade})</PixelText>
+                    <PixelText variant={txt} size={11} weight="bold" color={tc.ink3}>최근 거래가 ({shotText(effectiveGrade)})</PixelText>
                     <PixelText variant={txt} size={26} weight="bold" color={tc.ink} numberOfLines={1} adjustsFontSizeToFit style={{ marginTop: 5 }}>
                       {fmtYen(headlinePrice)}
                     </PixelText>
@@ -364,7 +365,7 @@ export default function SnkrdunkDetail() {
                     <PixelFrame bg={tc.white} border={isSel ? gc : tc.pap3} borderWidth={isSel ? 3 : 2}>
                       <View style={{ padding: 14 }}>
                         <View style={{ alignSelf: 'flex-start', backgroundColor: gc, paddingHorizontal: 9, paddingVertical: 4 }}>
-                          <PixelText variant={txt} size={10} weight="bold" color={tc.white}>{g.key}</PixelText>
+                          <PixelText variant={txt} size={10} weight="bold" color={tc.white}>{shotText(g.key)}</PixelText>
                         </View>
                         {/* adjustsFontSizeToFit 금지 — 가로 ScrollView(무한폭 측정) 안에서 RN 0.81
                             Android 레이아웃이 폭주해 섹션 전체가 빈 공간이 되는 원인이었음. */}
@@ -440,7 +441,7 @@ export default function SnkrdunkDetail() {
                       }}
                     >
                       <PixelText variant={txt} size={11} weight="bold" color={active ? tc.white : tc.ink3}>
-                        {g.key} · {g.count}건
+                        {shotText(g.key)} · {g.count}건
                       </PixelText>
                     </Pressable>
                   );
@@ -531,7 +532,7 @@ export default function SnkrdunkDetail() {
       <Modal visible={zoomOpen} transparent animationType="fade" onRequestClose={() => setZoomOpen(false)}>
         <Pressable onPress={() => setZoomOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           {apparel?.imageUrl ? (
-            <Image source={{ uri: apparel.imageUrl }} style={{ width: '100%', height: '80%' }} resizeMode="contain" />
+            <Image source={shotSource(apparel.imageUrl)} style={{ width: '100%', height: '80%' }} resizeMode="contain" />
           ) : null}
           <View style={{ position: 'absolute', top: 40, right: 20, backgroundColor: tc.ink, paddingHorizontal: 10, paddingVertical: 6, borderColor: tc.gold, borderWidth: 2 }}>
             <PixelText variant={txt} size={11} color={tc.gold}>✕ 닫기</PixelText>

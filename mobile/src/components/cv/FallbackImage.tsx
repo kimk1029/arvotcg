@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Image, type ImageProps, type ImageResizeMode, type StyleProp, type ImageStyle } from 'react-native';
+import { shotSource } from '@/lib/shotMode';
 
 interface Props extends Omit<ImageProps, 'source' | 'style'> {
   /** Preferred remote source — typically TCGdex card art. */
@@ -34,7 +35,7 @@ export function FallbackImage({
   return (
     <Image
       {...rest}
-      source={{ uri: useFallback ? fallbackUri : (uri as string) }}
+      source={shotSource(useFallback ? fallbackUri : uri)}
       style={style}
       resizeMode={useFallback ? (fallbackResizeMode ?? resizeMode) : resizeMode}
       onError={(e) => {

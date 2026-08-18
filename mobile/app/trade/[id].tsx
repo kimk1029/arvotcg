@@ -20,6 +20,7 @@ import { ReportMenu } from '@/components/ReportMenu';
 import { formatPrice } from '@/lib/numberFormat';
 import { REWARDS } from '@/lib/rewards';
 import { isAuthenticated } from '@/lib/session';
+import { shotSource } from '@/lib/shotMode';
 
 type TradeStatus = 'open' | 'reserved' | 'done' | 'cancelled';
 
@@ -167,7 +168,7 @@ export default function TradeDetailScreen() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingTop: 4 }}>
             {trade.images.map((url) => (
               <Pressable key={url} onPress={() => setZoom(url)} style={{ width: '48%', aspectRatio: 1, borderColor: tc.ink, borderWidth: 2, backgroundColor: tc.pap2, overflow: 'hidden' }}>
-                <Image source={{ uri: url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                <Image source={shotSource(url)} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
               </Pressable>
             ))}
           </View>
@@ -214,7 +215,7 @@ export default function TradeDetailScreen() {
 
       <Modal visible={!!zoom} transparent animationType="fade" onRequestClose={() => setZoom(null)}>
         <Pressable onPress={() => setZoom(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center' }}>
-          {zoom ? <Image source={{ uri: zoom }} style={{ width: '94%', height: '80%' }} resizeMode="contain" /> : null}
+          {zoom ? <Image source={shotSource(zoom)} style={{ width: '94%', height: '80%' }} resizeMode="contain" /> : null}
         </Pressable>
       </Modal>
     </View>

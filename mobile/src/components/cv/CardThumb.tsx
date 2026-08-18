@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Image } from 'react-native';
 import { colors } from '@/theme/tokens';
 import { PixelText } from '../PixelText';
 import { displayCardName, gameColors, type CardItem } from '@/data/cardvault';
+import { shotSource } from '@/lib/shotMode';
 
 interface Props {
   card: CardItem;
@@ -28,7 +29,7 @@ export function CardThumb({
     <View style={[styles.wrap, { height, backgroundColor: tint + '33' }]}>
       {hasImage ? (
         <Image
-          source={{ uri: card.imageUrl! }}
+          source={shotSource(card.imageUrl)}
           style={StyleSheet.absoluteFillObject}
           resizeMode="cover"
           onError={() => setImgErrored(true)}

@@ -14,6 +14,7 @@ import {
   type MvcLatestBid,
 } from '@/services/marketplace';
 import { useListingFavorites, type ListingFavorite } from '@/lib/useListingFavorites';
+import { shotSource } from '@/lib/shotMode';
 
 /**
  * 경매(MVC) — Claude Design 'ARVOTCG 경매' 프로토타입 레이아웃 (네이티브).
@@ -259,7 +260,7 @@ export default function MvcAuctionScreen() {
   const renderThumb = (item: MvcAuctionItem, idx: number, w: number | '100%', h: number, radius: number, emojiSize: number) => (
     <View style={{ width: w, height: h, borderRadius: radius, overflow: 'hidden', backgroundColor: item.thumbnailUrl ? '#1c1c1e' : FALLBACK_BG[idx % FALLBACK_BG.length], alignItems: 'center', justifyContent: 'center' }}>
       {item.thumbnailUrl ? (
-        <Image source={{ uri: mvcImgProxy(item.thumbnailUrl) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+        <Image source={shotSource(mvcImgProxy(item.thumbnailUrl))} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
       ) : (
         <Text style={{ fontSize: emojiSize }}>🔨</Text>
       )}

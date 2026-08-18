@@ -10,6 +10,7 @@ import { fetchAllPacksWithHits, type PackWithHits } from '@/lib/myApi';
 import { useAsync } from '@/lib/useAsync';
 import { colors } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { shotSource, shotText } from '@/lib/shotMode';
 
 type SortMode = 'default' | 'name' | 'price';
 
@@ -49,7 +50,7 @@ export default function PriceInfoScreen() {
           <PixelFrame bg={tc.white} borderWidth={3} shadow={5} hi={null} lo={null}>
             <View style={{ padding: 14 }}>
               <PixelText variant={txt} size={12} color={tc.ink} style={{ letterSpacing: 0.8 }}>
-                포켓몬 카드 박스
+                {shotText('포켓몬 카드 박스')}
               </PixelText>
               <PixelText variant="ko" size={10} color={tc.ink3} style={{ marginTop: 7, lineHeight: 16 }}>
                 박스를 선택하면 해당 박스에 포함된 싱글카드 시세를 확인할 수 있습니다.
@@ -140,7 +141,7 @@ function PackRow({ pack }: { pack: PackWithHits }) {
       <View style={styles.packRow}>
         <View style={[styles.thumb, { backgroundColor: pack.bg }]}>
           {pack.boxImageUrl ? (
-            <Image source={{ uri: pack.boxImageUrl }} style={styles.thumbImg} resizeMode="cover" />
+            <Image source={shotSource(pack.boxImageUrl, 'box')} style={styles.thumbImg} resizeMode="cover" />
           ) : (
             <Text style={{ fontSize: 34 }}>{pack.emoji}</Text>
           )}

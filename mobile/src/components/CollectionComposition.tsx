@@ -11,6 +11,7 @@ import { PixelText } from '@/components/PixelText';
 import { space } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import type { MyCardRow } from '@/lib/myApi';
+import { shotSource } from '@/lib/shotMode';
 
 interface Props {
   cards: MyCardRow[];
@@ -93,7 +94,7 @@ export function CollectionComposition({ cards, format }: Props) {
                 <View key={it.c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <View style={{ width: 34, height: 34, borderRadius: 5, overflow: 'hidden', backgroundColor: tc.pap2, alignItems: 'center', justifyContent: 'center' }}>
                     {img ? (
-                      <Image source={{ uri: img }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      <Image source={shotSource(img)} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                     ) : (
                       <PixelText variant={txt} size={14}>🃏</PixelText>
                     )}

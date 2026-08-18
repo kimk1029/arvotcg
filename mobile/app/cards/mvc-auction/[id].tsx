@@ -10,6 +10,7 @@ import { LoadingState } from '@/components/cv/ListState';
 import { colors } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { fetchMvcArticle, mvcImgProxy, type MvcArticleDetail, type MvcCommentItem } from '@/services/marketplace';
+import { shotSource } from '@/lib/shotMode';
 
 /** 본문 이미지 — 원본 비율을 유지해 폭 100%로 렌더(웹 width:100% height:auto 재현). */
 function ArticleImage({ uri }: { uri: string }) {
@@ -32,7 +33,7 @@ function ArticleImage({ uri }: { uri: string }) {
   }, [proxiedUri]);
   return (
     <Image
-      source={{ uri: proxiedUri }}
+      source={shotSource(proxiedUri)}
       style={{ width: '100%', aspectRatio: ratio || 1, borderWidth: 2, borderColor: tc.pap3, backgroundColor: tc.ink2 }}
       resizeMode="cover"
     />

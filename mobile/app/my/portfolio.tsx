@@ -12,6 +12,7 @@ import { fetchPortfolio, fetchMyCards, type PortfolioSummary, type MyCardRow } f
 import { colors } from '@/theme/tokens';
 import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
+import { shotSource } from '@/lib/shotMode';
 
 type Filter = 'all' | 'up' | 'down' | 'graded' | 'pull';
 type Range = 7 | 30 | 90 | 0; // 0 = 전체
@@ -283,7 +284,7 @@ export default function PortfolioPage() {
                 <View key={c.id} style={{ flexDirection: 'row', gap: 10, padding: 10, alignItems: 'center', backgroundColor: CELL, borderRadius: 12 }}>
                   <View style={{ width: 40, height: 56, borderRadius: 6, backgroundColor: CELL2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                     {img ? (
-                      <Image source={{ uri: img }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      <Image source={shotSource(img)} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                     ) : (
                       <PixelText variant={txt} size={18}>🃏</PixelText>
                     )}
@@ -472,7 +473,7 @@ export default function PortfolioPage() {
                   <View style={{ flexDirection: 'row', gap: 10, padding: 10, alignItems: 'center' }}>
                     <View style={{ width: 40, height: 56, borderColor: tc.ink, borderWidth: 2, backgroundColor: tc.white, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                       {img ? (
-                        <Image source={{ uri: img }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                        <Image source={shotSource(img)} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                       ) : (
                         <PixelText variant={txt} size={18}>🃏</PixelText>
                       )}

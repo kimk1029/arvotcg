@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Image, Text, View, StyleSheet, type ImageResizeMode, type StyleProp, type ViewStyle } from 'react-native';
 import { colors } from '@/theme/tokens';
+import { shotSource } from '@/lib/shotMode';
 
 interface Props {
   /** TCGdex / DB image URL. When missing or fails to load, an emoji
@@ -23,7 +24,7 @@ export function CardArt({ uri, resizeMode = 'contain', emoji = '🃏', emojiSize
     <View style={[styles.wrap, style]}>
       {showImage ? (
         <Image
-          source={{ uri: uri as string }}
+          source={shotSource(uri)}
           style={StyleSheet.absoluteFillObject}
           resizeMode={resizeMode}
           onError={() => setErrored(true)}

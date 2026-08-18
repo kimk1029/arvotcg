@@ -10,6 +10,7 @@ import { PixelPress } from '@/components/cv/PixelPress';
 import { useTheme, useThemeColors } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import type { MyFeedPost, MyTrade } from '@/lib/myApi';
+import { shotSource } from '@/lib/shotMode';
 
 interface FeedRowProps {
   post: MyFeedPost;
@@ -49,7 +50,7 @@ export function MyFeedRow({ post, onPress }: FeedRowProps) {
           {post.images && post.images.length > 0 ? (
             <View style={{ flexDirection: 'row', gap: 4, marginTop: 8 }}>
               {post.images.slice(0, 3).map((src, i) => (
-                <Image key={i} source={{ uri: src }} style={{ width: 56, height: 56, borderWidth: flat ? 0 : 1, borderColor: tc.ink, borderRadius: flat ? 8 : 0 }} />
+                <Image key={i} source={shotSource(src)} style={{ width: 56, height: 56, borderWidth: flat ? 0 : 1, borderColor: tc.ink, borderRadius: flat ? 8 : 0 }} />
               ))}
             </View>
           ) : null}

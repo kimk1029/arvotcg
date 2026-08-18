@@ -18,6 +18,7 @@ import {
 import { useRouter } from 'expo-router';
 import { PixelText } from '@/components/PixelText';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { shotSource } from '@/lib/shotMode';
 
 export interface HeroSlideData {
   cls: 'slide-a' | 'slide-b' | 'slide-c' | 'slide-d';
@@ -177,7 +178,7 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
                   </PixelText>
                 </View>
                 {s.visualType === 'image' ? (
-                  <Image source={{ uri: imageUri(s.visualValue) }} style={{ width: 86, height: 122, resizeMode: 'cover' }} />
+                  <Image source={shotSource(imageUri(s.visualValue))} style={{ width: 86, height: 122, resizeMode: 'cover' }} />
                 ) : (
                   <Text style={{ fontSize: 64, lineHeight: 72 }}>{s.visualValue}</Text>
                 )}

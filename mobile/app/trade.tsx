@@ -14,6 +14,7 @@ import { fonts, space } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { api } from '@/lib/apiClient';
 import { formatPrice } from '@/lib/numberFormat';
+import { shotSource } from '@/lib/shotMode';
 
 type TradeType = 'sell' | 'buy';
 type TradeStatus = 'open' | 'reserved' | 'done' | 'cancelled';
@@ -180,7 +181,7 @@ function TradeRow({ t, tc, txt }: { t: Trade; tc: ReturnType<typeof useThemeColo
         <View style={{ flexDirection: 'row', padding: 12, gap: 12 }}>
           <View style={{ width: 62, height: 84, backgroundColor: tc.pap2, borderColor: tc.ink, borderWidth: 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
             {t.images && t.images.length > 0 ? (
-              <Image source={{ uri: t.images[0] }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+              <Image source={shotSource(t.images[0])} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
             ) : (
               <PixelText variant={txt} size={22}>{isSell ? '🏷' : '🛒'}</PixelText>
             )}

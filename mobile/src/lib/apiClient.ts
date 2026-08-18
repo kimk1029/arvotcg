@@ -9,6 +9,7 @@
  * 첨부. [[session]] 모듈이 토큰을 관리.
  */
 import { getAuthHeader } from './session';
+import { shotSanitize } from './shotMode';
 
 // EXPO_PUBLIC_API_BASE_URL 이 비어있을 때 폴백 — 운영 Synology 호스트 (HTTPS 리버스 프록시).
 const DEFAULT_BASE = 'https://kimk1029.synology.me:3031';
@@ -79,5 +80,7 @@ export async function api<T>(path: string, opts: ApiOpts = {}): Promise<T> {
   if (!res.ok) {
     throw new ApiError(res.status, parsed, `API ${res.status} on ${path}`);
   }
-  return parsed as T;
+  // 스토어 스크린샷 모드 — 응답의 카드·팩 이름과 자유 텍스트를 가상 데이터로 치환.
+  // (SHOT 이 아니면 항등 함수라 프로덕션 경로에는 영향 없음.)
+  return shotSanitize(parsed) as T;
 }

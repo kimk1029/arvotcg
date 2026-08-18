@@ -34,6 +34,7 @@ import { isAuthenticated } from '@/lib/session';
 import { setHomeHotRows } from '@/lib/homeHotStore';
 import { trendChangePct } from '../../../shared/snkrdunkPrice';
 import { SNKRDUNK_GAME_KEYWORD } from '../../../shared/gameKeyword';
+import { shotCardName, shotPackName, shotSource } from '@/lib/shotMode';
 
 /**
  * 메인화면 — Claude Design 'ARVOTCG App' 프로토타입 레이아웃 (네이티브).
@@ -207,7 +208,7 @@ function CardArt({
   return (
     <View style={{ position: 'relative', width, height }}>
       {imageUrl ? (
-        <Image source={{ uri: imageUrl }} style={{ width, height, borderRadius: radius, ...shadow }} resizeMode="cover" />
+        <Image source={shotSource(imageUrl)} style={{ width, height, borderRadius: radius, ...shadow }} resizeMode="cover" />
       ) : (
         <View style={{ width, height, borderRadius: radius, backgroundColor: FALLBACK_BG[fallbackIdx % FALLBACK_BG.length], alignItems: 'center', justifyContent: 'center', ...shadow }}>
           <Text style={{ fontSize: 40 }}>🃏</Text>
@@ -412,7 +413,7 @@ export function CleanHomeScreen() {
           ? pool.map((r) => {
               const curated = FEATURED_BY_ID.get(r.apparelId);
               return curated
-                ? { apparelId: r.apparelId, shortName: curated.shortName, category: curated.category }
+                ? { apparelId: r.apparelId, shortName: shotCardName(curated.shortName), category: curated.category }
                 : {
                     apparelId: r.apparelId,
                     shortName: shortenSnkrName(jaToKoCached(r.name)),
@@ -421,7 +422,7 @@ export function CleanHomeScreen() {
             })
           : shuffle(SNKRDUNK_FEATURED_CARDS)
               .slice(0, 14)
-              .map((s) => ({ apparelId: s.apparelId, shortName: s.shortName, category: s.category }));
+              .map((s) => ({ apparelId: s.apparelId, shortName: shotCardName(s.shortName), category: s.category }));
       const fetched = await Promise.all(
         seeds.map(async (seed) => ({ seed, data: await fetchSnkrdunkApparel(seed.apparelId) })),
       );
@@ -509,7 +510,7 @@ export function CleanHomeScreen() {
           ).catch(() => null);
           const box = r?.data?.apparels?.[0];
           if (!box || !box.id) return null;
-          return { seed: { apparelId: box.id, shortName: pack.shortName, category: null }, data: box };
+          return { seed: { apparelId: box.id, shortName: shotPackName(pack.shortName), category: null }, data: box };
         }),
       );
       if (alive)

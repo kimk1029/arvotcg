@@ -3,6 +3,7 @@
  * apiClient 는 이 토큰을 `Authorization: Bearer ...` 헤더로 첨부.
  */
 import { File, Paths } from 'expo-file-system';
+import { SHOT } from './shotMode';
 
 const FILE_NAME = 'session.json';
 
@@ -75,6 +76,9 @@ export function setSession(next: Stored | null) {
 }
 
 export function isAuthenticated(): boolean {
+  // 스토어 스크린샷 모드 — 실계정 없이 내 자산·마이 화면을 촬영하기 위해 로그인 상태로 통과.
+  // 실제 API 호출은 [[shotFixtures]] 가 가로채므로 서버로 나가는 인증 요청은 없다.
+  if (SHOT) return true;
   return readSync() !== null;
 }
 

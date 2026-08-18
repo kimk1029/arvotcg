@@ -14,6 +14,7 @@ import { space } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { api } from '@/lib/apiClient';
 import { isAuthenticated } from '@/lib/session';
+import { shotSource } from '@/lib/shotMode';
 import {
   EVENT_CATEGORY_STYLE,
   EVENT_STATUS_LABEL,
@@ -85,7 +86,7 @@ function EventCard({ p, tc, txt }: { p: EventPost; tc: ReturnType<typeof useThem
         <View>
           {p.imageUrl ? (
             <Image
-              source={{ uri: p.imageUrl }}
+              source={shotSource(p.imageUrl)}
               style={{ width: '100%', aspectRatio: 2, backgroundColor: tc.pap2 }}
               resizeMode="cover"
             />

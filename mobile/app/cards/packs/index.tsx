@@ -24,11 +24,12 @@ import { CARD_PACKS, packSetCode, type CardPackMeta, type CardPackGame } from '@
 import { useCurrency } from '@/components/CurrencyProvider';
 import { api } from '@/lib/apiClient';
 import { useGamePrefs } from '@/components/GamePrefsProvider';
+import { SHOT, shotPackName, shotSetCode, shotSource, shotText } from '@/lib/shotMode';
 
 const GAME_TABS: Array<{ key: CardPackGame; label: string }> = [
-  { key: 'pokemon', label: '포켓몬' },
-  { key: 'onepiece', label: '원피스' },
-  { key: 'yugioh', label: '유희왕' },
+  { key: 'pokemon', label: shotText('포켓몬') },
+  { key: 'onepiece', label: shotText('원피스') },
+  { key: 'yugioh', label: shotText('유희왕') },
   { key: 'sports', label: '스포츠' },
 ];
 
@@ -186,7 +187,7 @@ export default function PackExplorerScreen() {
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="박스명·세트코드 검색 (예: 151, sv2a)"
+              placeholder={SHOT ? '박스명·세트코드 검색 (예: SET-A, SET-B3)' : '박스명·세트코드 검색 (예: 151, sv2a)'}
               placeholderTextColor={tc.ink3}
               style={{ flex: 1, padding: 0, paddingVertical: 10, fontFamily: fonts.ko, fontSize: 13, color: tc.ink }}
             />
@@ -270,7 +271,7 @@ export default function PackExplorerScreen() {
                   >
                     {pack.boxImageUrl ? (
                       <Image
-                        source={{ uri: pack.boxImageUrl }}
+                        source={shotSource(pack.boxImageUrl, 'box')}
                         style={{ width: '100%', height: '100%' }}
                         resizeMode="cover"
                         resizeMethod="resize"
@@ -289,13 +290,13 @@ export default function PackExplorerScreen() {
                         numberOfLines={2}
                         style={{ flexShrink: 1 }}
                       >
-                        {pack.name}
+                        {shotPackName(pack.name)}
                       </PixelText>
                       {/* 세트코드 라벨 — 포켓몬 SV11B/M2A, 원피스 OP16 등. 웹 PacksExplorer 와 동일. */}
                       {packSetCode(pack) ? (
                         <View style={{ borderWidth: 1, borderColor: tc.ink3, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
                           <PixelText variant="ko" size={9} color={tc.ink3} style={{ letterSpacing: 0.5 }}>
-                            {packSetCode(pack)!}
+                            {shotSetCode(packSetCode(pack)!)}
                           </PixelText>
                         </View>
                       ) : null}

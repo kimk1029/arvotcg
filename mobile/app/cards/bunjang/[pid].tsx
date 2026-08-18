@@ -12,6 +12,7 @@ import { LoadingState } from '@/components/cv/ListState';
 import { colors } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { fetchBunjangProduct, type BunjangProduct } from '@/services/marketplace';
+import { shotSource } from '@/lib/shotMode';
 
 function fmtWon(n: number): string {
   if (!n || n <= 0) return '가격문의';
@@ -53,7 +54,7 @@ function DetailImage({ uri }: { uri: string }) {
   }, [uri]);
   return (
     <Image
-      source={{ uri }}
+      source={shotSource(uri)}
       style={{ width: '100%', aspectRatio: ratio || 1, borderWidth: 2, borderColor: tc.pap3, backgroundColor: tc.ink2 }}
       resizeMode="cover"
     />
