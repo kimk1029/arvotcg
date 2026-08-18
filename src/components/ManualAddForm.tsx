@@ -594,7 +594,7 @@ export function ManualAddForm(_props: Props) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="예) 리자몽 ex"
+                placeholder="예) 카드명 입력"
               />
               {name && (
                 <button

@@ -49,7 +49,6 @@ import {
   type SnkrdunkCardSeed,
 } from '@/services/snkrdunk';
 import { CARD_PACKS } from '@/data/cardPacks';
-import { shotText } from '@/lib/shotMode';
 // PackHitsRow 섹션 제거됨 — 웹 메인과 동일 구조로 정렬
 
 const SNKR_CAT_BG: Record<SnkrdunkCardSeed['category'], string> = {
@@ -108,9 +107,9 @@ const TRADES = 3;
 
 
 const ACTIVITY: { icon: string; c: string; txt: string; time: string; pt: string }[] = [
-  { icon: '🔥', c: colors.grn, txt: shotText('리자몽 EX 가격 ▲ +8%'), time: '10분 전', pt: '+5P' },
-  { icon: '📷', c: colors.blu, txt: '카이바 슈라이 스캔 완료', time: '1시간 전', pt: '+10P' },
-  { icon: '🤝', c: colors.gold, txt: shotText('피카츄 VMAX 거래 완료'), time: '3시간 전', pt: '+15P' },
+  { icon: '🔥', c: colors.grn, txt: '보유 카드 가격 ▲ +8%', time: '10분 전', pt: '+5P' },
+  { icon: '📷', c: colors.blu, txt: '신규 카드 스캔 완료', time: '1시간 전', pt: '+10P' },
+  { icon: '🤝', c: colors.gold, txt: '관심 카드 거래 완료', time: '3시간 전', pt: '+15P' },
   { icon: '⭐', c: colors.pur, txt: '레벨업! LV.12 달성', time: '어제', pt: '+50P' },
 ];
 
@@ -355,7 +354,7 @@ function LegacyHome() {
                 onSubmitEditing={submitHomeSearch}
                 returnKeyType="search"
                 inputMode="search"
-                placeholder={shotText('카드 검색 (예: 리자몽)')}
+                placeholder="카드 검색 (예: 카드명·세트코드)"
                 placeholderTextColor={tc.ink4}
                 numberOfLines={1}
                 style={{

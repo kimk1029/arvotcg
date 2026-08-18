@@ -16,7 +16,7 @@ import { BACKGROUNDS, FRAMES, type BackgroundId, type FrameId } from '@/lib/shop
 
 type Tab = 'avatar' | 'bg' | 'frame';
 const TABS: Array<{ id: Tab; label: string }> = [
-  { id: 'avatar', label: '포켓몬' },
+  { id: 'avatar', label: '아바타' },
   { id: 'bg',     label: '배경' },
   { id: 'frame',  label: '테두리' },
 ];

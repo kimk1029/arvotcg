@@ -113,7 +113,7 @@ export default async function Page() {
       >
         <input
           name="q"
-          placeholder="카드명 또는 코드로 검색 (예: 잉어킹 홀로, SV1-045)"
+          placeholder="카드명 또는 코드로 검색 (예: SV1-045)"
           style={{
             flex: 1,
             padding: '10px 12px',

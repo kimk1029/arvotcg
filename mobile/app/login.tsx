@@ -93,7 +93,7 @@ export default function LoginScreen() {
             color="rgba(255,255,255,0.65)"
             style={{ textAlign: 'center', lineHeight: 20 }}
           >
-            포켓몬 카드를 스마트하게{'\n'}스캔 · 아카이빙 · 거래 · 그레이딩
+            트레이딩 카드를 스마트하게{'\n'}스캔 · 아카이빙 · 거래 · 그레이딩
           </PixelText>
         </View>
 

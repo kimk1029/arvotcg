@@ -785,7 +785,7 @@ function ScanScreenInner() {
                 <TextInput
                   value={manName}
                   onChangeText={setManName}
-                  placeholder="예) 리자몽 ex"
+                  placeholder="예) 카드명 입력"
                   placeholderTextColor={MP.ink3}
                   maxLength={60}
                   style={{ flex: 1, fontSize: 14.5, fontWeight: '700', color: MP.ink, padding: 0 }}

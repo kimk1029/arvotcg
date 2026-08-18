@@ -141,7 +141,7 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
             placeholder={
               mode === 'illustrator'
                 ? '예) 신지칸다, 아리타, Mitsuhiro Arita'
-                : '예) 잉어킹 홀로, 리자몽, SV1-045'
+                : '예) 카드명 또는 SV1-045'
             }
             autoFocus
             className="ko-search-input"

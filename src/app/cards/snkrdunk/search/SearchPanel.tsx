@@ -68,7 +68,7 @@ export function SearchPanel({
             name="q"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="예) 리자몽, 피카츄, 이브이"
+            placeholder="예) 카드명 또는 세트코드"
             autoFocus
             className="ko-search-input"
           />

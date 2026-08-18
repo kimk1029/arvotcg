@@ -187,7 +187,7 @@ export default function SnkrdunkLanding() {
               <TextInput
                 value={q}
                 onChangeText={setQ}
-                placeholder="카드 검색 (예: 리자몽)"
+                placeholder="카드 검색 (예: 카드명·세트코드)"
                 placeholderTextColor={tc.ink3}
                 style={{ flex: 1, fontFamily: fonts.ko, fontSize: 14, color: tc.ink, paddingVertical: 11 }}
                 onSubmitEditing={goSearch}

@@ -38,7 +38,7 @@ const FALLBACK_SLIDES: HeroSlideData[] = [
     cls: 'slide-a',
     badge: '📈 실시간 시세',
     title: '카드 시세 한눈에',
-    sub: '포켓몬·원피스 TCG · 실시간 시세 검색',
+    sub: 'TCG 카드 · 실시간 시세 검색',
     visualType: 'emoji',
     visualValue: '📈',
     onClick: null,

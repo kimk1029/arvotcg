@@ -67,7 +67,7 @@ export function LoginScreen({ callbackUrl = '/', hideSkip, onSkip }: Props) {
         <div className="login-title">
           아르보TCG
           <br />
-          잉어킹 프로모
+          한정 프로모
         </div>
         <div className="login-sub">
           성수 현장 실시간 정보 허브

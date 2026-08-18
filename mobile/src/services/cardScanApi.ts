@@ -279,10 +279,10 @@ interface MockEntry {
   price: number;
 }
 const MOCK_CANDIDATES: MockEntry[] = [
-  { id: 'mock-charizard-ex', name: '리자몽 EX', setName: '151', setCode: 'sv2a', number: '006', totalNumber: '165', rarity: 'SR', price: 128000 },
-  { id: 'mock-pikachu-vmax', name: '피카츄 VMAX', setName: '비비드볼트', setCode: 's8b', number: '044', totalNumber: '185', rarity: 'HR', price: 85000 },
+  { id: 'mock-sample-a', name: 'Ember Drake', setName: '샘플 세트', setCode: 'set-a', number: '006', totalNumber: '165', rarity: 'SR', price: 128000 },
+  { id: 'mock-sample-b', name: 'Aurora Fox', setName: '샘플 세트 2', setCode: 'set-b', number: '044', totalNumber: '185', rarity: 'HR', price: 85000 },
   { id: 'mock-mewtwo-gx', name: '뮤츠 GX', setName: '울트라 샤이니', setCode: 'sm8b', number: '093', totalNumber: '150', rarity: 'SR', price: 62000 },
-  { id: 'mock-rayquaza', name: '레쿠쟈 V', setName: '이브이 히어로즈', setCode: 's6a', number: '076', totalNumber: '069', rarity: 'SR', price: 54000 },
+  { id: 'mock-sample-c', name: 'Solar Titan', setName: '샘플 세트 3', setCode: 'set-c', number: '076', totalNumber: '069', rarity: 'SR', price: 54000 },
   { id: 'mock-greninja', name: '개굴닌자 ex', setName: '레이징 서프', setCode: 'sv4a', number: '106', totalNumber: '108', rarity: 'SAR', price: 71000 },
 ];
 

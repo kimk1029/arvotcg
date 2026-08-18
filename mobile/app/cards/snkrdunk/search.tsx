@@ -394,7 +394,7 @@ export default function SnkrdunkSearchScreen() {
               onSubmitEditing={submit}
               returnKeyType="search"
               inputMode="search"
-              placeholder="카드 검색 (예: 리자몽)"
+              placeholder="카드 검색 (예: 카드명·세트코드)"
               placeholderTextColor={tc.ink4}
               numberOfLines={1}
               style={{

@@ -183,7 +183,7 @@ export function BunjangBrowser({ initialItems, initialQuery }: Props) {
           onKeyDown={(e) => {
             if (e.key === 'Enter') submit(query);
           }}
-          placeholder="번개장터 검색 (예: 리자몽 SAR)"
+          placeholder="번개장터 검색 (예: 카드명 SAR)"
           style={{
             flex: 1,
             minWidth: 0,

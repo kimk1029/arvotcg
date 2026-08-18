@@ -10,7 +10,7 @@ import { isFeedCategory } from '@/lib/feedCategories';
 import { fonts } from '@/theme/tokens';
 import { api } from '@/lib/apiClient';
 import { ReportMenu } from '@/components/ReportMenu';
-import { shotSource, shotText } from '@/lib/shotMode';
+import { shotSource } from '@/lib/shotMode';
 
 /**
  * 커뮤니티 — Claude Design 'ARVOTCG 커뮤니티' 프로토타입 레이아웃 (네이티브).
@@ -87,17 +87,17 @@ interface FeatureItem {
   heat?: string;
 }
 const FEATURE_HOT: FeatureItem[] = [
-  { rank: 1, title: shotText('PSA 10 리자몽 가격 미쳤네요...🔥'), comments: 123, likes: '1,234', bg: '#ff5a2b', emoji: '🔥', heat: '999+' },
-  { rank: 2, title: shotText('포켓몬 카드 재테크 현실 수익률'), comments: 89, likes: '987', bg: '#5a3aa0', emoji: '👻', heat: '999+' },
+  { rank: 1, title: '등급 카드 시세 미쳤네요...🔥', comments: 123, likes: '1,234', bg: '#ff5a2b', emoji: '🔥', heat: '999+' },
+  { rank: 2, title: '카드 재테크 현실 수익률', comments: 89, likes: '987', bg: '#5a3aa0', emoji: '👻', heat: '999+' },
   { rank: 3, title: '이거 진짜 사야 하나요? 의견 부탁드려요', comments: 67, likes: '523', bg: '#c98ce0', emoji: '✨', heat: '999+' },
 ];
 const FEATURE_BEST: FeatureItem[] = [
-  { rank: 1, title: shotText('초보자를 위한 포켓몬 카드 등급 가이드'), comments: 45, likes: '1,234', bg: '#ff7a2f', emoji: '🦎' },
-  { rank: 2, title: shotText('PSA 제출 전 꼭 알아야 할 10가지'), comments: 32, likes: '987', bg: '#2a2a34', emoji: '📋' },
-  { rank: 3, title: shotText('2024년 상반기 포켓몬 카드 시세 총정리'), comments: 25, likes: '523', bg: '#6a5ad0', emoji: '📊' },
+  { rank: 1, title: '초보자를 위한 카드 등급 가이드', comments: 45, likes: '1,234', bg: '#ff7a2f', emoji: '🦎' },
+  { rank: 2, title: '그레이딩 제출 전 꼭 알아야 할 10가지', comments: 32, likes: '987', bg: '#2a2a34', emoji: '📋' },
+  { rank: 3, title: '2024년 상반기 카드 시세 총정리', comments: 25, likes: '523', bg: '#6a5ad0', emoji: '📊' },
 ];
 
-const KEYWORDS = ['# 리자몽', '# PSA10', '# 흑염의지배자', '# 일본판', '# 시세폭등', '# 크림'].map((k) => shotText(k));
+const KEYWORDS = ['# 신규발매', '# 그레이딩', '# 일본판', '# 시세폭등', '# 직거래', '# 컬렉션'];
 
 interface NoticeItem {
   badge: string;

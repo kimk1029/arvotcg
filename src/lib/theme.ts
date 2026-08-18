@@ -7,18 +7,18 @@ export const THEMES: ReadonlyArray<{
 }> = [
   {
     id: 'pokemon',
-    label: '포켓몬스터',
-    desc: '몬스터볼 + 빨강·노랑 (픽셀)',
+    label: '레드 픽셀',
+    desc: '빨강·노랑 도트 (픽셀)',
   },
   {
     id: 'onepiece',
-    label: '원피스',
-    desc: '밀짚모자 + 해적 깃발 클래식',
+    label: '파이럿',
+    desc: '해적 깃발 클래식',
   },
   {
     id: 'yugioh',
-    label: '유희왕',
-    desc: '천년 퍼즐 + 황금 클래식 (세리프)',
+    label: '골드 클래식',
+    desc: '황금 세리프 클래식',
   },
   {
     id: 'sports',

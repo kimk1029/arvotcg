@@ -127,10 +127,10 @@ interface ReviewItem {
 }
 
 const REVIEW_POOL: ReviewItem[] = [
-  { sid: 's1', avatar: '🐹', avBg: '#ffd069', name: '포케사랑', time: '2시간 전', rating: '5.0', text: '오리파 구성이 진짜 알차요. 리자몽 SAR 뽑고 갑니다 ㅋㅋ 사장님도 친절하세요', tags: ['오리파 알참', '응대 친절'] },
+  { sid: 's1', avatar: '🐹', avBg: '#ffd069', name: '카드사랑', time: '2시간 전', rating: '5.0', text: '오리파 구성이 진짜 알차요. 고레어 뽑고 갑니다 ㅋㅋ 사장님도 친절하세요', tags: ['오리파 알참', '응대 친절'] },
   { sid: 's2', avatar: '🔮', avBg: '#7453bf', name: '뮤츠좋아', time: '5시간 전', rating: '4.5', text: '싱글 카드 종류가 많아서 좋았어요. 시세보다 살짝 저렴한 것도 꽤 있음', tags: ['재고 많음', '가격 착함'] },
   { sid: 's3', avatar: '🌙', avBg: '#2a2a34', name: '블래키킹', time: '어제', rating: '3.5', text: '오리파 위주 매장이라 싱글은 별로 없어요. 오리파는 재밌긴 한데 가격대가 좀 있는 편', tags: ['오리파 알참'] },
-  { sid: 's1', avatar: '⚡', avBg: '#f9b52f', name: '피카매니아', time: '어제', rating: '4.5', text: '5만원 오리파에서 피카츄 AR 나왔어요! 구성 공개가 투명해서 믿고 사는 편', tags: ['오리파 알참', '매장 쾌적'] },
+  { sid: 's1', avatar: '⚡', avBg: '#f9b52f', name: '카드매니아', time: '어제', rating: '4.5', text: '5만원 오리파에서 고레어 나왔어요! 구성 공개가 투명해서 믿고 사는 편', tags: ['오리파 알참', '매장 쾌적'] },
   { sid: 's4', avatar: '👾', avBg: '#25c486', name: '겟데이', time: '2일 전', rating: '4.0', text: '싱글 위주 매장. 스탠다드 카드 재고가 압도적으로 많아요. 시세 체크하고 가면 득템 가능', tags: ['재고 많음', '가격 착함'] },
   { sid: 's2', avatar: '🌸', avBg: '#dc99d8', name: '나나미짱', time: '2일 전', rating: '5.0', text: '매장이 넓고 쾌적해요. SR 이상 진열장 구경만 해도 재밌음. 홍대 오면 꼭 들르세요', tags: ['매장 쾌적', '응대 친절'] },
   { sid: 's3', avatar: '🐲', avBg: '#ff7a2f', name: '불꽃수집가', time: '3일 전', rating: '4.0', text: '1만원 오리파 가성비 괜찮아요. 꽝이어도 최소 보장이 있어서 부담 없음', tags: ['오리파 알참'] },

@@ -19,33 +19,33 @@ export interface AvatarMeta {
   level?: number;
   price?: number;
   tag?: 'legend' | 'hot' | 'new';
-  /** 모바일 픽셀 표시용 이모지 — 실제 웹의 PokemonAvatar 컴포넌트 대체. */
+  /** 모바일 픽셀 표시용 이모지 — 웹 프로필 아바타 컴포넌트와 동일한 표시 방식. */
   glyph: string;
 }
 
 export const AVATARS: AvatarMeta[] = [
-  { id: 'bulbasaur',  dex: 1,   name: '이상해씨',   mode: 'free', glyph: '🌱' },
-  { id: 'charmander', dex: 4,   name: '파이리',     mode: 'free', glyph: '🔥' },
-  { id: 'squirtle',   dex: 7,   name: '꼬부기',     mode: 'free', glyph: '💧' },
-  { id: 'rattata',    dex: 19,  name: '꼬렛',       mode: 'level', level: 2, glyph: '🐭' },
-  { id: 'pikachu',    dex: 25,  name: '피카츄',     mode: 'level', level: 3, tag: 'hot', glyph: '⚡' },
-  { id: 'diglett',    dex: 50,  name: '디그다',     mode: 'level', level: 5, glyph: '🟫' },
-  { id: 'butterfree', dex: 12,  name: '버터플',     mode: 'shop', price: 300, glyph: '🦋' },
-  { id: 'pidgeotto',  dex: 17,  name: '피존',       mode: 'shop', price: 300, glyph: '🦅' },
-  { id: 'voltorb',    dex: 100, name: '찌리리공',   mode: 'shop', price: 400, glyph: '🔴' },
-  { id: 'ditto',      dex: 132, name: '메타몽',     mode: 'shop', price: 500, glyph: '🟪' },
-  { id: 'eevee',      dex: 133, name: '이브이',     mode: 'shop', price: 500, tag: 'hot', glyph: '🦊' },
-  { id: 'mr-mime',    dex: 122, name: '마임맨',     mode: 'shop', price: 800, glyph: '🤡' },
-  { id: 'jynx',       dex: 124, name: '루주라',     mode: 'shop', price: 900, glyph: '💋' },
-  { id: 'porygon',    dex: 137, name: '폴리곤',     mode: 'shop', price: 1000, tag: 'new', glyph: '🔷' },
-  { id: 'snorlax',    dex: 143, name: '잠만보',     mode: 'shop', price: 1200, glyph: '🐻' },
-  { id: 'lapras',     dex: 131, name: '라프라스',   mode: 'shop', price: 1500, glyph: '🦕' },
-  { id: 'gyarados',   dex: 130, name: '갸라도스',   mode: 'shop', price: 2200, tag: 'legend', glyph: '🐉' },
-  { id: 'articuno',   dex: 144, name: '프리저',     mode: 'shop', price: 3000, tag: 'legend', glyph: '❄️' },
-  { id: 'zapdos',     dex: 145, name: '썬더',       mode: 'shop', price: 3000, tag: 'legend', glyph: '⚡' },
-  { id: 'moltres',    dex: 146, name: '파이어',     mode: 'shop', price: 3000, tag: 'legend', glyph: '🔥' },
-  { id: 'mewtwo',     dex: 150, name: '뮤츠',       mode: 'shop', price: 5000, tag: 'legend', glyph: '🧬' },
-  { id: 'mew',        dex: 151, name: '뮤',         mode: 'shop', price: 5000, tag: 'legend', glyph: '✨' },
+  { id: 'bulbasaur',  dex: 1,   name: '새싹이',   mode: 'free', glyph: '🌱' },
+  { id: 'charmander', dex: 4,   name: '불꽃이',     mode: 'free', glyph: '🔥' },
+  { id: 'squirtle',   dex: 7,   name: '물방울이',     mode: 'free', glyph: '💧' },
+  { id: 'rattata',    dex: 19,  name: '들쥐',       mode: 'level', level: 2, glyph: '🐭' },
+  { id: 'pikachu',    dex: 25,  name: '번개꼬리',     mode: 'level', level: 3, tag: 'hot', glyph: '⚡' },
+  { id: 'diglett',    dex: 50,  name: '두더지',     mode: 'level', level: 5, glyph: '🟫' },
+  { id: 'butterfree', dex: 12,  name: '나비',     mode: 'shop', price: 300, glyph: '🦋' },
+  { id: 'pidgeotto',  dex: 17,  name: '매',       mode: 'shop', price: 300, glyph: '🦅' },
+  { id: 'voltorb',    dex: 100, name: '레드볼',   mode: 'shop', price: 400, glyph: '🔴' },
+  { id: 'ditto',      dex: 132, name: '젤리',     mode: 'shop', price: 500, glyph: '🟪' },
+  { id: 'eevee',      dex: 133, name: '여우',     mode: 'shop', price: 500, tag: 'hot', glyph: '🦊' },
+  { id: 'mr-mime',    dex: 122, name: '광대',     mode: 'shop', price: 800, glyph: '🤡' },
+  { id: 'jynx',       dex: 124, name: '디바',     mode: 'shop', price: 900, glyph: '💋' },
+  { id: 'porygon',    dex: 137, name: '프리즘',     mode: 'shop', price: 1000, tag: 'new', glyph: '🔷' },
+  { id: 'snorlax',    dex: 143, name: '곰돌이',     mode: 'shop', price: 1200, glyph: '🐻' },
+  { id: 'lapras',     dex: 131, name: '해룡',   mode: 'shop', price: 1500, glyph: '🦕' },
+  { id: 'gyarados',   dex: 130, name: '드래곤',   mode: 'shop', price: 2200, tag: 'legend', glyph: '🐉' },
+  { id: 'articuno',   dex: 144, name: '서리새',     mode: 'shop', price: 3000, tag: 'legend', glyph: '❄️' },
+  { id: 'zapdos',     dex: 145, name: '천둥새',       mode: 'shop', price: 3000, tag: 'legend', glyph: '⚡' },
+  { id: 'moltres',    dex: 146, name: '불새',     mode: 'shop', price: 3000, tag: 'legend', glyph: '🔥' },
+  { id: 'mewtwo',     dex: 150, name: '유전자',       mode: 'shop', price: 5000, tag: 'legend', glyph: '🧬' },
+  { id: 'mew',        dex: 151, name: '별빛',         mode: 'shop', price: 5000, tag: 'legend', glyph: '✨' },
 ];
 
 export type BackgroundId =

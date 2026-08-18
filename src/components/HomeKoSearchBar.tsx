@@ -104,7 +104,7 @@ export function HomeKoSearchBar() {
           inputMode="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={scanning ? '카드 스캔 중…' : '카드 검색 (예: 리자몽)'}
+          placeholder={scanning ? '카드 스캔 중…' : '카드 검색 (예: 카드명·세트코드)'}
           aria-label="스니덩크 한국어 검색"
           disabled={scanning}
           style={{

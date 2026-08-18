@@ -20,7 +20,7 @@ import { isFlatTheme } from '@/lib/theme';
 
 type Tab = ShopKind;
 const TABS: Array<{ id: Tab; label: string }> = [
-  { id: 'avatar', label: '포켓몬' },
+  { id: 'avatar', label: '아바타' },
   { id: 'bg', label: '배경' },
   { id: 'frame', label: '테두리' },
 ];
