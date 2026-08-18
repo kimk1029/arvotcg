@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Slot } from 'expo-router';
+import { Slot, router } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, StyleSheet, ActivityIndicator, LogBox } from 'react-native';
@@ -7,6 +7,8 @@ import { View, StyleSheet, ActivityIndicator, LogBox } from 'react-native';
 // 구 아키텍처에서 react-native-screens 헤더 설정이 던지는 무해한(캐치되는) 예외.
 // 헤더를 쓰지 않아(headerShown:false) 기능 영향 없음 — 개발 LogBox 만 소음이라 억제.
 // (프로덕션 빌드에는 LogBox 가 없고 예외도 RN 이 잡아서 무시한다.)
+// 스크린샷 모드에선 개발용 경고 토스트("Open debugger…")까지 전부 숨긴다.
+if (process.env.EXPO_PUBLIC_SHOT_MODE === '1') LogBox.ignoreAllLogs(true);
 LogBox.ignoreLogs([
   /Exception thrown while executing UI block/,
   /Animated node with tag \d+ does not exist/,
@@ -71,6 +73,23 @@ function useOAuthDeepLink() {
 
 export default function RootLayout() {
   useOAuthDeepLink();
+  // 스토어 스크린샷 모드 전용 — EXPO_PUBLIC_SHOT_ROUTE 로 시작 화면 지정.
+  // (simctl openurl 딥링크는 확인 다이얼로그에 막혀 자동 촬영에 못 쓴다.)
+  // 프로덕션 빌드에서는 SHOT_MODE 미설정이라 아무 동작 없음.
+  useEffect(() => {
+    const route = process.env.EXPO_PUBLIC_SHOT_ROUTE;
+    if (process.env.EXPO_PUBLIC_SHOT_MODE === '1' && route) {
+      const t = setTimeout(() => {
+        try {
+          router.replace(route as never);
+        } catch {
+          // ignore — 잘못된 라우트면 홈 유지
+        }
+      }, 900);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, []);
   const [pixelLoaded, pixelError] = usePressStart2P({ PressStart2P_400Regular });
   const [koLoaded, koError] = useFonts({
     Galmuri11: require('../assets/fonts/Galmuri11.ttf'),
