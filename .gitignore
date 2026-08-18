@@ -29,3 +29,6 @@ mobile/.env.*.local
 # Claude Code local artifacts
 .claude/
 apk/
+
+# 스토어 제출용 산출물(AAB·스크린샷·설명문) — 로컬 보관, git 미추적
+store-assets/
