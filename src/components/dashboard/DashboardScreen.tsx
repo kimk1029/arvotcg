@@ -201,9 +201,9 @@ function KoreaMarketIcon() {
   );
 }
 const ACTIVITY = [
-  { icon: '🔥', c: 'var(--grn)', txt: '리자몽 EX 가격 ▲ +8%', time: '10분 전', pt: '+5P' },
+  { icon: '🔥', c: 'var(--grn)', txt: '인기 카드 가격 ▲ +8%', time: '10분 전', pt: '+5P' },
   { icon: '📷', c: 'var(--blu)', txt: '카이바 슈라이 스캔 완료', time: '1시간 전', pt: '+10P' },
-  { icon: '🤝', c: 'var(--gold)', txt: '피카츄 VMAX 거래 완료', time: '3시간 전', pt: '+15P' },
+  { icon: '🤝', c: 'var(--gold)', txt: 'SAR 카드 거래 완료', time: '3시간 전', pt: '+15P' },
   { icon: '⭐', c: 'var(--pur)', txt: '레벨업! LV.12 달성', time: '어제', pt: '+50P' },
 ];
 

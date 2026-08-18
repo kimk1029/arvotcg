@@ -107,7 +107,7 @@ const FALLBACK_PRIZES: OripaBoxPrize[] = [
   { grade: 'C', name: '스티커 팩',          emoji: '🌟', weight: 60 },
   { grade: 'B', name: '몬스터볼 스킨',      emoji: '⚪', weight: 25 },
   { grade: 'A', name: '프리미엄 뱃지',      emoji: '🏅', weight: 12 },
-  { grade: 'S', name: '잉어킹 홀로 프레임', emoji: '🖼', weight: 3 },
+  { grade: 'S', name: '홀로 프레임', emoji: '🖼', weight: 3 },
 ];
 
 function normalizePrizes(raw: unknown): OripaBoxPrize[] {

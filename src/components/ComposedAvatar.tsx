@@ -1,5 +1,5 @@
 import { PixelBackground } from './PixelBackground';
-import { PokemonAvatar } from './PokemonAvatar';
+import { ProfileAvatar } from './ProfileAvatar';
 import { isBackgroundId, isFrameId, type BackgroundId, type FrameId } from '@/lib/shop';
 
 interface Props {
@@ -32,7 +32,7 @@ export function ComposedAvatar({
       }}
     >
       <PixelBackground id={bgId} />
-      <PokemonAvatar id={avatar} size={Math.floor(size * 0.82)} fallback={fallback} />
+      <ProfileAvatar id={avatar} size={Math.floor(size * 0.82)} fallback={fallback} />
     </div>
   );
 }

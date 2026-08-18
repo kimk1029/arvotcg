@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { useInventory } from '@/components/InventoryProvider';
 import { PixelBackground } from '@/components/PixelBackground';
-import { PokemonAvatar } from '@/components/PokemonAvatar';
+import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { useToast } from '@/components/ToastProvider';
 import { AppBar } from '@/components/ui/AppBar';
 import { LivePill } from '@/components/ui/LivePill';
@@ -112,7 +112,7 @@ export function ShopScreen() {
 
       {tab === 'avatar' && (
         <div className="sect">
-          <SectionTitle title="포켓몬 아바타" right={<span className="more">총 {AVATARS.length}종</span>} />
+          <SectionTitle title="아바타" right={<span className="more">총 {AVATARS.length}종</span>} />
           <div className="shop-avatar-grid">
             {AVATARS.map((a) => {
               const owned = inv.avatarOwned.includes(a.id);
@@ -120,7 +120,7 @@ export function ShopScreen() {
               const levelLocked = a.mode === 'level' && !owned;
               return (
                 <div key={a.id} className={`shop-avatar-card${current ? ' on' : ''}`}>
-                  <div className="sac-img"><PokemonAvatar id={a.id} size={60} /></div>
+                  <div className="sac-img"><ProfileAvatar id={a.id} size={60} /></div>
                   <div className="sac-name">{a.name}</div>
                   {a.tag && <div className={`sac-tag tag-${a.tag}`}>{a.tag.toUpperCase()}</div>}
                   <button
@@ -185,7 +185,7 @@ export function ShopScreen() {
               return (
                 <div key={f.id} className={`shop-avatar-card${current ? ' on' : ''}`}>
                   <div className={`sac-img frm-${f.id}`} style={{ width: 64, height: 64, background: 'var(--pap2)' }}>
-                    <PokemonAvatar id="bulbasaur" size={44} />
+                    <ProfileAvatar id="bulbasaur" size={44} />
                   </div>
                   <div className="sac-name">{f.name}</div>
                   {f.tag && <div className={`sac-tag tag-${f.tag}`}>{f.tag.toUpperCase()}</div>}

@@ -11,7 +11,7 @@ interface Props {
  * IP 이미지(포켓몬 도트 스프라이트 gif)는 사용 금지로 제거(2026-07) —
  * 모바일 shopCatalog 의 glyph 표시 방식과 동일.
  */
-export function PokemonAvatar({ id, size = 60, fallback = '🐣' }: Props) {
+export function ProfileAvatar({ id, size = 60, fallback = '🐣' }: Props) {
   if (!isAvatarId(id ?? '')) {
     return (
       <span style={{ fontSize: Math.floor(size * 0.7), lineHeight: 1 }}>

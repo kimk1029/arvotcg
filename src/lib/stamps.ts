@@ -1,4 +1,4 @@
-/** 아르보TCG x 잉어킹 프로모 — 스탬프 랠리 스펙. */
+/** 아르보TCG 스탬프 랠리 스펙 (레거시 이벤트 — 현재 미노출). */
 
 export interface StampSpot {
   no: number;
@@ -28,7 +28,7 @@ export const STAMP_SPOTS: StampSpot[] = [
   {
     no: 2,
     placeId: 'trend',
-    name: '포켓몬 30주년 파티 팝업',
+    name: 'TCG 파티 팝업',
     subtitle: '트렌드팟 바이 올리브영N · 팩토리얼성수',
     emoji: '🎊',
     bg: '#FFD23F',
@@ -58,7 +58,7 @@ export const STAMP_SPOTS: StampSpot[] = [
   {
     no: 5,
     placeId: 'secret',
-    name: '포켓몬 시크릿 포레스트 입구',
+    name: '시크릿 포레스트 입구',
     subtitle: '서울숲 은행나무길',
     emoji: '🌲',
     bg: '#6B3FA0',
@@ -68,7 +68,7 @@ export const STAMP_SPOTS: StampSpot[] = [
   {
     no: 6,
     placeId: 'secret',
-    name: '포켓몬 시크릿 포레스트 팝업',
+    name: '시크릿 포레스트 팝업',
     subtitle: '서울숲 은행나무길 팝업관',
     emoji: '🎁',
     bg: '#E63946',
@@ -91,17 +91,17 @@ export const STAMP_REWARDS: StampReward[] = [
   {
     count: 1,
     title: '첫 스탬프 보상',
-    summary: '포켓몬 스티커',
+    summary: '한정 스티커',
     emoji: '🎁',
-    desc: '첫 번째 포켓스탑 방문 시 한정판 포켓몬 스티커 1매 증정',
+    desc: '첫 번째 스팟 방문 시 한정판 스티커 1매 증정',
     color: '#4ADE80',
   },
   {
     count: 3,
-    title: '잉어킹 프로모 카드',
+    title: '한정 프로모 카드',
     summary: '메인 보상',
     emoji: '🎴',
-    desc: '스탬프 3개 수집 시 잉어킹 한정 프로모 카드 지급. 페스타 한정 일러스트',
+    desc: '스탬프 3개 수집 시 한정 프로모 카드 지급. 이벤트 한정 일러스트',
     color: '#E63946',
   },
   {
@@ -115,8 +115,8 @@ export const STAMP_REWARDS: StampReward[] = [
 ];
 
 export const EVENT_META = {
-  title: '아르보TCG × 잉어킹 프로모',
+  title: '아르보TCG 스탬프 랠리',
   period: '2026.05.01 – 05.31',
   location: '서울 성수 일대',
-  how: '포켓몬 GO 앱에서 6곳의 포켓스탑 방문 → 스탬프 수집 → 보상 센터 방문하여 교환',
+  how: '6곳의 이벤트 스팟 방문 → 스탬프 수집 → 보상 센터 방문하여 교환',
 };

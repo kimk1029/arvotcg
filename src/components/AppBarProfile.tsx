@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useInventory } from './InventoryProvider';
 import { PixelBackground } from './PixelBackground';
-import { PokemonAvatar } from './PokemonAvatar';
+import { ProfileAvatar } from './ProfileAvatar';
 import { useUnread } from './UnreadProvider';
 
 /**
@@ -46,7 +46,7 @@ export function AppBarProfile() {
       >
         <PixelBackground id={bg} />
         <div style={{ position: 'relative', zIndex: 1, display: 'grid', placeItems: 'center' }}>
-          <PokemonAvatar id={avatar} size={28} />
+          <ProfileAvatar id={avatar} size={28} />
         </div>
       </div>
       {count > 0 && <span className="unread-dot" />}

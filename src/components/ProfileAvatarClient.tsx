@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { AvatarPicker } from './AvatarPicker';
 import { useInventory } from './InventoryProvider';
 import { PixelBackground } from './PixelBackground';
-import { PokemonAvatar } from './PokemonAvatar';
+import { ProfileAvatar } from './ProfileAvatar';
 
 export function ProfileAvatarClient({
   size = 88,
@@ -24,7 +24,7 @@ export function ProfileAvatarClient({
       }}
     >
       <PixelBackground id={inv.bg} />
-      <PokemonAvatar id={inv.avatar} size={Math.floor(size * 0.8)} />
+      <ProfileAvatar id={inv.avatar} size={Math.floor(size * 0.8)} />
     </div>
   );
   return (

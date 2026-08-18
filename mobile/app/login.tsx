@@ -72,7 +72,7 @@ export default function LoginScreen() {
     <View style={{ flex: 1, backgroundColor: '#0F172A' }}>
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={{ paddingHorizontal: 28, paddingBottom: 40, paddingTop: 80 }}>
-        {/* Hero — 픽셀 포켓볼 + 타이틀 */}
+        {/* Hero — 브랜드 픽셀 마크 + 타이틀 */}
         <View style={{ alignItems: 'center', gap: 20, marginBottom: 40 }}>
           <View
             style={{

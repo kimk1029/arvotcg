@@ -311,7 +311,7 @@ function FabTab({ on, label, href }: FabProps) {
           />
         ) : null}
         {flat ? (
-          // 클린·다크 — 픽셀 포켓볼 대신 에메랄드 라운드 FAB + 추가 아이콘
+          // 클린·다크 — 픽셀 마크 대신 에메랄드 라운드 FAB + 추가 아이콘
           <View
             style={{
               width: 58,

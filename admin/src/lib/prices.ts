@@ -14,22 +14,22 @@ export interface PricedItem {
 
 /** 메인 src/lib/avatars.ts AVATARS — shop 모드 항목만(price>0). free/level 은 포인트 사용 X. */
 export const AVATAR_PRICES: PricedItem[] = [
-  { id: 'butterfree', name: '버터플',   price: 300 },
-  { id: 'pidgeotto',  name: '피존',     price: 300 },
-  { id: 'voltorb',    name: '찌리리공', price: 400 },
-  { id: 'ditto',      name: '메타몽',   price: 500 },
-  { id: 'eevee',      name: '이브이',   price: 500 },
-  { id: 'mr-mime',    name: '마임맨',   price: 800 },
-  { id: 'jynx',       name: '루주라',   price: 900 },
-  { id: 'porygon',    name: '폴리곤',   price: 1000 },
-  { id: 'snorlax',    name: '잠만보',   price: 1200 },
-  { id: 'lapras',     name: '라프라스', price: 1500 },
-  { id: 'gyarados',   name: '갸라도스', price: 2200 },
-  { id: 'articuno',   name: '프리저',   price: 3000 },
-  { id: 'zapdos',     name: '썬더',     price: 3000 },
-  { id: 'moltres',    name: '파이어',   price: 3000 },
-  { id: 'mewtwo',     name: '뮤츠',     price: 5000 },
-  { id: 'mew',        name: '뮤',       price: 5000 },
+  { id: 'butterfree', name: '나비',   price: 300 },
+  { id: 'pidgeotto',  name: '매',     price: 300 },
+  { id: 'voltorb',    name: '레드볼', price: 400 },
+  { id: 'ditto',      name: '젤리',   price: 500 },
+  { id: 'eevee',      name: '여우',   price: 500 },
+  { id: 'mr-mime',    name: '광대',   price: 800 },
+  { id: 'jynx',       name: '디바',   price: 900 },
+  { id: 'porygon',    name: '프리즘',   price: 1000 },
+  { id: 'snorlax',    name: '곰돌이',   price: 1200 },
+  { id: 'lapras',     name: '해룡', price: 1500 },
+  { id: 'gyarados',   name: '드래곤', price: 2200 },
+  { id: 'articuno',   name: '서리새',   price: 3000 },
+  { id: 'zapdos',     name: '천둥새',     price: 3000 },
+  { id: 'moltres',    name: '불새',   price: 3000 },
+  { id: 'mewtwo',     name: '유전자',     price: 5000 },
+  { id: 'mew',        name: '별빛',       price: 5000 },
 ];
 
 /** 메인 src/lib/shop.ts BACKGROUNDS — price>0 항목만. */

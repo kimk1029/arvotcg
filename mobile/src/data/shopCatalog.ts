@@ -13,7 +13,6 @@ export type UnlockMode = 'free' | 'level' | 'shop';
 
 export interface AvatarMeta {
   id: AvatarId;
-  dex: number;
   name: string;
   mode: UnlockMode;
   level?: number;
@@ -24,28 +23,28 @@ export interface AvatarMeta {
 }
 
 export const AVATARS: AvatarMeta[] = [
-  { id: 'bulbasaur',  dex: 1,   name: '새싹이',   mode: 'free', glyph: '🌱' },
-  { id: 'charmander', dex: 4,   name: '불꽃이',     mode: 'free', glyph: '🔥' },
-  { id: 'squirtle',   dex: 7,   name: '물방울이',     mode: 'free', glyph: '💧' },
-  { id: 'rattata',    dex: 19,  name: '들쥐',       mode: 'level', level: 2, glyph: '🐭' },
-  { id: 'pikachu',    dex: 25,  name: '번개꼬리',     mode: 'level', level: 3, tag: 'hot', glyph: '⚡' },
-  { id: 'diglett',    dex: 50,  name: '두더지',     mode: 'level', level: 5, glyph: '🟫' },
-  { id: 'butterfree', dex: 12,  name: '나비',     mode: 'shop', price: 300, glyph: '🦋' },
-  { id: 'pidgeotto',  dex: 17,  name: '매',       mode: 'shop', price: 300, glyph: '🦅' },
-  { id: 'voltorb',    dex: 100, name: '레드볼',   mode: 'shop', price: 400, glyph: '🔴' },
-  { id: 'ditto',      dex: 132, name: '젤리',     mode: 'shop', price: 500, glyph: '🟪' },
-  { id: 'eevee',      dex: 133, name: '여우',     mode: 'shop', price: 500, tag: 'hot', glyph: '🦊' },
-  { id: 'mr-mime',    dex: 122, name: '광대',     mode: 'shop', price: 800, glyph: '🤡' },
-  { id: 'jynx',       dex: 124, name: '디바',     mode: 'shop', price: 900, glyph: '💋' },
-  { id: 'porygon',    dex: 137, name: '프리즘',     mode: 'shop', price: 1000, tag: 'new', glyph: '🔷' },
-  { id: 'snorlax',    dex: 143, name: '곰돌이',     mode: 'shop', price: 1200, glyph: '🐻' },
-  { id: 'lapras',     dex: 131, name: '해룡',   mode: 'shop', price: 1500, glyph: '🦕' },
-  { id: 'gyarados',   dex: 130, name: '드래곤',   mode: 'shop', price: 2200, tag: 'legend', glyph: '🐉' },
-  { id: 'articuno',   dex: 144, name: '서리새',     mode: 'shop', price: 3000, tag: 'legend', glyph: '❄️' },
-  { id: 'zapdos',     dex: 145, name: '천둥새',       mode: 'shop', price: 3000, tag: 'legend', glyph: '⚡' },
-  { id: 'moltres',    dex: 146, name: '불새',     mode: 'shop', price: 3000, tag: 'legend', glyph: '🔥' },
-  { id: 'mewtwo',     dex: 150, name: '유전자',       mode: 'shop', price: 5000, tag: 'legend', glyph: '🧬' },
-  { id: 'mew',        dex: 151, name: '별빛',         mode: 'shop', price: 5000, tag: 'legend', glyph: '✨' },
+  { id: 'bulbasaur',  name: '새싹이',   mode: 'free', glyph: '🌱' },
+  { id: 'charmander', name: '불꽃이',     mode: 'free', glyph: '🔥' },
+  { id: 'squirtle',   name: '물방울이',     mode: 'free', glyph: '💧' },
+  { id: 'rattata',    name: '들쥐',       mode: 'level', level: 2, glyph: '🐭' },
+  { id: 'pikachu',    name: '번개꼬리',     mode: 'level', level: 3, tag: 'hot', glyph: '⚡' },
+  { id: 'diglett',    name: '두더지',     mode: 'level', level: 5, glyph: '🟫' },
+  { id: 'butterfree', name: '나비',     mode: 'shop', price: 300, glyph: '🦋' },
+  { id: 'pidgeotto',  name: '매',       mode: 'shop', price: 300, glyph: '🦅' },
+  { id: 'voltorb',    name: '레드볼',   mode: 'shop', price: 400, glyph: '🔴' },
+  { id: 'ditto',      name: '젤리',     mode: 'shop', price: 500, glyph: '🟪' },
+  { id: 'eevee',      name: '여우',     mode: 'shop', price: 500, tag: 'hot', glyph: '🦊' },
+  { id: 'mr-mime',    name: '광대',     mode: 'shop', price: 800, glyph: '🤡' },
+  { id: 'jynx',       name: '디바',     mode: 'shop', price: 900, glyph: '💋' },
+  { id: 'porygon',    name: '프리즘',     mode: 'shop', price: 1000, tag: 'new', glyph: '🔷' },
+  { id: 'snorlax',    name: '곰돌이',     mode: 'shop', price: 1200, glyph: '🐻' },
+  { id: 'lapras',     name: '해룡',   mode: 'shop', price: 1500, glyph: '🦕' },
+  { id: 'gyarados',   name: '드래곤',   mode: 'shop', price: 2200, tag: 'legend', glyph: '🐉' },
+  { id: 'articuno',   name: '서리새',     mode: 'shop', price: 3000, tag: 'legend', glyph: '❄️' },
+  { id: 'zapdos',     name: '천둥새',       mode: 'shop', price: 3000, tag: 'legend', glyph: '⚡' },
+  { id: 'moltres',    name: '불새',     mode: 'shop', price: 3000, tag: 'legend', glyph: '🔥' },
+  { id: 'mewtwo',     name: '유전자',       mode: 'shop', price: 5000, tag: 'legend', glyph: '🧬' },
+  { id: 'mew',        name: '별빛',         mode: 'shop', price: 5000, tag: 'legend', glyph: '✨' },
 ];
 
 export type BackgroundId =

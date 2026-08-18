@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { InventoryCtxValue } from './InventoryProvider';
-import { PokemonAvatar } from './PokemonAvatar';
+import { ProfileAvatar } from './ProfileAvatar';
 import { AVATARS, getAvatarMeta, type AvatarId } from '@/lib/avatars';
 import { MY_PROFILE } from '@/lib/data';
 
@@ -130,7 +130,7 @@ export function AvatarPicker({ inv, onClose }: Props) {
                 aria-label={a.name}
               >
                 <div className="avatar-tile-img">
-                  <PokemonAvatar id={a.id} size={70} />
+                  <ProfileAvatar id={a.id} size={70} />
                 </div>
                 <div className="avatar-tile-name">{a.name}</div>
                 {a.tag && <div className={`avatar-tile-tag tag-${a.tag}`}>{a.tag.toUpperCase()}</div>}
