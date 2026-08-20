@@ -15,7 +15,13 @@ import { prisma } from './prisma.js';
 import { ensureCardImage } from './cardImageCache.js';
 import { translateKnownCardNameToKo } from '../../shared/cardTranslate';
 import { shortenName } from '../../shared/util/shortenName';
-import { fetchSnkrdunkApparel, type SnkrdunkApparel } from '@/lib/snkrdunk';
+import {
+  fetchSnkrdunkApparel,
+  fetchSnkrdunkSalesChart,
+  fetchSnkrdunkSalesHistory,
+  type SnkrdunkApparel,
+} from '@/lib/snkrdunk';
+import { computeApparelPrices, type ApparelPrices } from '../../shared/snkrdunkPrice';
 import { parseCardStatics } from '../../shared/cardStatics';
 
 export { parseCardStatics } from '../../shared/cardStatics';
@@ -261,4 +267,48 @@ export function isFreshEntry(e: CatalogEntry | undefined, ttlMs = CATALOG_PRICE_
   // priceSingle 까지 계산된 풀 스냅샷만 신선 취급 — 목록 수집 스냅샷(minPrice만)으로
   // 컬렉션 시세를 대체하면 PSA10/차트가 비어버린다.
   return e.snapshot.priceSingle > 0 || e.snapshot.minPrice > 0;
+}
+
+/* ── 라이브 갱신 (stale-while-revalidate 공용) ───────────────────── */
+
+export interface RefreshedApparel extends ApparelPrices {
+  name: string;
+  imageUrl: string | null;
+  minPrice: number;
+}
+
+/**
+ * apparel 1건을 라이브 조회해 시세 계산(computeApparelPrices) 후 카탈로그·스냅샷에
+ * 적재하고 결과를 돌려준다. 컬렉션/포트폴리오가 같은 규칙으로 쓰는 단일 갱신 경로 —
+ * 응답을 막는 자리(스냅샷 자체가 없는 카드)와 백그라운드 갱신 자리 모두 이걸 쓴다.
+ */
+export async function refreshApparelPrices(apparelId: number): Promise<RefreshedApparel | null> {
+  try {
+    const [a, hist, chart] = await Promise.all([
+      fetchSnkrdunkApparel(apparelId),
+      fetchSnkrdunkSalesHistory(apparelId).catch(() => null),
+      fetchSnkrdunkSalesChart(apparelId).catch(() => null),
+    ]);
+    if (!a) return null;
+    const prices = computeApparelPrices(hist?.history ?? [], chart?.points ?? [], a.minPrice ?? 0);
+    void upsertCatalogCard(a);
+    void recordPriceSnapshot(apparelId, {
+      minPrice: a.minPrice ?? 0,
+      listingCount: a.listingCount,
+      priceSingle: prices.single,
+      pricePsa10: prices.psa10,
+      pricePsa9: prices.psa9,
+      pricePsa8: prices.psa8,
+      trend: prices.trendJpy,
+    });
+    return {
+      ...prices,
+      name: a.localizedName || a.name || '',
+      imageUrl: a.imageUrl,
+      minPrice: a.minPrice ?? 0,
+    };
+  } catch (err) {
+    console.warn('[snkrdunkCatalog.refresh]', apparelId, err);
+    return null;
+  }
 }

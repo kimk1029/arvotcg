@@ -85,12 +85,35 @@ function cardSub(c: CardRow): string {
   return c.selfPulled ? '직접뽑기' : '싱글카드';
 }
 
+/* 세션 캐시 — 재진입 시 마지막 결과를 즉시 그리고(스피너 없이) 백그라운드 갱신(SWR).
+ * sessionStorage 라 탭을 닫으면 사라지고, 로그아웃/계정 전환도 새 탭 세션이면 안 샌다. */
+const COLLECTION_CACHE_KEY = 'pf30:collection-cache:v1';
+function loadCollectionCache(): { port: PortfolioData; cards: CardRow[] } | null {
+  try {
+    const raw = sessionStorage.getItem(COLLECTION_CACHE_KEY);
+    if (!raw) return null;
+    const j = JSON.parse(raw) as { t?: number; port?: PortfolioData; cards?: CardRow[] };
+    if (!j?.port || !Array.isArray(j.cards)) return null;
+    return { port: j.port, cards: j.cards };
+  } catch {
+    return null;
+  }
+}
+function saveCollectionCache(port: PortfolioData, cards: CardRow[]): void {
+  try {
+    sessionStorage.setItem(COLLECTION_CACHE_KEY, JSON.stringify({ t: Date.now(), port, cards }));
+  } catch {
+    // 저장 실패(용량 등)는 무시 — 캐시는 가속용일 뿐.
+  }
+}
+
 export function CollectionScreen() {
   const router = useRouter();
   const { format, rate, mode, setMode } = useCurrency();
   const { mode: priceMode } = usePriceMode();
-  const [port, setPort] = useState<PortfolioData | null>(null);
-  const [cards, setCards] = useState<CardRow[] | null>(null);
+  // 세션 캐시 시드 — 재진입 시 마지막 결과를 즉시 그리고 백그라운드 갱신(SWR, 앱 peekMyCards 페어).
+  const [port, setPort] = useState<PortfolioData | null>(() => loadCollectionCache()?.port ?? null);
+  const [cards, setCards] = useState<CardRow[] | null>(() => loadCollectionCache()?.cards ?? null);
   const [alertCount, setAlertCount] = useState<number>(0);
   const [err, setErr] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -103,8 +126,11 @@ export function CollectionScreen() {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 20000);
     setErr(null);
-    setPort(null);
-    setCards(null);
+    // 캐시 시드가 그려져 있으면 비우지 않고 그대로 둔 채 갱신 — 수동 재시도(reload)만 초기화.
+    if (reload > 0) {
+      setPort(null);
+      setCards(null);
+    }
     (async () => {
       try {
         const [pr, cr, ar] = await Promise.all([
@@ -114,6 +140,12 @@ export function CollectionScreen() {
         ]);
         if (!alive) return;
         if (!pr.ok) {
+          if (pr.status === 401) {
+            // 로그아웃 상태 — 이전 계정 캐시가 남지 않게 비운다.
+            try { sessionStorage.removeItem(COLLECTION_CACHE_KEY); } catch {}
+            setPort(null);
+            setCards(null);
+          }
           setErr(pr.status === 401 ? '로그인이 필요해요' : '포트폴리오를 불러오지 못했어요');
           return;
         }
@@ -126,6 +158,7 @@ export function CollectionScreen() {
         }
         setPort(pj.data);
         setCards(cj?.data ?? []);
+        saveCollectionCache(pj.data, cj?.data ?? []);
         if (ar && ar.ok) {
           const aj = (await ar.json().catch(() => null)) as { data?: Array<{ triggeredAt: string | null }> } | null;
           setAlertCount((aj?.data ?? []).filter((a) => !a.triggeredAt).length);

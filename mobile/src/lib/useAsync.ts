@@ -17,8 +17,11 @@ export function useAsync<T>(
   fn: () => Promise<T>,
   /** fn 이 의존하는 외부 값 — 변하면 재실행. */
   deps: unknown[] = [],
+  /** 첫 페인트 시드 — 세션 캐시 등 마지막 결과를 즉시 그리고 백그라운드 갱신(SWR).
+   *  `loading && !data` 가드를 쓰는 화면은 시드가 있으면 스피너 없이 바로 내용이 뜬다. */
+  initial?: () => T | null,
 ): AsyncState<T> {
-  const [data, setData] = useState<T | null>(null);
+  const [data, setData] = useState<T | null>(() => initial?.() ?? null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<ApiError | Error | null>(null);
   const tick = useRef(0);

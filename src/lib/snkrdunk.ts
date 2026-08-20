@@ -35,23 +35,58 @@ const COMMON_HEADERS: Record<string, string> = {
   'User-Agent': SNKRDUNK_USER_AGENT,
 };
 
-async function fetchJson<T>(path: string): Promise<T | null> {
-  const url = `${SNKRDUNK_ORIGIN}${path}`;
-  try {
-    const res = await fetch(url, {
-      headers: COMMON_HEADERS,
-      next: { revalidate: REVALIDATE_SEC },
-      signal: AbortSignal.timeout(8000),
+// `next.revalidate` 캐시는 Next.js 전용 — 같은 파일을 쓰는 NAS Express 서버에서는
+// 무시되어 모든 호출이 매번 라이브 스크레이프였다(홈 1회 진입에 수십 회 업스트림 →
+// 느리고 간헐 실패로 섹션이 통째로 비는 원인). 런타임 공용 메모리 TTL 캐시와
+// 동시요청 병합을 여기서 직접 보장한다. Next 서버에서는 revalidate 위의 무해한 중복.
+const MEM_TTL_MS = REVALIDATE_SEC * 1000;
+const MEM_MAX = 800;
+const memCache = new Map<string, { t: number; v: unknown }>();
+const inflight = new Map<string, Promise<unknown>>();
+
+async function memoized<T>(key: string, live: () => Promise<T | null>): Promise<T | null> {
+  const hit = memCache.get(key);
+  if (hit && Date.now() - hit.t < MEM_TTL_MS) return hit.v as T;
+  const running = inflight.get(key);
+  if (running) return running as Promise<T | null>;
+  const p = live()
+    .then((v) => {
+      // 실패(null)는 캐시하지 않아 다음 호출이 재시도한다.
+      if (v !== null && v !== undefined) {
+        if (memCache.size >= MEM_MAX) {
+          const oldest = memCache.keys().next().value;
+          if (oldest !== undefined) memCache.delete(oldest);
+        }
+        memCache.set(key, { t: Date.now(), v });
+      }
+      return v;
+    })
+    .finally(() => {
+      inflight.delete(key);
     });
-    if (!res.ok) {
-      console.error('[snkrdunk] non-OK', res.status, path);
+  inflight.set(key, p);
+  return p;
+}
+
+function fetchJson<T>(path: string): Promise<T | null> {
+  return memoized<T>(path, async () => {
+    const url = `${SNKRDUNK_ORIGIN}${path}`;
+    try {
+      const res = await fetch(url, {
+        headers: COMMON_HEADERS,
+        next: { revalidate: REVALIDATE_SEC },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) {
+        console.error('[snkrdunk] non-OK', res.status, path);
+        return null;
+      }
+      return (await res.json()) as T;
+    } catch (err) {
+      console.error('[snkrdunk] fetch failed', path, err);
       return null;
     }
-    return (await res.json()) as T;
-  } catch (err) {
-    console.error('[snkrdunk] fetch failed', path, err);
-    return null;
-  }
+  });
 }
 
 export async function fetchSnkrdunkApparel(apparelId: number): Promise<SnkrdunkApparel | null> {
@@ -137,23 +172,28 @@ export async function fetchSnkrdunkSearch(
   if (!q) return [];
   const p = Number.isInteger(page) && page > 1 ? `&page=${page}` : '';
   const url = `${SNKRDUNK_ORIGIN}/search?keywords=${encodeURIComponent(q)}${p}`;
-  try {
-    const res = await fetch(url, {
-      headers: {
-        Accept: 'text/html',
-        'Accept-Language': 'ja,en-US;q=0.8,ko;q=0.7',
-        'User-Agent': SNKRDUNK_USER_AGENT,
-      },
-      next: { revalidate: 300 },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) return [];
-    const html = await res.text();
-    return parseSnkrdunkSearchHtml(html);
-  } catch (err) {
-    console.error('[snkrdunk] search failed', err);
-    return [];
-  }
+  // 검색도 메모리 캐시 — 실패/빈 결과는 null 로 넘겨 캐시하지 않는다(다음 호출 재시도).
+  const results = await memoized<SnkrdunkSearchResult[]>(`search:${url}`, async () => {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          Accept: 'text/html',
+          'Accept-Language': 'ja,en-US;q=0.8,ko;q=0.7',
+          'User-Agent': SNKRDUNK_USER_AGENT,
+        },
+        next: { revalidate: 300 },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) return null;
+      const html = await res.text();
+      const parsed = parseSnkrdunkSearchHtml(html);
+      return parsed.length > 0 ? parsed : null;
+    } catch (err) {
+      console.error('[snkrdunk] search failed', err);
+      return null;
+    }
+  });
+  return results ?? [];
 }
 
 export async function fetchSnkrdunkBrowse(page = 1): Promise<SnkrdunkSearchResult[]> {

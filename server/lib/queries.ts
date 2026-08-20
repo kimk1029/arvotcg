@@ -21,8 +21,8 @@ import type {
   TradeStatus,
   TradeType,
 } from '@/lib/types';
-import { fetchSnkrdunkApparel, fetchSnkrdunkSalesHistory, fetchSnkrdunkSalesChart } from '@/lib/snkrdunk';
-import { computeApparelPrices, currentBasisJpy } from '../../shared/snkrdunkPrice';
+import { fetchSnkrdunkApparel } from '@/lib/snkrdunk';
+import { currentBasisJpy } from '../../shared/snkrdunkPrice';
 import { translateKnownCardNameToKo } from '../../shared/cardTranslate';
 import { getCardPackMeta } from '@/lib/cardPacks';
 import { getCachedJpyKrw } from './fxRate.js';
@@ -30,6 +30,7 @@ import {
   isFreshEntry,
   loadCatalogEntries,
   recordPriceSnapshot,
+  refreshApparelPrices,
   upsertCatalogCard,
 } from './snkrdunkCatalog.js';
 
@@ -468,45 +469,29 @@ export async function getMyCardsWithPrices(
       gameById.set(id, e.game ?? null);
     }
     const staleIds = apparelIds.filter((id) => !isFreshEntry(catalog.get(id)));
+    // stale-while-revalidate — 스냅샷이 하나라도 있는 카드(오래됐어도)는 그 값으로
+    // 즉시 응답하고 갱신은 백그라운드로 넘긴다. 라이브 조회를 기다리는(=응답을 막는)
+    // 카드는 스냅샷이 아예 없는 신규뿐이라 컬렉션 로딩이 스크레이프 N건에 안 묶인다.
+    const blockingIds = staleIds.filter((id) => !catalog.get(id)?.snapshot);
+    const backgroundIds = staleIds.filter((id) => catalog.get(id)?.snapshot);
+    if (backgroundIds.length > 0) {
+      void Promise.allSettled(backgroundIds.map((id) => refreshApparelPrices(id)));
+    }
 
-    // 2) 오래됐거나 없는 카드만 라이브 조회 → 결과는 카탈로그/스냅샷에 재적재.
+    // 2) 스냅샷이 전혀 없는 카드만 라이브 조회 → 결과는 카탈로그/스냅샷에 재적재.
     await Promise.all(
-      staleIds.map(async (id) => {
-        try {
-          const [a, hist, chart] = await Promise.all([
-            fetchSnkrdunkApparel(id),
-            fetchSnkrdunkSalesHistory(id).catch(() => null),
-            fetchSnkrdunkSalesChart(id).catch(() => null),
-          ]);
-          if (!a) return;
-          const { single, psa10, psa9, psa8, trendJpy } = computeApparelPrices(
-            hist?.history ?? [],
-            chart?.points ?? [],
-            a.minPrice ?? 0,
-          );
-          apparelInfo.set(id, {
-            name: a.localizedName || a.name || '',
-            imageUrl: a.imageUrl,
-            priceSingleJpy: single,
-            pricePsa10Jpy: psa10,
-            pricePsa9Jpy: psa9,
-            pricePsa8Jpy: psa8,
-            trendJpy,
-          });
-          // 정적 정보 + 풀 시세 스냅샷 적재 (응답 경로 밖, 실패 무시).
-          void upsertCatalogCard(a);
-          void recordPriceSnapshot(id, {
-            minPrice: a.minPrice ?? 0,
-            listingCount: a.listingCount,
-            priceSingle: single,
-            pricePsa10: psa10,
-            pricePsa9: psa9,
-            pricePsa8: psa8,
-            trend: trendJpy,
-          });
-        } catch (err) {
-          console.warn('[getMyCardsWithPrices] apparel fetch failed', id, err);
-        }
+      blockingIds.map(async (id) => {
+        const r = await refreshApparelPrices(id);
+        if (!r) return;
+        apparelInfo.set(id, {
+          name: r.name,
+          imageUrl: r.imageUrl,
+          priceSingleJpy: r.single,
+          pricePsa10Jpy: r.psa10,
+          pricePsa9Jpy: r.psa9,
+          pricePsa8Jpy: r.psa8,
+          trendJpy: r.trendJpy,
+        });
       }),
     );
 
@@ -703,9 +688,25 @@ export async function getMyFavoritesWithPrices(
       });
     }
   }
+  // stale-while-revalidate — 스냅샷이 있는 카드(오래됐어도)는 즉시 그 값으로 응답하고
+  // 갱신은 백그라운드로. 라이브 조회를 기다리는 건 스냅샷이 아예 없는 카드뿐.
   const staleFavIds = uniqueIds.filter((id) => !info.has(id));
+  const favBlocking: number[] = [];
+  for (const id of staleFavIds) {
+    const e = catalog.get(id);
+    if (e?.snapshot) {
+      info.set(id, {
+        name: translateKnownCardNameToKo(e.name),
+        imageUrl: e.imageUrl,
+        minPriceJpy: e.snapshot.minPrice > 0 ? e.snapshot.minPrice : e.snapshot.priceSingle,
+      });
+      void refreshApparelPrices(id);
+    } else {
+      favBlocking.push(id);
+    }
+  }
   await Promise.all(
-    staleFavIds.map(async (id) => {
+    favBlocking.map(async (id) => {
       try {
         const a = await fetchSnkrdunkApparel(id);
         if (a) {

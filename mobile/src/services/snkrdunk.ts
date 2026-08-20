@@ -41,24 +41,35 @@ function abortAfter(ms: number): AbortSignal {
 const CACHE_TTL_MS = 5 * 60_000;
 const CACHE_MAX = 300;
 const proxyCache = new Map<string, { t: number; v: unknown }>();
+// 같은 경로 동시요청 병합 — 홈이 목록을 먼저 그리고 상세를 채우는 동안
+// 같은 카드의 차트/이력을 중복 호출하지 않게 한다.
+const proxyInflight = new Map<string, Promise<unknown>>();
 
 /** NAS 프록시 GET — 실패(네트워크·5xx)는 null. 웹 serverFetch 의 관대한 폴백과 동일. */
 async function getProxy<T>(path: string, timeoutMs = 8000): Promise<T | null> {
   const hit = proxyCache.get(path);
   if (hit && Date.now() - hit.t < CACHE_TTL_MS) return hit.v as T;
-  try {
-    const v = await api<T>(path, { auth: false, signal: abortAfter(timeoutMs) });
-    if (v !== null && v !== undefined) {
-      if (proxyCache.size >= CACHE_MAX) {
-        const firstKey = proxyCache.keys().next().value;
-        if (firstKey !== undefined) proxyCache.delete(firstKey);
+  const running = proxyInflight.get(path);
+  if (running) return running as Promise<T | null>;
+  const p = (async () => {
+    try {
+      const v = await api<T>(path, { auth: false, signal: abortAfter(timeoutMs) });
+      if (v !== null && v !== undefined) {
+        if (proxyCache.size >= CACHE_MAX) {
+          const firstKey = proxyCache.keys().next().value;
+          if (firstKey !== undefined) proxyCache.delete(firstKey);
+        }
+        proxyCache.set(path, { t: Date.now(), v });
       }
-      proxyCache.set(path, { t: Date.now(), v });
+      return v;
+    } catch {
+      return null;
+    } finally {
+      proxyInflight.delete(path);
     }
-    return v;
-  } catch {
-    return null;
-  }
+  })();
+  proxyInflight.set(path, p);
+  return p as Promise<T | null>;
 }
 
 export async function fetchSnkrdunkApparel(apparelId: number): Promise<SnkrdunkApparel | null> {

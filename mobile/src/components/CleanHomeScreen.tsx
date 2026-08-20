@@ -93,6 +93,8 @@ interface SnkrDisplaySeed {
   apparelId: number;
   shortName: string;
   category: SnkrdunkCardSeed['category'] | null;
+  /** 검색 결과 썸네일 — 상세(data) 도착 전 선페인트용. */
+  imageUrl?: string | null;
 }
 interface SnkrRow {
   seed: SnkrDisplaySeed;
@@ -100,6 +102,27 @@ interface SnkrRow {
 }
 
 const FEATURED_BY_ID = new Map(SNKRDUNK_FEATURED_CARDS.map((s) => [s.apparelId, s]));
+
+/* 홈 섹션 세션 캐시 — 화면을 나갔다 와도(remount) TTL 내에는 즉시 그려지고,
+ * TTL 이 지나면 캐시를 먼저 그린 채 백그라운드로 갱신한다 (웹 CleanHome 페어). */
+const HOME_TTL_MS = 5 * 60_000;
+const hotCache: Record<string, { t: number; rows: SnkrRow[] }> = {};
+const boxCache: Record<string, { t: number; rows: SnkrRow[] }> = {};
+let bannersCache: { t: number; v: HeroSlideData[] } | null = null;
+
+const rowsFromCache = (cache: Record<string, { t: number; rows: SnkrRow[] }>) => {
+  const out: Record<string, SnkrRow[]> = {};
+  for (const [g, c] of Object.entries(cache)) out[g] = c.rows;
+  return out;
+};
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+/** 홈 fetch 공용 타임아웃 — 요청이 매달리면(iOS 기본 60초) 섹션이 영영 안 떠서 필수. */
+function homeAbort(ms = 8000): AbortSignal {
+  const c = new AbortController();
+  setTimeout(() => c.abort(), ms);
+  return c.signal;
+}
 
 /** 홈 인기박스 선별에 필요한 최소 팩 메타 — 서버 /api/card-packs 응답과 번들 공용 (웹 동일). */
 type HomePackMeta = Pick<CardPackMeta, 'game' | 'apparelGroupId' | 'releasedAt' | 'shortName'>;
@@ -397,39 +420,64 @@ export function CleanHomeScreen() {
   const [homeGame, setHomeGame] = useState<GameId>('pokemon');
 
   // 인기 카드 — 선택 게임만 조회(포켓몬=browse, 그 외=키워드 검색) 후 게임별 캐시.
-  // 칩 전환 시 재조회 없이 즉시 복귀.
-  const [gameRows, setGameRows] = useState<Record<string, SnkrRow[]>>({});
+  // 칩 전환 시 재조회 없이 즉시 복귀. 세션 캐시(TTL)로 홈 재진입도 즉시.
+  // 검색 결과 썸네일로 먼저 그리고(상세를 기다리지 않음) 상세는 도착 즉시 덮어쓴다.
+  // 실패/빈 결과는 백오프 재시도 — 한 번 실패해도 섹션이 영영 비지 않게.
+  const [gameRows, setGameRows] = useState<Record<string, SnkrRow[]>>(() => rowsFromCache(hotCache));
   const snkrRows = useMemo(() => gameRows[homeGame] ?? [], [gameRows, homeGame]);
   useEffect(() => {
-    if ((gameRows[homeGame]?.length ?? 0) > 0) return;
+    const cached = hotCache[homeGame];
+    if (cached && Date.now() - cached.t < HOME_TTL_MS) return; // 신선 — 재조회 생략
     let alive = true;
+    const paint = (rows: SnkrRow[], confirmed: boolean) => {
+      if (!alive || rows.length === 0) return;
+      setGameRows((p) => ({ ...p, [homeGame]: rows }));
+      if (confirmed) hotCache[homeGame] = { t: Date.now(), rows };
+    };
     (async () => {
-      // 이름엔 박스 마커가 빠진 박스가 섞일 수 있어 넉넉히(14) 뽑고 상세 itemKind로 한 번 더 거름.
-      const kw = GAME_POPULAR_KEYWORD[homeGame];
-      const list = kw ? await searchSnkrdunkByQuery(kw) : await fetchSnkrdunkBrowse(1);
-      const pool = shuffle(list.filter((r) => !isBoxName(r.name))).slice(0, 14);
-      const seeds: SnkrDisplaySeed[] =
-        pool.length > 0
+      for (let attempt = 0; alive && attempt < 3; attempt++) {
+        if (attempt > 0) await sleep(2500 * attempt);
+        if (!alive) return;
+        // 이름엔 박스 마커가 빠진 박스가 섞일 수 있어 넉넉히(14) 뽑고 상세 itemKind로 한 번 더 거름.
+        const kw = GAME_POPULAR_KEYWORD[homeGame];
+        const list = kw ? await searchSnkrdunkByQuery(kw) : await fetchSnkrdunkBrowse(1);
+        const pool = shuffle(list.filter((r) => !isBoxName(r.name))).slice(0, 14);
+        const fromSearch = pool.length > 0;
+        const seeds: SnkrDisplaySeed[] = fromSearch
           ? pool.map((r) => {
               const curated = FEATURED_BY_ID.get(r.apparelId);
               return curated
-                ? { apparelId: r.apparelId, shortName: shotCardName(curated.shortName), category: curated.category }
+                ? { apparelId: r.apparelId, shortName: shotCardName(curated.shortName), category: curated.category, imageUrl: r.imageUrl }
                 : {
                     apparelId: r.apparelId,
                     shortName: shortenSnkrName(jaToKoCached(r.name)),
                     category: inferSnkrCategory(r.name),
+                    imageUrl: r.imageUrl,
                   };
             })
           : shuffle(SNKRDUNK_FEATURED_CARDS)
               .slice(0, 14)
               .map((s) => ({ apparelId: s.apparelId, shortName: shotCardName(s.shortName), category: s.category }));
-      const fetched = await Promise.all(
-        seeds.map(async (seed) => ({ seed, data: await fetchSnkrdunkApparel(seed.apparelId) })),
-      );
-      if (!alive) return;
-      // 상세 itemKind 가 박스인 행을 확실히 제외하고 10개 노출.
-      const rows = fetched.filter((row) => row.data?.itemKind !== 'box').slice(0, 10);
-      if (rows.length > 0) setGameRows((p) => ({ ...p, [homeGame]: rows }));
+        // 검색 썸네일로 즉시 선페인트 — 상세 14건을 기다리는 동안 섹션이 비지 않게.
+        // 단, 이미 그려진 게 있으면(스테일 캐시 등) 가격 있는 기존 행을 유지.
+        if (fromSearch) {
+          setGameRows((p) =>
+            (p[homeGame]?.length ?? 0) > 0
+              ? p
+              : { ...p, [homeGame]: seeds.slice(0, 10).map((seed) => ({ seed, data: null })) },
+          );
+        }
+        const fetched = await Promise.all(
+          seeds.map(async (seed) => ({ seed, data: await fetchSnkrdunkApparel(seed.apparelId) })),
+        );
+        if (!alive) return;
+        // 상세 itemKind 가 박스인 행을 확실히 제외하고 10개 노출.
+        const rows = fetched.filter((row) => row.data?.itemKind !== 'box').slice(0, 10);
+        const gotDetails = rows.some((r) => r.data !== null);
+        paint(rows, fromSearch && gotDetails);
+        // 성공(검색·상세 모두 응답)이면 종료, 아니면 재시도.
+        if (fromSearch && gotDetails) return;
+      }
     })();
     return () => {
       alive = false;
@@ -477,7 +525,7 @@ export function CleanHomeScreen() {
         apparelId: seed.apparelId,
         shortName: seed.shortName,
         localizedName: data?.localizedName || undefined,
-        imageUrl: data?.imageUrl ?? null,
+        imageUrl: data?.imageUrl ?? seed.imageUrl ?? null,
         minPrice: data?.minPrice ?? 0,
         recentPrice: priceById[seed.apparelId],
         changePct: changeById[seed.apparelId],
@@ -486,38 +534,47 @@ export function CleanHomeScreen() {
     );
   }, [snkrRows, priceById, changeById, homeGame]);
 
-  const [gameBoxRows, setGameBoxRows] = useState<Record<string, SnkrRow[]>>({});
+  const [gameBoxRows, setGameBoxRows] = useState<Record<string, SnkrRow[]>>(() => rowsFromCache(boxCache));
   const snkrBoxRows = useMemo(() => gameBoxRows[homeGame] ?? [], [gameBoxRows, homeGame]);
   useEffect(() => {
-    if ((gameBoxRows[homeGame]?.length ?? 0) > 0) return;
+    const cached = boxCache[homeGame];
+    if (cached && Date.now() - cached.t < HOME_TTL_MS) return; // 신선 — 재조회 생략
     let alive = true;
     (async () => {
-      // 선택 게임의 최신 팩 선별 — 정본 shared/homeBoxPacks (웹 동일, 칩 라디오 연동).
-      // 팩 풀은 서버 카탈로그(/api/card-packs)가 정본 — 서버에 세트 추가만 해도 반영.
-      // 번들 CARD_PACKS 는 서버 미응답 폴백.
-      const catalog = await api<{ data?: HomePackMeta[] }>('/api/card-packs', { auth: false }).catch(
-        () => null,
-      );
-      const pool: readonly HomePackMeta[] =
-        catalog?.data && catalog.data.length > 0 ? catalog.data : CARD_PACKS;
-      const picked = pickHomeBoxPacks(pool, [homeGame]);
-      const rows = await Promise.all(
-        picked.map(async (pack): Promise<SnkrRow | null> => {
-          // 웹 홈 fetchBoxRows 와 동일한 NAS 엔드포인트 (박스 전용 카테고리 그룹 조회).
-          const r = await api<{ data: { apparels?: SnkrdunkApparel[] } | null }>(
-            `/api/snkrdunk/apparel-groups/${pack.apparelGroupId}?apparelCategoryId=14&page=1&perPage=1`,
-            { auth: false },
-          ).catch(() => null);
-          const box = r?.data?.apparels?.[0];
-          if (!box || !box.id) return null;
-          return { seed: { apparelId: box.id, shortName: shotPackName(pack.shortName), category: null }, data: box };
-        }),
-      );
-      if (alive)
-        setGameBoxRows((p) => ({
-          ...p,
-          [homeGame]: rows.filter((r): r is SnkrRow => r !== null).slice(0, 6),
-        }));
+      // 실패/빈 결과는 백오프 재시도 — 요청 하나 매달려도(타임아웃 8초) 섹션이 영영 비지 않게.
+      for (let attempt = 0; alive && attempt < 3; attempt++) {
+        if (attempt > 0) await sleep(2500 * attempt);
+        if (!alive) return;
+        // 선택 게임의 최신 팩 선별 — 정본 shared/homeBoxPacks (웹 동일, 칩 라디오 연동).
+        // 팩 풀은 서버 카탈로그(/api/card-packs)가 정본 — 서버에 세트 추가만 해도 반영.
+        // 번들 CARD_PACKS 는 서버 미응답 폴백.
+        const catalog = await api<{ data?: HomePackMeta[] }>('/api/card-packs', {
+          auth: false,
+          signal: homeAbort(),
+        }).catch(() => null);
+        const pool: readonly HomePackMeta[] =
+          catalog?.data && catalog.data.length > 0 ? catalog.data : CARD_PACKS;
+        const picked = pickHomeBoxPacks(pool, [homeGame]);
+        const rows = await Promise.all(
+          picked.map(async (pack): Promise<SnkrRow | null> => {
+            // 웹 홈 fetchBoxRows 와 동일한 NAS 엔드포인트 (박스 전용 카테고리 그룹 조회).
+            const r = await api<{ data: { apparels?: SnkrdunkApparel[] } | null }>(
+              `/api/snkrdunk/apparel-groups/${pack.apparelGroupId}?apparelCategoryId=14&page=1&perPage=1`,
+              { auth: false, signal: homeAbort() },
+            ).catch(() => null);
+            const box = r?.data?.apparels?.[0];
+            if (!box || !box.id) return null;
+            return { seed: { apparelId: box.id, shortName: shotPackName(pack.shortName), category: null }, data: box };
+          }),
+        );
+        if (!alive) return;
+        const ok = rows.filter((r): r is SnkrRow => r !== null).slice(0, 6);
+        if (ok.length > 0) {
+          setGameBoxRows((p) => ({ ...p, [homeGame]: ok }));
+          boxCache[homeGame] = { t: Date.now(), rows: ok };
+          return;
+        }
+      }
     })();
     return () => {
       alive = false;
@@ -527,20 +584,33 @@ export function CleanHomeScreen() {
 
   // null = 로딩 중 (플레이스홀더 노출). 로드 전에 폴백 슬라이드를 그리면
   // "슬라이드 3개 → DB 1개"로 인디케이터가 줄어드는 깜빡임이 생긴다.
-  const [banners, setBanners] = useState<HeroSlideData[] | null>(null);
+  // 타임아웃(8초)+재시도 1회 — 요청이 매달리면 회색 플레이스홀더가 영영 남던 문제 방지.
+  // 최종 실패 시 []로 확정해 HeroBanner 내장 폴백 슬라이드라도 뜨게 한다. 세션 캐시로 재진입 즉시.
+  const [banners, setBanners] = useState<HeroSlideData[] | null>(() => bannersCache?.v ?? null);
   useEffect(() => {
+    if (bannersCache && Date.now() - bannersCache.t < HOME_TTL_MS) return; // 신선 — 재조회 생략
     let alive = true;
     (async () => {
-      try {
-        const r = await api<{ data: HeroSlideData[] }>('/api/banners', { auth: false });
-        if (alive) setBanners(Array.isArray(r?.data) ? r.data : []);
-      } catch {
-        if (alive) setBanners([]);
+      for (let attempt = 0; alive && attempt < 2; attempt++) {
+        if (attempt > 0) await sleep(1500);
+        try {
+          const r = await api<{ data: HeroSlideData[] }>('/api/banners', { auth: false, signal: homeAbort() });
+          if (!alive) return;
+          const v = Array.isArray(r?.data) ? r.data : [];
+          setBanners(v);
+          bannersCache = { t: Date.now(), v };
+          return;
+        } catch {
+          // 재시도 후에도 실패하면 아래 폴백 확정.
+        }
       }
+      // 스테일 캐시라도 그려져 있으면 유지, 아무것도 없을 때만 []로 확정(내장 폴백 슬라이드).
+      if (alive && !bannersCache) setBanners([]);
     })();
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const Chevron = ({ size, color, w }: { size: number; color: string; w: number }) => (
@@ -761,7 +831,7 @@ export function CleanHomeScreen() {
               gap={14}
               renderItem={({ seed, data }, idx) => (
                 <Pressable onPress={() => router.push(`/cards/snkrdunk/${seed.apparelId}` as never)}>
-                  <CardArt imageUrl={data?.imageUrl ?? null} fallbackIdx={idx} width={100} height={138} radius={11}>
+                  <CardArt imageUrl={data?.imageUrl ?? seed.imageUrl ?? null} fallbackIdx={idx} width={100} height={138} radius={11}>
                     <View
                       style={{
                         position: 'absolute', top: 6, left: 6, width: 22, height: 22, borderRadius: 11,
@@ -833,7 +903,7 @@ export function CleanHomeScreen() {
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: P.line }}
                   >
                     <Text style={[ts(15, '800', i < 3 ? P.rise : P.ink), { width: 14, textAlign: 'center' }]}>{i + 1}</Text>
-                    <CardArt imageUrl={data?.imageUrl ?? null} fallbackIdx={i} width={46} height={46} radius={9} />
+                    <CardArt imageUrl={data?.imageUrl ?? seed.imageUrl ?? null} fallbackIdx={i} width={46} height={46} radius={9} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text numberOfLines={1} style={ts(14, '700', P.ink)}>{seed.shortName}</Text>
                       <Text numberOfLines={1} style={[ts(12, '400', P.ink3), { marginTop: 2 }]}>{seed.category ?? '카드'}</Text>

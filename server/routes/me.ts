@@ -25,7 +25,14 @@ import {
 } from '../lib/queries.js';
 import { fetchSnkrdunkApparel, fetchSnkrdunkSalesHistory, fetchSnkrdunkSalesChart } from '@/lib/snkrdunk';
 import { computeApparelPrices, registerBasisJpy } from '../../shared/snkrdunkPrice';
-import { ensureCatalogCard, recordPriceSnapshot, upsertCatalogCard } from '../lib/snkrdunkCatalog.js';
+import {
+  ensureCatalogCard,
+  isFreshEntry,
+  loadCatalogEntries,
+  recordPriceSnapshot,
+  refreshApparelPrices,
+  upsertCatalogCard,
+} from '../lib/snkrdunkCatalog.js';
 import { getJpyKrwRate } from '../lib/fxRate.js';
 import { runDailyCheckIn } from '../lib/checkIn.js';
 import { kstDateKey, kstDateKeyShifted } from '../../shared/kst';
@@ -398,61 +405,39 @@ router.get('/portfolio', async (req: Request, res: Response) => {
             .filter((v): v is number => typeof v === 'number'),
         ),
       );
-      const PSA10_RE = /PSA\s*10\b/i;
-      const PSA_ANY_RE = /PSA\s*\d+/i;
-      const median = (arr: number[]): number => {
-        if (arr.length === 0) return 0;
-        const sorted = [...arr].sort((a, b) => a - b);
-        return sorted[Math.floor(sorted.length / 2)];
-      };
-      // apparel.minPrice (현재 최저) + sales history median (raw / psa10) 모두 수집.
+      // 시세 계산 정본은 shared computeApparelPrices (refreshApparelPrices 내부) —
+      // 예전 인라인 계산(raw 중앙값·rawCeil 차트 필터·등급 오염 방지)과 같은 규칙이다.
+      // 카탈로그 스냅샷 우선 + stale-while-revalidate: 계산된 스냅샷이 있으면(오래됐어도)
+      // 즉시 그 값으로 합산하고 갱신은 백그라운드로. 라이브 조회를 기다리는 카드는
+      // 풀 스냅샷이 없는 경우뿐이라, 포트폴리오 응답이 스크레이프 N건에 안 묶인다.
       const priceByApparel = new Map<
         number,
         { single: number; psa10: number; chartPrev: number; chartLast: number }
       >();
+      const fromTrend = (p: { single: number; psa10: number; trend: number[] }) => ({
+        single: p.single,
+        psa10: p.psa10,
+        chartLast: p.trend.length >= 1 ? p.trend[p.trend.length - 1] : 0,
+        chartPrev: p.trend.length >= 2 ? p.trend[p.trend.length - 2] : 0,
+      });
+      const catalog = await loadCatalogEntries(uniqueApparelIds);
+      const blockingIds: number[] = [];
+      for (const id of uniqueApparelIds) {
+        const s = catalog.get(id)?.snapshot;
+        // priceSingle/pricePsa10 이 계산된 풀 스냅샷만 사용 — 목록 수집 스냅샷(minPrice만)
+        // 으로 합산하면 자산이 0 으로 빠지므로 그런 카드는 라이브 조회로 넘긴다.
+        if (s && (s.priceSingle > 0 || s.pricePsa10 > 0)) {
+          priceByApparel.set(id, fromTrend({ single: s.priceSingle, psa10: s.pricePsa10, trend: s.trend }));
+          if (!isFreshEntry(catalog.get(id))) void refreshApparelPrices(id);
+        } else {
+          blockingIds.push(id);
+        }
+      }
       await Promise.all(
-        uniqueApparelIds.map(async (id: number) => {
-          try {
-            const [a, hist, chart] = await Promise.all([
-              fetchSnkrdunkApparel(id),
-              fetchSnkrdunkSalesHistory(id).catch(() => null),
-              fetchSnkrdunkSalesChart(id).catch(() => null),
-            ]);
-            const history = hist?.history ?? [];
-            const pickPrices = (predicate: (badge: string) => boolean) =>
-              history
-                .filter((h) => typeof h.price === 'number' && h.price > 0)
-                .filter((h) => predicate((h.condition || h.label || '').trim()))
-                .map((h) => h.price)
-                .slice(0, 7);
-            const psa10Prices = pickPrices((b) => PSA10_RE.test(b));
-            // 싱글(raw) 단가는 PSA 등급 체결을 제외한 최근 체결 중앙값 기준.
-            const rawMedian = median(pickPrices((b) => !PSA_ANY_RE.test(b)));
-            // sales-chart/used 에는 PSA 등급 체결이 섞여 끝점이 등급가로 튈 수 있어,
-            // raw 중앙값의 2.5배 초과 포인트는 등락 계산(어제/오늘 비교)에서도 제외.
-            const rawCeil = rawMedian > 0 ? rawMedian * 2.5 : Infinity;
-            const pts = (chart?.points ?? []).filter(
-              (p) => typeof p[1] === 'number' && p[1] > 0 && p[1] <= rawCeil,
-            );
-            const chartLast = pts.length >= 1 ? pts[pts.length - 1][1] : 0;
-            const chartPrev = pts.length >= 2 ? pts[pts.length - 2][1] : 0;
-            // raw 체결이 없는데 PSA 등급 체결만 있는 카드는 차트 끝점/최저매물이
-            // 등급가로 오염되므로(rawCeil=Infinity로 필터도 못 함) 폴백하지 않는다.
-            // → 싱글 시세 없음(0)으로 두어 싱글 합계에 PSA가가 섞이지 않게 한다.
-            const hasGradedSales = pickPrices((b) => PSA_ANY_RE.test(b)).length > 0;
-            // 표시/합산 단가는 raw 중앙값 우선, 없으면(등급 체결도 없을 때만) 차트 끝점→최저매물.
-            let single = rawMedian;
-            if (single === 0 && !hasGradedSales) {
-              single = chartLast;
-              if (single === 0 && a && typeof a.minPrice === 'number' && a.minPrice > 0) {
-                single = a.minPrice;
-              }
-            }
-            const psa10 = median(psa10Prices);
-            priceByApparel.set(id, { single, psa10, chartPrev, chartLast });
-          } catch (err) {
-            console.warn('[me.portfolio] apparel fetch failed', id, err);
-          }
+        blockingIds.map(async (id: number) => {
+          const r = await refreshApparelPrices(id);
+          if (!r) return;
+          priceByApparel.set(id, fromTrend({ single: r.single, psa10: r.psa10, trend: r.trendJpy }));
         }),
       );
       for (const c of cards) {

@@ -27,6 +27,8 @@ import {
   fetchPortfolio,
   fetchPriceAlerts,
   deleteMyCard,
+  peekMyCards,
+  peekPortfolio,
   type MyCardRow,
   type PortfolioSummary,
 } from '@/lib/myApi';
@@ -97,9 +99,13 @@ export default function MyCardsScreen() {
   const [view, setView] = useState<ViewMode>('grid');
   const [sort, setSort] = useState<SortKey>('value');
 
-  const { data, loading, error, refresh } = useAsync<MyCardRow[]>(fetchMyCards, [authed]);
+  // 세션 캐시 시드 — 재진입 시 마지막 목록을 즉시 그리고 백그라운드로 갱신(SWR).
+  const { data, loading, error, refresh } = useAsync<MyCardRow[]>(fetchMyCards, [authed], peekMyCards);
 
-  const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
+  const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(() => {
+    const p = peekPortfolio();
+    return p && p.totalCount > 0 ? p : null;
+  });
   const [alertCount, setAlertCount] = useState(0);
   useEffect(() => {
     if (!authed) return;

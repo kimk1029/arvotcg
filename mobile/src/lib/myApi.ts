@@ -5,6 +5,7 @@
  * 모바일이 자체 mock 으로 폴백할 수 있도록 [[ApiError]] 를 그대로 던진다.
  */
 import { api, ApiError, getApiBaseUrl } from './apiClient';
+import { subscribeSession } from './session';
 import { SHOT } from './shotMode';
 import {
   SHOT_MY_CARDS, SHOT_PORTFOLIO, SHOT_PRICE_ALERTS, SHOT_SUMMARY, SHOT_UNREAD,
@@ -278,15 +279,37 @@ export function absApiUrl(u: string | null | undefined): string | null {
   return u.startsWith('/') ? `${getApiBaseUrl()}${u}` : u;
 }
 
+/* 컬렉션 세션 캐시 — 화면 재진입 시 마지막 결과를 즉시 그리고(스피너 없이)
+ * 백그라운드 재조회가 끝나면 갱신한다 (홈 hotCache·웹 세션캐시 페어).
+ * 로그아웃/계정 전환 시 이전 계정 데이터가 비치지 않게 세션 변경에서 비운다. */
+let myCardsCache: MyCardRow[] | null = null;
+let portfolioCache: PortfolioSummary | null = null;
+subscribeSession(() => {
+  myCardsCache = null;
+  portfolioCache = null;
+});
+
+/** 마지막으로 받아온 내 카드 목록 — 즉시 페인트 시드용 (없으면 null). */
+export function peekMyCards(): MyCardRow[] | null {
+  return myCardsCache;
+}
+
+/** 마지막으로 받아온 포트폴리오 요약 — 즉시 페인트 시드용 (없으면 null). */
+export function peekPortfolio(): PortfolioSummary | null {
+  return portfolioCache;
+}
+
 export function fetchMyCards(): Promise<MyCardRow[]> {
   if (SHOT) return Promise.resolve(SHOT_MY_CARDS);
-  return api<{ data: MyCardRow[] }>('/api/me/cards/with-prices').then((r) =>
-    r.data.map((c) => ({
+  return api<{ data: MyCardRow[] }>('/api/me/cards/with-prices').then((r) => {
+    const rows = r.data.map((c) => ({
       ...c,
       photoUrl: absApiUrl(c.photoUrl),
       snkrdunkImageUrl: absApiUrl(c.snkrdunkImageUrl),
-    })),
-  );
+    }));
+    myCardsCache = rows;
+    return rows;
+  });
 }
 
 export function fetchMyFavorites(): Promise<MyFavoriteRow[]> {
@@ -325,7 +348,10 @@ export function createMyCard(input: CreateMyCardInput): Promise<{ data: MyCardRo
 
 export function fetchPortfolio(): Promise<PortfolioSummary> {
   if (SHOT) return Promise.resolve(SHOT_PORTFOLIO);
-  return api<{ data: PortfolioSummary }>('/api/me/portfolio').then((r) => r.data);
+  return api<{ data: PortfolioSummary }>('/api/me/portfolio').then((r) => {
+    portfolioCache = r.data;
+    return r.data;
+  });
 }
 
 /* ── 가격 알림 — 시세가 목표가(JPY) 이하로 내려오면 서버 주기 체커가 메시지 발송. ── */
