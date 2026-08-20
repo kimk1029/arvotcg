@@ -480,6 +480,13 @@ export function CleanHomeScreen() {
         // 상세 itemKind 가 박스인 행을 확실히 제외하고 10개 노출.
         const rows = fetched.filter((row) => row.data?.itemKind !== 'box').slice(0, 10);
         const gotDetails = rows.some((r) => r.data !== null);
+        if (!fromSearch && !gotDetails) {
+          // 완전 실패(검색 폴백 + 상세 전멸 = 오프라인/서버 장애) — 이미 그려진 행
+          // (디스크 캐시 등)이 있으면 절대 폴백으로 덮지 않는다. 아무것도 없을 때만
+          // featured 폴백을 그리고 재시도.
+          setGameRows((p) => ((p[homeGame]?.length ?? 0) > 0 ? p : { ...p, [homeGame]: rows }));
+          continue;
+        }
         // 검색만 성공해도 캐시 확정 — 상세가 전부 실패한 첫 실행 뒤에도 다음 실행이
         // 즉시 그려진다(이미지=검색 썸네일, 가격은 enrich 가 채움). 상세까지 성공하면
         // 뒤의 재시도 paint 가 더 완전한 행으로 캐시를 덮어쓴다.
