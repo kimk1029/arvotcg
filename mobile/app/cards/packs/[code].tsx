@@ -12,7 +12,7 @@ import { ThumbImage } from '@/components/cv/ThumbImage';
 import { useThemeColors, useThemeTextVariant, useTheme } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import { fetchPackHits, type PackHitCard, type PackWithHits } from '@/lib/myApi';
-import { useAsync } from '@/lib/useAsync';
+import { useSWR } from '@/lib/swr';
 import { useCurrency } from '@/components/CurrencyProvider';
 
 type SortMode = 'price' | 'recent' | 'listing' | 'name';
@@ -37,10 +37,12 @@ export default function PackDetailScreen() {
   const [sort, setSort] = useState<SortMode>('price');
   const [sortOpen, setSortOpen] = useState(false);
   const [view, setView] = useState<ViewMode>('grid');
-  const { data, loading, error, refresh } = useAsync<PackWithHits | null>(
+  // SWR — 팩 상세 재진입 즉시 페인트. fetchPackHits 자체 캐시(15분)와 같은 TTL.
+  const { data, loading, error, refresh } = useSWR<PackWithHits | null>(
+    `packs:detail:${code}`,
     // 웹 packs/[code]/page.tsx 와 동일한 호출 (limit=600).
     () => fetchPackHits(code, 600),
-    [code],
+    { ttlMs: 15 * 60_000 },
   );
   // 웹 packs/[code]/page.tsx 동일 — itemKind 로 싱글/박스 분리.
   const singles = useMemo(() => (data?.hits ?? []).filter((h) => h.itemKind !== 'box'), [data?.hits]);

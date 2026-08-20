@@ -7,12 +7,12 @@ import { EmptyState, ErrorView, LoadingState } from '@/components/cv/ListState';
 import { colors } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { fetchMyBookmarks } from '@/lib/myApi';
-import { useAsync } from '@/lib/useAsync';
+import { useSWR } from '@/lib/swr';
 
 export default function BookmarksScreen() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
-  const { data, loading, error, refresh } = useAsync(fetchMyBookmarks);
+  const { data, loading, error, refresh } = useSWR('me:bookmarks', fetchMyBookmarks);
 
   return (
     <View style={{ flex: 1, backgroundColor: tc.paper }}>

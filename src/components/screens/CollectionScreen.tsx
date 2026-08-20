@@ -107,6 +107,37 @@ function saveCollectionCache(port: PortfolioData, cards: CardRow[]): void {
   }
 }
 
+/** 서버 GET /api/me/cards/prices 응답 행 (정의 서버 queries.ts, 앱 MyCardPriceRow 페어). */
+interface CardPriceRow {
+  id: number;
+  priceSingleJpy: number;
+  pricePsa10Jpy: number;
+  pricePsa9Jpy: number;
+  pricePsa8Jpy: number;
+  currentPriceJpy: number;
+  trend: number[];
+}
+
+/**
+ * 캐시된 카드 정적 데이터에 "오늘의 금액"만 merge — 앱 fetchMyCardsSmart 와 동일 규칙.
+ * 카드 구성이 다르면(추가/삭제) null → 호출부가 풀 목록을 다시 받는다.
+ * 가격 0(스냅샷 없음)은 캐시값 유지.
+ */
+function mergeCardPrices(cached: CardRow[], prices: CardPriceRow[]): CardRow[] | null {
+  const byId = new Map(prices.map((p) => [p.id, p]));
+  if (prices.length !== cached.length || cached.some((c) => !byId.has(c.id))) return null;
+  return cached.map((c) => {
+    const p = byId.get(c.id)!;
+    return {
+      ...c,
+      priceSingleJpy: p.priceSingleJpy > 0 ? p.priceSingleJpy : c.priceSingleJpy,
+      pricePsa10Jpy: p.pricePsa10Jpy > 0 ? p.pricePsa10Jpy : c.pricePsa10Jpy,
+      currentPriceJpy: p.currentPriceJpy > 0 ? p.currentPriceJpy : c.currentPriceJpy,
+      trend: p.trend.length > 0 ? p.trend : c.trend,
+    };
+  });
+}
+
 export function CollectionScreen() {
   const router = useRouter();
   const { format, rate, mode, setMode } = useCurrency();
@@ -133,9 +164,14 @@ export function CollectionScreen() {
     }
     (async () => {
       try {
+        // 캐시된 카드가 있으면 정적 데이터는 그대로 쓰고 "오늘의 금액"만 경량 /prices 로
+        // 받아 merge (앱 fetchMyCardsSmart 페어). 캐시가 없거나 카드 구성이 바뀌었으면 풀 조회.
+        const cachedCards = reload > 0 ? null : loadCollectionCache()?.cards ?? null;
+        const cardsUrl =
+          cachedCards && cachedCards.length > 0 ? '/api/me/cards/prices' : '/api/me/cards/with-prices';
         const [pr, cr, ar] = await Promise.all([
           fetch('/api/me/portfolio', { credentials: 'include', cache: 'no-store', signal: ctrl.signal }),
-          fetch('/api/me/cards/with-prices', { credentials: 'include', cache: 'no-store', signal: ctrl.signal }),
+          fetch(cardsUrl, { credentials: 'include', cache: 'no-store', signal: ctrl.signal }),
           fetch('/api/me/price-alerts', { credentials: 'include', cache: 'no-store', signal: ctrl.signal }).catch(() => null),
         ]);
         if (!alive) return;
@@ -150,15 +186,31 @@ export function CollectionScreen() {
           return;
         }
         const pj = (await pr.json().catch(() => null)) as { data?: PortfolioData } | null;
-        const cj = (await cr.json().catch(() => null)) as { data?: CardRow[] } | null;
         if (!alive) return;
         if (!pj?.data) {
           setErr('포트폴리오를 불러오지 못했어요');
           return;
         }
+        let nextCards: CardRow[];
+        if (cachedCards && cachedCards.length > 0) {
+          const dj = (await cr.json().catch(() => null)) as { data?: CardPriceRow[] } | null;
+          const merged = cr.ok && dj?.data ? mergeCardPrices(cachedCards, dj.data) : null;
+          if (merged) {
+            nextCards = merged;
+          } else {
+            // 카드 추가/삭제됨(또는 델타 실패) — 풀 목록 재조회.
+            const fr = await fetch('/api/me/cards/with-prices', { credentials: 'include', cache: 'no-store', signal: ctrl.signal });
+            const fj = (await fr.json().catch(() => null)) as { data?: CardRow[] } | null;
+            nextCards = fj?.data ?? cachedCards;
+          }
+        } else {
+          const cj = (await cr.json().catch(() => null)) as { data?: CardRow[] } | null;
+          nextCards = cj?.data ?? [];
+        }
+        if (!alive) return;
         setPort(pj.data);
-        setCards(cj?.data ?? []);
-        saveCollectionCache(pj.data, cj?.data ?? []);
+        setCards(nextCards);
+        saveCollectionCache(pj.data, nextCards);
         if (ar && ar.ok) {
           const aj = (await ar.json().catch(() => null)) as { data?: Array<{ triggeredAt: string | null }> } | null;
           setAlertCount((aj?.data ?? []).filter((a) => !a.triggeredAt).length);

@@ -7,7 +7,7 @@ import { PixelFrame } from '@/components/cv/PixelFrame';
 import { PixelPress } from '@/components/cv/PixelPress';
 import { EmptyState, ErrorView, LoadingState } from '@/components/cv/ListState';
 import { fetchAllPacksWithHits, type PackWithHits } from '@/lib/myApi';
-import { useAsync } from '@/lib/useAsync';
+import { useSWR } from '@/lib/swr';
 import { colors } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { shotSource } from '@/lib/shotMode';
@@ -19,9 +19,11 @@ export default function PriceInfoScreen() {
   const txt = useThemeTextVariant();
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortMode>('default');
-  const { data, loading, error, refresh } = useAsync<PackWithHits[]>(
+  // SWR(디스크) — 서버 팩 히트가 DB 캐시라 15분 TTL 로 충분. 재진입/콜드 스타트 즉시.
+  const { data, loading, error, refresh } = useSWR<PackWithHits[]>(
+    'packs:hits:1',
     () => fetchAllPacksWithHits(1),
-    [],
+    { ttlMs: 15 * 60_000, persist: true },
   );
 
   const packs = data ?? [];

@@ -5,7 +5,7 @@
  * 모바일이 자체 mock 으로 폴백할 수 있도록 [[ApiError]] 를 그대로 던진다.
  */
 import { api, ApiError, getApiBaseUrl } from './apiClient';
-import { subscribeSession } from './session';
+import { swrInvalidate, swrPeek, swrSet } from './swr';
 import { SHOT } from './shotMode';
 import {
   SHOT_MY_CARDS, SHOT_PORTFOLIO, SHOT_PRICE_ALERTS, SHOT_SUMMARY, SHOT_UNREAD,
@@ -279,24 +279,20 @@ export function absApiUrl(u: string | null | undefined): string | null {
   return u.startsWith('/') ? `${getApiBaseUrl()}${u}` : u;
 }
 
-/* 컬렉션 세션 캐시 — 화면 재진입 시 마지막 결과를 즉시 그리고(스피너 없이)
- * 백그라운드 재조회가 끝나면 갱신한다 (홈 hotCache·웹 세션캐시 페어).
- * 로그아웃/계정 전환 시 이전 계정 데이터가 비치지 않게 세션 변경에서 비운다. */
-let myCardsCache: MyCardRow[] | null = null;
-let portfolioCache: PortfolioSummary | null = null;
-subscribeSession(() => {
-  myCardsCache = null;
-  portfolioCache = null;
-});
+/* 컬렉션 캐시 — SWR 스토어([[swr]], 메모리+디스크)에 저장. 화면 재진입은 즉시
+ * 그려지고 콜드 스타트도 마지막 데이터로 시작한다. 세션 변경 시 'me:' 일괄 무효화는
+ * swr 스토어가 처리. */
+export const SWR_MY_CARDS = 'me:cards';
+export const SWR_PORTFOLIO = 'me:portfolio';
 
 /** 마지막으로 받아온 내 카드 목록 — 즉시 페인트 시드용 (없으면 null). */
 export function peekMyCards(): MyCardRow[] | null {
-  return myCardsCache;
+  return swrPeek<MyCardRow[]>(SWR_MY_CARDS);
 }
 
 /** 마지막으로 받아온 포트폴리오 요약 — 즉시 페인트 시드용 (없으면 null). */
 export function peekPortfolio(): PortfolioSummary | null {
-  return portfolioCache;
+  return swrPeek<PortfolioSummary>(SWR_PORTFOLIO);
 }
 
 export function fetchMyCards(): Promise<MyCardRow[]> {
@@ -307,9 +303,57 @@ export function fetchMyCards(): Promise<MyCardRow[]> {
       photoUrl: absApiUrl(c.photoUrl),
       snkrdunkImageUrl: absApiUrl(c.snkrdunkImageUrl),
     }));
-    myCardsCache = rows;
+    swrSet(SWR_MY_CARDS, rows, { persist: true });
     return rows;
   });
+}
+
+/** 서버 GET /api/me/cards/prices 응답 행 — 가격만 델타 (정의 서버 queries.ts). */
+export interface MyCardPriceRow {
+  id: number;
+  priceSingleJpy: number;
+  pricePsa10Jpy: number;
+  pricePsa9Jpy: number;
+  pricePsa8Jpy: number;
+  currentPriceJpy: number;
+  trend: number[];
+}
+
+/**
+ * 내 카드 스마트 조회 — 카드 정적 데이터(이름·이미지·시리즈…)는 캐시를 그대로 쓰고
+ * "오늘의 금액"만 경량 /prices 로 받아 merge. 캐시가 없거나 카드 구성이 바뀌었으면
+ * (등록/삭제 감지) 풀 목록을 다시 받는다. 가격 0(스냅샷 없음)은 캐시값 유지 —
+ * 새 값이 없다고 보이던 가격을 지우지 않는다.
+ */
+export async function fetchMyCardsSmart(): Promise<MyCardRow[]> {
+  if (SHOT) return Promise.resolve(SHOT_MY_CARDS);
+  const cached = peekMyCards();
+  if (!cached || cached.length === 0) return fetchMyCards();
+  try {
+    const r = await api<{ data: MyCardPriceRow[] }>('/api/me/cards/prices');
+    const priceById = new Map(r.data.map((p) => [p.id, p]));
+    if (r.data.length !== cached.length || cached.some((c) => !priceById.has(c.id))) {
+      return fetchMyCards(); // 카드 추가/삭제됨 — 풀 목록 재조회
+    }
+    const merged = cached.map((c) => {
+      const p = priceById.get(c.id)!;
+      return {
+        ...c,
+        priceSingleJpy: p.priceSingleJpy > 0 ? p.priceSingleJpy : c.priceSingleJpy,
+        snkrdunkMinPriceJpy: p.priceSingleJpy > 0 ? p.priceSingleJpy : c.snkrdunkMinPriceJpy,
+        pricePsa10Jpy: p.pricePsa10Jpy > 0 ? p.pricePsa10Jpy : c.pricePsa10Jpy,
+        pricePsa9Jpy: p.pricePsa9Jpy > 0 ? p.pricePsa9Jpy : c.pricePsa9Jpy,
+        pricePsa8Jpy: p.pricePsa8Jpy > 0 ? p.pricePsa8Jpy : c.pricePsa8Jpy,
+        currentPriceJpy: p.currentPriceJpy > 0 ? p.currentPriceJpy : c.currentPriceJpy,
+        trend: p.trend.length > 0 ? p.trend : c.trend,
+      };
+    });
+    swrSet(SWR_MY_CARDS, merged, { persist: true });
+    return merged;
+  } catch {
+    // 델타 실패 — 풀 경로 폴백 (서버 구버전 배포 중 등).
+    return fetchMyCards();
+  }
 }
 
 export function fetchMyFavorites(): Promise<MyFavoriteRow[]> {
@@ -343,13 +387,18 @@ export interface CreateMyCardInput {
 }
 
 export function createMyCard(input: CreateMyCardInput): Promise<{ data: MyCardRow }> {
-  return api<{ data: MyCardRow }>('/api/me/cards', { method: 'POST', body: input });
+  return api<{ data: MyCardRow }>('/api/me/cards', { method: 'POST', body: input }).then((r) => {
+    // 카드 구성이 바뀜 — 컬렉션/포트폴리오 캐시 무효화 (다음 진입 시 풀 재조회).
+    swrInvalidate(SWR_MY_CARDS);
+    swrInvalidate(SWR_PORTFOLIO);
+    return r;
+  });
 }
 
 export function fetchPortfolio(): Promise<PortfolioSummary> {
   if (SHOT) return Promise.resolve(SHOT_PORTFOLIO);
   return api<{ data: PortfolioSummary }>('/api/me/portfolio').then((r) => {
-    portfolioCache = r.data;
+    swrSet(SWR_PORTFOLIO, r.data, { persist: true });
     return r.data;
   });
 }
@@ -388,11 +437,18 @@ export function deletePriceAlert(apparelId: number): Promise<{ ok: boolean }> {
 }
 
 export function removeFavorite(apparelId: number): Promise<{ ok: boolean }> {
-  return api<{ ok: boolean }>(`/api/me/favorites/${apparelId}`, { method: 'DELETE' });
+  return api<{ ok: boolean }>(`/api/me/favorites/${apparelId}`, { method: 'DELETE' }).then((r) => {
+    swrInvalidate('me:favorites');
+    return r;
+  });
 }
 
 export function deleteMyCard(id: number): Promise<{ ok: boolean }> {
-  return api<{ ok: boolean }>(`/api/me/cards/${id}`, { method: 'DELETE' });
+  return api<{ ok: boolean }>(`/api/me/cards/${id}`, { method: 'DELETE' }).then((r) => {
+    swrInvalidate(SWR_MY_CARDS);
+    swrInvalidate(SWR_PORTFOLIO);
+    return r;
+  });
 }
 
 export function fetchMessageThreads(): Promise<MessageThread[]> {

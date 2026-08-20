@@ -23,16 +23,16 @@ import { usePriceMode } from '@/lib/priceMode';
 import { space } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import {
-  fetchMyCards,
+  fetchMyCardsSmart,
   fetchPortfolio,
   fetchPriceAlerts,
   deleteMyCard,
-  peekMyCards,
-  peekPortfolio,
+  SWR_MY_CARDS,
+  SWR_PORTFOLIO,
   type MyCardRow,
   type PortfolioSummary,
 } from '@/lib/myApi';
-import { useAsync } from '@/lib/useAsync';
+import { useSWR } from '@/lib/swr';
 import { isAuthenticated, subscribeSession } from '@/lib/session';
 import { parseCardStatics } from '../../../shared/cardStatics';
 
@@ -99,18 +99,24 @@ export default function MyCardsScreen() {
   const [view, setView] = useState<ViewMode>('grid');
   const [sort, setSort] = useState<SortKey>('value');
 
-  // 세션 캐시 시드 — 재진입 시 마지막 목록을 즉시 그리고 백그라운드로 갱신(SWR).
-  const { data, loading, error, refresh } = useAsync<MyCardRow[]>(fetchMyCards, [authed], peekMyCards);
-
-  const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(() => {
-    const p = peekPortfolio();
-    return p && p.totalCount > 0 ? p : null;
+  // SWR — 카드 정적 데이터는 디스크까지 캐싱, 재진입 시 즉시 그리고 "오늘의 금액"만
+  // /api/me/cards/prices 로 받아 merge (fetchMyCardsSmart). 등록/삭제 시 자동 무효화.
+  const { data, loading, error, refresh } = useSWR<MyCardRow[]>(SWR_MY_CARDS, fetchMyCardsSmart, {
+    persist: true,
+    enabled: authed,
+    deps: [authed],
   });
+
+  const { data: portfolioData } = useSWR<PortfolioSummary>(SWR_PORTFOLIO, fetchPortfolio, {
+    persist: true,
+    enabled: authed,
+    deps: [authed],
+  });
+  const portfolio = portfolioData && portfolioData.totalCount > 0 ? portfolioData : null;
   const [alertCount, setAlertCount] = useState(0);
   useEffect(() => {
     if (!authed) return;
     let alive = true;
-    fetchPortfolio().then((p) => { if (alive && p && p.totalCount > 0) setPortfolio(p); }).catch(() => {});
     fetchPriceAlerts().then((a) => { if (alive) setAlertCount(a.filter((x) => !x.triggeredAt).length); }).catch(() => {});
     return () => { alive = false; };
   }, [authed]);

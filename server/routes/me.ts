@@ -17,6 +17,7 @@ import {
   countMyCards,
   deriveRegisterPriceJpy,
   getMyBookmarks,
+  getMyCardPrices,
   getMyCardsWithPrices,
   getMyFavoritesWithPrices,
   getMyFeeds,
@@ -536,6 +537,19 @@ router.get('/cards/with-prices', async (req: Request, res: Response) => {
     res.json({ data });
   } catch (err) {
     console.error('[me.cards.with-prices]', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+// 가격만 델타 응답 — 클라이언트가 카드 정적 데이터를 캐시하고 오늘의 금액만 갱신.
+// 스냅샷만 읽어 즉시 응답(라이브 대기 0), stale 은 백그라운드 갱신.
+// (/cards/:id 보다 먼저 등록 — with-prices 와 같은 이유.)
+router.get('/cards/prices', async (req: Request, res: Response) => {
+  try {
+    const data = await getMyCardPrices(req.user!.userId, 200);
+    res.json({ data });
+  } catch (err) {
+    console.error('[me.cards.prices]', err);
     res.status(500).json({ error: 'internal' });
   }
 });

@@ -3,6 +3,7 @@ import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router';
 import { api, ApiError } from '@/lib/apiClient';
 import { deleteMyCard } from '@/lib/myApi';
+import { swrInvalidate } from '@/lib/swr';
 import { loadCollection, removeCard } from '@/lib/collection';
 import { useToast } from '@/components/ToastProvider';
 import { PixelText } from '@/components/PixelText';
@@ -118,6 +119,8 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
       } else {
         await api(`/api/me/favorites/${apparelId}`, { method: 'DELETE' });
       }
+      // 관심카드 목록 캐시 무효화 — 다음 진입 시 최신 목록으로.
+      swrInvalidate('me:favorites');
       setIsFav(wantOn);
       setFavStatus('idle');
       toast.success(wantOn ? '관심카드에 추가되었습니다' : '관심카드에서 제거되었습니다');

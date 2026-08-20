@@ -253,11 +253,37 @@ interface Props {
 }
 
 /* 홈 섹션 세션 캐시 — SPA 이동 후 재진입 시 TTL 내에는 즉시 그려지고, TTL 이 지나면
- * 캐시를 먼저 그린 채 백그라운드 갱신한다 (앱 CleanHomeScreen hotCache/boxCache 페어). */
+ * 캐시를 먼저 그린 채 백그라운드 갱신한다 (앱 CleanHomeScreen hotCache/boxCache 페어).
+ * sessionStorage 백업으로 새로고침(F5)에도 즉시 페인트 — 앱 디스크 캐시와 동일 역할. */
 const HOME_TTL_MS = 5 * 60_000;
+const HOME_SS_KEY = 'pf30:home-cache:v1';
 const hotCache: Record<string, { t: number; rows: SnkrdunkRow[] }> = {};
 const boxCache: Record<string, { t: number; rows: SnkrdunkRow[] }> = {};
+let homeSsLoaded = false;
+function hydrateHomeCache(): void {
+  if (homeSsLoaded || typeof sessionStorage === 'undefined') return;
+  homeSsLoaded = true;
+  try {
+    const j = JSON.parse(sessionStorage.getItem(HOME_SS_KEY) ?? 'null') as {
+      hot?: typeof hotCache;
+      box?: typeof boxCache;
+    } | null;
+    if (j?.hot) Object.assign(hotCache, j.hot);
+    if (j?.box) Object.assign(boxCache, j.box);
+  } catch {
+    // 손상 캐시는 무시 — 다음 저장이 덮어쓴다.
+  }
+}
+function saveHomeCache(): void {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.setItem(HOME_SS_KEY, JSON.stringify({ hot: hotCache, box: boxCache }));
+  } catch {
+    // 저장 실패(용량 등)는 무시.
+  }
+}
 const rowsFromCache = (cache: Record<string, { t: number; rows: SnkrdunkRow[] }>) => {
+  hydrateHomeCache();
   const out: Record<string, SnkrdunkRow[]> = {};
   for (const [g, c] of Object.entries(cache)) out[g] = c.rows;
   return out;
@@ -543,11 +569,13 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
         if (base.length === 0) continue;
         setGameRows((p) => ({ ...p, [homeGame]: base }));
         hotCache[homeGame] = { t: Date.now(), rows: base };
+        saveHomeCache();
         // 대표가·등락률은 뒤이어 채움 — 첫 페인트를 막지 않게 (정본 /shared 로직).
         const enriched = await Promise.all(base.map(enrichRow));
         if (!alive) return;
         setGameRows((p) => ({ ...p, [homeGame]: enriched }));
         hotCache[homeGame] = { t: Date.now(), rows: enriched };
+        saveHomeCache();
         return;
       }
     })();
@@ -620,6 +648,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
         if (ok.length > 0) {
           setGameBoxRows((p) => ({ ...p, [homeGame]: ok }));
           boxCache[homeGame] = { t: Date.now(), rows: ok };
+          saveHomeCache();
           return;
         }
       }

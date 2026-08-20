@@ -9,6 +9,7 @@ import { ShopSection, SHOP_REGIONS } from '@/components/CommunityShop';
 import { isFeedCategory } from '@/lib/feedCategories';
 import { fonts } from '@/theme/tokens';
 import { api } from '@/lib/apiClient';
+import { swrPeek, swrSet } from '@/lib/swr';
 import { ReportMenu } from '@/components/ReportMenu';
 import { shotSource } from '@/lib/shotMode';
 
@@ -276,17 +277,25 @@ export default function CommunityScreen() {
   };
 
   // 실데이터 — 웹 feed/page.tsx 와 동일한 두 요청.
-  const [feed, setFeed] = useState<FeedPost[]>([]);
-  const [trades, setTrades] = useState<Trade[]>([]);
-  const [loading, setLoading] = useState(true);
+  // SWR 시드: 마지막 목록을 즉시 그린 채(스피너 없이) 백그라운드로 항상 최신화.
+  const [feed, setFeed] = useState<FeedPost[]>(() => swrPeek<FeedPost[]>('feed:posts') ?? []);
+  const [trades, setTrades] = useState<Trade[]>(() => swrPeek<Trade[]>('feed:trades') ?? []);
+  const [loading, setLoading] = useState(() => swrPeek<FeedPost[]>('feed:posts') === null);
   const load = useCallback(async () => {
     // 로그인 상태면 Bearer 첨부 → 서버가 차단한 작성자 글을 걸러서 내려준다.
     const [f, t] = await Promise.all([
-      api<{ items: FeedPost[] }>('/api/feeds?limit=20').catch(() => ({ items: [] as FeedPost[] })),
-      api<{ data: Trade[] }>('/api/trades?limit=30').catch(() => ({ data: [] as Trade[] })),
+      api<{ items: FeedPost[] }>('/api/feeds?limit=20').catch(() => ({ items: null as FeedPost[] | null })),
+      api<{ data: Trade[] }>('/api/trades?limit=30').catch(() => ({ data: null as Trade[] | null })),
     ]);
-    setFeed(f.items ?? []);
-    setTrades(t.data ?? []);
+    // 실패(null)면 그려져 있던 목록 유지 — 빈 화면으로 덮지 않는다.
+    if (f.items) {
+      setFeed(f.items);
+      swrSet('feed:posts', f.items);
+    }
+    if (t.data) {
+      setTrades(t.data);
+      swrSet('feed:trades', t.data);
+    }
     setLoading(false);
   }, []);
   useEffect(() => {

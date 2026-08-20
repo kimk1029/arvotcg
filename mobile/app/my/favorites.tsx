@@ -29,7 +29,7 @@ import {
   removeFavorite,
   type MyFavoriteRow,
 } from '@/lib/myApi';
-import { useAsync } from '@/lib/useAsync';
+import { useSWR } from '@/lib/swr';
 import { isAuthenticated, subscribeSession } from '@/lib/session';
 
 function useAuthed(): boolean {
@@ -46,10 +46,12 @@ export default function FavoritesScreen() {
   const { format } = useCurrency();
   const toast = useToast();
 
-  const { data, loading, error, refresh } = useAsync<MyFavoriteRow[]>(
-    fetchMyFavorites,
-    [authed],
-  );
+  // SWR — 재진입 즉시 페인트(디스크 캐시) + TTL 내 재조회 생략.
+  const { data, loading, error, refresh } = useSWR<MyFavoriteRow[]>('me:favorites', fetchMyFavorites, {
+    persist: true,
+    enabled: authed,
+    deps: [authed],
+  });
 
   if (!authed) {
     return (

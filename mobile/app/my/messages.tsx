@@ -13,12 +13,12 @@ import { EmptyState, ErrorView, LoadingState } from '@/components/cv/ListState';
 import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import { fetchMessageThreads, type MessageThread } from '@/lib/myApi';
-import { useAsync } from '@/lib/useAsync';
+import { useSWR } from '@/lib/swr';
 
 export default function MyMessagesScreen() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
-  const { data, loading, error, refresh } = useAsync(fetchMessageThreads);
+  const { data, loading, error, refresh } = useSWR('me:threads', fetchMessageThreads, { ttlMs: 30_000 });
 
   return (
     <View style={{ flex: 1, backgroundColor: tc.paper }}>

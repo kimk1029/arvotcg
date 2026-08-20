@@ -7,12 +7,12 @@ import { EmptyState, ErrorView, LoadingState } from '@/components/cv/ListState';
 import { colors } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { fetchMyTrades } from '@/lib/myApi';
-import { useAsync } from '@/lib/useAsync';
+import { useSWR } from '@/lib/swr';
 
 export default function MyTradesScreen() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
-  const { data, loading, error, refresh } = useAsync(fetchMyTrades);
+  const { data, loading, error, refresh } = useSWR('me:trades', fetchMyTrades);
 
   return (
     <View style={{ flex: 1, backgroundColor: tc.paper }}>

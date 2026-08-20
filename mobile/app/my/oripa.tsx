@@ -15,7 +15,7 @@ import { EmptyState, ErrorView, LoadingState } from '@/components/cv/ListState';
 import { colors } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { fetchInventory, fetchOripaBoxes, type OripaBox } from '@/lib/myApi';
-import { useAsync } from '@/lib/useAsync';
+import { useSWR } from '@/lib/swr';
 import { issueOripaPass } from '@/lib/oripaPass';
 import { ORIPA_RESULTS } from '@/lib/data';
 
@@ -30,7 +30,7 @@ const STATS_GRADE_COLOR: Record<'S' | 'A' | 'B' | 'C', string> = {
 export default function OripaListScreen() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
-  const { data, loading, error, refresh } = useAsync(fetchOripaBoxes);
+  const { data, loading, error, refresh } = useSWR('oripa:boxes', fetchOripaBoxes, { ttlMs: 5 * 60_000 });
   const [buying, setBuying] = useState<OripaBox | null>(null);
 
   return (

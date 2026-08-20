@@ -631,6 +631,76 @@ export async function getMyCardsWithPrices(
   return result;
 }
 
+/**
+ * 내 카드 "가격만" — 클라이언트가 카드 정적 데이터(이름·이미지·시리즈…)를 캐시해 두고
+ * 재진입 시 오늘의 금액만 갱신하는 델타 응답. 카탈로그 스냅샷만 읽어 즉시 응답하고
+ * (라이브 대기 0), stale 스냅샷은 백그라운드로 갱신한다. 계산 규칙은
+ * getMyCardsWithPrices 의 DB 폴백 경로와 동일 — 같은 카드에 같은 가격.
+ */
+export interface MyCardPriceRow {
+  id: number;
+  priceSingleJpy: number;
+  pricePsa10Jpy: number;
+  pricePsa9Jpy: number;
+  pricePsa8Jpy: number;
+  currentPriceJpy: number;
+  trend: number[];
+}
+
+export async function getMyCardPrices(userId: string, limit = 200): Promise<MyCardPriceRow[]> {
+  const cards = await prisma.userCard.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    take: Math.min(Math.max(limit, 1), 200),
+    select: {
+      id: true,
+      snkrdunkApparelId: true,
+      graded: true,
+      gradeCompany: true,
+      gradeValue: true,
+    },
+  });
+  if (cards.length === 0) return [];
+  const apparelIds: number[] = Array.from(
+    new Set<number>(
+      cards.map((c) => c.snkrdunkApparelId).filter((v): v is number => typeof v === 'number'),
+    ),
+  );
+  const catalog = await loadCatalogEntries(apparelIds);
+  const staleIds = apparelIds.filter((id) => !isFreshEntry(catalog.get(id)));
+  if (staleIds.length > 0) {
+    void Promise.allSettled(staleIds.map((id) => refreshApparelPrices(id)));
+  }
+  return cards.map((c) => {
+    const s = c.snkrdunkApparelId != null ? catalog.get(c.snkrdunkApparelId)?.snapshot : null;
+    if (!s) {
+      return {
+        id: c.id,
+        priceSingleJpy: 0,
+        pricePsa10Jpy: 0,
+        pricePsa9Jpy: 0,
+        pricePsa8Jpy: 0,
+        currentPriceJpy: 0,
+        trend: [],
+      };
+    }
+    const single = s.priceSingle || s.minPrice;
+    const current = currentBasisJpy(
+      { single, psa10: s.pricePsa10, psa9: s.pricePsa9, psa8: s.pricePsa8, trendJpy: [] },
+      { graded: c.graded, gradeCompany: c.gradeCompany, gradeValue: c.gradeValue },
+    );
+    return {
+      id: c.id,
+      priceSingleJpy: single,
+      pricePsa10Jpy: s.pricePsa10,
+      pricePsa9Jpy: s.pricePsa9,
+      pricePsa8Jpy: s.pricePsa8,
+      currentPriceJpy: current,
+      trend: s.trend,
+    };
+  });
+}
+
 export async function countMyCards(userId: string): Promise<number> {
   try {
     return await prisma.userCard.count({ where: { userId } });

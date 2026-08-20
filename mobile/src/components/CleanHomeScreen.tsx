@@ -32,6 +32,7 @@ import { api } from '@/lib/apiClient';
 import { fetchMySummary, type MySummary } from '@/lib/myApi';
 import { isAuthenticated } from '@/lib/session';
 import { setHomeHotRows } from '@/lib/homeHotStore';
+import { swrAge, swrKeys, swrPeek, swrSet } from '@/lib/swr';
 import { trendChangePct } from '../../../shared/snkrdunkPrice';
 import { SNKRDUNK_GAME_KEYWORD } from '../../../shared/gameKeyword';
 import { shotCardName, shotPackName, shotSource } from '@/lib/shotMode';
@@ -103,16 +104,22 @@ interface SnkrRow {
 
 const FEATURED_BY_ID = new Map(SNKRDUNK_FEATURED_CARDS.map((s) => [s.apparelId, s]));
 
-/* 홈 섹션 세션 캐시 — 화면을 나갔다 와도(remount) TTL 내에는 즉시 그려지고,
- * TTL 이 지나면 캐시를 먼저 그린 채 백그라운드로 갱신한다 (웹 CleanHome 페어). */
+/* 홈 섹션 캐시 — SWR 스토어(메모리+디스크). 화면 재진입은 물론 앱 재시작(콜드
+ * 스타트)에도 마지막 홈이 즉시 그려지고, TTL 이 지나면 백그라운드로 갱신한다
+ * (웹 CleanHome 페어). */
 const HOME_TTL_MS = 5 * 60_000;
-const hotCache: Record<string, { t: number; rows: SnkrRow[] }> = {};
-const boxCache: Record<string, { t: number; rows: SnkrRow[] }> = {};
-let bannersCache: { t: number; v: HeroSlideData[] } | null = null;
+const HOT_PREFIX = 'home:hot:';
+const BOX_PREFIX = 'home:box:';
+const BANNERS_KEY = 'home:banners';
+const hotKey = (g: string) => `${HOT_PREFIX}${g}`;
+const boxKey = (g: string) => `${BOX_PREFIX}${g}`;
 
-const rowsFromCache = (cache: Record<string, { t: number; rows: SnkrRow[] }>) => {
+const rowsFromCache = (prefix: string) => {
   const out: Record<string, SnkrRow[]> = {};
-  for (const [g, c] of Object.entries(cache)) out[g] = c.rows;
+  for (const k of swrKeys(prefix)) {
+    const rows = swrPeek<SnkrRow[]>(k);
+    if (rows && rows.length > 0) out[k.slice(prefix.length)] = rows;
+  }
   return out;
 };
 
@@ -423,16 +430,15 @@ export function CleanHomeScreen() {
   // 칩 전환 시 재조회 없이 즉시 복귀. 세션 캐시(TTL)로 홈 재진입도 즉시.
   // 검색 결과 썸네일로 먼저 그리고(상세를 기다리지 않음) 상세는 도착 즉시 덮어쓴다.
   // 실패/빈 결과는 백오프 재시도 — 한 번 실패해도 섹션이 영영 비지 않게.
-  const [gameRows, setGameRows] = useState<Record<string, SnkrRow[]>>(() => rowsFromCache(hotCache));
+  const [gameRows, setGameRows] = useState<Record<string, SnkrRow[]>>(() => rowsFromCache(HOT_PREFIX));
   const snkrRows = useMemo(() => gameRows[homeGame] ?? [], [gameRows, homeGame]);
   useEffect(() => {
-    const cached = hotCache[homeGame];
-    if (cached && Date.now() - cached.t < HOME_TTL_MS) return; // 신선 — 재조회 생략
+    if (swrAge(hotKey(homeGame)) < HOME_TTL_MS) return; // 신선 — 재조회 생략
     let alive = true;
     const paint = (rows: SnkrRow[], confirmed: boolean) => {
       if (!alive || rows.length === 0) return;
       setGameRows((p) => ({ ...p, [homeGame]: rows }));
-      if (confirmed) hotCache[homeGame] = { t: Date.now(), rows };
+      if (confirmed) swrSet(hotKey(homeGame), rows, { persist: true });
     };
     (async () => {
       for (let attempt = 0; alive && attempt < 3; attempt++) {
@@ -534,11 +540,10 @@ export function CleanHomeScreen() {
     );
   }, [snkrRows, priceById, changeById, homeGame]);
 
-  const [gameBoxRows, setGameBoxRows] = useState<Record<string, SnkrRow[]>>(() => rowsFromCache(boxCache));
+  const [gameBoxRows, setGameBoxRows] = useState<Record<string, SnkrRow[]>>(() => rowsFromCache(BOX_PREFIX));
   const snkrBoxRows = useMemo(() => gameBoxRows[homeGame] ?? [], [gameBoxRows, homeGame]);
   useEffect(() => {
-    const cached = boxCache[homeGame];
-    if (cached && Date.now() - cached.t < HOME_TTL_MS) return; // 신선 — 재조회 생략
+    if (swrAge(boxKey(homeGame)) < HOME_TTL_MS) return; // 신선 — 재조회 생략
     let alive = true;
     (async () => {
       // 실패/빈 결과는 백오프 재시도 — 요청 하나 매달려도(타임아웃 8초) 섹션이 영영 비지 않게.
@@ -571,7 +576,7 @@ export function CleanHomeScreen() {
         const ok = rows.filter((r): r is SnkrRow => r !== null).slice(0, 6);
         if (ok.length > 0) {
           setGameBoxRows((p) => ({ ...p, [homeGame]: ok }));
-          boxCache[homeGame] = { t: Date.now(), rows: ok };
+          swrSet(boxKey(homeGame), ok, { persist: true });
           return;
         }
       }
@@ -586,26 +591,25 @@ export function CleanHomeScreen() {
   // "슬라이드 3개 → DB 1개"로 인디케이터가 줄어드는 깜빡임이 생긴다.
   // 타임아웃(8초)+재시도 1회 — 요청이 매달리면 회색 플레이스홀더가 영영 남던 문제 방지.
   // 최종 실패 시 []로 확정해 HeroBanner 내장 폴백 슬라이드라도 뜨게 한다. 세션 캐시로 재진입 즉시.
-  const [banners, setBanners] = useState<HeroSlideData[] | null>(() => bannersCache?.v ?? null);
+  const [banners, setBanners] = useState<HeroSlideData[] | null>(() => swrPeek<HeroSlideData[]>(BANNERS_KEY));
   useEffect(() => {
-    if (bannersCache && Date.now() - bannersCache.t < HOME_TTL_MS) return; // 신선 — 재조회 생략
+    if (swrAge(BANNERS_KEY) < HOME_TTL_MS) return; // 신선 — 재조회 생략
     let alive = true;
     (async () => {
-      for (let attempt = 0; alive && attempt < 2; attempt++) {
+      for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt > 0) await sleep(1500);
         try {
           const r = await api<{ data: HeroSlideData[] }>('/api/banners', { auth: false, signal: homeAbort() });
-          if (!alive) return;
           const v = Array.isArray(r?.data) ? r.data : [];
-          setBanners(v);
-          bannersCache = { t: Date.now(), v };
+          swrSet(BANNERS_KEY, v, { persist: true });
+          if (alive) setBanners(v);
           return;
         } catch {
           // 재시도 후에도 실패하면 아래 폴백 확정.
         }
       }
       // 스테일 캐시라도 그려져 있으면 유지, 아무것도 없을 때만 []로 확정(내장 폴백 슬라이드).
-      if (alive && !bannersCache) setBanners([]);
+      if (alive && swrPeek<HeroSlideData[]>(BANNERS_KEY) === null) setBanners([]);
     })();
     return () => {
       alive = false;

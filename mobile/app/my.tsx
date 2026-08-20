@@ -13,9 +13,9 @@ import { useCurrency } from '@/components/CurrencyProvider';
 import { useToast } from '@/components/ToastProvider';
 import {
   deleteMyAccount, fetchMySummary, fetchPortfolio, fetchUnreadCount, updateMyName,
-  type MySummary, type PortfolioSummary,
+  SWR_PORTFOLIO, type MySummary, type PortfolioSummary,
 } from '@/lib/myApi';
-import { useAsync } from '@/lib/useAsync';
+import { useSWR } from '@/lib/swr';
 import { isAuthenticated, setSession, subscribeSession } from '@/lib/session';
 
 /* 프로토타입 고정 팔레트 — 테마 무관 (홈 CleanHomeScreen·커뮤니티 feed.tsx 와 동일 접근) */
@@ -127,29 +127,28 @@ export default function MyScreen() {
   const toast = useToast();
   const authed = useAuthed();
   const { format } = useCurrency();
-  const { data, refresh } = useAsync<MySummary>(fetchMySummary, [authed]);
+  // SWR — 재진입 즉시 페인트(디스크 캐시) + TTL 내 재조회 생략. 내 자산 화면과
+  // 포트폴리오 캐시 키를 공유해 어느 쪽을 먼저 열어도 다른 쪽이 즉시 뜬다.
+  const { data, refresh } = useSWR<MySummary>('me:summary', fetchMySummary, {
+    persist: true,
+    enabled: authed,
+    deps: [authed],
+  });
 
-  // 미읽음 쪽지 수 — 웹 useUnread 대응.
-  const [unread, setUnread] = useState(0);
-  useEffect(() => {
-    if (!authed) return;
-    let alive = true;
-    fetchUnreadCount().then((n) => alive && setUnread(n));
-    return () => {
-      alive = false;
-    };
-  }, [authed]);
+  // 미읽음 쪽지 수 — 웹 useUnread 대응 (짧은 TTL — 새 쪽지 반영).
+  const { data: unreadData } = useSWR<number>('me:unread', fetchUnreadCount, {
+    ttlMs: 30_000,
+    enabled: authed,
+    deps: [authed],
+  });
+  const unread = unreadData ?? 0;
 
   // 포트폴리오 컴팩트 카드 — /api/me/portfolio (평가액·등락·30일 히스토리).
-  const [pf, setPf] = useState<PortfolioSummary | null>(null);
-  useEffect(() => {
-    if (!authed) return;
-    let alive = true;
-    fetchPortfolio().then((d) => alive && setPf(d)).catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, [authed]);
+  const { data: pf } = useSWR<PortfolioSummary>(SWR_PORTFOLIO, fetchPortfolio, {
+    persist: true,
+    enabled: authed,
+    deps: [authed],
+  });
 
   // 이름 편집 — 웹 EditableName 대응(PATCH /api/me/name).
   const [editOpen, setEditOpen] = useState(false);

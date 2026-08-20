@@ -13,7 +13,7 @@ import { SectHd } from '@/components/cv/SectHd';
 import { EmptyState, ErrorView, LoadingState } from '@/components/cv/ListState';
 import { AVATARS, BACKGROUNDS, FRAMES } from '@/data/shopCatalog';
 import { fetchInventory, buyOrPick, type ShopKind, type InventorySnapshot } from '@/lib/myApi';
-import { useAsync } from '@/lib/useAsync';
+import { useSWR } from '@/lib/swr';
 import { colors } from '@/theme/tokens';
 import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
@@ -31,7 +31,7 @@ export default function ShopScreen() {
   const flat = isFlatTheme(useTheme().theme);
   const [tab, setTab] = useState<Tab>('avatar');
   const [pending, setPending] = useState<string | null>(null);
-  const { data, loading, error, refresh } = useAsync(fetchInventory);
+  const { data, loading, error, refresh } = useSWR('me:inventory', fetchInventory);
 
   const inv = data?.inventory ?? null;
 
