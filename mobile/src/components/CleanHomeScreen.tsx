@@ -139,7 +139,10 @@ type HomePackMeta = Pick<CardPackMeta, 'game' | 'apparelGroupId' | 'releasedAt' 
 const keepAllWrap = (s: string) => s.split(' ').map((w) => w.split('').join('\u2060')).join(' ');
 
 const BOX_NAME_RE = /ボックス|box|booster|ブースター|デッキビルド|スターター|拡張パック|ハイクラスパック|ポケモンセンターセット|シュリンク/i;
-const isBoxName = (name: string) => BOX_NAME_RE.test(name || '');
+// 싱글 카드 제목엔 세트명이 괄호로 붙는다(예: "メガレックウザex SAR [M6 110/076](拡張パック…)")
+// — 세트명만 보고 박스로 오인하지 않게, 카드번호 브래킷이 있으면 싱글로 간주한다.
+const CARD_NO_RE = /\[[^\]]*\d[^\]]*\]/;
+const isBoxName = (name: string) => !CARD_NO_RE.test(name || '') && BOX_NAME_RE.test(name || '');
 
 
 function inferSnkrCategory(name: string): SnkrdunkCardSeed['category'] | null {
@@ -444,10 +447,12 @@ export function CleanHomeScreen() {
       for (let attempt = 0; alive && attempt < 3; attempt++) {
         if (attempt > 0) await sleep(2500 * attempt);
         if (!alive) return;
-        // 이름엔 박스 마커가 빠진 박스가 섞일 수 있어 넉넉히(14) 뽑고 상세 itemKind로 한 번 더 거름.
+        // 검색 상위엔 이름에 박스 마커가 없는 박스/덱/팩이 대거 섞인다(실측: 상위 14개가
+        // 전부 itemKind 'box' 라 필터 후 0행 → 섹션이 캐시되지 못하던 원인). 풀을 넉넉히
+        // 잡고 12개씩 배치로 상세를 훑어 "싱글 카드" 10장을 채울 때까지 스캔한다.
         const kw = GAME_POPULAR_KEYWORD[homeGame];
         const list = kw ? await searchSnkrdunkByQuery(kw) : await fetchSnkrdunkBrowse(1);
-        const pool = shuffle(list.filter((r) => !isBoxName(r.name))).slice(0, 14);
+        const pool = shuffle(list.filter((r) => !isBoxName(r.name))).slice(0, 40);
         const fromSearch = pool.length > 0;
         const seeds: SnkrDisplaySeed[] = fromSearch
           ? pool.map((r) => {
@@ -464,7 +469,7 @@ export function CleanHomeScreen() {
           : shuffle(SNKRDUNK_FEATURED_CARDS)
               .slice(0, 14)
               .map((s) => ({ apparelId: s.apparelId, shortName: shotCardName(s.shortName), category: s.category }));
-        // 검색 썸네일로 즉시 선페인트 — 상세 14건을 기다리는 동안 섹션이 비지 않게.
+        // 검색 썸네일로 즉시 선페인트 — 상세 조회를 기다리는 동안 섹션이 비지 않게.
         // 단, 이미 그려진 게 있으면(스테일 캐시 등) 가격 있는 기존 행을 유지.
         if (fromSearch) {
           setGameRows((p) =>
@@ -473,18 +478,27 @@ export function CleanHomeScreen() {
               : { ...p, [homeGame]: seeds.slice(0, 10).map((seed) => ({ seed, data: null })) },
           );
         }
-        const fetched = await Promise.all(
-          seeds.map(async (seed) => ({ seed, data: await fetchSnkrdunkApparel(seed.apparelId) })),
-        );
-        if (!alive) return;
-        // 상세 itemKind 가 박스인 행을 확실히 제외하고 10개 노출.
-        const rows = fetched.filter((row) => row.data?.itemKind !== 'box').slice(0, 10);
+        // 배치 스캔 — 상세 itemKind 가 박스인 행을 제외하고 싱글 10장을 모은다.
+        // 상세 실패(null)는 유지(웹 동일) — 이미지·이름은 검색 시드로 그려진다.
+        const kept: SnkrRow[] = [];
+        for (let i = 0; i < seeds.length && kept.length < 10; i += 12) {
+          const chunk = seeds.slice(i, i + 12);
+          const fetched = await Promise.all(
+            chunk.map(async (seed) => ({ seed, data: await fetchSnkrdunkApparel(seed.apparelId) })),
+          );
+          if (!alive) return;
+          kept.push(...fetched.filter((row) => row.data === null || row.data.itemKind !== 'box'));
+        }
+        const rows = kept.slice(0, 10);
         const gotDetails = rows.some((r) => r.data !== null);
-        if (!fromSearch && !gotDetails) {
-          // 완전 실패(검색 폴백 + 상세 전멸 = 오프라인/서버 장애) — 이미 그려진 행
+        if (rows.length === 0 || (!fromSearch && !gotDetails)) {
+          // 완전 실패(오프라인/서버 장애) 또는 풀 전체가 박스 — 이미 그려진 행
           // (디스크 캐시 등)이 있으면 절대 폴백으로 덮지 않는다. 아무것도 없을 때만
           // featured 폴백을 그리고 재시도.
-          setGameRows((p) => ((p[homeGame]?.length ?? 0) > 0 ? p : { ...p, [homeGame]: rows }));
+          const fallback = shuffle(SNKRDUNK_FEATURED_CARDS)
+            .slice(0, 10)
+            .map((s): SnkrRow => ({ seed: { apparelId: s.apparelId, shortName: shotCardName(s.shortName), category: s.category }, data: null }));
+          setGameRows((p) => ((p[homeGame]?.length ?? 0) > 0 ? p : { ...p, [homeGame]: fallback }));
           continue;
         }
         // 검색만 성공해도 캐시 확정 — 상세가 전부 실패한 첫 실행 뒤에도 다음 실행이

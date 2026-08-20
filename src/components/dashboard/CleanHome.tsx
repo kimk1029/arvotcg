@@ -176,7 +176,10 @@ function saveMeCache(me: DrawerSummary): void {
 // 게임별 인기 카드 검색 키워드 — 정본 /shared/gameKeyword (랜딩·전체시세와 공유).
 const GAME_POPULAR_KEYWORD = SNKRDUNK_GAME_KEYWORD;
 const BOX_NAME_RE = /ボックス|box|booster|ブースター|デッキビルド|スターター|拡張パック|ハイクラスパック|ポケモンセンターセット|シュリンク/i;
-const isBoxName = (name: string) => BOX_NAME_RE.test(name || '');
+// 싱글 카드 제목엔 세트명이 괄호로 붙는다(예: "メガレックウザex SAR [M6 110/076](拡張パック…)")
+// — 세트명만 보고 박스로 오인하지 않게, 카드번호 브래킷이 있으면 싱글로 간주한다.
+const CARD_NO_RE = /\[[^\]]*\d[^\]]*\]/;
+const isBoxName = (name: string) => !CARD_NO_RE.test(name || '') && BOX_NAME_RE.test(name || '');
 
 interface PopularSearchHit {
   apparelId: number;
@@ -529,43 +532,48 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
           .then((r) => (r.ok ? (r.json() as Promise<{ results?: PopularSearchHit[] }>) : null))
           .catch(() => null);
         if (!alive) return;
-        // 이름에 박스 마커가 없는 박스가 섞일 수 있어 넉넉히(14) 뽑고 상세 itemKind로 한 번 더 거른다.
+        // 검색 상위엔 이름에 박스 마커가 없는 박스/덱/팩이 대거 섞인다 — 풀을 넉넉히(40)
+        // 잡고 12개씩 배치로 상세 itemKind 를 훑어 "싱글 카드" 10장을 채울 때까지 스캔
+        // (앱 CleanHomeScreen 동일; 상위 14개가 전부 박스라 0행이 되던 실측 버그 수정).
         const pool = (j?.results ?? []).filter((h) => !isBoxName(h.name));
-        const picked = shuffleRows(pool).slice(0, 14).map(searchHitToRow);
+        const picked = shuffleRows(pool).slice(0, 40).map(searchHitToRow);
         if (picked.length === 0) continue; // 검색 실패/빈 결과 — 재시도
-        // 검색 썸네일로 즉시 선페인트 — 상세 14건을 기다리는 동안 섹션이 비지 않게.
+        // 검색 썸네일로 즉시 선페인트 — 상세 조회를 기다리는 동안 섹션이 비지 않게.
         // 단, 이미 그려진 게 있으면(스테일 캐시 등) 가격 있는 기존 행을 유지.
         setGameRows((p) => ((p[homeGame]?.length ?? 0) > 0 ? p : { ...p, [homeGame]: picked.slice(0, 10) }));
-        const detailed = await Promise.all(
-          picked.map(async (row): Promise<SnkrdunkRow | null> => {
-            try {
-              const r = await fetch(`/api/snkrdunk/apparels/${row.apparelId}`);
-              if (!r.ok) return row;
-              const d = ((await r.json()) as {
-                data?: {
-                  itemKind?: string;
-                  imageUrl?: string | null;
-                  minPrice?: number;
-                  localizedName?: string;
-                  listingCountText?: string;
-                };
-              }).data;
-              if (!d) return row;
-              if (d.itemKind === 'box') return null;
-              return {
-                ...row,
-                imageUrl: d.imageUrl ?? row.imageUrl,
-                minPrice: d.minPrice ?? row.minPrice,
-                localizedName: d.localizedName ?? row.localizedName,
-                listingCountText: d.listingCountText ?? row.listingCountText,
+        const fetchDetail = async (row: SnkrdunkRow): Promise<SnkrdunkRow | null> => {
+          try {
+            const r = await fetch(`/api/snkrdunk/apparels/${row.apparelId}`);
+            if (!r.ok) return row;
+            const d = ((await r.json()) as {
+              data?: {
+                itemKind?: string;
+                imageUrl?: string | null;
+                minPrice?: number;
+                localizedName?: string;
+                listingCountText?: string;
               };
-            } catch {
-              return row;
-            }
-          }),
-        );
-        if (!alive) return;
-        const base = detailed.filter((r): r is SnkrdunkRow => r !== null).slice(0, 10);
+            }).data;
+            if (!d) return row;
+            if (d.itemKind === 'box') return null;
+            return {
+              ...row,
+              imageUrl: d.imageUrl ?? row.imageUrl,
+              minPrice: d.minPrice ?? row.minPrice,
+              localizedName: d.localizedName ?? row.localizedName,
+              listingCountText: d.listingCountText ?? row.listingCountText,
+            };
+          } catch {
+            return row;
+          }
+        };
+        const kept: SnkrdunkRow[] = [];
+        for (let i = 0; i < picked.length && kept.length < 10; i += 12) {
+          const detailed = await Promise.all(picked.slice(i, i + 12).map(fetchDetail));
+          if (!alive) return;
+          kept.push(...detailed.filter((r): r is SnkrdunkRow => r !== null));
+        }
+        const base = kept.slice(0, 10);
         if (base.length === 0) continue;
         setGameRows((p) => ({ ...p, [homeGame]: base }));
         hotCache[homeGame] = { t: Date.now(), rows: base };

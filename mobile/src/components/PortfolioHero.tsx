@@ -15,7 +15,14 @@ import { isAuthenticated, subscribeSession } from '@/lib/session';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { useCollection } from '@/lib/collection';
 import { cardJpy } from '@/data/cardvault';
-import { fetchMyCards, fetchPortfolio, type MyCardRow, type PortfolioSummary } from '@/lib/myApi';
+import {
+  fetchMyCards,
+  fetchPortfolio,
+  peekMyCards,
+  peekPortfolio,
+  type MyCardRow,
+  type PortfolioSummary,
+} from '@/lib/myApi';
 
 /** 구매금액/평가손익 합계(엔) — 웹 CollectionScreen totals 와 동일 산식. */
 export interface HeroTotals {
@@ -70,7 +77,11 @@ export function PortfolioHero({ totals: totalsProp }: { totals?: HeroTotals | nu
   const { format, rate, mode, setMode } = useCurrency();
 
   // 서버 포트폴리오 — totalJpy 는 등급 일치 합산(웹 동일 소스).
-  const [port, setPort] = useState<PortfolioSummary | null>(null);
+  // SWR 캐시 시드 — 오프라인/조회 실패에도 마지막 총액이 ¥0 으로 무너지지 않게.
+  const [port, setPort] = useState<PortfolioSummary | null>(() => {
+    const p = peekPortfolio();
+    return p && p.totalCount > 0 ? p : null;
+  });
   useEffect(() => {
     if (!authed) return;
     let alive = true;
@@ -85,7 +96,10 @@ export function PortfolioHero({ totals: totalsProp }: { totals?: HeroTotals | nu
   // 구매금액/평가손익 — 웹 CollectionScreen totals 와 동일하게 서버 카드 행 기준.
   // 부모(내 카드 화면)가 이미 with-prices 를 갖고 있으면 prop 으로 받고,
   // 아니면(홈 등) 직접 조회. 로컬 캐시 집계는 더 이상 쓰지 않는다(웹은 서버 전용).
-  const [fetchedTotals, setFetchedTotals] = useState<HeroTotals | null>(null);
+  const [fetchedTotals, setFetchedTotals] = useState<HeroTotals | null>(() => {
+    const rows = peekMyCards();
+    return rows ? computeHeroTotals(rows, rate) : null;
+  });
   useEffect(() => {
     if (!authed || totalsProp !== undefined) return;
     let alive = true;
