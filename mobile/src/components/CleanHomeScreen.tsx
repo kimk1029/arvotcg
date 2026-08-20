@@ -480,7 +480,10 @@ export function CleanHomeScreen() {
         // 상세 itemKind 가 박스인 행을 확실히 제외하고 10개 노출.
         const rows = fetched.filter((row) => row.data?.itemKind !== 'box').slice(0, 10);
         const gotDetails = rows.some((r) => r.data !== null);
-        paint(rows, fromSearch && gotDetails);
+        // 검색만 성공해도 캐시 확정 — 상세가 전부 실패한 첫 실행 뒤에도 다음 실행이
+        // 즉시 그려진다(이미지=검색 썸네일, 가격은 enrich 가 채움). 상세까지 성공하면
+        // 뒤의 재시도 paint 가 더 완전한 행으로 캐시를 덮어쓴다.
+        paint(rows, fromSearch);
         // 성공(검색·상세 모두 응답)이면 종료, 아니면 재시도.
         if (fromSearch && gotDetails) return;
       }
