@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { View, ScrollView, Pressable, Text, TextInput, Image, Animated, Easing, Modal } from 'react-native';
+import { View, ScrollView, Pressable, Text, TextInput, Image, Animated, Easing, Modal, PanResponder } from 'react-native';
 import Svg, { Path, Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -253,11 +253,14 @@ function CardArt({
 }
 
 /**
- * 가로 캐러셀 — 등속 좌측 루프(마퀴). 카드를 두 벌 이어붙여 세트 폭에서 되감는다.
+ * 가로 캐러셀 — 등속 좌측 루프(마퀴) + 손 스와이프(드래그·플링) 지원.
  * ⚠️ ScrollView.scrollTo 30ms 틱 방식 절대 금지 — iOS 는 스크롤 중 터치를 취소하므로
  * 앱이 상시 스크롤 상태가 되어 화면 전체 버튼이 눌리지 않는 치명적 버그가 됐었다.
  * 대신 스크롤 시스템 밖에서 transform(setNativeProps)으로만 움직인다.
- * 손가락이 닿으면 즉시 정지(카드 탭 명중 보장) → 떼고 1.6초 뒤 재개.
+ * 손 스와이프도 같은 이유로 ScrollView 가 아닌 PanResponder 드래그로 구현 —
+ * 가로 우세 제스처만 잡아 세로 스크롤(부모)과 충돌하지 않고, 탭은 그대로 카드에
+ * 전달된다(8px 이상 움직여야 드래그로 전환). 놓으면 속도만큼 감속 플링 후
+ * 1.6초 뒤 자동 슬라이드 재개. 양 끝은 세트 폭 모듈로로 무한 순환 (웹 useMarquee 페어).
  */
 function AutoCarousel<T>({
   data,
@@ -274,27 +277,49 @@ function AutoCarousel<T>({
   const offset = useRef(0);
   const paused = useRef(false);
   const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flingRaf = useRef<number | null>(null);
+  const dragStart = useRef(0);
   const STEP = itemWidth + gap;
   const setWidth = data.length * STEP;
+  // 데이터 개수가 바뀌어도(점진 로드) 진행 중 제스처가 최신 폭으로 되감게 ref 로 참조.
+  const setWidthRef = useRef(setWidth);
+  setWidthRef.current = setWidth;
+
+  /** offset 을 세트 폭 모듈로로 되감아 적용 — 드래그 역방향(음수)도 순환. */
+  const moveTo = (x: number) => {
+    const w = setWidthRef.current;
+    if (w <= 0) return;
+    let v = x % w;
+    if (v < 0) v += w;
+    offset.current = v;
+    rowRef.current?.setNativeProps({
+      style: { transform: [{ translateX: -offset.current }] },
+    });
+  };
 
   useEffect(() => {
     if (setWidth <= 0) return;
     const id = setInterval(() => {
       if (paused.current) return;
-      offset.current += 22 * 0.03; // ~22px/s 등속
-      if (offset.current >= setWidth) offset.current -= setWidth;
-      rowRef.current?.setNativeProps({
-        style: { transform: [{ translateX: -offset.current }] },
-      });
+      moveTo(offset.current + 22 * 0.03); // ~22px/s 등속
     }, 30);
     return () => {
       clearInterval(id);
       if (resumeTimer.current) clearTimeout(resumeTimer.current);
+      if (flingRaf.current != null) cancelAnimationFrame(flingRaf.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setWidth]);
 
+  const stopFling = () => {
+    if (flingRaf.current != null) {
+      cancelAnimationFrame(flingRaf.current);
+      flingRaf.current = null;
+    }
+  };
   const pause = () => {
     paused.current = true;
+    stopFling();
     if (resumeTimer.current) clearTimeout(resumeTimer.current);
   };
   const resumeSoon = () => {
@@ -304,6 +329,50 @@ function AutoCarousel<T>({
     }, 1600);
   };
 
+  // 놓은 속도로 감속 플링 — 네이티브 스크롤 느낌. vx(px/ms) → px/s, 과속은 캡.
+  const fling = (vx: number) => {
+    let v = Math.max(-2500, Math.min(2500, -vx * 1000));
+    if (Math.abs(v) < 120) {
+      resumeSoon();
+      return;
+    }
+    let last = Date.now();
+    const step = () => {
+      const now = Date.now();
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      moveTo(offset.current + v * dt);
+      v *= Math.pow(0.04, dt); // ~1초 내 자연 감속
+      if (Math.abs(v) > 40) {
+        flingRaf.current = requestAnimationFrame(step);
+      } else {
+        flingRaf.current = null;
+        resumeSoon();
+      }
+    };
+    flingRaf.current = requestAnimationFrame(step);
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      // 가로 우세 + 8px 이상일 때만 드래그로 전환 — 탭은 카드 Pressable 로, 세로는 부모로.
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.2,
+      // 일단 드래그를 잡으면 부모 스크롤에 넘기지 않는다 (가로 드래그 유지).
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        pause();
+        dragStart.current = offset.current;
+      },
+      onPanResponderMove: (_e, g) => {
+        moveTo(dragStart.current - g.dx);
+      },
+      onPanResponderRelease: (_e, g) => {
+        fling(g.vx);
+      },
+      onPanResponderTerminate: () => resumeSoon(),
+    }),
+  ).current;
+
   const display = [...data, ...data];
   return (
     <View
@@ -311,6 +380,7 @@ function AutoCarousel<T>({
       onTouchStart={pause}
       onTouchEnd={resumeSoon}
       onTouchCancel={resumeSoon}
+      {...panResponder.panHandlers}
     >
       <View ref={rowRef} style={{ flexDirection: 'row', paddingLeft: 20 }}>
         {display.map((item, i) => (
