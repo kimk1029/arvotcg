@@ -8,7 +8,7 @@
  * 발생하지 않는다.
  */
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Linking, StatusBar, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, StatusBar, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -23,9 +23,14 @@ import {
 } from '@/lib/oauth';
 
 // 일부 provider 가 기본 WebView userAgent 를 거부(예: Google "disallowed_useragent")
-// 하므로 표준 모바일 Chrome UA 로 위장해 호환성을 높인다.
+// 하므로 표준 모바일 브라우저 UA 로 위장한다. 단 UA 는 반드시 실제 플랫폼과 일치해야
+// 한다 — iOS WKWebView 에 Android UA 를 씌우면 navigator.platform('iPhone')·vendor
+// ('Apple Computer, Inc.')·WebKit 버전(605 계열)과 전부 어긋나서, 네이버가 이를 변조로
+// 판단해 로그인 단계에서 에러 페이지를 내려준다(iOS 전용 로그인 실패의 원인).
 const UA =
-  'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
+  Platform.OS === 'ios'
+    ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+    : 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
 function normalizeProvider(p: string | undefined): AuthProvider {
   return p === 'naver' || p === 'google' ? p : 'kakao';
@@ -106,6 +111,19 @@ export default function OAuthWebView() {
           }}
           onNavigationStateChange={(nav: WebViewNavigation) => {
             if (isReturnUrl(nav.url)) handleReturn(nav.url);
+          }}
+          // target=_blank / window.open 은 새 창을 만들 수 없어 기본적으로 무시된다
+          // (iOS WKWebView, Android setSupportMultipleWindows). 네이버의 기기등록·약관
+          // 단계가 이 방식이라 그대로 두면 버튼이 먹통이 된다 → 같은 WebView 에서 연다.
+          onOpenWindow={(e) => {
+            const u = e.nativeEvent?.targetUrl;
+            if (!u) return;
+            if (isReturnUrl(u)) {
+              handleReturn(u);
+              return;
+            }
+            if (/^https?:/i.test(u)) setUri(u);
+            else handleAppScheme(u);
           }}
           // 오버레이는 첫 페이지 로드까지만. 이후 단계(이메일→비밀번호 등)는 WebView 안에서
           // 진행하도록 두고, onLoadStart 로 다시 켜지 않는다. → 어떤 단계가 에러로 끝나
