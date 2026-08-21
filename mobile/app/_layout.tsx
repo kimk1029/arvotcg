@@ -7,8 +7,11 @@ import { View, StyleSheet, ActivityIndicator, LogBox } from 'react-native';
 // 구 아키텍처에서 react-native-screens 헤더 설정이 던지는 무해한(캐치되는) 예외.
 // 헤더를 쓰지 않아(headerShown:false) 기능 영향 없음 — 개발 LogBox 만 소음이라 억제.
 // (프로덕션 빌드에는 LogBox 가 없고 예외도 RN 이 잡아서 무시한다.)
-// 스크린샷 모드에선 개발용 경고 토스트("Open debugger…")까지 전부 숨긴다.
-if (process.env.EXPO_PUBLIC_SHOT_MODE === '1') LogBox.ignoreAllLogs(true);
+// 스크린샷 촬영 세션(마스킹 모드 또는 시작 라우트 지정)에선 개발용 경고
+// 토스트("Open debugger…")까지 전부 숨긴다.
+if (process.env.EXPO_PUBLIC_SHOT_MODE === '1' || process.env.EXPO_PUBLIC_SHOT_ROUTE) {
+  LogBox.ignoreAllLogs(true);
+}
 LogBox.ignoreLogs([
   /Exception thrown while executing UI block/,
   /Animated node with tag \d+ does not exist/,
@@ -78,7 +81,7 @@ export default function RootLayout() {
   // 프로덕션 빌드에서는 SHOT_MODE 미설정이라 아무 동작 없음.
   useEffect(() => {
     const route = process.env.EXPO_PUBLIC_SHOT_ROUTE;
-    if (process.env.EXPO_PUBLIC_SHOT_MODE === '1' && route) {
+    if (route) {
       const t = setTimeout(() => {
         try {
           router.replace(route as never);
