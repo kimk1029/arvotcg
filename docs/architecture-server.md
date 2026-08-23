@@ -1,8 +1,26 @@
-# NAS 서버 (server/) — 구조·설계 규칙
+# API 서버 (server/) — 구조·설계 규칙
 
 > Express + tsx. pm2 `pokefesta30-server`(:3030, fork 모드, node 직접 실행 — npm 래퍼 금지).
 > main push 시 deploy-server.yml로 자동 배포. **안티봇 스크레이퍼(KREAM 등)는 반드시 여기**
 > (Vercel IP는 차단됨).
+
+## 배포 대상 — NAS + Vultr 동시 (이전 진행 중)
+
+`deploy-server.yml` 은 **두 대상에 같은 코드를 병렬 배포**한다 (`fail-fast: false` —
+한쪽이 실패해도 다른 쪽은 계속 나간다).
+
+| 대상 | 역할 | 시크릿 | 앞단 TLS |
+| --- | --- | --- | --- |
+| `nas` | **stage** | `SSH_HOST/USER/KEY/PORT`, `SERVER_ENV` | DSM 리버스 프록시 `:3031` |
+| `vultr` | **production 후보** | `VULTR_SSH_HOST/USER/KEY/PORT`, `VULTR_SERVER_ENV`(없으면 `SERVER_ENV` 재사용) | Caddy (`scripts/Caddyfile.example`) |
+
+- `VULTR_SSH_HOST` 가 비어 있으면 vultr 대상은 **조용히 스킵** — 인스턴스 생성 전에도 워크플로가 깨지지 않는다.
+- 특정 대상만 배포: Actions → Deploy Server → Run workflow → `target=nas|vultr`.
+- Vultr 인스턴스 프로비저닝은 `scripts/vultr-bootstrap.sh` (멱등, Ubuntu 22.04).
+- **주의**: 두 서버가 같은 Supabase 를 본다. 인프로세스 스케줄러(가격알림 15분 /
+  이미지 워밍 / 03:00 KST 스냅샷)는 **단일 인스턴스 전제**라 양쪽에서 동시에 돌면
+  가격알림이 중복 발송된다. 스냅샷·워밍은 멱등이라 안전. 이전이 끝나 한쪽을 접기
+  전까지는 **stage(NAS) 쪽 알림 스케줄러를 env 로 꺼둘 것**.
 
 ## 레이어
 

@@ -1,0 +1,36 @@
+# Vultr 서버용 Caddy 설정 — /etc/caddy/Caddyfile 로 복사해 도메인만 바꾼다.
+#
+# 역할: NAS 의 DSM 리버스 프록시(:3031 → :3030)와 같은 자리.
+#       TLS 종료 + Let's Encrypt 자동 발급/갱신 + Express(:3030) 로 프록시.
+#
+# 도메인을 아직 안 붙였다면 아래 첫 줄을 IP 로 두고 http 로 먼저 검증해도 된다:
+#   :80 {  reverse_proxy 127.0.0.1:3030  }
+# (단 앱/웹은 HTTPS 만 쓰므로 실서비스 전에는 반드시 도메인 + TLS 로 올릴 것.)
+
+api.poke-30.com {
+	encode zstd gzip
+
+	# 카드 아트 셀프 CDN — 서버가 immutable/7d 로 내려주지만,
+	# 프록시 단에서도 버퍼링을 키워 큰 파일 전송을 매끄럽게.
+	reverse_proxy 127.0.0.1:3030 {
+		# 업로드(멀티파트 카드 스캔 이미지)가 커서 기본 타임아웃으로는 끊길 수 있다.
+		transport http {
+			read_timeout 120s
+			write_timeout 120s
+		}
+		# 서버가 클라이언트 실 IP 를 보게 — 안티봇/레이트리밋 판단에 필요.
+		header_up X-Real-IP {remote_host}
+	}
+
+	# 카드 스캔 OCR 업로드 — 기본 요청 본문 제한을 넉넉히.
+	request_body {
+		max_size 25MB
+	}
+
+	log {
+		output file /var/log/caddy/api.log {
+			roll_size 50MB
+			roll_keep 5
+		}
+	}
+}

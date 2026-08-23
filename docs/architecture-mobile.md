@@ -2,6 +2,29 @@
 
 > Expo/RN 네이티브 앱 (WebView 아님). expo-router 파일 기반 라우팅(`mobile/app/**`).
 
+## 빌드 프로파일 ↔ 붙는 서버
+
+API 오리진은 **코드에 하드코딩하지 않는다**. 정본 표는 `/shared/apiEndpoints.ts`,
+앱 쪽 진입점은 `mobile/src/lib/apiEnv.ts` 하나뿐이다 (`apiClient`·`cardScanApi` 모두 여기 경유).
+
+| `eas build --profile` | `EXPO_PUBLIC_APP_ENV` | 붙는 서버 |
+| --- | --- | --- |
+| `stage` | `stage` | **NAS** (Synology `:3031`) |
+| `production` | `production` | `EXPO_PUBLIC_API_ORIGIN_PROD`(Vultr) → 미설정 시 NAS 폴백 |
+| `development` / `preview` | (없음) | production 과 동일 규칙 |
+
+```bash
+eas build --profile stage      --platform android   # → NAS(stage) 붙는 내부 APK
+eas build --profile production --platform android   # → 운영
+```
+
+- 로컬 dev 는 종전대로 `EXPO_PUBLIC_API_BASE_URL` 이 **최우선** 오버라이드다.
+- `stage` 는 `autoIncrement: false` + `distribution: internal` — 스토어 빌드 번호를 건드리지 않는다.
+- Vultr 오리진이 확정되면 **코드 수정 없이** `eas.json` production 프로파일 env 에
+  `EXPO_PUBLIC_API_ORIGIN_PROD` 만 추가하면 된다.
+  전환 순서는 [[migration-order-web-then-app]] 규칙(웹 실측·확정 → 앱)을 따를 것.
+- 웹도 같은 스위치를 쓴다(패리티): `NEXT_PUBLIC_APP_ENV=stage` → NAS, 그 외 `API_ORIGIN_PROD`.
+
 ## 레이어
 
 - `mobile/app/**` — 화면(라우트). 데이터 조립 + 화면 고유 레이아웃만.

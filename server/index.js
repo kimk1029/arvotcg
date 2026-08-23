@@ -744,8 +744,25 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'internal' });
 });
 
+/**
+ * 주기 작업은 **단일 인스턴스 전제**로 짜여 있다(in-process setInterval, 별도 크론 없음).
+ * NAS↔Vultr 동시 배포 기간에는 두 서버가 같은 Supabase 를 보므로, 양쪽에서 돌면
+ * 가격알림이 사용자에게 **중복 발송**된다(스냅샷·워밍은 멱등이지만 업스트림을 두 배로 두드린다).
+ *
+ * 그래서 스케줄러 기동을 SERVER_ROLE 로 잠근다:
+ *   primary (기본) — 스케줄러 실행. 지금은 NAS.
+ *   standby        — API 는 정상 서빙, 주기 작업만 끔. 지금은 Vultr.
+ * 이전이 끝나 트래픽을 넘길 때 두 서버의 SERVER_ROLE 을 맞바꾸면 된다.
+ */
+const SERVER_ROLE = (process.env.SERVER_ROLE || 'primary').trim().toLowerCase();
+const SCHEDULERS_ENABLED = SERVER_ROLE !== 'standby';
+
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`OCR server listening http://localhost:${PORT}  vision=${visionAvailable() ? 'on' : 'off'}`);
+  console.log(`OCR server listening http://localhost:${PORT}  vision=${visionAvailable() ? 'on' : 'off'}  role=${SERVER_ROLE}`);
+  if (!SCHEDULERS_ENABLED) {
+    console.log('[scheduler] SERVER_ROLE=standby — 주기 작업(가격알림/이미지워밍/일일스냅샷) 미기동');
+    return;
+  }
   // 가격 알림 주기 점검 시작(단일 서버 인스턴스 내 setInterval).
   startPriceAlertScheduler();
   // 카드 이미지 자체 CDN 워밍 — 부팅 후 + 매일, 미캐싱 카드 점진 backfill.

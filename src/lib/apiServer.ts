@@ -4,13 +4,21 @@
  *   에서는 절대 URL 이 필요. 직접 Express 서버 (`API_INTERNAL_URL`) 로 호출한다.
  * - 인증이 필요한 호출에는 `pf30_session` 쿠키를 `Cookie:` 헤더로 포워딩.
  */
+import { resolveApiOrigin } from '../../shared/apiEndpoints';
 import { cookies } from 'next/headers';
 
 const SESSION_COOKIE = process.env.SESSION_COOKIE_NAME ?? 'pf30_session';
 
+/**
+ * 오리진 결정은 앱과 같은 정본(/shared/apiEndpoints.ts)을 쓴다 — 웹↔앱 패리티.
+ *   NEXT_PUBLIC_APP_ENV=stage → NAS / 그 외 → API_ORIGIN_PROD(Vultr) → 없으면 NAS 폴백.
+ */
 function baseUrl(): string {
-  const raw = process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_ORIGIN ?? 'https://kimk1029.synology.me:3031';
-  return raw.replace(/\/$/, '');
+  return resolveApiOrigin({
+    explicitOverride: process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_ORIGIN,
+    appEnv: process.env.NEXT_PUBLIC_APP_ENV,
+    productionOrigin: process.env.API_ORIGIN_PROD,
+  });
 }
 
 interface ServerFetchOpts {

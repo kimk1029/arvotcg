@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { getApiOrigin } from '@/lib/apiEnv';
 import { getAuthHeader } from '@/lib/session';
 import type { CardScanResponse, ScanUploadInput } from '@/types/cardScan';
 
@@ -23,8 +24,8 @@ function deriveBaseUrl(): string {
     ?? (Constants.manifest2 as { extra?: { expoGo?: { developer?: { host?: string } } } } | null)?.extra?.expoGo?.developer?.host
     ?? '';
   // Embedded debug/release builds do not always expose Expo's hostUri.
-  // Production fallback: hit the Synology server directly.
-  if (!hostUri) return 'https://kimk1029.synology.me:3031';
+  // 빌드 프로파일이 정한 오리진으로 폴백 — stage=NAS / production=Vultr([[apiEnv]]).
+  if (!hostUri) return getApiOrigin();
   // Tunnel URLs already include scheme via .exp.direct (use https). LAN URLs use http.
   const isTunnel = /\.exp\.direct/.test(hostUri);
   const scheme = isTunnel ? 'https' : 'http';

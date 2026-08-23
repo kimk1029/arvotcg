@@ -1,23 +1,20 @@
 /**
  * Express 백엔드 (`server/`) 호출용 클라이언트.
  *
- * baseUrl 은 `EXPO_PUBLIC_API_BASE_URL` 환경 변수에서 가져온다.
- * 운영: https://kimk1029.synology.me:3031 (DSM 리버스 프록시 → localhost:3030, Let's Encrypt TLS)
- * 로컬 dev: EXPO_PUBLIC_API_BASE_URL=http://<WSL2-IP>:3030 또는 adb reverse 후 localhost.
+ * baseUrl 결정은 [[apiEnv]] 가 전담한다 (정본: /shared/apiEndpoints.ts):
+ *   stage 빌드      → NAS (Synology, DSM 리버스 프록시 :3031 → :3030, Let's Encrypt TLS)
+ *   production 빌드 → EXPO_PUBLIC_API_ORIGIN_PROD (Vultr), 미지정 시 NAS 폴백
+ *   로컬 dev        → EXPO_PUBLIC_API_BASE_URL=http://<WSL2-IP>:3030 (최우선 오버라이드)
  *
  * 인증은 `/auth/{provider}` 가 발급한 JWT 를 `Authorization: Bearer ...` 헤더로
  * 첨부. [[session]] 모듈이 토큰을 관리.
  */
+import { getApiOrigin } from './apiEnv';
 import { getAuthHeader } from './session';
 import { shotSanitize } from './shotMode';
 
-// EXPO_PUBLIC_API_BASE_URL 이 비어있을 때 폴백 — 운영 Synology 호스트 (HTTPS 리버스 프록시).
-const DEFAULT_BASE = 'https://kimk1029.synology.me:3031';
-
 export function getApiBaseUrl(): string {
-  const v = process.env.EXPO_PUBLIC_API_BASE_URL;
-  if (typeof v === 'string' && v.length > 0) return v.replace(/\/$/, '');
-  return DEFAULT_BASE;
+  return getApiOrigin();
 }
 
 /** @deprecated 모바일은 더 이상 웹 도메인을 호출하지 않음. apiClient 가 직접 Express 를 호출. */

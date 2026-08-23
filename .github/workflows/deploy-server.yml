@@ -1,17 +1,17 @@
 name: Deploy Server
 
-# Express OCR / API 서버 (server/) 를 Synology 로 SSH 배포.
+# Express OCR / API 서버 (server/) 를 **NAS(Synology) 와 Vultr 양쪽에** SSH 배포.
 # server/** 또는 prisma/schema.prisma 가 main 에 푸시되면 실행.
 #
-# 동작:
-#   1. Synology 서버에 SSH
-#   2. git pull (현재 main)
-#   3. server/ 의존성 재설치 + prisma client 재생성
-#   4. pm2 restart pokefesta30-server (없으면 ecosystem 으로 start)
+# 두 대상은 서로 독립이다 (fail-fast: false) — 한쪽이 실패해도 다른 쪽은 계속 배포된다.
+# 이전 기간 동안 NAS = stage, Vultr = production 후보로 같은 코드를 동시에 굴린다.
 #
-# 필요 secret:
-#   SSH_HOST, SSH_USER, SSH_KEY, SSH_PORT (기본 22)
-#   (기존 deploy.yml 의 admin 배포와 동일한 secret 재사용)
+#   nas   : SSH_HOST / SSH_USER / SSH_KEY / SSH_PORT        + SERVER_ENV
+#   vultr : VULTR_SSH_HOST / VULTR_SSH_USER / VULTR_SSH_KEY / VULTR_SSH_PORT
+#           + VULTR_SERVER_ENV (없으면 SERVER_ENV 재사용)
+#
+# VULTR_SSH_HOST 시크릿이 비어있으면 vultr 대상은 **조용히 건너뛴다** —
+# 인스턴스를 만들기 전에도 이 워크플로가 깨지지 않는다.
 
 on:
   push:
@@ -26,6 +26,13 @@ on:
       - 'ecosystem.config.cjs'
       - '.github/workflows/deploy-server.yml'
   workflow_dispatch:
+    inputs:
+      target:
+        description: '배포 대상 (all | nas | vultr)'
+        required: false
+        default: 'all'
+        type: choice
+        options: [all, nas, vultr]
 
 concurrency:
   group: deploy-server
@@ -33,31 +40,75 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy Express server to Synology
+    name: Deploy to ${{ matrix.target }}
     runs-on: ubuntu-latest
+    strategy:
+      # 한쪽 실패가 다른 쪽 배포를 취소하지 않도록.
+      fail-fast: false
+      matrix:
+        include:
+          - target: nas
+            host_secret: SSH_HOST
+            user_secret: SSH_USER
+            key_secret: SSH_KEY
+            port_secret: SSH_PORT
+            env_secret: SERVER_ENV
+            dir: /root/dev/pokefesta30
+          - target: vultr
+            host_secret: VULTR_SSH_HOST
+            user_secret: VULTR_SSH_USER
+            key_secret: VULTR_SSH_KEY
+            port_secret: VULTR_SSH_PORT
+            env_secret: VULTR_SERVER_ENV
+            dir: /root/dev/pokefesta30
     steps:
+      # workflow_dispatch 로 대상을 고른 경우 + 시크릿 미설정 대상 스킵 판정.
+      # secrets 컨텍스트는 job-level `if` 에서 못 쓰므로 step 으로 계산한다.
+      - name: Resolve target
+        id: gate
+        env:
+          HOST: ${{ secrets[matrix.host_secret] }}
+          WANTED: ${{ github.event.inputs.target || 'all' }}
+        run: |
+          if [ "$WANTED" != "all" ] && [ "$WANTED" != "${{ matrix.target }}" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "⏭  ${{ matrix.target }} — 이번 실행 대상 아님 (target=$WANTED)"
+          elif [ -z "$HOST" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "⏭  ${{ matrix.target }} — ${{ matrix.host_secret }} 시크릿 미설정, 건너뜀"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "▶  ${{ matrix.target }} 배포 진행"
+          fi
+
       - name: SSH & deploy server
+        if: steps.gate.outputs.run == 'true'
         uses: appleboy/ssh-action@v1.2.0
         env:
           # `.env` 는 .gitignore 라 git pull 로 안 옴. GitHub Secret 에
           # `.env` 파일 내용 전체를 넣어두면 배포 시 server/.env 로 기록.
-          # 비워두면 Synology 에 이미 놓인 파일을 그대로 사용.
-          SERVER_ENV_CONTENT: ${{ secrets.SERVER_ENV }}
+          # 비워두면 대상 서버에 이미 놓인 파일을 그대로 사용.
+          # vultr 는 전용 시크릿이 없으면 NAS 와 같은 SERVER_ENV 를 재사용한다.
+          SERVER_ENV_CONTENT: ${{ secrets[matrix.env_secret] || secrets.SERVER_ENV }}
+          DEPLOY_DIR: ${{ matrix.dir }}
+          DEPLOY_TARGET: ${{ matrix.target }}
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
+          host: ${{ secrets[matrix.host_secret] }}
+          username: ${{ secrets[matrix.user_secret] }}
+          key: ${{ secrets[matrix.key_secret] }}
+          port: ${{ secrets[matrix.port_secret] || 22 }}
           # NAS 의 npm ci 두 번(서버+루트)만 10분 가까이 걸려 기본 10m 으론 pm2 재시작 전에
           # "Run Command Timeout" 으로 죽는다 (2026-08-06 실사고). 여유 있게 30분.
+          # (Vultr 는 보통 1~2분이면 끝나지만 같은 여유를 준다.)
           command_timeout: 30m
-          envs: SERVER_ENV_CONTENT
+          envs: SERVER_ENV_CONTENT,DEPLOY_DIR,DEPLOY_TARGET
           script: |
             set -e
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 
-            cd /root/dev/pokefesta30
+            echo "=== deploy target: $DEPLOY_TARGET ($DEPLOY_DIR) ==="
+            cd "$DEPLOY_DIR"
             git fetch origin main
             git reset --hard origin/main
 
@@ -72,7 +123,7 @@ jobs:
             elif [ ! -f .env ]; then
               echo "::error::server/.env 가 없고 SERVER_ENV secret 도 비어있습니다."
               echo "::error::방법1) GitHub repo settings → Secrets 에 SERVER_ENV 추가 (로컬 server/.env 내용 전체)"
-              echo "::error::방법2) Synology 에 SSH 후 cp .env.example .env, 값 채우기"
+              echo "::error::방법2) 대상 서버에 SSH 후 cp .env.example .env, 값 채우기"
               exit 1
             else
               echo "✓ 기존 server/.env 사용"
@@ -81,7 +132,7 @@ jobs:
             # 2) 의존성 + Prisma client (postinstall 이 server-local client 삭제 →
             #    Node 모듈 해소가 root/node_modules 로 walk up. 그래서 root 도 설치 필요.)
             npm ci --prefer-offline --no-audit --no-fund
-            cd /root/dev/pokefesta30
+            cd "$DEPLOY_DIR"
             npm ci --prefer-offline --no-audit --no-fund
             npx prisma generate
             # Apply any pending DB migrations. Non-fatal: the admin
@@ -95,6 +146,7 @@ jobs:
             # Idempotent safety-net: even if `migrate deploy` no-ops due to
             # drift, run the manual SQL (IF NOT EXISTS clauses) to make sure
             # the columns / tables the code expects actually exist.
+            # 두 대상이 같은 Supabase 를 보므로 멱등(IF NOT EXISTS)이라 중복 실행해도 안전.
             npx prisma db execute \
               --file prisma/manual/ensure_snkrdunk_schema.sql \
               --schema prisma/schema.prisma \
@@ -107,8 +159,13 @@ jobs:
             # 고아 프로세스가 :3030 을 물고 있으면(과거 npm 래퍼 시절 pm2 delete 가
             # tsx 자식을 못 죽여 EADDRINUSE 크래시 루프) 새 인스턴스가 영원히 못 뜬다
             # — 시작 전에 포트 점유 프로세스를 정리.
+            # Synology 는 netstat, 최신 Ubuntu 는 ss 만 있는 경우가 있어 둘 다 시도한다.
             fuser -k 3030/tcp 2>/dev/null || true
-            PORT_PIDS=$(netstat -tlnp 2>/dev/null | awk '$4 ~ /:3030$/ {split($NF,a,"/"); print a[1]}' | grep -E '^[0-9]+$' | sort -u || true)
+            # ss 로 :3030 리스너만 조회 → 없거나 ss 자체가 없으면 netstat 로 폴백.
+            PORT_PIDS=$(ss -tlnp 'sport = :3030' 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u || true)
+            if [ -z "$PORT_PIDS" ]; then
+              PORT_PIDS=$(netstat -tlnp 2>/dev/null | awk '$4 ~ /:3030$/ {split($NF,a,"/"); print a[1]}' | grep -E '^[0-9]+$' | sort -u || true)
+            fi
             [ -n "$PORT_PIDS" ] && kill -9 $PORT_PIDS 2>/dev/null || true
             sleep 2
             pm2 start ecosystem.config.cjs --only pokefesta30-server
@@ -119,15 +176,15 @@ jobs:
             # 수 있어(2026-07-15 실사례: 40초+에 정상 기동) 넉넉히 기다린다.
             for i in $(seq 1 120); do
               if curl -sf http://127.0.0.1:3030/health >/dev/null 2>&1; then
-                echo "✓ server is up on :3030 (${i}s)"
+                echo "✓ [$DEPLOY_TARGET] server is up on :3030 (${i}s)"
                 exit 0
               fi
               [ $((i % 15)) -eq 0 ] && echo "…waiting for :3030/health (${i}s)"
               sleep 1
             done
-            echo "::error::server did not respond on :3030/health within 120s"
+            echo "::error::[$DEPLOY_TARGET] server did not respond on :3030/health within 120s"
             echo "--- :3030 port holders ---"
-            netstat -tlnp 2>/dev/null | grep 3030 || true
+            { ss -tlnp 2>/dev/null | grep 3030 || netstat -tlnp 2>/dev/null | grep 3030; } || true
             pm2 logs pokefesta30-server --lines 80 --nostream || true
             pm2 describe pokefesta30-server || true
             exit 1
