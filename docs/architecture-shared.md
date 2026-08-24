@@ -11,14 +11,14 @@
 | `snkrdunk.ts` | 스니덩크 타입, raw→Apparel 변환, 싱글/박스 분류, **검색 SSR HTML 파서**, 일→한 로컬라이즈, 등급배지 판정, 차트 다운샘플 |
 | `snkrdunkPrice.ts` | **시세 계산 규칙 전부** — computeApparelPrices(최근 7건 중앙값+등급오염 2.5배 컷), registerBasisJpy(등록가), headlinePriceFromHistory, trendChangePct |
 | `cardTranslate.ts` | 카드명 한/영/일 번역 엔진 (작품별 TERMS_BY_GAME) |
-| `cardStatics.ts` | 카드명/품번 → 게임·세트코드·카드번호·레어도 파싱 |
-| `cardRarity.ts` | 등급 토큰(C~CHR) 추출 + 배지 색 |
+| `cardStatics.ts` | 카드명/품번 → 게임·세트코드·카드번호·레어도 파싱 (**DB 적재용**) |
+| `cardRarity.ts` | **등급 enum**(RARITY_IDS/RARITY_META — 라벨·색·높은등급순 정렬) + 상품명에서 등급 토큰 추출 (**화면 표시용**: 필터 칩·배지) |
 | `currency.ts` | 통화 모드(¥/₩)·환율 포맷 formatPrice |
 | `numberFormat.ts` | 천단위 콤마 포맷 |
 | `rewards.ts` | 활동별 포인트 보상표 |
 | `kst.ts` | KST 날짜 유틸 (kstDayStart/kstDateKey/isSameKstDay/kstDayDiff) — 고정 +9h, DST 없음 |
 | `util/shortenName.ts` | 카드명 축약 (기본 22자, maxLen 인자) |
-| `util/kreamMatch.ts` `util/autoPriceSize.ts` | KREAM 매칭, 가격 폰트 자동축소 |
+| `util/kreamMatch.ts` `util/autoPriceSize.ts` `util/color.ts` | KREAM 매칭, 가격 폰트 자동축소, 색 혼합(mixHex) |
 | `data/*` | 카드팩 메타, 포켓몬 한/일 이름, 세트코드 등 정적 데이터 |
 
 ## 규칙

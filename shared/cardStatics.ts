@@ -26,6 +26,8 @@ export const CARD_GAME_LABEL: Record<CardGame, string> = {
   other: '기타',
 };
 
+// 적재용 레어도 — 저장값 호환 때문에 토큰 셋을 함부로 늘리지 않는다.
+// 화면 표시(필터 칩·배지)용 등급 enum 은 [[/shared/cardRarity.ts]] 참고.
 const RARITY_RE = /\b(SAR|CSR|CHR|HR|UR|SSR|SR|RRR|RR|AR|IR|SEC|PROMO|プロモ)\b/i;
 
 // 원피스: OP01-120 / EB01-006 / ST04-005 / PRB01-001 (대괄호 유무 무관)

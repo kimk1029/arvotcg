@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { PackGridCard } from '@/components/PackGridCard';
 import type { PackHitCard } from '@/lib/cardPackHits';
-import { rarityLabelOf, sortRarityLabels } from '@/lib/cardRarity';
+import { filterRarityOf, rarityMetaOf, sortRarityIds, type RarityId } from '@/lib/cardRarity';
 
 type SortKey = 'price-desc' | 'recent-sale' | 'listing-desc';
 
@@ -29,30 +29,31 @@ function sortItems(items: PackHitCard[], sort: SortKey): PackHitCard[] {
 
 export function PackMarketSections({ cards, boxes, showBoxes = false }: Props) {
   const [cardSort, setCardSort] = useState<SortKey>('price-desc');
-  // null = 전체. 등급(레어도) 라벨은 상품명에서 뽑는다 (shared/cardRarity 단일 소스).
-  const [rarity, setRarity] = useState<string | null>(null);
+  // null = 전체. 등급(레어도)은 상품명에서 뽑는다 (shared/cardRarity enum 단일 소스).
+  const [rarity, setRarity] = useState<RarityId | null>(null);
 
-  // 카드별 등급 라벨 + 라벨별 개수 — 실제로 존재하는 등급만 칩으로 노출한다.
-  const { labelOf, rarityCounts } = useMemo(() => {
-    const map = new Map<number, string>();
-    const counts = new Map<string, number>();
+  // 카드별 등급 + 등급별 개수 — 이 팩에 실제로 있는 고등급만 칩으로 노출(높은 등급 먼저).
+  const { rarityOf, rarityCounts } = useMemo(() => {
+    const map = new Map<number, RarityId>();
+    const counts = new Map<RarityId, number>();
     for (const hit of cards) {
-      const label = rarityLabelOf(hit.name, hit.koName);
-      map.set(hit.apparelId, label);
-      counts.set(label, (counts.get(label) ?? 0) + 1);
+      const id = filterRarityOf(hit.name, hit.koName);
+      if (!id) continue;
+      map.set(hit.apparelId, id);
+      counts.set(id, (counts.get(id) ?? 0) + 1);
     }
     return {
-      labelOf: map,
-      rarityCounts: sortRarityLabels([...counts.keys()]).map((label) => ({
-        label,
-        count: counts.get(label) ?? 0,
+      rarityOf: map,
+      rarityCounts: sortRarityIds([...counts.keys()]).map((id) => ({
+        id,
+        count: counts.get(id) ?? 0,
       })),
     };
   }, [cards]);
 
   const visibleCards = useMemo(
-    () => (rarity ? cards.filter((hit) => labelOf.get(hit.apparelId) === rarity) : cards),
-    [cards, labelOf, rarity],
+    () => (rarity ? cards.filter((hit) => rarityOf.get(hit.apparelId) === rarity) : cards),
+    [cards, rarityOf, rarity],
   );
   const sortedCards = useMemo(() => sortItems(visibleCards, cardSort), [visibleCards, cardSort]);
   const sortedBoxes = useMemo(() => sortItems(boxes, 'price-desc'), [boxes]);
@@ -67,8 +68,8 @@ export function PackMarketSections({ cards, boxes, showBoxes = false }: Props) {
         sort={cardSort}
         onSort={setCardSort}
         chips={
-          // 등급이 한 종류뿐이면(스포츠 카드 등) 필터가 의미 없어 숨긴다.
-          rarityCounts.length > 1 ? (
+          // 고등급이 하나도 없으면(스포츠 카드 등) 필터가 의미 없어 숨긴다.
+          rarityCounts.length > 0 ? (
             <RarityChips options={rarityCounts} total={cards.length} value={rarity} onChange={setRarity} />
           ) : null
         }
@@ -87,39 +88,47 @@ export function PackMarketSections({ cards, boxes, showBoxes = false }: Props) {
   );
 }
 
-/** 등급 필터 칩 — 작은 라벨, 누르면 그 등급 카드만 남는다. */
+/** 등급 필터 칩 — 작은 라벨, 누르면 그 등급 카드만. 색은 등급 enum(RARITY_META)에서. */
 function RarityChips({
   options,
   total,
   value,
   onChange,
 }: {
-  options: Array<{ label: string; count: number }>;
+  options: Array<{ id: RarityId; count: number }>;
   total: number;
-  value: string | null;
-  onChange: (next: string | null) => void;
+  value: RarityId | null;
+  onChange: (next: RarityId | null) => void;
 }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }} role="group" aria-label="등급 필터">
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 10 }} role="group" aria-label="등급 필터">
       <button
         type="button"
-        className={`cv-chip${value === null ? ' on' : ''}`}
+        className={`rar-chip${value === null ? ' on' : ''}`}
         aria-pressed={value === null}
         onClick={() => onChange(null)}
       >
-        전체 {total}
+        전체<span className="rar-chip-n">{total}</span>
       </button>
       {options.map((opt) => {
-        const on = value === opt.label;
+        const meta = rarityMetaOf(opt.id);
+        const on = value === opt.id;
         return (
           <button
-            key={opt.label}
+            key={opt.id}
             type="button"
-            className={`cv-chip${on ? ' on' : ''}`}
-                aria-pressed={on}
-            onClick={() => onChange(on ? null : opt.label)}
+            className={`rar-chip${on ? ' on' : ''}`}
+            title={meta.name}
+            aria-label={`${meta.label} ${meta.name} ${opt.count}개`}
+            aria-pressed={on}
+            // 비활성은 등급색 옅은 틴트, 활성은 등급색 전체 — MUR 은 황금색.
+            style={{
+              background: on ? meta.bg : `color-mix(in srgb, ${meta.bg} 18%, var(--white))`,
+              color: on ? meta.fg : 'var(--ink)',
+            }}
+            onClick={() => onChange(on ? null : opt.id)}
           >
-            {opt.label} {opt.count}
+            {meta.label}<span className="rar-chip-n">{opt.count}</span>
           </button>
         );
       })}

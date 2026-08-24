@@ -12,7 +12,8 @@ import { ThumbImage } from '@/components/cv/ThumbImage';
 import { useThemeColors, useThemeTextVariant, useTheme } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import { fetchPackHits, type PackHitCard, type PackWithHits } from '@/lib/myApi';
-import { rarityLabelOf, sortRarityLabels } from '@/lib/cardRarity';
+import { filterRarityOf, rarityMetaOf, sortRarityIds, type RarityId } from '@/lib/cardRarity';
+import { mixHex } from '@/lib/color';
 import { useSWR } from '@/lib/swr';
 import { useCurrency } from '@/components/CurrencyProvider';
 
@@ -38,8 +39,8 @@ export default function PackDetailScreen() {
   const [sort, setSort] = useState<SortMode>('price');
   const [sortOpen, setSortOpen] = useState(false);
   const [view, setView] = useState<ViewMode>('grid');
-  // null = 전체. 등급(레어도) 라벨은 상품명에서 뽑는다 (shared/cardRarity 단일 소스).
-  const [rarity, setRarity] = useState<string | null>(null);
+  // null = 전체. 등급(레어도)은 상품명에서 뽑는다 (shared/cardRarity enum 단일 소스).
+  const [rarity, setRarity] = useState<RarityId | null>(null);
   // SWR — 팩 상세 재진입 즉시 페인트. fetchPackHits 자체 캐시(15분)와 같은 TTL.
   const { data, loading, error, refresh } = useSWR<PackWithHits | null>(
     `packs:detail:${code}`,
@@ -50,26 +51,27 @@ export default function PackDetailScreen() {
   // 웹 packs/[code]/page.tsx 동일 — itemKind 로 싱글/박스 분리.
   const singles = useMemo(() => (data?.hits ?? []).filter((h) => h.itemKind !== 'box'), [data?.hits]);
   const boxes = useMemo(() => (data?.hits ?? []).filter((h) => h.itemKind === 'box'), [data?.hits]);
-  // 웹 PackMarketSections 동일 — 카드별 등급 라벨 + 라벨별 개수(존재하는 등급만 칩으로).
-  const { labelOf, rarityCounts } = useMemo(() => {
-    const map = new Map<number, string>();
-    const counts = new Map<string, number>();
+  // 웹 PackMarketSections 동일 — 카드별 등급 + 등급별 개수(이 팩에 있는 고등급만, 높은 등급 먼저).
+  const { rarityOf, rarityCounts } = useMemo(() => {
+    const map = new Map<number, RarityId>();
+    const counts = new Map<RarityId, number>();
     for (const hit of singles) {
-      const label = rarityLabelOf(hit.name, hit.koName);
-      map.set(hit.apparelId, label);
-      counts.set(label, (counts.get(label) ?? 0) + 1);
+      const id = filterRarityOf(hit.name, hit.koName);
+      if (!id) continue;
+      map.set(hit.apparelId, id);
+      counts.set(id, (counts.get(id) ?? 0) + 1);
     }
     return {
-      labelOf: map,
-      rarityCounts: sortRarityLabels([...counts.keys()]).map((label) => ({
-        label,
-        count: counts.get(label) ?? 0,
+      rarityOf: map,
+      rarityCounts: sortRarityIds([...counts.keys()]).map((id) => ({
+        id,
+        count: counts.get(id) ?? 0,
       })),
     };
   }, [singles]);
   const visibleSingles = useMemo(
-    () => (rarity ? singles.filter((h) => labelOf.get(h.apparelId) === rarity) : singles),
-    [singles, labelOf, rarity],
+    () => (rarity ? singles.filter((h) => rarityOf.get(h.apparelId) === rarity) : singles),
+    [singles, rarityOf, rarity],
   );
   const cards = useMemo(() => sortHits(visibleSingles, sort), [visibleSingles, sort]);
   const sortedBoxes = useMemo(() => sortHits(boxes, 'price'), [boxes]);
@@ -268,7 +270,7 @@ export default function PackDetailScreen() {
 
           {/* 등급 필터 칩 — 작은 라벨, 누르면 그 등급 카드만. 웹 PackMarketSections 의 RarityChips 대응.
               가로 ScrollView 는 안드로이드 Fabric 에서 높이가 NaN 이 되는 이슈가 있어 flexWrap 행으로. */}
-          {rarityCounts.length > 1 ? (
+          {rarityCounts.length > 0 ? (
             <View
               style={{
                 flexDirection: 'row',
@@ -285,16 +287,22 @@ export default function PackDetailScreen() {
                 flat={flat}
                 onPress={() => setRarity(null)}
               />
-              {rarityCounts.map((opt) => (
-                <RarityChip
-                  key={opt.label}
-                  label={opt.label}
-                  count={opt.count}
-                  on={rarity === opt.label}
-                  flat={flat}
-                  onPress={() => setRarity((prev) => (prev === opt.label ? null : opt.label))}
-                />
-              ))}
+              {rarityCounts.map((opt) => {
+                const meta = rarityMetaOf(opt.id);
+                return (
+                  <RarityChip
+                    key={opt.id}
+                    label={meta.label}
+                    name={meta.name}
+                    count={opt.count}
+                    color={meta.bg}
+                    textOn={meta.fg}
+                    on={rarity === opt.id}
+                    flat={flat}
+                    onPress={() => setRarity((prev) => (prev === opt.id ? null : opt.id))}
+                  />
+                );
+              })}
             </View>
           ) : null}
 
@@ -350,45 +358,61 @@ export default function PackDetailScreen() {
   );
 }
 
-/** 등급 필터 칩 — 작은 라벨 + 개수. 활성은 플랫=ink/white, 픽셀=gold/ink. */
+/** 등급 필터 칩 — 작은 라벨 + 개수. 색은 등급 enum(RARITY_META), 비활성은 옅은 틴트. */
 function RarityChip({
   label,
+  name,
   count,
+  color,
+  textOn,
   on,
   flat,
   onPress,
 }: {
   label: string;
+  name?: string;
   count: number;
+  /** 등급색 — '전체' 칩은 없음(테마색 사용). */
+  color?: string;
+  textOn?: string;
   on: boolean;
   flat: boolean;
   onPress: () => void;
 }) {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
-  const bg = on ? (flat ? tc.ink : tc.gold) : tc.white;
-  const fg = on ? (flat ? tc.white : tc.ink) : tc.ink2;
+  const bg = color
+    ? on
+      ? color
+      : mixHex(color, tc.white, 0.18)
+    : on
+      ? flat
+        ? tc.ink
+        : tc.gold
+      : tc.white;
+  const fg = color ? (on ? (textOn ?? tc.white) : tc.ink) : on ? (flat ? tc.white : tc.ink) : tc.ink2;
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={name ? `${label} ${name} ${count}개` : `${label} ${count}개`}
       accessibilityState={{ selected: on }}
       onPress={onPress}
       style={{
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
-        paddingHorizontal: 9,
-        paddingVertical: 5,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
         backgroundColor: bg,
         borderWidth: 1,
-        borderColor: on && flat ? tc.ink : flat ? tc.pap3 : tc.ink,
+        borderColor: flat ? (on ? bg : tc.pap3) : tc.ink,
         borderRadius: flat ? 999 : 0,
       }}
     >
       <PixelText variant={txt} size={9} weight={on ? 'bold' : 'normal'} color={fg}>
         {label}
       </PixelText>
-      <PixelText variant={txt} size={8} color={fg} style={{ opacity: 0.7 }}>
+      <PixelText variant={txt} size={8} color={fg} style={{ opacity: 0.62 }}>
         {count}
       </PixelText>
     </Pressable>
