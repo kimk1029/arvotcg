@@ -18,7 +18,7 @@
 | `rewards.ts` | 활동별 포인트 보상표 |
 | `kst.ts` | KST 날짜 유틸 (kstDayStart/kstDateKey/isSameKstDay/kstDayDiff) — 고정 +9h, DST 없음 |
 | `util/shortenName.ts` | 카드명 축약 (기본 22자, maxLen 인자) |
-| `util/kreamMatch.ts` `util/autoPriceSize.ts` `util/color.ts` | KREAM 매칭, 가격 폰트 자동축소, 색 혼합(mixHex) |
+| `util/kreamMatch.ts` `util/autoPriceSize.ts` | KREAM 매칭, 가격 폰트 자동축소 |
 | `data/*` | 카드팩 메타, 포켓몬 한/일 이름, 세트코드 등 정적 데이터 |
 
 ## 규칙

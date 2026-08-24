@@ -31,8 +31,9 @@ function sortItems(items: PackHitCard[], sort: SortKey): PackHitCard[] {
 
 export function PackMarketSections({ cards, boxes, game, showBoxes = false }: Props) {
   const [cardSort, setCardSort] = useState<SortKey>('price-desc');
-  // null = 전체. 등급(레어도)은 상품명에서 뽑는다 (shared/cardRarity enum 단일 소스).
-  const [rarity, setRarity] = useState<RarityId | null>(null);
+  // 빈 배열 = 전체. 등급(레어도)은 상품명에서 뽑는다 (shared/cardRarity 단일 소스).
+  // 다중 선택 — 'SAR + UR' 처럼 여러 등급을 함께 볼 수 있다.
+  const [selected, setSelected] = useState<RarityId[]>([]);
 
   // 카드별 등급 + 등급별 개수 — 이 팩에 실제로 있는 고등급만 칩으로 노출(높은 등급 먼저).
   const { rarityOf, rarityCounts } = useMemo(() => {
@@ -53,10 +54,13 @@ export function PackMarketSections({ cards, boxes, game, showBoxes = false }: Pr
     };
   }, [cards, game]);
 
-  const visibleCards = useMemo(
-    () => (rarity ? cards.filter((hit) => rarityOf.get(hit.apparelId) === rarity) : cards),
-    [cards, rarityOf, rarity],
-  );
+  const visibleCards = useMemo(() => {
+    if (selected.length === 0) return cards;
+    return cards.filter((hit) => {
+      const id = rarityOf.get(hit.apparelId);
+      return !!id && selected.includes(id);
+    });
+  }, [cards, rarityOf, selected]);
   const sortedCards = useMemo(() => sortItems(visibleCards, cardSort), [visibleCards, cardSort]);
   const sortedBoxes = useMemo(() => sortItems(boxes, 'price-desc'), [boxes]);
 
@@ -65,14 +69,22 @@ export function PackMarketSections({ cards, boxes, game, showBoxes = false }: Pr
       <MarketSection
         title="싱글카드 시세"
         count={cards.length}
-        filteredCount={rarity ? visibleCards.length : null}
+        filteredCount={selected.length > 0 ? visibleCards.length : null}
         items={sortedCards}
         sort={cardSort}
         onSort={setCardSort}
         chips={
           // 고등급이 하나도 없으면(스포츠 카드 등) 필터가 의미 없어 숨긴다.
           rarityCounts.length > 0 ? (
-            <RarityChips options={rarityCounts} total={cards.length} value={rarity} onChange={setRarity} />
+            <RarityChips
+              options={rarityCounts}
+              total={cards.length}
+              selected={selected}
+              onToggle={(id) =>
+                setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+              }
+              onClear={() => setSelected([])}
+            />
           ) : null
         }
         emptyText="이 팩의 싱글카드 매물을 가져오지 못했어요."
@@ -90,31 +102,42 @@ export function PackMarketSections({ cards, boxes, game, showBoxes = false }: Pr
   );
 }
 
-/** 등급 필터 칩 — 작은 라벨, 누르면 그 등급 카드만. 색은 등급 enum(RARITY_META)에서. */
+/**
+ * 등급 필터 칩 — 작은 라벨. 여러 개를 눌러 함께 볼 수 있다(SAR + UR).
+ * 선택된 칩만 등급색(RARITY_META), 나머지는 무채색으로 죽여 비활성으로 보이게 한다.
+ */
 function RarityChips({
   options,
   total,
-  value,
-  onChange,
+  selected,
+  onToggle,
+  onClear,
 }: {
   options: Array<{ id: RarityId; count: number }>;
   total: number;
-  value: RarityId | null;
-  onChange: (next: RarityId | null) => void;
+  selected: RarityId[];
+  onToggle: (id: RarityId) => void;
+  onClear: () => void;
 }) {
+  const allOn = selected.length === 0;
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 10 }} role="group" aria-label="등급 필터">
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 10 }} role="group" aria-label="등급 필터 (중복 선택 가능)">
       <button
         type="button"
-        className={`rar-chip${value === null ? ' on' : ''}`}
-        aria-pressed={value === null}
-        onClick={() => onChange(null)}
+        className={`rar-chip${allOn ? ' on' : ''}`}
+        aria-pressed={allOn}
+        style={
+          allOn
+            ? { background: 'var(--ink)', color: 'var(--white)' }
+            : { background: 'var(--pap2)', color: 'var(--ink3)' }
+        }
+        onClick={onClear}
       >
         전체<span className="rar-chip-n">{total}</span>
       </button>
       {options.map((opt) => {
         const meta = rarityMetaOf(opt.id);
-        const on = value === opt.id;
+        const on = selected.includes(opt.id);
         return (
           <button
             key={opt.id}
@@ -123,12 +146,13 @@ function RarityChips({
             title={meta.name}
             aria-label={`${meta.label} ${meta.name} ${opt.count}개`}
             aria-pressed={on}
-            // 비활성은 등급색 옅은 틴트, 활성은 등급색 전체 — MUR 은 황금색.
-            style={{
-              background: on ? meta.bg : `color-mix(in srgb, ${meta.bg} 18%, var(--white))`,
-              color: on ? meta.fg : 'var(--ink)',
-            }}
-            onClick={() => onChange(on ? null : opt.id)}
+            // 선택 = 등급색 그대로(MUR 은 황금색), 비선택 = 무채색 비활성.
+            style={
+              on
+                ? { background: meta.bg, color: meta.fg }
+                : { background: 'var(--pap2)', color: 'var(--ink3)' }
+            }
+            onClick={() => onToggle(opt.id)}
           >
             {meta.label}<span className="rar-chip-n">{opt.count}</span>
           </button>

@@ -13,7 +13,6 @@ import { useThemeColors, useThemeTextVariant, useTheme } from '@/components/Them
 import { isFlatTheme } from '@/lib/theme';
 import { fetchPackHits, type PackHitCard, type PackWithHits } from '@/lib/myApi';
 import { filterRarityOf, rarityMetaOf, resolveRarityGame, sortRarityIds, type RarityId } from '@/lib/cardRarity';
-import { mixHex } from '@/lib/color';
 import { useSWR } from '@/lib/swr';
 import { useCurrency } from '@/components/CurrencyProvider';
 
@@ -39,8 +38,9 @@ export default function PackDetailScreen() {
   const [sort, setSort] = useState<SortMode>('price');
   const [sortOpen, setSortOpen] = useState(false);
   const [view, setView] = useState<ViewMode>('grid');
-  // null = 전체. 등급(레어도)은 상품명에서 뽑는다 (shared/cardRarity enum 단일 소스).
-  const [rarity, setRarity] = useState<RarityId | null>(null);
+  // 빈 배열 = 전체. 등급(레어도)은 상품명에서 뽑는다 (shared/cardRarity 단일 소스).
+  // 다중 선택 — 'SAR + UR' 처럼 여러 등급을 함께 볼 수 있다(웹 동일).
+  const [selected, setSelected] = useState<RarityId[]>([]);
   // SWR — 팩 상세 재진입 즉시 페인트. fetchPackHits 자체 캐시(15분)와 같은 TTL.
   const { data, loading, error, refresh } = useSWR<PackWithHits | null>(
     `packs:detail:${code}`,
@@ -74,10 +74,15 @@ export default function PackDetailScreen() {
       })),
     };
   }, [singles, game]);
-  const visibleSingles = useMemo(
-    () => (rarity ? singles.filter((h) => rarityOf.get(h.apparelId) === rarity) : singles),
-    [singles, rarityOf, rarity],
-  );
+  const visibleSingles = useMemo(() => {
+    if (selected.length === 0) return singles;
+    return singles.filter((h) => {
+      const id = rarityOf.get(h.apparelId);
+      return !!id && selected.includes(id);
+    });
+  }, [singles, rarityOf, selected]);
+  const toggleRarity = (id: RarityId) =>
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const cards = useMemo(() => sortHits(visibleSingles, sort), [visibleSingles, sort]);
   const sortedBoxes = useMemo(() => sortHits(boxes, 'price'), [boxes]);
 
@@ -153,7 +158,7 @@ export default function PackDetailScreen() {
                   ) : null}
                   <PixelText variant={txt} size={8} color={tc.white} style={{ opacity: 0.85, letterSpacing: 0.3 }} numberOfLines={1}>
                     🎴 가격 있는 카드 {data.hits.length}장
-                    {rarity ? ` · ${rarity} ${visibleSingles.length}장` : ''}
+                    {selected.length > 0 ? ` · ${selected.join('+')} ${visibleSingles.length}장` : ''}
                   </PixelText>
                 </View>
               </View>
@@ -288,9 +293,9 @@ export default function PackDetailScreen() {
               <RarityChip
                 label="전체"
                 count={singles.length}
-                on={rarity === null}
+                on={selected.length === 0}
                 flat={flat}
-                onPress={() => setRarity(null)}
+                onPress={() => setSelected([])}
               />
               {rarityCounts.map((opt) => {
                 const meta = rarityMetaOf(opt.id);
@@ -302,9 +307,9 @@ export default function PackDetailScreen() {
                     count={opt.count}
                     color={meta.bg}
                     textOn={meta.fg}
-                    on={rarity === opt.id}
+                    on={selected.includes(opt.id)}
                     flat={flat}
-                    onPress={() => setRarity((prev) => (prev === opt.id ? null : opt.id))}
+                    onPress={() => toggleRarity(opt.id)}
                   />
                 );
               })}
@@ -316,7 +321,7 @@ export default function PackDetailScreen() {
             {data.hits.length === 0 ? (
               <EmptyState icon="📭" title="매물 정보를 가져오지 못했어요" ctaLabel="다시 시도" onCtaPress={refresh} />
             ) : cards.length === 0 ? (
-              <EmptyState icon="🔍" title={`${rarity} 등급 카드가 없어요`} ctaLabel="전체 보기" onCtaPress={() => setRarity(null)} />
+              <EmptyState icon="🔍" title={`${selected.join('+')} 등급 카드가 없어요`} ctaLabel="전체 보기" onCtaPress={() => setSelected([])} />
             ) : view === 'grid' ? (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
                 {cards.map((hit) => (
@@ -363,7 +368,10 @@ export default function PackDetailScreen() {
   );
 }
 
-/** 등급 필터 칩 — 작은 라벨 + 개수. 색은 등급 enum(RARITY_META), 비활성은 옅은 틴트. */
+/**
+ * 등급 필터 칩 — 작은 라벨 + 개수. 여러 개를 눌러 함께 볼 수 있다(웹 RarityChips 대응).
+ * 선택 = 등급색(RARITY_META) 그대로, 비선택 = 무채색으로 죽여 비활성처럼 보이게.
+ */
 function RarityChip({
   label,
   name,
@@ -377,7 +385,7 @@ function RarityChip({
   label: string;
   name?: string;
   count: number;
-  /** 등급색 — '전체' 칩은 없음(테마색 사용). */
+  /** 등급색 — '전체' 칩은 없음(무채색 고정). */
   color?: string;
   textOn?: string;
   on: boolean;
@@ -386,16 +394,8 @@ function RarityChip({
 }) {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
-  const bg = color
-    ? on
-      ? color
-      : mixHex(color, tc.white, 0.18)
-    : on
-      ? flat
-        ? tc.ink
-        : tc.gold
-      : tc.white;
-  const fg = color ? (on ? (textOn ?? tc.white) : tc.ink) : on ? (flat ? tc.white : tc.ink) : tc.ink2;
+  const bg = on ? (color ?? (flat ? tc.ink : tc.gold)) : tc.pap2;
+  const fg = on ? (color ? (textOn ?? tc.white) : flat ? tc.white : tc.ink) : tc.ink3;
   return (
     <Pressable
       accessibilityRole="button"
@@ -410,7 +410,7 @@ function RarityChip({
         paddingVertical: 4,
         backgroundColor: bg,
         borderWidth: 1,
-        borderColor: flat ? (on ? bg : tc.pap3) : tc.ink,
+        borderColor: on ? (flat ? bg : tc.ink) : flat ? tc.pap3 : tc.ink,
         borderRadius: flat ? 999 : 0,
       }}
     >

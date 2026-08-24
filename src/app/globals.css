@@ -3587,10 +3587,10 @@ a{color:inherit;text-decoration:none;}
 
 /* 등급 필터 칩 — 알약, 하드섀도우 제거. 배경/글자색은 등급 enum 인라인 스타일 유지 */
 :is([data-theme="clean"],[data-theme="dark"],[data-theme="yugioh"],[data-theme="onepiece"]) .rar-chip{
-  border-radius:var(--r-pill);box-shadow:none;transform:none;
+  border:1px solid var(--pap3);border-radius:var(--r-pill);box-shadow:none;transform:none;
   padding:5px 10px;font-size:10px;font-weight:700;letter-spacing:0;}
 :is([data-theme="clean"],[data-theme="dark"],[data-theme="yugioh"],[data-theme="onepiece"]) .rar-chip.on{
-  box-shadow:none;transform:none;}
+  border-color:transparent;box-shadow:none;transform:none;}
 :is([data-theme="clean"],[data-theme="dark"],[data-theme="yugioh"],[data-theme="onepiece"]) .rar-chip-n{font-size:9px;}
 
 /* 정렬/뷰 버튼 — 작은 라운드, 하드 섀도우 제거, 활성=에메랄드 */
