@@ -118,3 +118,87 @@ export function detectRarity(
   }
   return 'C';
 }
+
+/* ------------------------------------------------------------------ *
+ * 목록 등급 필터 (팩 상세 싱글카드 리스트) — 웹/앱 공용
+ * ------------------------------------------------------------------ */
+
+/** 등급 토큰이 없는 카드(스포츠·미표기 커먼 등)를 담는 묶음 라벨. */
+export const OTHER_RARITY_LABEL = '기타';
+
+/**
+ * 필터 칩 정렬 순서 (낮은 등급 → 높은 등급). 포켓몬 구·신 표기에 원피스(L/P/SEC)·
+ * 유희왕(SE/PSE/UL) 토큰까지 포함한다. 목록에 없는 토큰은 알파벳순으로 뒤에 붙고,
+ * OTHER_RARITY_LABEL 은 언제나 마지막.
+ */
+const RARITY_LABEL_ORDER: string[] = [
+  'C', 'U', 'UC', 'N', 'R', 'RR', 'RRR', 'K', 'S', 'SSR',
+  'AR', 'SR', 'SAR', 'HR', 'UR', 'MA', 'MUR', 'CHR', 'BWR',
+  'SE', 'PSE', 'UL', 'L', 'P', 'SEC',
+];
+
+/** 등급 토큰 후보 — 'SAR' 'UR' 'R-SP' 'SR+' 처럼 대문자/숫자와 -,+ 조합만. */
+const RARITY_TOKEN_RE = /^[A-Z][A-Z0-9]{0,4}(?:[-+][A-Z0-9]{1,4})*$/;
+
+/** 등급이 아니라 카드 종류를 뜻하는 접미사 — 토큰으로 오인하지 않는다. */
+const NON_RARITY_TOKENS = new Set([
+  'EX', 'GX', 'V', 'VMAX', 'VSTAR', 'BREAK', 'LV', 'X', 'PSA', 'BGS', 'DX',
+]);
+
+/**
+ * 스니덩크 상품명에서 부가 표기를 떼어낸다 — 카드번호 대괄호부터 뒤 전부,
+ * 중간 괄호 설명, 콜론 뒤 파생 표기.
+ *   'Zekrom ex SAR [SV11B 169/086](Expansion Pack "Black Bolt")' → 'Zekrom ex SAR'
+ *   "Professor's Research (Professor Sada) SR[SV1S 099/078]"     → "Professor's Research SR"
+ *   'Volcarona R :Master Ball Mirror [SV11B 019/086]'            → 'Volcarona R'
+ */
+function stripNameDecorations(raw: string): string {
+  return raw
+    .replace(/[[［].*$/s, ' ')
+    .replace(/[(（][^)）]*[)）]/g, ' ')
+    .replace(/[:：].*$/s, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * 상품명 구조로 등급 토큰을 뽑는다 — 카드명 뒤쪽에서부터 첫 등급 토큰.
+ * detectRarity 의 부분 문자열 탐색과 달리 포켓몬 외 게임(원피스 SEC/L, 유희왕 PSE/UL)
+ * 토큰도 그대로 살리고, 등급 표기가 없는 카드(스포츠)는 null 을 준다.
+ * 파생 표기는 기준 등급으로 합친다 ('SR-SPC' → 'SR').
+ */
+export function extractRarityToken(
+  ...names: Array<string | null | undefined>
+): string | null {
+  for (const raw of names) {
+    if (!raw) continue;
+    const parts = stripNameDecorations(raw).split(' ').filter(Boolean);
+    // 뒤에서부터 — 'Roronoa Zoro SR Parallel' 처럼 꼬리말이 붙어도 등급을 찾는다.
+    // 첫 토큰(index 0)은 카드 이름 자체라 후보에서 제외.
+    for (let i = parts.length - 1; i >= 1; i -= 1) {
+      const tok = parts[i];
+      if (!RARITY_TOKEN_RE.test(tok)) continue;
+      const base = tok.split(/[-+]/)[0];
+      if (!base || NON_RARITY_TOKENS.has(base)) continue;
+      return base;
+    }
+  }
+  return null;
+}
+
+/** 필터 칩에 쓸 라벨 — 토큰이 없으면 '기타'. */
+export function rarityLabelOf(
+  ...names: Array<string | null | undefined>
+): string {
+  return extractRarityToken(...names) ?? OTHER_RARITY_LABEL;
+}
+
+/** 라벨 정렬 — RARITY_LABEL_ORDER → 미지 토큰(알파벳) → '기타'. */
+export function sortRarityLabels(labels: string[]): string[] {
+  const rank = (label: string): number => {
+    if (label === OTHER_RARITY_LABEL) return Number.MAX_SAFE_INTEGER;
+    const i = RARITY_LABEL_ORDER.indexOf(label);
+    return i === -1 ? RARITY_LABEL_ORDER.length : i;
+  };
+  return [...labels].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+}

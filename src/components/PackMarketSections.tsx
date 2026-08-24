@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { PackGridCard } from '@/components/PackGridCard';
 import type { PackHitCard } from '@/lib/cardPackHits';
+import { rarityLabelOf, sortRarityLabels } from '@/lib/cardRarity';
 
 type SortKey = 'price-desc' | 'recent-sale' | 'listing-desc';
 
@@ -28,7 +29,32 @@ function sortItems(items: PackHitCard[], sort: SortKey): PackHitCard[] {
 
 export function PackMarketSections({ cards, boxes, showBoxes = false }: Props) {
   const [cardSort, setCardSort] = useState<SortKey>('price-desc');
-  const sortedCards = useMemo(() => sortItems(cards, cardSort), [cards, cardSort]);
+  // null = 전체. 등급(레어도) 라벨은 상품명에서 뽑는다 (shared/cardRarity 단일 소스).
+  const [rarity, setRarity] = useState<string | null>(null);
+
+  // 카드별 등급 라벨 + 라벨별 개수 — 실제로 존재하는 등급만 칩으로 노출한다.
+  const { labelOf, rarityCounts } = useMemo(() => {
+    const map = new Map<number, string>();
+    const counts = new Map<string, number>();
+    for (const hit of cards) {
+      const label = rarityLabelOf(hit.name, hit.koName);
+      map.set(hit.apparelId, label);
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+    return {
+      labelOf: map,
+      rarityCounts: sortRarityLabels([...counts.keys()]).map((label) => ({
+        label,
+        count: counts.get(label) ?? 0,
+      })),
+    };
+  }, [cards]);
+
+  const visibleCards = useMemo(
+    () => (rarity ? cards.filter((hit) => labelOf.get(hit.apparelId) === rarity) : cards),
+    [cards, labelOf, rarity],
+  );
+  const sortedCards = useMemo(() => sortItems(visibleCards, cardSort), [visibleCards, cardSort]);
   const sortedBoxes = useMemo(() => sortItems(boxes, 'price-desc'), [boxes]);
 
   return (
@@ -36,9 +62,16 @@ export function PackMarketSections({ cards, boxes, showBoxes = false }: Props) {
       <MarketSection
         title="싱글카드 시세"
         count={cards.length}
+        filteredCount={rarity ? visibleCards.length : null}
         items={sortedCards}
         sort={cardSort}
         onSort={setCardSort}
+        chips={
+          // 등급이 한 종류뿐이면(스포츠 카드 등) 필터가 의미 없어 숨긴다.
+          rarityCounts.length > 1 ? (
+            <RarityChips options={rarityCounts} total={cards.length} value={rarity} onChange={setRarity} />
+          ) : null
+        }
         emptyText="이 팩의 싱글카드 매물을 가져오지 못했어요."
       />
 
@@ -54,19 +87,63 @@ export function PackMarketSections({ cards, boxes, showBoxes = false }: Props) {
   );
 }
 
+/** 등급 필터 칩 — 작은 라벨, 누르면 그 등급 카드만 남는다. */
+function RarityChips({
+  options,
+  total,
+  value,
+  onChange,
+}: {
+  options: Array<{ label: string; count: number }>;
+  total: number;
+  value: string | null;
+  onChange: (next: string | null) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }} role="group" aria-label="등급 필터">
+      <button
+        type="button"
+        className={`cv-chip${value === null ? ' on' : ''}`}
+        aria-pressed={value === null}
+        onClick={() => onChange(null)}
+      >
+        전체 {total}
+      </button>
+      {options.map((opt) => {
+        const on = value === opt.label;
+        return (
+          <button
+            key={opt.label}
+            type="button"
+            className={`cv-chip${on ? ' on' : ''}`}
+                aria-pressed={on}
+            onClick={() => onChange(on ? null : opt.label)}
+          >
+            {opt.label} {opt.count}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function MarketSection({
   title,
   count,
+  filteredCount = null,
   items,
   sort,
   onSort,
+  chips = null,
   emptyText,
 }: {
   title: string;
   count: number;
+  filteredCount?: number | null;
   items: PackHitCard[];
   sort?: SortKey;
   onSort?: (sort: SortKey) => void;
+  chips?: ReactNode;
   emptyText: string;
 }) {
   return (
@@ -74,7 +151,9 @@ function MarketSection({
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: 'var(--f1)', fontSize: 15, letterSpacing: 0.4 }}>{title}</div>
-          <div style={{ fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink3)', marginTop: 4 }}>{count}개 매물</div>
+          <div style={{ fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink3)', marginTop: 4 }}>
+            {filteredCount === null ? `${count}개 매물` : `${filteredCount}개 매물 · 전체 ${count}개`}
+          </div>
         </div>
         {sort && onSort ? (
           <select
@@ -98,6 +177,8 @@ function MarketSection({
           </select>
         ) : null}
       </div>
+
+      {chips}
 
       {items.length === 0 ? (
         <div
