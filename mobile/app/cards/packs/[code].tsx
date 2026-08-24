@@ -12,7 +12,7 @@ import { ThumbImage } from '@/components/cv/ThumbImage';
 import { useThemeColors, useThemeTextVariant, useTheme } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import { fetchPackHits, type PackHitCard, type PackWithHits } from '@/lib/myApi';
-import { filterRarityOf, rarityMetaOf, sortRarityIds, type RarityId } from '@/lib/cardRarity';
+import { filterRarityOf, rarityMetaOf, resolveRarityGame, sortRarityIds, type RarityId } from '@/lib/cardRarity';
 import { mixHex } from '@/lib/color';
 import { useSWR } from '@/lib/swr';
 import { useCurrency } from '@/components/CurrencyProvider';
@@ -51,24 +51,29 @@ export default function PackDetailScreen() {
   // 웹 packs/[code]/page.tsx 동일 — itemKind 로 싱글/박스 분리.
   const singles = useMemo(() => (data?.hits ?? []).filter((h) => h.itemKind !== 'box'), [data?.hits]);
   const boxes = useMemo(() => (data?.hits ?? []).filter((h) => h.itemKind === 'box'), [data?.hits]);
+  // 등급 사다리는 게임마다 다르다 — 카탈로그 우선, 없으면 카드명에서 추론(웹 packs/[code] 동일).
+  const game = useMemo(
+    () => resolveRarityGame(code, singles.map((h) => h.name)),
+    [code, singles],
+  );
   // 웹 PackMarketSections 동일 — 카드별 등급 + 등급별 개수(이 팩에 있는 고등급만, 높은 등급 먼저).
   const { rarityOf, rarityCounts } = useMemo(() => {
     const map = new Map<number, RarityId>();
     const counts = new Map<RarityId, number>();
     for (const hit of singles) {
-      const id = filterRarityOf(hit.name, hit.koName);
+      const id = filterRarityOf(game, hit.name, hit.koName);
       if (!id) continue;
       map.set(hit.apparelId, id);
       counts.set(id, (counts.get(id) ?? 0) + 1);
     }
     return {
       rarityOf: map,
-      rarityCounts: sortRarityIds([...counts.keys()]).map((id) => ({
+      rarityCounts: sortRarityIds(game, [...counts.keys()]).map((id) => ({
         id,
         count: counts.get(id) ?? 0,
       })),
     };
-  }, [singles]);
+  }, [singles, game]);
   const visibleSingles = useMemo(
     () => (rarity ? singles.filter((h) => rarityOf.get(h.apparelId) === rarity) : singles),
     [singles, rarityOf, rarity],

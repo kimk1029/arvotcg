@@ -12,7 +12,7 @@
 | `snkrdunkPrice.ts` | **시세 계산 규칙 전부** — computeApparelPrices(최근 7건 중앙값+등급오염 2.5배 컷), registerBasisJpy(등록가), headlinePriceFromHistory, trendChangePct |
 | `cardTranslate.ts` | 카드명 한/영/일 번역 엔진 (작품별 TERMS_BY_GAME) |
 | `cardStatics.ts` | 카드명/품번 → 게임·세트코드·카드번호·레어도 파싱 (**DB 적재용**) |
-| `cardRarity.ts` | **등급 enum**(RARITY_IDS/RARITY_META — 라벨·색·높은등급순 정렬) + 상품명에서 등급 토큰 추출 (**화면 표시용**: 필터 칩·배지) |
+| `cardRarity.ts` | **게임별 등급 사다리**(RARITY_LADDER_BY_GAME — 포켓몬/원피스/유희왕 각각 높은등급순) + 라벨·색 표(RARITY_META) + 상품명에서 등급 토큰 추출 (**화면 표시용**: 필터 칩·배지) |
 | `currency.ts` | 통화 모드(¥/₩)·환율 포맷 formatPrice |
 | `numberFormat.ts` | 천단위 콤마 포맷 |
 | `rewards.ts` | 활동별 포인트 보상표 |

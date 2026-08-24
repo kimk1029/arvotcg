@@ -4,6 +4,7 @@ import { StatusBar } from '@/components/ui/StatusBar';
 import { PackMarketSections } from '@/components/PackMarketSections';
 import { serverFetch } from '@/lib/apiServer';
 import type { PackWithHits } from '@/lib/cardPackHits';
+import { resolveRarityGame } from '@/lib/cardRarity';
 
 export const revalidate = 900;
 
@@ -26,6 +27,8 @@ export default async function PackDetailPage({ params }: Params) {
 
   const cards = pack.hits.filter((hit) => hit.itemKind === 'single');
   const boxes = pack.hits.filter((hit) => hit.itemKind === 'box');
+  // 등급 사다리 선택용 게임 — 카탈로그 우선, 없으면 카드명에서 추론.
+  const game = resolveRarityGame(code, cards.map((hit) => hit.name));
 
   return (
     <>
@@ -77,7 +80,7 @@ export default async function PackDetailPage({ params }: Params) {
         </div>
       </div>
 
-      <PackMarketSections cards={cards} boxes={boxes} />
+      <PackMarketSections cards={cards} boxes={boxes} game={game} />
 
       <div className="bggap" />
     </>

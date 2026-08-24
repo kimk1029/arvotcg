@@ -3,13 +3,15 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { PackGridCard } from '@/components/PackGridCard';
 import type { PackHitCard } from '@/lib/cardPackHits';
-import { filterRarityOf, rarityMetaOf, sortRarityIds, type RarityId } from '@/lib/cardRarity';
+import { filterRarityOf, rarityMetaOf, sortRarityIds, type RarityGame, type RarityId } from '@/lib/cardRarity';
 
 type SortKey = 'price-desc' | 'recent-sale' | 'listing-desc';
 
 interface Props {
   cards: PackHitCard[];
   boxes: PackHitCard[];
+  /** 등급 사다리는 게임마다 다르다 — 팩의 게임(포켓몬/원피스/유희왕/스포츠). */
+  game: RarityGame;
   showBoxes?: boolean;
 }
 
@@ -27,7 +29,7 @@ function sortItems(items: PackHitCard[], sort: SortKey): PackHitCard[] {
   });
 }
 
-export function PackMarketSections({ cards, boxes, showBoxes = false }: Props) {
+export function PackMarketSections({ cards, boxes, game, showBoxes = false }: Props) {
   const [cardSort, setCardSort] = useState<SortKey>('price-desc');
   // null = 전체. 등급(레어도)은 상품명에서 뽑는다 (shared/cardRarity enum 단일 소스).
   const [rarity, setRarity] = useState<RarityId | null>(null);
@@ -37,19 +39,19 @@ export function PackMarketSections({ cards, boxes, showBoxes = false }: Props) {
     const map = new Map<number, RarityId>();
     const counts = new Map<RarityId, number>();
     for (const hit of cards) {
-      const id = filterRarityOf(hit.name, hit.koName);
+      const id = filterRarityOf(game, hit.name, hit.koName);
       if (!id) continue;
       map.set(hit.apparelId, id);
       counts.set(id, (counts.get(id) ?? 0) + 1);
     }
     return {
       rarityOf: map,
-      rarityCounts: sortRarityIds([...counts.keys()]).map((id) => ({
+      rarityCounts: sortRarityIds(game, [...counts.keys()]).map((id) => ({
         id,
         count: counts.get(id) ?? 0,
       })),
     };
-  }, [cards]);
+  }, [cards, game]);
 
   const visibleCards = useMemo(
     () => (rarity ? cards.filter((hit) => rarityOf.get(hit.apparelId) === rarity) : cards),
