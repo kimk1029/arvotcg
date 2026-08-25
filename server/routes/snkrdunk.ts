@@ -78,13 +78,22 @@ function parseApparelId(raw: unknown, res: Response): number | null {
  * 가격은 최신 스냅샷을 그대로 주고, 오래됐으면 응답 후 백그라운드 갱신(SWR).
  */
 
-/** '007' → ['7','007'] — 저장 표기가 padded/unpadded 둘 다라 양쪽으로 찾는다. */
+/**
+ * 번호 표기 후보.
+ *   '007'   → ['007','7']       저장 표기가 padded/unpadded 둘 다라 양쪽으로 찾는다.
+ *   'JP027' → ['JP027','027','27']  유희왕은 지역코드가 번호에 붙어 저장된다.
+ */
 function numberVariants(raw: string): string[] {
-  const digits = raw.replace(/[^0-9]/g, '');
-  if (!digits) return [];
-  const bare = digits.replace(/^0+(?=\d)/, '');
-  const padded = bare.padStart(3, '0');
-  return bare === padded ? [bare] : [bare, padded];
+  const trimmed = raw.trim().toUpperCase();
+  const out: string[] = [];
+  if (trimmed) out.push(trimmed);
+  const digits = trimmed.replace(/[^0-9]/g, '');
+  if (digits) {
+    const bare = digits.replace(/^0+(?=\d)/, '');
+    const padded = bare.padStart(3, '0');
+    for (const v of [padded, bare]) if (!out.includes(v)) out.push(v);
+  }
+  return out;
 }
 
 interface CodeCard {
