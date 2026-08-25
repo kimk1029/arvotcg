@@ -159,17 +159,20 @@ export async function recordPriceSnapshot(
  */
 export async function ensureCatalogCard(apparelId: number): Promise<void> {
   try {
-    const exists = await prisma.snkrdunkCard.findUnique({
-      where: { apparelId },
-      select: { apparelId: true },
-    });
-    if (exists) return;
-    const a = await fetchSnkrdunkApparel(apparelId);
-    if (!a) return;
-    await upsertCatalogCard(a);
-    if (a.minPrice > 0) {
-      await recordPriceSnapshot(apparelId, { minPrice: a.minPrice, listingCount: a.listingCount });
-    }
+    // 카드 행 + 시세 스냅샷이 **둘 다** 있어야 "우리 DB 에 있다"고 본다.
+    // 행만 있고 스냅샷이 없는 카드(검색 결과 적재분이 그렇다)는 컬렉션 조회에서
+    // blocking 라이브 조회 대상이 되어 로딩을 잡아먹는다.
+    const [row, snap] = await Promise.all([
+      prisma.snkrdunkCard.findUnique({ where: { apparelId }, select: { apparelId: true } }),
+      prisma.snkrdunkPriceSnapshot.findFirst({
+        where: { apparelId },
+        select: { id: true },
+        orderBy: { fetchedAt: 'desc' },
+      }),
+    ]);
+    if (row && snap) return;
+    // 정적 정보 + 풀 시세(싱글/PSA10/추이)를 한 번에 적재 — 라이브 갱신과 같은 경로.
+    await refreshApparelPrices(apparelId);
   } catch (err) {
     console.error('[snkrdunkCatalog.ensure]', apparelId, err);
   }

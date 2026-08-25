@@ -532,6 +532,8 @@ model SnkrdunkCard {
   updatedAt      DateTime @updatedAt
 
   @@index([packCode])
+  /// 스캔·직접입력의 "세트코드+카드번호" 즉시 조회용 (앱 카메라 스캔 fast path).
+  @@index([setCode, cardNumber])
   @@map("snkrdunk_cards")
 }
 

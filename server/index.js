@@ -17,7 +17,8 @@ import { dirname, join } from 'node:path';
 import { shutdown } from './lib/ocr.js';
 import { matchCandidates } from './lib/match.js';
 import { visionExtract, visionAvailable } from './lib/vision.js';
-import { paddleScan, paddleHealthcheck } from './lib/paddle.js';
+import { paddleScan, paddleHealthcheck, paddleExtract } from './lib/paddle.js';
+import { parseScannedCardCode, isUsableCardCode } from '../shared/cardCode.ts';
 import { lookupCard, searchTcgdexByName } from './lib/lookup.js';
 import { lookupIllustrator, searchTcgdexByIllustrator } from './lib/illustrator.js';
 import { dominantNeonForUrl } from './lib/imageColor.js';
@@ -56,6 +57,7 @@ import reportsRouter from './routes/reports.ts';
 import cardLangRouter from './routes/cardLang.ts';
 import { startPriceAlertScheduler } from './lib/priceAlerts.ts';
 import { startDailyPriceSnapshotScheduler } from './lib/dailyPriceSnapshot.ts';
+import { startCollectionBackfill } from './lib/collectionBackfill.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEBUG_DIR = join(__dirname, 'debug');
@@ -335,6 +337,52 @@ async function recordScanLog({
     },
   });
 }
+
+/**
+ * 코드 전용 경량 스캔 — 카메라 fast path 의 **서버 폴백**.
+ *
+ * 앱은 카드 좌하단만 잘라 온디바이스(ML Kit)로 먼저 읽고, 실패했을 때만 그 조각을
+ * 여기로 보낸다. 전체 /scan 과 달리 이름·일러스트·TCGdex·스니덩 매칭을 전혀 하지
+ * 않고 **세트코드/카드번호/레어도만** 돌려준다 (뒤 검색은 /api/snkrdunk/by-code 가 함).
+ */
+app.post('/api/cards/scan-code', requireAuth, scanRateLimit, upload.single('image'), async (req, res) => {
+  const startedAt = Date.now();
+  const file = req.file;
+  if (!file) return res.status(400).json({ ok: false, code: null, message: 'image 파일이 필요합니다.' });
+
+  /** @type {string[]} */
+  let lines = [];
+  let engine = 'none';
+  try {
+    const r = await paddleExtract(file.buffer);
+    if (r?.lines?.length) {
+      lines = r.lines.map((l) => String(l.text ?? '')).filter(Boolean);
+      engine = 'paddle';
+    }
+  } catch (e) {
+    console.warn('[scan-code] paddle 실패:', e?.message ?? e);
+  }
+  // Paddle 사이드카가 없거나 아무것도 못 읽었으면 Vision 으로 한 번 더 (설정된 경우).
+  if (lines.length === 0 && visionAvailable()) {
+    try {
+      const v = await visionExtract(file.buffer);
+      const d = v?.data;
+      if (d) {
+        lines = [d.setCode, d.cardNumber && d.totalNumber ? `${d.cardNumber}/${d.totalNumber}` : d.cardNumber, d.rarity]
+          .filter(Boolean)
+          .map(String);
+        engine = 'vision';
+      }
+    } catch (e) {
+      console.warn('[scan-code] vision 실패:', e?.message ?? e);
+    }
+  }
+
+  const code = parseScannedCardCode(lines);
+  const ok = isUsableCardCode(code);
+  console.log(`[scan-code] ${Date.now() - startedAt}ms engine=${engine} set=${code.setCode} num=${code.cardNumber} rar=${code.rarity} ok=${ok}`);
+  res.json({ ok, engine, code, durationMs: Date.now() - startedAt });
+});
 
 app.post('/api/cards/scan', requireAuth, scanRateLimit, upload.single('image'), async (req, res) => {
   const startedAt = Date.now();
@@ -769,6 +817,8 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   startCardImageWarmer();
   // 일일 시세 스냅샷 — 매일 새벽 3시(KST) 카탈로그 전체 순회, 가격 통계용 히스토리 적재.
   startDailyPriceSnapshotScheduler();
+  // 컬렉션 카드 DB 보증 — 스냅샷이 없는 보유 카드를 부팅 후/주기적으로 메운다.
+  startCollectionBackfill();
 });
 
 const exit = async () => {

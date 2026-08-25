@@ -11,8 +11,10 @@ import {
   fetchSnkrdunkApparelGroup,
 } from '@/lib/snkrdunk';
 import {
+  CATALOG_PRICE_TTL_MS,
   loadCatalogEntries,
   recordPriceSnapshot,
+  refreshApparelPrices,
   upsertCatalogCard,
   upsertSearchResults,
 } from '../lib/snkrdunkCatalog.js';
@@ -68,6 +70,143 @@ function parseApparelId(raw: unknown, res: Response): number | null {
   }
   return id;
 }
+
+/* ── 코드 조회 (카메라 스캔 fast path) ──────────────────────────────
+ * 앱이 카드 좌하단에서 읽은 "세트코드 + 카드번호"만으로 카드를 찾는다.
+ * 우리 DB(SnkrdunkCard) 우선 — 적재돼 있으면 스크레이핑 없이 즉시 응답.
+ * DB 에 없을 때만 스니덩 검색("SV10 125")으로 채우고 카탈로그에 적재한다.
+ * 가격은 최신 스냅샷을 그대로 주고, 오래됐으면 응답 후 백그라운드 갱신(SWR).
+ */
+
+/** '007' → ['7','007'] — 저장 표기가 padded/unpadded 둘 다라 양쪽으로 찾는다. */
+function numberVariants(raw: string): string[] {
+  const digits = raw.replace(/[^0-9]/g, '');
+  if (!digits) return [];
+  const bare = digits.replace(/^0+(?=\d)/, '');
+  const padded = bare.padStart(3, '0');
+  return bare === padded ? [bare] : [bare, padded];
+}
+
+interface CodeCard {
+  apparelId: number;
+  name: string;
+  koName: string;
+  shortName: string;
+  imageUrl: string | null;
+  /** 자체 CDN webp (없으면 null → imageUrl 폴백). */
+  cdnImageUrl: string | null;
+  setCode: string | null;
+  cardNumber: string | null;
+  rarity: string | null;
+  game: string | null;
+  minPrice: number;
+  priceSingle: number;
+  pricePsa10: number;
+  listingCount: number;
+  priceFetchedAt: string | null;
+}
+
+/** DB 에서 setCode+cardNumber 로 싱글카드를 찾아 최신 시세를 붙인다. */
+async function findByCodeInDb(setCode: string, number: string, game: string): Promise<CodeCard[]> {
+  const nums = numberVariants(number);
+  if (nums.length === 0) return [];
+  const rows = await prisma.snkrdunkCard.findMany({
+    where: {
+      itemKind: 'single',
+      setCode: { equals: setCode, mode: 'insensitive' },
+      OR: [
+        ...nums.map((n) => ({ cardNumber: n })),
+        // '125/098' 처럼 총매수까지 붙여 저장된 표기.
+        ...nums.map((n) => ({ cardNumber: { startsWith: `${n}/` } })),
+      ],
+      ...(game ? { game } : {}),
+    },
+    take: 30,
+  });
+  if (rows.length === 0) return [];
+  const entries = await loadCatalogEntries(rows.map((r) => r.apparelId));
+  return rows.map((r) => {
+    const snap = entries.get(r.apparelId)?.snapshot ?? null;
+    return {
+      apparelId: r.apparelId,
+      name: r.localizedName || r.name,
+      koName: r.koName,
+      shortName: r.shortName,
+      imageUrl: r.imageUrl,
+      cdnImageUrl: r.cdnImageUrl,
+      setCode: r.setCode,
+      cardNumber: r.cardNumber,
+      rarity: r.rarity,
+      game: r.game || null,
+      minPrice: snap?.minPrice ?? 0,
+      priceSingle: snap?.priceSingle ?? 0,
+      pricePsa10: snap?.pricePsa10 ?? 0,
+      listingCount: snap?.listingCount ?? 0,
+      priceFetchedAt: snap ? snap.fetchedAt.toISOString() : null,
+    };
+  });
+}
+
+router.get('/by-code', async (req: Request, res: Response) => {
+  const setCode = String(req.query.setCode ?? '').trim().slice(0, 12);
+  const number = String(req.query.number ?? '').trim().slice(0, 12);
+  const game = String(req.query.game ?? '').trim().slice(0, 12);
+  if (!setCode || !number) {
+    return res.status(400).json({ cards: [], source: 'none', message: 'setCode 와 number 가 필요합니다.' });
+  }
+
+  // 1) DB 우선 — 적재돼 있으면 스크레이핑 0회.
+  let cards = await findByCodeInDb(setCode, number, game);
+  let source: 'db' | 'live' = 'db';
+
+  // 2) 없으면 스니덩 코드 검색으로 채우고 다시 DB 조회 (직접입력 검색과 같은 질의).
+  if (cards.length === 0) {
+    try {
+      const results = await fetchSnkrdunkSearch(`${setCode} ${number}`, 1);
+      if (results.length > 0) {
+        await upsertSearchResults(results);
+        cards = await findByCodeInDb(setCode, number, game);
+        // 검색어가 코드라 결과가 곧 후보 — 파싱이 어긋나 DB 매칭이 비면 그대로 노출.
+        if (cards.length === 0) {
+          const entries = await loadCatalogEntries(results.map((r) => r.apparelId));
+          cards = results.slice(0, 30).map((r) => {
+            const e = entries.get(r.apparelId);
+            const snap = e?.snapshot ?? null;
+            return {
+              apparelId: r.apparelId,
+              name: r.name,
+              koName: '',
+              shortName: r.name,
+              imageUrl: r.imageUrl,
+              cdnImageUrl: null,
+              setCode: e?.setCode ?? null,
+              cardNumber: null,
+              rarity: null,
+              game: e?.game ?? null,
+              minPrice: snap?.minPrice ?? 0,
+              priceSingle: snap?.priceSingle ?? 0,
+              pricePsa10: snap?.pricePsa10 ?? 0,
+              listingCount: snap?.listingCount ?? 0,
+              priceFetchedAt: snap ? snap.fetchedAt.toISOString() : null,
+            };
+          });
+        }
+        source = 'live';
+      }
+    } catch (err) {
+      console.warn('[snkrdunk.by-code] 라이브 검색 실패', setCode, number, err);
+    }
+  }
+
+  res.json({ cards, source });
+
+  // 3) 시세가 없거나 오래된 카드는 응답 후 갱신 — "볼 때 가격이 갱신된다".
+  const stale = cards
+    .filter((c) => !c.priceFetchedAt || Date.now() - Date.parse(c.priceFetchedAt) > CATALOG_PRICE_TTL_MS)
+    .slice(0, 8)
+    .map((c) => c.apparelId);
+  if (stale.length > 0) void Promise.allSettled(stale.map((id) => refreshApparelPrices(id)));
+});
 
 router.get('/apparels/:id', async (req: Request, res: Response) => {
   const apparelId = parseApparelId(req.params.id, res);

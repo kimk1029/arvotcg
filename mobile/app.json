@@ -50,6 +50,12 @@
           "cameraPermission": "카드를 스캔하려면 카메라 접근이 필요합니다."
         }
       ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "카드를 촬영해 세트코드·번호를 읽으려면 카메라 접근이 필요합니다."
+        }
+      ],
       "expo-web-browser",
       [
         "expo-build-properties",

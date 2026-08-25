@@ -23,6 +23,7 @@ import {
   useFonts as usePressStart2P,
   PressStart2P_400Regular,
 } from '@expo-google-fonts/press-start-2p';
+import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { PhoneShell } from '@/components/PhoneShell';
 import { ActionTracker } from '@/components/ActionTracker';
 import { ChromeProvider } from '@/components/ChromeContext';
@@ -127,6 +128,8 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
+      {/* 렌더 예외를 여기서 잡아 빈 화면 대신 복구 UI 를 보여준다. */}
+      <AppErrorBoundary>
       <ThemeProvider>
         <CurrencyProvider>
           <ToastProvider>
@@ -159,6 +162,7 @@ export default function RootLayout() {
           </ToastProvider>
         </CurrencyProvider>
       </ThemeProvider>
+      </AppErrorBoundary>
     </SafeAreaProvider>
   );
 }

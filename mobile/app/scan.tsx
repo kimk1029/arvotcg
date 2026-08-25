@@ -10,7 +10,10 @@ import { Chip } from '@/components/cv/Chip';
 import { RarBadge } from '@/components/cv/RarBadge';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { PixelPress } from '@/components/cv/PixelPress';
-import { CardScanner, type CapturedCard } from '@/components/cv/CardScanner';
+import { CardCamera } from '@/components/cv/CardCamera';
+import type { CapturedCard } from '@/components/cv/CardScanner';
+import { FastScanResults } from '@/components/cv/FastScanResults';
+import { useFastScan } from '@/lib/useFastScan';
 import { ScanPreview } from '@/components/cv/ScanPreview';
 import { BatchScanPreview } from '@/components/cv/BatchScanPreview';
 import { useChrome } from '@/components/ChromeContext';
@@ -93,7 +96,7 @@ function manSetKeyOf(c: CardItem): string | null {
 }
 import type { GuideRect, ScanLanguage } from '@/types/cardScan';
 
-type Mode = 'choose' | 'camera' | 'preview' | 'batch' | 'manual' | 'register' | 'result' | 'batchResult';
+type Mode = 'choose' | 'camera' | 'preview' | 'batch' | 'manual' | 'register' | 'result' | 'batchResult' | 'fastResult';
 
 export default function ScanScreen() {
   // 서버 /api/cards/scan 이 로그인 필수가 됨 — 미로그인은 게이트만 렌더.
@@ -131,6 +134,8 @@ function ScanScreenInner() {
   }>();
   const initRef = useRef(false);
   const [mode, setMode] = useState<Mode>('choose');
+  // 카메라 fast scan — 찍는 즉시 좌하단 코드 인식 → 코드로 카드 조회(백그라운드).
+  const fastScan = useFastScan();
   const [found, setFound] = useState<CardItem | null>(null);
   const [batchFound, setBatchFound] = useState<CardItem[]>([]);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -463,23 +468,21 @@ function ScanScreenInner() {
   };
 
   if (mode === 'camera') {
+    // 카드 비율 가이드 + 연속 촬영. 한 장 찍힐 때마다 인식/조회가 바로 시작되고,
+    // '완료'를 누르면 카드별 탭 결과 화면으로 넘어간다.
     return (
-      <CardScanner
-        onCancel={() => setMode('choose')}
-        onCaptured={(items) => {
-          if (items.length === 0) {
-            setMode('choose');
+      <CardCamera
+        shotCount={fastScan.shots.length}
+        recentThumbs={fastScan.shots.map((s) => s.cardUri)}
+        onCancel={() => {
+          if (fastScan.shots.length > 0) {
+            setMode('fastResult');
             return;
           }
-          if (items.length === 1) {
-            setPhotoUri(items[0].uri);
-            setPhotoMeta(items[0].meta);
-            setMode('preview');
-          } else {
-            setCaptures(items);
-            setMode('batch');
-          }
+          setMode('choose');
         }}
+        onCaptured={(shot) => fastScan.addShot(shot)}
+        onDone={() => setMode('fastResult')}
       />
     );
   }
@@ -542,6 +545,30 @@ function ScanScreenInner() {
             addCards(cards);
             setBatchFound(cards);
             setMode('batchResult');
+          }}
+        />
+      ) : mode === 'fastResult' ? (
+        <FastScanResults
+          shots={fastScan.shots}
+          onAddMore={() => setMode('camera')}
+          onRemove={(id) => {
+            fastScan.removeShot(id);
+            if (fastScan.shots.length <= 1) setMode('camera');
+          }}
+          onPrecise={(shot) => {
+            // 코드 인식 실패분 → 기존 전체 AI 스캔(ScanPreview)으로 넘긴다.
+            setPhotoUri(shot.cardUri);
+            setPhotoMeta({
+              guideRect: { x: 0, y: 0, w: 1, h: 1 },
+              imageWidth: 900,
+              imageHeight: Math.round((900 * 88) / 63),
+              capturedAt: shot.capturedAt,
+            });
+            setMode('preview');
+          }}
+          onPickCard={(card) => {
+            // 코드로 찾은 카드 → 시세 상세(등록 진입 포함)로. 웹 검색 결과와 같은 목적지.
+            router.push(`/cards/snkrdunk/${card.apparelId}` as never);
           }}
         />
       ) : mode === 'batchResult' ? (

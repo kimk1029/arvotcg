@@ -344,3 +344,44 @@ export async function recoverSnkrdunkApparelId(card: {
   }
   return null;
 }
+
+/* ── 코드 조회 (카메라 스캔 fast path) ─────────────────────────────── */
+
+/** `/api/snkrdunk/by-code` 응답 1건. 서버가 우리 DB 우선으로 채워 준다. */
+export interface CardByCode {
+  apparelId: number;
+  name: string;
+  koName: string;
+  shortName: string;
+  imageUrl: string | null;
+  cdnImageUrl: string | null;
+  setCode: string | null;
+  cardNumber: string | null;
+  rarity: string | null;
+  game: string | null;
+  minPrice: number;
+  priceSingle: number;
+  pricePsa10: number;
+  listingCount: number;
+  priceFetchedAt: string | null;
+}
+
+/**
+ * 세트코드 + 카드번호로 카드 찾기 — 스캔 결과 화면의 단일 조회 경로.
+ * 서버가 DB 에 있으면 즉시, 없으면 스니덩 코드검색 후 적재해서 돌려준다.
+ */
+export async function fetchCardsByCode(
+  setCode: string,
+  cardNumber: string,
+  game?: string | null,
+): Promise<{ cards: CardByCode[]; source: 'db' | 'live' | 'none' }> {
+  const set = setCode.trim();
+  const num = cardNumber.trim();
+  if (!set || !num) return { cards: [], source: 'none' };
+  const g = game && game !== 'other' ? `&game=${encodeURIComponent(game)}` : '';
+  const r = await getProxy<{ cards?: CardByCode[]; source?: 'db' | 'live' }>(
+    `/api/snkrdunk/by-code?setCode=${encodeURIComponent(set)}&number=${encodeURIComponent(num)}${g}`,
+    12000,
+  );
+  return { cards: r?.cards ?? [], source: r?.source ?? 'none' };
+}

@@ -36,7 +36,17 @@ interface ApiOpts {
   /** Bearer 자동 첨부 여부. 기본 true. */
   auth?: boolean;
   signal?: AbortSignal;
+  /** 응답 대기 상한(ms). 호출자가 signal 을 직접 주면 무시. 기본 DEFAULT_TIMEOUT_MS. */
+  timeoutMs?: number;
 }
+
+/**
+ * 기본 요청 타임아웃.
+ * 모바일 네트워크가 끊기거나 서버가 응답을 물고 있으면 fetch 는 스스로 끝나지
+ * 않는다 — 타임아웃이 없으면 화면이 로딩 스피너에 영원히 갇힌다(에러 처리도 못 탐).
+ * 호출자가 signal 을 넘기면 그쪽 정책을 존중하고 여기선 손대지 않는다.
+ */
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 export async function api<T>(path: string, opts: ApiOpts = {}): Promise<T> {
   const url = `${getApiBaseUrl()}${path}`;
@@ -49,19 +59,28 @@ export async function api<T>(path: string, opts: ApiOpts = {}): Promise<T> {
     if (auth) headers['Authorization'] = auth;
   }
 
+  // 호출자 signal 이 없을 때만 기본 타임아웃을 건다(있으면 그쪽이 수명 관리).
+  const controller = opts.signal ? null : new AbortController();
+  const timer = controller
+    ? setTimeout(() => controller.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+    : null;
+
   let res: Response;
   try {
     res = await fetch(url, {
       method: opts.method ?? 'GET',
       headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-      signal: opts.signal,
+      signal: opts.signal ?? controller?.signal,
     });
   } catch (err) {
+    const aborted = controller?.signal.aborted === true;
     // 전송 단계 실패 — 원인 추적용으로 메서드·경로를 메시지에 포함 (토스트에 그대로 노출).
-    const cause = err instanceof Error ? err.message : 'network';
+    const cause = aborted ? '요청 시간 초과' : err instanceof Error ? err.message : 'network';
     console.warn('[api] transport fail:', opts.method ?? 'GET', url, cause);
     throw new ApiError(0, null, `${cause} — ${opts.method ?? 'GET'} ${path}`);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 
   const txt = await res.text();
