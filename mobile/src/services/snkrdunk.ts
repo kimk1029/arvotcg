@@ -379,7 +379,7 @@ export async function fetchCardsByCode(
   const num = cardNumber.trim();
   if (!set || !num) return { cards: [], source: 'none' };
   const g = game && game !== 'other' ? `&game=${encodeURIComponent(game)}` : '';
-  const r = await getProxy<{ cards?: CardByCode[]; source?: 'db' | 'live' }>(
+  const r = await getProxy<{ cards?: CardByCode[]; source?: 'db' | 'live' | 'none' }>(
     `/api/snkrdunk/by-code?setCode=${encodeURIComponent(set)}&number=${encodeURIComponent(num)}${g}`,
     12000,
   );

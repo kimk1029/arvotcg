@@ -20,6 +20,7 @@ import {
 } from '../lib/snkrdunkCatalog.js';
 import { getCachedCardImageUrl } from '../lib/cardImageCache.js';
 import { computeApparelPrices } from '../../shared/snkrdunkPrice';
+import { parseCardStatics } from '../../shared/cardStatics';
 
 const router = Router();
 
@@ -166,7 +167,7 @@ router.get('/by-code', async (req: Request, res: Response) => {
 
   // 1) DB 우선 — 적재돼 있으면 스크레이핑 0회.
   let cards = await findByCodeInDb(setCode, number, game);
-  let source: 'db' | 'live' = 'db';
+  let source: 'db' | 'live' | 'none' = 'db';
 
   // 2) 없으면 스니덩 코드 검색으로 채우고 다시 DB 조회 (직접입력 검색과 같은 질의).
   if (cards.length === 0) {
@@ -175,10 +176,19 @@ router.get('/by-code', async (req: Request, res: Response) => {
       if (results.length > 0) {
         await upsertSearchResults(results);
         cards = await findByCodeInDb(setCode, number, game);
-        // 검색어가 코드라 결과가 곧 후보 — 파싱이 어긋나 DB 매칭이 비면 그대로 노출.
+        // DB 매칭이 비면 검색 결과를 그대로 쓰되, **코드가 실제로 일치하는 것만**.
+        // 스니덩 검색은 'SV8A 345' 에 다른 세트의 345번(SV4a)을 섞어 주는데,
+        // 스캔 결과는 그대로 컬렉션 등록으로 이어지므로 틀린 카드를 노출하면 안 된다.
         if (cards.length === 0) {
-          const entries = await loadCatalogEntries(results.map((r) => r.apparelId));
-          cards = results.slice(0, 30).map((r) => {
+          const wanted = new Set(numberVariants(number));
+          const matched = results.filter((r) => {
+            const st = parseCardStatics(r.name);
+            if (!st.setCode || st.setCode.toUpperCase() !== setCode.toUpperCase()) return false;
+            const num = (st.cardNumber ?? '').split('/')[0].toUpperCase();
+            return wanted.has(num);
+          });
+          const entries = await loadCatalogEntries(matched.map((r) => r.apparelId));
+          cards = matched.slice(0, 30).map((r) => {
             const e = entries.get(r.apparelId);
             const snap = e?.snapshot ?? null;
             return {
@@ -200,7 +210,7 @@ router.get('/by-code', async (req: Request, res: Response) => {
             };
           });
         }
-        source = 'live';
+        source = cards.length > 0 ? 'live' : 'none';
       }
     } catch (err) {
       console.warn('[snkrdunk.by-code] 라이브 검색 실패', setCode, number, err);
