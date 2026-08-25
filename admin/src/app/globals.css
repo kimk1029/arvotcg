@@ -83,3 +83,37 @@ pre.code{background:#0F172A;color:#E2E8F0;border-radius:8px;padding:14px 16px;ma
 form.search{display:flex;gap:8px;margin-bottom:16px;}
 form.search input{flex:1;padding:8px 12px;border:1px solid #CBD5E1;border-radius:5px;font-size:13px;}
 form.search button{padding:8px 16px;background:#3B82F6;color:#fff;border:none;border-radius:5px;cursor:pointer;}
+
+/* ── 로그인 페이지 (풀스크린 오버레이 — admin-shell 위를 덮음) ── */
+.login-wrap{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(160deg,#0F172A 0%,#1E293B 55%,#134E4A 100%);}
+.login-card{width:340px;background:#fff;border-radius:14px;padding:30px 28px;
+  box-shadow:0 20px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:14px;}
+.login-brand{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
+.login-logo{width:44px;height:44px;border-radius:12px;background:#129782;color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;}
+.login-title{font-size:17px;font-weight:800;color:#0F172A;letter-spacing:.2px;}
+.login-sub{font-size:12px;color:#64748B;margin-top:2px;}
+.login-label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:#475569;font-weight:600;}
+.login-input{height:40px;border:1px solid #CBD5E1;border-radius:8px;padding:0 12px;font-size:14px;outline:none;}
+.login-input:focus{border-color:#129782;box-shadow:0 0 0 3px rgba(18,151,130,.15);}
+.login-error{font-size:12px;color:#B91C1C;background:#FEF2F2;border-radius:8px;padding:9px 12px;}
+.login-btn{height:42px;border:none;border-radius:8px;background:#129782;color:#fff;font-size:14px;
+  font-weight:700;cursor:pointer;margin-top:4px;}
+.login-btn:hover{background:#0E7A6A;}
+.login-btn:disabled{opacity:.5;cursor:default;}
+
+/* 사이드바 로그아웃 */
+.admin-logout{margin:14px 10px 0;padding:9px 14px;width:calc(100% - 20px);text-align:left;
+  background:none;border:none;color:#94A3B8;font-size:13px;border-radius:6px;cursor:pointer;
+  display:flex;align-items:center;gap:10px;}
+.admin-logout:hover{background:#334155;color:#fff;}
+
+/* 대시보드 도넛/섹션 헤더 */
+.sect-h{font-size:15px;font-weight:700;color:#0F172A;margin:26px 0 12px;display:flex;align-items:center;gap:8px;}
+.sect-h .dot{width:8px;height:8px;border-radius:99px;background:#129782;display:inline-block;}
+.donut-wrap{display:flex;align-items:center;gap:18px;}
+.donut-legend{display:flex;flex-direction:column;gap:7px;font-size:12px;color:#475569;}
+.donut-legend .row{display:flex;align-items:center;gap:8px;}
+.donut-legend .sw{width:10px;height:10px;border-radius:3px;display:inline-block;}
+.donut-legend b{color:#0F172A;font-variant-numeric:tabular-nums;}

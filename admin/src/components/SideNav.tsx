@@ -27,7 +27,7 @@ export function SideNav() {
   return (
     <aside className="admin-side">
       <div className="admin-brand">
-        카드볼드 Admin
+        ARVOTCG Admin
         <small>운영 대시보드</small>
       </div>
       <nav className="admin-nav">
@@ -47,6 +47,17 @@ export function SideNav() {
           );
         })}
       </nav>
+      <button
+        type="button"
+        className="admin-logout"
+        onClick={async () => {
+          await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+          window.location.href = '/login';
+        }}
+      >
+        <span>🚪</span>
+        <span>로그아웃</span>
+      </button>
     </aside>
   );
 }

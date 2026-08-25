@@ -3,6 +3,7 @@ import { DeltaStat } from '@/components/DeltaStat';
 import { HourlyChart } from '@/components/HourlyChart';
 import { SignupSparkline } from '@/components/SignupSparkline';
 import { RankBars } from '@/components/RankBars';
+import { DonutChart } from '@/components/DonutChart';
 import { prisma } from '@/lib/prisma';
 import { fmtDate } from '@/lib/format';
 
@@ -210,8 +211,40 @@ async function loadStats() {
       points: actorMap.get(a.userId as string)?.points ?? 0,
     }));
 
+  // ── 운영(모더레이션·활동) 지표 — 2차 배치 (기존 튜플 건드리지 않음) ──
+  const [reportsByStatusRaw, blocksCount, cardsCount, scansToday, searchesToday, tradeByStatusRaw, recentReports] =
+    await Promise.all([
+      one(prisma.contentReport.groupBy({ by: ['status'], _count: { _all: true } }),
+        [] as Array<{ status: string; _count: { _all: number } }>),
+      one(prisma.userBlock.count(), 0),
+      one(prisma.userCard.count(), 0),
+      one(prisma.scanLog.count({ where: { createdAt: { gte: startToday } } }), 0),
+      one(prisma.searchLog.count({ where: { createdAt: { gte: startToday } } }), 0),
+      one(prisma.trade.groupBy({ by: ['status'], _count: { _all: true } }),
+        [] as Array<{ status: string; _count: { _all: number } }>),
+      one(prisma.contentReport.findMany({
+        where: { status: 'open' },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: { id: true, targetType: true, targetId: true, reason: true, snapshot: true, createdAt: true },
+      }), [] as Array<{ id: number; targetType: string; targetId: string; reason: string; snapshot: string | null; createdAt: Date }>),
+    ]);
+  const countOf = (rows: Array<{ status: string; _count: { _all: number } }>, s: string) =>
+    rows.find((r) => r.status === s)?._count._all ?? 0;
+
   return {
     ok: true as const,
+    ops: {
+      reportsOpen: countOf(reportsByStatusRaw, 'open'),
+      reportsResolved: countOf(reportsByStatusRaw, 'resolved'),
+      reportsDismissed: countOf(reportsByStatusRaw, 'dismissed'),
+      blocksCount, cardsCount, scansToday, searchesToday,
+      tradeOpen: countOf(tradeByStatusRaw, 'open'),
+      tradeReserved: countOf(tradeByStatusRaw, 'reserved'),
+      tradeDone: countOf(tradeByStatusRaw, 'done'),
+      tradeCancelled: countOf(tradeByStatusRaw, 'cancelled'),
+    },
+    recentReports,
     stats: { users, feedsAll, feedsToday, trades, messagesAll, unread,
       viewsToday, uniqueIpsToday, uniqueUsersToday,
       signupsToday, signupsYesterday, visitorsYesterday, loginsYesterday, viewsYesterday },
@@ -268,7 +301,7 @@ function buildSignups14(rows: Array<{ createdAt: Date }>) {
 
 export default async function Page() {
   const data = await loadStats();
-  const { stats, topPaths, recentVisits, dailySeries, recentFeeds, recentUsers, hourly, signups14,
+  const { stats, ops, recentReports, topPaths, recentVisits, dailySeries, recentFeeds, recentUsers, hourly, signups14,
     topClicks, topSearches, topPages7d, topActors } = data;
 
   // 14일 시리즈: DB 에 없는 날은 0 으로 채워 차트에 빈 칸 안 생기게
@@ -285,6 +318,60 @@ export default async function Page() {
         <DeltaStat label="오늘 접속자" value={stats.uniqueIpsToday} prev={stats.visitorsYesterday} accent="#0EA5E9" sub="고유 IP" />
         <DeltaStat label="오늘 로그인" value={stats.uniqueUsersToday} prev={stats.loginsYesterday} accent="#10B981" sub="고유 유저" />
         <DeltaStat label="오늘 페이지뷰" value={stats.viewsToday} prev={stats.viewsYesterday} sub="전체 PV" />
+        <Stat label="오늘 검색" value={ops.searchesToday} sub="카드 검색 실행" />
+        <Stat label="오늘 스캔" value={ops.scansToday} sub="카드 카메라 인식" />
+      </div>
+
+      {/* ── 운영 알림 & 상태 분포 ─────────────────────────────── */}
+      <h2 style={{ fontSize: 14, color: '#475569', margin: '20px 0 10px', letterSpacing: 0.3 }}>
+        🛡 운영 현황 {ops.reportsOpen > 0 ? <span style={{ fontSize: 11, fontWeight: 700, color: '#B91C1C', background: '#FEF2F2', padding: '2px 8px', borderRadius: 999, marginLeft: 6 }}>신고 {ops.reportsOpen}건 대기</span> : <span style={{ fontSize: 11, color: '#15803D' }}>· 대기 신고 없음</span>}
+      </h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 16 }}>
+        <section className="card">
+          <h2>🤝 거래글 상태 분포</h2>
+          <DonutChart
+            centerLabel="거래글"
+            slices={[
+              { label: '거래 중', value: ops.tradeOpen, color: '#3B82F6' },
+              { label: '예약 중', value: ops.tradeReserved, color: '#F59E0B' },
+              { label: '거래 완료', value: ops.tradeDone, color: '#10B981' },
+              { label: '취소', value: ops.tradeCancelled, color: '#CBD5E1' },
+            ]}
+          />
+        </section>
+        <section className="card">
+          <h2>🚩 신고 처리 현황</h2>
+          <DonutChart
+            centerLabel="신고"
+            slices={[
+              { label: '접수(대기)', value: ops.reportsOpen, color: '#EF4444' },
+              { label: '조치됨', value: ops.reportsResolved, color: '#10B981' },
+              { label: '기각', value: ops.reportsDismissed, color: '#CBD5E1' },
+            ]}
+          />
+          <div className="muted" style={{ marginTop: 10 }}>차단 관계 {ops.blocksCount.toLocaleString()}건 · 조치는 웹 /admin/reports 에서</div>
+        </section>
+        <section className="card">
+          <h2>⏳ 최근 접수 신고</h2>
+          {recentReports.length === 0 ? (
+            <div className="muted" style={{ padding: 12 }}>대기 중인 신고가 없어요 🎉</div>
+          ) : (
+            <table className="tbl">
+              <tbody>
+                {recentReports.map((r) => (
+                  <tr key={r.id}>
+                    <td style={{ width: 90 }}><span className="tag tag-report">{r.targetType}</span></td>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{r.reason}</div>
+                      <div className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>{r.snapshot ?? `#${r.targetId}`}</div>
+                    </td>
+                    <td className="muted" style={{ width: 84, textAlign: 'right' }}>{fmtDate(r.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(420px,1fr))', gap: 16, marginTop: 6 }}>
@@ -354,6 +441,7 @@ export default async function Page() {
         <Stat label="오늘 피드" value={stats.feedsToday} />
         <Stat label="거래글" value={stats.trades} />
         <Stat label="쪽지" value={stats.messagesAll} sub={`미읽음 ${stats.unread}건`} />
+        <Stat label="컬렉션 카드" value={ops.cardsCount} sub="등록된 보유 카드" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(360px,1fr))', gap: 16, marginTop: 20 }}>

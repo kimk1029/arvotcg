@@ -4,7 +4,7 @@ import { SideNav } from '@/components/SideNav';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '카드볼드 Admin',
+  title: 'ARVOTCG Admin',
   robots: { index: false, follow: false },
 };
 
