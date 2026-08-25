@@ -123,8 +123,13 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
   const go = (s: HeroSlideData) => {
     const href = hrefOf(s);
     if (!href) return;
-    if (/^https?:\/\//i.test(href)) Linking.openURL(href).catch(() => {});
-    else router.push(href as never);
+    if (/^https?:\/\//i.test(href)) {
+      // http(s) 링크는 범용 인앱 웹뷰(/web)로 — 어드민이 배너에 URL 만 넣으면
+      // 앱 업데이트 없이 새 이벤트 페이지를 열 수 있다 (우리 도메인엔 토큰 자동 첨부).
+      router.push({ pathname: '/web', params: { url: href, title: s.badge ?? '이벤트' } } as never);
+    } else {
+      router.push(href as never);
+    }
   };
 
   const track = (
