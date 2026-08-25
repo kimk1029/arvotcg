@@ -40,7 +40,8 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "production"
+        "EXPO_PUBLIC_APP_ENV": "production",
+        "EXPO_PUBLIC_API_ORIGIN_PROD": "https://api.arvotcg.com"
       }
     }
   },
