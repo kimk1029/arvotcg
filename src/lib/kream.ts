@@ -73,7 +73,38 @@ export function parseKreamSearchHtml(html: string): KreamItem[] {
   return out;
 }
 
+/**
+ * KREAM 릴레이 — KREAM 안티봇이 데이터센터 IP(Vultr·Vercel 등)를 차단하므로,
+ * 메인 API 서버를 클라우드로 옮기면 KREAM 요청만 국내 가정용 IP(NAS)의
+ * 릴레이 서버를 경유한다.
+ *
+ *   · KREAM_RELAY_ORIGIN 설정됨(클라우드 인스턴스): 직접 스크레이핑 대신
+ *     `${origin}/api/kream/search` 를 호출해 결과를 그대로 사용.
+ *   · 미설정(NAS 인스턴스): 기존대로 직접 스크레이핑.
+ *
+ * ⚠️ NAS(릴레이 제공자) 쪽에는 이 env 를 절대 설정하지 말 것 — 자기 자신을
+ *    호출하는 루프가 된다. 캐시는 호출자(fetchKreamSearch) 계층에서 동일하게
+ *    적용되므로 릴레이 결과도 로컬 캐시되어 NAS 부하를 줄인다.
+ */
+const KREAM_RELAY_ORIGIN = (process.env.KREAM_RELAY_ORIGIN ?? '').replace(/\/$/, '');
+
+async function fetchKreamViaRelay(q: string): Promise<KreamItem[]> {
+  try {
+    const res = await fetch(
+      `${KREAM_RELAY_ORIGIN}/api/kream/search?q=${encodeURIComponent(q)}`,
+      { signal: AbortSignal.timeout(12_000) },
+    );
+    if (!res.ok) return [];
+    const body = (await res.json()) as { items?: KreamItem[] };
+    return Array.isArray(body.items) ? body.items : [];
+  } catch (err) {
+    console.warn('[kream.relay] fetch failed', err instanceof Error ? err.message : err);
+    return [];
+  }
+}
+
 async function fetchKreamRaw(q: string): Promise<KreamItem[]> {
+  if (KREAM_RELAY_ORIGIN) return fetchKreamViaRelay(q);
   try {
     const res = await fetch(kreamSearchUrl(q), {
       headers: {
