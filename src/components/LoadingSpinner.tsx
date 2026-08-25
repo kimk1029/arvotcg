@@ -49,16 +49,29 @@ export function LoadingSpinner({ size = 56, percent, hidePercent }: Props) {
         aria-hidden
       />
       {hidePercent ? null : (
-        <div
-          style={{
-            fontFamily: 'var(--f1)',
-            fontSize: 11,
-            color: 'var(--ink)',
-            letterSpacing: 1,
-          }}
-        >
-          {shown}%
-        </div>
+        <>
+          <div
+            style={{
+              fontFamily: 'var(--f1)',
+              fontSize: 11,
+              color: 'var(--ink)',
+              letterSpacing: 1,
+            }}
+          >
+            {shown}%
+          </div>
+          <div
+            style={{
+              fontSize: 10,
+              fontStyle: 'italic',
+              color: 'var(--ink3)',
+              opacity: 0.85,
+              marginTop: -4,
+            }}
+          >
+            첫 로딩 시에만 시간이 걸려요
+          </div>
+        </>
       )}
     </div>
   );

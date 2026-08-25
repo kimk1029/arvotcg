@@ -20,6 +20,9 @@ export function LoadingState() {
       <PixelText variant="pixel" size={9} color={colors.ink3} style={{ marginTop: 12 }}>
         불러오는 중… {pct}%
       </PixelText>
+      <PixelText variant="ko" size={8} color={colors.ink3} style={{ marginTop: 6, fontStyle: 'italic', opacity: 0.85 }}>
+        첫 로딩 시에만 시간이 걸려요
+      </PixelText>
     </View>
   );
 }
