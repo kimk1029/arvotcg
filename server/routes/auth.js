@@ -123,6 +123,8 @@ router.post('/apple/native', async (req, res) => {
         id: userId,
         name: givenName || defaultNameFor(userId),
         ...(email ? { email } : {}),
+        // Sign in with Apple 은 iOS 앱 전용 경로.
+        signupPlatform: 'mobile',
       },
     });
     const token = await signSession({
@@ -179,6 +181,8 @@ router.get('/callback/:provider', async (req, res) => {
         id: userId,
         name: displayName,
         ...(info.email ? { email: info.email } : {}),
+        // 가입 경로 기록 — 어드민 회원 관리에서 앱/웹 구분 표시.
+        signupPlatform: state.p === 'mobile' ? 'mobile' : 'web',
       },
     });
 

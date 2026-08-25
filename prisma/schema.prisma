@@ -38,6 +38,9 @@ model User {
   ownedBackgrounds String[]  @default(["default"])
   ownedFrames      String[]  @default(["none"])
 
+  /// 가입 플랫폼 — 'web' | 'mobile'(앱). 최초 가입(create) 시 기록. null = 컬럼 도입 전 가입.
+  signupPlatform String?
+
   trades           Trade[]
   feeds            Feed[]
   feedComments     FeedComment[]

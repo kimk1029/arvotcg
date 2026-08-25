@@ -35,6 +35,7 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
       take: PAGE_SIZE,
       select: {
         id: true, name: true, email: true, avatarId: true, points: true,
+        signupPlatform: true,
         createdAt: true, updatedAt: true,
         _count: { select: {
           feeds: true, trades: true, bookmarks: true,
@@ -54,6 +55,7 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
     email: u.email,
     avatarId: u.avatarId,
     points: u.points,
+    signupPlatform: u.signupPlatform,
     createdAt: u.createdAt.toISOString(),
     updatedAt: u.updatedAt.toISOString(),
     counts: u._count,
