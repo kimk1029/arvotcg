@@ -1,18 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, View, Image, Pressable, Text } from 'react-native';
+import { ScrollView, View, Image, Pressable } from 'react-native';
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import { router } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { LoadingState } from '@/components/cv/ListState';
-import { ThumbImage } from '@/components/cv/ThumbImage';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { usePriceMode } from '@/lib/priceMode';
-import {
-  fetchPortfolio, fetchMyCards, fetchMyFavorites,
-  type PortfolioSummary, type MyCardRow, type MyFavoriteRow,
-} from '@/lib/myApi';
+import { fetchPortfolio, fetchMyCards, type PortfolioSummary, type MyCardRow } from '@/lib/myApi';
 import { colors } from '@/theme/tokens';
 import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
@@ -47,8 +43,6 @@ export default function PortfolioPage() {
   const [sort, setSort] = useState<'value' | 'change'>('value');
   const [filter, setFilter] = useState<Filter>('all');
   const [range, setRange] = useState<Range>(30);
-  // 내 자산 ↔ 관심카드 탭 (웹 AssetsTabs 페어)
-  const [tab, setTab] = useState<'assets' | 'favorites'>('assets');
 
   useEffect(() => {
     let alive = true;
@@ -131,11 +125,8 @@ export default function PortfolioPage() {
 
   return (
     <View style={{ flex: 1, backgroundColor: bodyBg }}>
-      <AppBar onBack={() => router.push('/my' as never)} title={tab === 'assets' ? '내 자산' : '관심카드'} />
-      <AssetTabBar tab={tab} setTab={setTab} ink={flat ? WHITE : tc.ink} dim={flat ? W38 : tc.ink3} />
-      {tab === 'favorites' ? (
-        <FavoritesPanel flat={flat} tc={tc} txt={txt} format={format} />
-      ) : err ? (
+      <AppBar onBack={() => router.push('/my' as never)} title="포트폴리오" />
+      {err ? (
         <View style={{ padding: 30, alignItems: 'center' }}>
           <PixelText variant={txt} size={11} color={flat ? DOWN : tc.red}>⚠ {err}</PixelText>
         </View>
@@ -522,111 +513,6 @@ export default function PortfolioPage() {
 }
 
 /** KPI 셀 (픽셀) — 웹 Kpi 동일 (3열 그리드). */
-/** 내 자산 ↔ 관심카드 탭 — 활성 타이틀이 크게, 비활성은 작게 (웹 TitleSwapTabs 페어). */
-function AssetTabBar({
-  tab, setTab, ink, dim,
-}: {
-  tab: 'assets' | 'favorites';
-  setTab: (t: 'assets' | 'favorites') => void;
-  ink: string;
-  dim: string;
-}) {
-  const item = (id: 'assets' | 'favorites', label: string) => {
-    const on = tab === id;
-    return (
-      <Pressable key={id} onPress={() => setTab(id)} hitSlop={8}>
-        <Text style={{ fontSize: on ? 20 : 15, fontWeight: '900', color: on ? ink : dim, letterSpacing: -0.5 }}>
-          {label}
-        </Text>
-      </Pressable>
-    );
-  };
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 12, paddingHorizontal: 18, paddingBottom: 10 }}>
-      {item('assets', '내 자산')}
-      {item('favorites', '관심카드')}
-    </View>
-  );
-}
-
-/** 관심카드 목록 — 카드별 하루 등락(전일 대비)까지 표시. */
-function FavoritesPanel({
-  flat, tc, txt, format,
-}: {
-  flat: boolean;
-  tc: ReturnType<typeof useThemeColors>;
-  txt: 'pixel' | 'ko';
-  format: (jpy: number) => string;
-}) {
-  const [rows, setRows] = useState<MyFavoriteRow[] | null>(null);
-  useEffect(() => {
-    fetchMyFavorites().then(setRows).catch(() => setRows([]));
-  }, []);
-
-  if (rows === null) return <LoadingState />;
-  if (rows.length === 0) {
-    return (
-      <View style={{ padding: 34, alignItems: 'center', gap: 6 }}>
-        <PixelText variant={txt} size={11} color={flat ? W60 : tc.ink3}>관심카드가 없어요</PixelText>
-        <PixelText variant="ko" size={9} color={flat ? W38 : tc.ink3} style={{ textAlign: 'center', lineHeight: 15 }}>
-          시세상세에서 ⭐ 관심카드 버튼을 눌러보세요.
-        </PixelText>
-      </View>
-    );
-  }
-
-  const total = rows.reduce((sum, r) => sum + r.minPriceJpy, 0);
-
-  return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}>
-      <PixelText variant="ko" size={9} color={flat ? W60 : tc.ink3} style={{ marginBottom: 10, lineHeight: 15 }}>
-        {rows.length}개 · 합산 시세 {format(total)} · 자산 합계엔 포함되지 않아요
-      </PixelText>
-      <View style={{ gap: 8 }}>
-        {rows.map((r) => {
-          const pct = r.changePct ?? null;
-          const up = (pct ?? 0) >= 0;
-          return (
-            <Pressable
-              key={r.id}
-              onPress={() => router.push(`/cards/snkrdunk/${r.snkrdunkApparelId}` as never)}
-              style={{
-                flexDirection: 'row', alignItems: 'center', gap: 12,
-                backgroundColor: flat ? 'rgba(255,255,255,0.06)' : tc.white,
-                borderRadius: flat ? 14 : 0, borderWidth: flat ? 0 : 3, borderColor: tc.ink,
-                paddingVertical: 10, paddingHorizontal: 12,
-              }}
-            >
-              <ThumbImage uri={r.imageUrl} style={{ width: 44, height: 60, borderRadius: flat ? 7 : 0 }} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <PixelText variant={txt} size={11} color={flat ? WHITE : tc.ink} numberOfLines={1}>
-                  {r.name ?? '(이름 없음)'}
-                </PixelText>
-                <PixelText variant="ko" size={9} color={flat ? W60 : tc.ink3} style={{ marginTop: 3 }}>
-                  {new Date(r.createdAt).toLocaleDateString('ko-KR')} 추가
-                </PixelText>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <PixelText variant={txt} size={11} color={flat ? WHITE : tc.ink}>
-                  {r.minPriceJpy > 0 ? format(r.minPriceJpy) : '시세 없음'}
-                </PixelText>
-                <PixelText
-                  variant={txt}
-                  size={10}
-                  color={pct == null ? (flat ? W38 : tc.ink3) : up ? (flat ? UP : tc.red) : (flat ? DOWN : tc.blu)}
-                  style={{ marginTop: 3 }}
-                >
-                  {pct == null ? '등락 —' : `${up ? '+' : ''}${pct.toFixed(1)}% ${up ? '▲' : '▼'}`}
-                </PixelText>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-    </ScrollView>
-  );
-}
-
 function Kpi({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
