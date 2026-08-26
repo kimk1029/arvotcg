@@ -25,8 +25,11 @@ function adminEmailSet(): Set<string> {
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const token = url.searchParams.get('token');
-  const fail = (reason: string) =>
-    NextResponse.redirect(new URL(`/login?error=${reason}`, url.origin));
+  // nginx 뒤에서는 req.url 오리진이 내부 주소(localhost:3000)라 절대 URL 리다이렉트가
+  // 깨진다 — Location 을 상대 경로로 내려 프록시된 도메인을 그대로 쓰게 한다.
+  const redirect = (path: string) =>
+    new NextResponse(null, { status: 307, headers: { location: path } });
+  const fail = (reason: string) => redirect(`/login?error=${reason}`);
 
   if (!token) return fail('notoken');
 
@@ -52,7 +55,7 @@ export async function GET(req: Request) {
     return fail('forbidden');
   }
 
-  const res = NextResponse.redirect(new URL('/', url.origin));
+  const res = redirect('/');
   res.cookies.set(ADMIN_COOKIE, await createSessionToken(u.email ?? u.name ?? userId), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
