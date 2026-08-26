@@ -740,37 +740,18 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
     <div className="pagebg" style={{ fontFamily: 'var(--f1)', background: P.bg }}>
       {/* header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px 8px' }}>
-        {/* 좌측 — 로고 대신 알림·포트폴리오 아이콘. 알림은 미읽음 빨간 점(읽으면 사라짐),
-            포트폴리오는 어제 대비 등락 화살표(▲빨강/▼파랑) 인디케이터. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-          <Link href="/my/messages" aria-label={unread > 0 ? `알림 (안 읽음 ${unread}개)` : '알림'} style={{ position: 'relative', display: 'flex', color: P.ink }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.7 21a2 2 0 0 1-3.4 0" />
-            </svg>
-            {unread > 0 && (
-              <span style={{ position: 'absolute', top: 0, right: 1, width: 8, height: 8, background: RISE, borderRadius: '50%', border: '1.5px solid var(--paper)' }} />
-            )}
-          </Link>
-          <Link href="/my/portfolio" aria-label="내 포트폴리오" style={{ position: 'relative', display: 'flex', color: P.ink }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 8h12l-1 12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z" />
-              <path d="M9 8V6a3 3 0 0 1 6 0v2" />
-            </svg>
-            {portPct != null && portPct !== 0 && (
-              <span style={{ position: 'absolute', top: -6, right: -7, fontSize: 10, fontWeight: 900, lineHeight: 1, color: portPct > 0 ? P.rise : P.fall }}>
-                {portPct > 0 ? '▲' : '▼'}
-              </span>
-            )}
-          </Link>
+        <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-.5px' }}>
+          <span style={{ color: P.ink }}>ARVO</span>
+          <span style={{ color: ACCENT30 }}>TCG</span>
         </div>
-        {/* 메뉴 — 라벨이 있는 알약형 버튼 (우측). */}
+        {/* 메뉴 — 라벨이 있는 알약형 버튼. 알림·포트폴리오는 드로어 상단으로 통합 —
+            미읽음이 있으면 알약에 빨간 점으로 신호만 남긴다. */}
         <button
           type="button"
-          aria-label="메뉴 열기"
+          aria-label={unread > 0 ? `메뉴 열기 (새 알림 ${unread}개)` : '메뉴 열기'}
           onClick={() => setDrawerOpen(true)}
           style={{
-            display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+            position: 'relative', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
             height: 34, padding: '0 11px 0 10px', borderRadius: 11,
             background: P.searchBg, border: `1px solid ${P.line}`,
           }}
@@ -779,6 +760,9 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
             <path d="M3 6h18M3 12h18M3 18h18" />
           </svg>
           <span style={{ fontSize: 12.5, fontWeight: 800, color: P.ink, whiteSpace: 'nowrap' }}>메뉴</span>
+          {unread > 0 && (
+            <span style={{ position: 'absolute', top: -3, right: -3, width: 9, height: 9, background: RISE, borderRadius: '50%', border: '1.5px solid var(--paper)' }} />
+          )}
         </button>
       </div>
 
@@ -970,9 +954,39 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px 16px' }}>
-          <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-.5px' }}>
-            <span style={{ color: P.ink }}>ARVO</span>
-            <span style={{ color: ACCENT30 }}>TCG</span>
+          {/* 드로어 최상단 — 로고 대신 알림·포트폴리오 아이콘.
+              알림: 미읽음 빨간 점(읽으면 사라짐) / 포트폴리오: 어제 대비 ▲빨강·▼파랑. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            <Link
+              href="/my/messages"
+              onClick={() => setDrawerOpen(false)}
+              aria-label={unread > 0 ? `알림 (안 읽음 ${unread}개)` : '알림'}
+              style={{ position: 'relative', display: 'flex', color: P.ink }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+              </svg>
+              {unread > 0 && (
+                <span style={{ position: 'absolute', top: 0, right: 1, width: 8, height: 8, background: RISE, borderRadius: '50%', border: `1.5px solid ${P.bg}` }} />
+              )}
+            </Link>
+            <Link
+              href="/my/portfolio"
+              onClick={() => setDrawerOpen(false)}
+              aria-label="내 포트폴리오"
+              style={{ position: 'relative', display: 'flex', color: P.ink }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 8h12l-1 12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z" />
+                <path d="M9 8V6a3 3 0 0 1 6 0v2" />
+              </svg>
+              {portPct != null && portPct !== 0 && (
+                <span style={{ position: 'absolute', top: -6, right: -7, fontSize: 10, fontWeight: 900, lineHeight: 1, color: portPct > 0 ? P.rise : P.fall }}>
+                  {portPct > 0 ? '▲' : '▼'}
+                </span>
+              )}
+            </Link>
           </div>
           <button
             type="button"

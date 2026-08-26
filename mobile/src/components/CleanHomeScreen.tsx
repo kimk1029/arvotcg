@@ -820,43 +820,16 @@ export function CleanHomeScreen() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
         {/* header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 8 }}>
-          {/* 좌측 — 로고 대신 알림·포트폴리오 아이콘 (웹 CleanHome 동일).
-              알림: 미읽음 빨간 점(읽으면 사라짐) / 포트폴리오: 어제 대비 ▲빨강·▼파랑. */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-            <Pressable
-              onPress={() => router.push('/my/messages' as never)}
-              hitSlop={8}
-              accessibilityLabel={unread > 0 ? `알림 (안 읽음 ${unread}개)` : '알림'}
-            >
-              <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <Path d="M13.7 21a2 2 0 0 1-3.4 0" />
-              </Svg>
-              {unread > 0 ? (
-                <View style={{ position: 'absolute', top: 0, right: 1, width: 8, height: 8, backgroundColor: RISE, borderRadius: 4, borderWidth: 1.5, borderColor: P.bg }} />
-              ) : null}
-            </Pressable>
-            <Pressable
-              onPress={() => router.push('/my/portfolio' as never)}
-              hitSlop={8}
-              accessibilityLabel="내 포트폴리오"
-            >
-              <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                <Path d="M6 8h12l-1 12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z" />
-                <Path d="M9 8V6a3 3 0 0 1 6 0v2" />
-              </Svg>
-              {portPct != null && portPct !== 0 ? (
-                <Text style={{ position: 'absolute', top: -6, right: -7, fontSize: 10, fontWeight: '900', color: portPct > 0 ? P.rise : P.fall }}>
-                  {portPct > 0 ? '▲' : '▼'}
-                </Text>
-              ) : null}
-            </Pressable>
-          </View>
-          {/* 메뉴 — 라벨이 있는 알약형 버튼 (우측). */}
+          <Text style={ts(24, '900', P.ink)}>
+            <Text style={ts(24, '900', P.ink)}>ARVO</Text>
+            <Text style={ts(24, '900', ACCENT30)}>TCG</Text>
+          </Text>
+          {/* 메뉴 — 라벨이 있는 알약형 버튼. 알림·포트폴리오는 드로어 상단으로 통합 —
+              미읽음이 있으면 알약에 빨간 점으로 신호만 남긴다 (웹 CleanHome 동일). */}
           <Pressable
             onPress={openDrawer}
             hitSlop={6}
-            accessibilityLabel="메뉴 열기"
+            accessibilityLabel={unread > 0 ? `메뉴 열기 (새 알림 ${unread}개)` : '메뉴 열기'}
             style={{
               flexDirection: 'row', alignItems: 'center', gap: 5,
               height: 34, paddingLeft: 10, paddingRight: 11, borderRadius: 11,
@@ -867,6 +840,9 @@ export function CleanHomeScreen() {
               <Path d="M3 6h18M3 12h18M3 18h18" />
             </Svg>
             <Text style={ts(12.5, '800', P.ink)}>메뉴</Text>
+            {unread > 0 ? (
+              <View style={{ position: 'absolute', top: -3, right: -3, width: 9, height: 9, backgroundColor: RISE, borderRadius: 5, borderWidth: 1.5, borderColor: P.bg }} />
+            ) : null}
           </Pressable>
         </View>
 
@@ -1090,10 +1066,38 @@ export function CleanHomeScreen() {
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, paddingBottom: 18 }}>
-              <Text style={ts(22, '900', P.ink)}>
-                <Text style={ts(22, '900', P.ink)}>ARVO</Text>
-                <Text style={ts(22, '900', ACCENT30)}>TCG</Text>
-              </Text>
+              {/* 드로어 최상단 — 로고 대신 알림·포트폴리오 아이콘 (웹 CleanHome 동일).
+                  알림: 미읽음 빨간 점(읽으면 사라짐) / 포트폴리오: 어제 대비 ▲빨강·▼파랑. */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}>
+                <Pressable
+                  onPress={() => goFromDrawer('/my/messages')}
+                  hitSlop={8}
+                  accessibilityLabel={unread > 0 ? `알림 (안 읽음 ${unread}개)` : '알림'}
+                >
+                  <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                    <Path d="M13.7 21a2 2 0 0 1-3.4 0" />
+                  </Svg>
+                  {unread > 0 ? (
+                    <View style={{ position: 'absolute', top: 0, right: 1, width: 8, height: 8, backgroundColor: RISE, borderRadius: 4, borderWidth: 1.5, borderColor: P.bg }} />
+                  ) : null}
+                </Pressable>
+                <Pressable
+                  onPress={() => goFromDrawer('/my/portfolio')}
+                  hitSlop={8}
+                  accessibilityLabel="내 포트폴리오"
+                >
+                  <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <Path d="M6 8h12l-1 12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z" />
+                    <Path d="M9 8V6a3 3 0 0 1 6 0v2" />
+                  </Svg>
+                  {portPct != null && portPct !== 0 ? (
+                    <Text style={{ position: 'absolute', top: -6, right: -7, fontSize: 10, fontWeight: '900', color: portPct > 0 ? P.rise : P.fall }}>
+                      {portPct > 0 ? '▲' : '▼'}
+                    </Text>
+                  ) : null}
+                </Pressable>
+              </View>
               <Pressable onPress={closeDrawer} hitSlop={8} accessibilityLabel="메뉴 닫기" style={{ padding: 4 }}>
                 <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={2.2} strokeLinecap="round">
                   <Path d="M18 6 6 18M6 6l12 12" />
