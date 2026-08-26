@@ -37,7 +37,7 @@ function normalizeProvider(p: string | undefined): AuthProvider {
 }
 
 export default function OAuthWebView() {
-  const { provider } = useLocalSearchParams<{ provider?: string }>();
+  const { provider, callback } = useLocalSearchParams<{ provider?: string; callback?: string }>();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const done = useRef(false);
@@ -56,7 +56,7 @@ export default function OAuthWebView() {
     if (done.current) return;
     done.current = true;
     const token = extractOAuthToken(url);
-    if (token) persistTokenAndGoHome(token);
+    if (token) persistTokenAndGoHome(token, typeof callback === 'string' ? callback : null);
     else router.back();
   };
 

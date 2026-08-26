@@ -20,7 +20,7 @@ export type AuthProvider = 'kakao' | 'naver' | 'google';
 // OAuth 시작 오리진 — 카카오/네이버/구글 콘솔에 등록된 https Redirect URI 도메인과
 // 일치해야 한다. EXPO_PUBLIC_WEB_OAUTH_ORIGIN 으로 override 가능.
 export const WEB_OAUTH_ORIGIN =
-  process.env.EXPO_PUBLIC_WEB_OAUTH_ORIGIN ?? 'https://www.poke-30.com';
+  process.env.EXPO_PUBLIC_WEB_OAUTH_ORIGIN ?? 'https://www.arvotcg.com';
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -46,17 +46,24 @@ export function extractOAuthToken(url: string | null): string | null {
   }
 }
 
-/** 추출한 토큰으로 세션을 저장하고 홈으로 이동. */
-export function persistTokenAndGoHome(token: string): void {
+/** 내부 라우트 경로만 허용 (웹 signIn 의 safe 규칙과 동일 — open redirect 방지). */
+function safeCallbackPath(p?: string | null): string {
+  return p && p.startsWith('/') && !p.startsWith('//') ? p : '/';
+}
+
+/** 추출한 토큰으로 세션을 저장하고 callback(없으면 홈)으로 이동. */
+export function persistTokenAndGoHome(token: string, callback?: string | null): void {
   setSession({
     token,
     expiresAt: Date.now() + SESSION_TTL_MS,
     baseUrl: getApiBaseUrl(),
   });
-  setTimeout(() => router.replace('/' as never), 60);
+  const target = safeCallbackPath(callback);
+  setTimeout(() => router.replace(target as never), 60);
 }
 
-/** 소셜 로그인 시작 — 앱 내부 WebView(app/oauth.tsx) 로 이동. */
-export function startSocialLogin(provider: AuthProvider): void {
-  router.push(`/oauth?provider=${provider}` as never);
+/** 소셜 로그인 시작 — 앱 내부 WebView(app/oauth.tsx) 로 이동. 로그인 후 callback 경로로 복귀. */
+export function startSocialLogin(provider: AuthProvider, callback?: string | null): void {
+  const cb = callback ? `&callback=${encodeURIComponent(callback)}` : '';
+  router.push(`/oauth?provider=${provider}${cb}` as never);
 }

@@ -10,7 +10,7 @@ import { Alert, Platform, View, ScrollView, Pressable, StatusBar } from 'react-n
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { api } from '@/lib/apiClient';
 import { persistTokenAndGoHome } from '@/lib/oauth';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { PixelText } from '@/components/PixelText';
 import { PixelPress } from '@/components/cv/PixelPress';
 import { PixelBall } from '@/components/PixelBall';
@@ -24,12 +24,15 @@ export default function LoginScreen() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
   const [busy, setBusy] = useState(false);
+  // /login?callback=/event/cardshow — 로그인 후 원래 화면으로 복귀 (웹 callbackUrl 패리티).
+  const { callback } = useLocalSearchParams<{ callback?: string }>();
+  const callbackPath = typeof callback === 'string' ? callback : null;
 
   const startLogin = async (provider: AuthProvider) => {
     if (busy) return;
     setBusy(true);
     try {
-      await startSocialLogin(provider);
+      await startSocialLogin(provider, callbackPath);
     } finally {
       setBusy(false);
     }
@@ -57,7 +60,7 @@ export default function LoginScreen() {
         auth: false,
       });
       if (!r.token) throw new Error(r.error ?? '토큰 발급 실패');
-      persistTokenAndGoHome(r.token);
+      persistTokenAndGoHome(r.token, callbackPath);
     } catch (e) {
       const code = (e as { code?: string })?.code;
       if (code !== 'ERR_REQUEST_CANCELED') {

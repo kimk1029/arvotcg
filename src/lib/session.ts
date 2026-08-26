@@ -84,9 +84,11 @@ export async function signOut(redirect: string | null = '/') {
   }
 }
 
-export function signIn(provider: 'kakao' | 'naver' | 'google', _redirect = '/') {
+export function signIn(provider: 'kakao' | 'naver' | 'google', redirect = '/') {
   if (typeof window === 'undefined') return;
+  // 내부 경로만 허용 (open redirect 방지) — 서버 safeReturnPath 와 같은 규칙.
+  const safe = redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/';
   const u = new URL('/auth/' + provider, window.location.origin);
-  u.searchParams.set('redirect', '/');
+  u.searchParams.set('redirect', safe);
   window.location.href = u.toString();
 }

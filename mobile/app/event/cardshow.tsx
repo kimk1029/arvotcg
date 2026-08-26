@@ -30,7 +30,7 @@ export default function CardShowScreen() {
             카드쇼 예약은 로그인한 회원만 가능해요.
           </Text>
           <Pressable
-            onPress={() => router.push('/login' as never)}
+            onPress={() => router.push('/login?callback=/event/cardshow' as never)}
             style={{ marginTop: 8, backgroundColor: '#FFD23F', paddingVertical: 12, paddingHorizontal: 28, borderRadius: 12 }}
           >
             <Text style={{ fontSize: 14, fontWeight: '800', color: '#3A2D00' }}>로그인하러 가기</Text>
