@@ -29,7 +29,9 @@ import {
   deleteMyCard,
   SWR_MY_CARDS,
   SWR_PORTFOLIO,
+  fetchMyFavorites,
   type MyCardRow,
+  type MyFavoriteRow,
   type PortfolioSummary,
 } from '@/lib/myApi';
 import { useSWR } from '@/lib/swr';
@@ -88,8 +90,12 @@ function useAuthed(): boolean {
   return authed;
 }
 
+type AssetTab = 'assets' | 'favorites';
+
 export default function MyCardsScreen() {
   const tc = useThemeColors();
+  // 내 자산 ↔ 관심카드 탭 (웹 CollectionScreen 페어)
+  const [tab, setTab] = useState<AssetTab>('assets');
   const txt = useThemeTextVariant();
   const authed = useAuthed();
   const { format, rate } = useCurrency();
@@ -208,7 +214,11 @@ export default function MyCardsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: tc.paper }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
-        <CollectionHeader tc={tc} />
+        <CollectionHeader tc={tc} tab={tab} setTab={setTab} />
+        {tab === 'favorites' ? (
+          <FavoritesPanel tc={tc} txt={txt} format={format} />
+        ) : (
+        <>
         <PortfolioHero totals={heroTotals} />
         {loading && !data ? (
           <View style={{ paddingTop: 30 }}><LoadingState /></View>
@@ -310,6 +320,8 @@ export default function MyCardsScreen() {
               스니덩크 최근 체결 중앙값 기준 · 관심카드 제외 · 어제(KST 정각) 대비
             </PixelText>
           </>
+        )}
+        </>
         )}
       </ScrollView>
     </View>
@@ -453,12 +465,109 @@ function CardMenu({ apparelId, onRemove, tc, plain = false }: { apparelId: numbe
 }
 
 /** 웹 CollectionHeader 동일 — "내 자산" + 검색/알림/도움말 아이콘. */
-function CollectionHeader({ tc }: { tc: ReturnType<typeof useThemeColors> }) {
+/** 관심카드 패널 — 카드별 하루 등락(전일 대비)까지 표시. 웹 FavoritesPanel 과 페어. */
+function FavoritesPanel({
+  tc, txt, format,
+}: {
+  tc: ReturnType<typeof useThemeColors>;
+  txt: 'pixel' | 'ko';
+  format: (jpy: number) => string;
+}) {
+  const [rows, setRows] = useState<MyFavoriteRow[] | null>(null);
+  useEffect(() => {
+    fetchMyFavorites().then(setRows).catch(() => setRows([]));
+  }, []);
+
+  if (rows === null) return <View style={{ paddingTop: 30 }}><LoadingState /></View>;
+  if (rows.length === 0) {
+    return (
+      <View style={{ padding: 34, alignItems: 'center', gap: 6 }}>
+        <PixelText variant={txt} size={11} color={tc.ink3}>관심카드가 없어요</PixelText>
+        <PixelText variant="ko" size={9} color={tc.ink3} style={{ textAlign: 'center', lineHeight: 15 }}>
+          시세상세에서 ⭐ 관심카드 버튼을 눌러보세요.
+        </PixelText>
+      </View>
+    );
+  }
+
+  const total = rows.reduce((sum, r) => sum + r.minPriceJpy, 0);
+
+  return (
+    <View style={{ paddingHorizontal: space.gap }}>
+      <PixelText variant="ko" size={9} color={tc.ink3} style={{ marginBottom: 10, lineHeight: 15 }}>
+        {rows.length}개 · 합산 시세 {format(total)} · 자산 합계엔 포함되지 않아요
+      </PixelText>
+      <View style={{ gap: 8 }}>
+        {rows.map((r) => {
+          const pct = r.changePct ?? null;
+          const up = (pct ?? 0) >= 0;
+          return (
+            <Pressable
+              key={r.id}
+              onPress={() => router.push(`/cards/snkrdunk/${r.snkrdunkApparelId}` as never)}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 12,
+                backgroundColor: tc.white, borderRadius: 14,
+                paddingVertical: 10, paddingHorizontal: 12,
+              }}
+            >
+              <ThumbImage uri={r.imageUrl} style={{ width: 44, height: 60, borderRadius: 7 }} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <PixelText variant={txt} size={11} color={tc.ink} numberOfLines={1}>
+                  {r.name ?? '(이름 없음)'}
+                </PixelText>
+                <PixelText variant="ko" size={9} color={tc.ink3} style={{ marginTop: 3 }}>
+                  {new Date(r.createdAt).toLocaleDateString('ko-KR')} 추가
+                </PixelText>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <PixelText variant={txt} size={11} color={tc.ink}>
+                  {r.minPriceJpy > 0 ? format(r.minPriceJpy) : '시세 없음'}
+                </PixelText>
+                <PixelText
+                  variant={txt}
+                  size={10}
+                  color={pct == null ? tc.ink3 : up ? tc.red : tc.blu}
+                  style={{ marginTop: 3 }}
+                >
+                  {pct == null ? '등락 —' : `${up ? '+' : ''}${pct.toFixed(1)}% ${up ? '▲' : '▼'}`}
+                </PixelText>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function CollectionHeader({
+  tc, tab, setTab,
+}: {
+  tc: ReturnType<typeof useThemeColors>;
+  tab: AssetTab;
+  setTab: (t: AssetTab) => void;
+}) {
+  // 내 자산 ↔ 관심카드 — 활성 타이틀이 크게, 비활성은 작게 (웹 TitleSwapTabs 페어).
+  const title = (id: AssetTab, label: string) => (
+    <Pressable key={id} onPress={() => setTab(id)} hitSlop={8}>
+      <PixelText
+        variant="ko"
+        size={tab === id ? 22 : 16}
+        weight="bold"
+        color={tab === id ? tc.ink : tc.ink3}
+        style={{ letterSpacing: -0.5 }}
+      >
+        {label}
+      </PixelText>
+    </Pressable>
+  );
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 }}>
-      <PixelText variant="ko" size={22} weight="bold" color={tc.ink} style={{ letterSpacing: -0.5 }}>
-        내 자산
-      </PixelText>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10 }}>
+        {title('assets', '내 자산')}
+        {title('favorites', '관심카드')}
+      </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
         <Pressable onPress={() => router.push('/cards/snkrdunk/search' as never)} hitSlop={6}>
           <Svg width={23} height={23} viewBox="0 0 24 24" fill="none" stroke={tc.ink} strokeWidth={2} strokeLinecap="round">

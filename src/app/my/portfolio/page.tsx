@@ -1,5 +1,6 @@
 import { LoginRequired } from '@/components/LoginRequired';
-import { AssetsTabs } from '@/components/screens/AssetsTabs';
+import { PortfolioScreen } from '@/components/screens/PortfolioScreen';
+import { AppBar } from '@/components/ui/AppBar';
 import { StatusBar } from '@/components/ui/StatusBar';
 import { getServerUser } from '@/lib/apiServer';
 
@@ -25,7 +26,8 @@ export default async function Page() {
   return (
     <>
       <StatusBar />
-      <AssetsTabs />
+      <AppBar title="포트폴리오" showBack backHref="/my" />
+      <PortfolioScreen />
       <div className="bggap" />
     </>
   );

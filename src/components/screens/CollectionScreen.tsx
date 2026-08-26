@@ -9,6 +9,8 @@ import { useCurrency } from '@/components/CurrencyProvider';
 import { usePriceMode } from '@/components/PriceModeProvider';
 import { Panel } from '@/components/ui/Panel';
 import { parseCardStatics } from '../../../shared/cardStatics';
+import { TitleSwapTabs } from '@/components/ui/TitleSwapTabs';
+import { FavoritesPanel } from '@/components/screens/FavoritesPanel';
 
 interface HistPoint {
   date: string;
@@ -138,7 +140,11 @@ function mergeCardPrices(cached: CardRow[], prices: CardPriceRow[]): CardRow[] |
   });
 }
 
+type AssetTab = 'assets' | 'favorites';
+
 export function CollectionScreen() {
+  // 내 자산 ↔ 관심카드 탭 (커뮤니티의 커뮤니티↔Shop 과 같은 전환).
+  const [tab, setTab] = useState<AssetTab>('assets');
   const router = useRouter();
   const { format, rate, mode, setMode } = useCurrency();
   const { mode: priceMode } = usePriceMode();
@@ -331,10 +337,17 @@ export function CollectionScreen() {
     }
   }, []);
 
+  if (tab === 'favorites')
+    return (
+      <>
+        <CollectionHeader tab={tab} setTab={setTab} />
+        <FavoritesPanel />
+      </>
+    );
   if (err)
     return (
       <>
-        <CollectionHeader />
+        <CollectionHeader tab={tab} setTab={setTab} />
         <Msg>
           ⚠ {err}
           <br />
@@ -347,14 +360,14 @@ export function CollectionScreen() {
   if (!port || !cards)
     return (
       <>
-        <CollectionHeader />
+        <CollectionHeader tab={tab} setTab={setTab} />
         <Msg>불러오는 중…</Msg>
       </>
     );
   if (port.totalCount === 0)
     return (
       <>
-        <CollectionHeader />
+        <CollectionHeader tab={tab} setTab={setTab} />
         <Msg>
           아직 보유 카드가 없어요.
           <br />
@@ -370,7 +383,7 @@ export function CollectionScreen() {
 
   return (
     <div style={{ paddingBottom: 40 }}>
-      <CollectionHeader />
+      <CollectionHeader tab={tab} setTab={setTab} />
 
       {/* ── 총 자산 가치 카드 (다크 히어로) — 클릭 시 포트폴리오 상세(전체화면). 앱 PortfolioHero 와 패리티 ── */}
       <div style={{ padding: '4px var(--gap) 16px' }}>
@@ -845,13 +858,24 @@ function CardListItem({ row, format, last, onRemove }: { row: Row; format: (j: n
   );
 }
 
-/** 상단 헤더 — ARVOTCG 내자산 디자인: 제목 + 검색/알림/도움말 아이콘. */
-function CollectionHeader() {
+/** 상단 헤더 — 내 자산 ↔ 관심카드 타이틀 스왑 탭 + 검색/알림/도움말 아이콘. */
+function CollectionHeader({ tab, setTab }: { tab?: AssetTab; setTab?: (t: AssetTab) => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px var(--gap) 10px' }}>
-      <div style={{ fontFamily: 'var(--f1)', fontSize: 23, fontWeight: 900, color: 'var(--ink)', letterSpacing: '-0.5px' }}>
-        내 자산
-      </div>
+      {tab && setTab ? (
+        <TitleSwapTabs
+          left={{ id: 'assets', label: '내 자산' }}
+          right={{ id: 'favorites', label: '관심카드' }}
+          value={tab}
+          onChange={setTab}
+          ink="var(--ink)"
+          dim="var(--ink3)"
+        />
+      ) : (
+        <div style={{ fontFamily: 'var(--f1)', fontSize: 23, fontWeight: 900, color: 'var(--ink)', letterSpacing: '-0.5px' }}>
+          내 자산
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <Link href="/cards/snkrdunk/search" aria-label="검색" style={{ display: 'block', color: 'var(--ink)' }}>
           <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
