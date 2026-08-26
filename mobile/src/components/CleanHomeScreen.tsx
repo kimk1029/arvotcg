@@ -29,7 +29,7 @@ import { pickHomeBoxPacks } from '../../../shared/homeBoxPacks';
 import { jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
 import { useScanToSearch } from '@/lib/useScanToSearch';
 import { api } from '@/lib/apiClient';
-import { fetchMySummary, type MySummary } from '@/lib/myApi';
+import { fetchMySummary, fetchUnreadCount, type MySummary } from '@/lib/myApi';
 import { isAuthenticated } from '@/lib/session';
 import { setHomeHotRows } from '@/lib/homeHotStore';
 import { swrAge, swrKeys, swrPeek, swrSet } from '@/lib/swr';
@@ -204,6 +204,8 @@ const DRAWER_SECTIONS: { label: string | null; items: DrawerItem[] }[] = [
   {
     label: '내 정보',
     items: [
+      // 알림(쪽지함) — 헤더 벨을 드로어로 통합. 미읽음 수는 렌더 시점에 동적 배지로.
+      { emoji: '🔔', label: '알림', href: '/my/messages' },
       { emoji: '📢', label: '공지사항', href: '/my/notices' },
       { emoji: '👤', label: '마이페이지', href: '/my' },
     ],
@@ -439,7 +441,14 @@ export function CleanHomeScreen() {
   const drawerItemAnims = useRef(
     Array.from({ length: DRAWER_ROW_COUNT }, () => new Animated.Value(0)),
   ).current;
+  // 미읽음 쪽지 수 — 메뉴 알약의 빨간 점 + 드로어 '알림' 배지 (웹 useUnread 페어).
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    if (!isAuthenticated()) return;
+    fetchUnreadCount().then(setUnread);
+  }, []);
   const openDrawer = () => {
+    if (isAuthenticated()) fetchUnreadCount().then(setUnread);
     setDrawerVisible(true);
     drawerAnim.setValue(0);
     drawerItemAnims.forEach((v) => v.setValue(0));
@@ -807,30 +816,26 @@ export function CleanHomeScreen() {
             <Text style={ts(24, '900', P.ink)}>ARVO</Text>
             <Text style={ts(24, '900', ACCENT30)}>TCG</Text>
           </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <Pressable onPress={() => router.push('/my/messages' as never)} hitSlop={8}>
-              <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <Path d="M13.7 21a2 2 0 0 1-3.4 0" />
-              </Svg>
-            </Pressable>
-            {/* 메뉴 — 라벨이 있는 알약형 버튼 (디자인 시안: 우측 배치, 웹 CleanHome 동일) */}
-            <Pressable
-              onPress={openDrawer}
-              hitSlop={6}
-              accessibilityLabel="메뉴 열기"
-              style={{
-                flexDirection: 'row', alignItems: 'center', gap: 5,
-                height: 34, paddingLeft: 10, paddingRight: 11, borderRadius: 11,
-                backgroundColor: P.searchBg, borderWidth: 1, borderColor: P.line,
-              }}
-            >
-              <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={2.4} strokeLinecap="round">
-                <Path d="M3 6h18M3 12h18M3 18h18" />
-              </Svg>
-              <Text style={ts(12.5, '800', P.ink)}>메뉴</Text>
-            </Pressable>
-          </View>
+          {/* 메뉴 — 라벨이 있는 알약형 버튼. 알림은 드로어 안으로 통합 — 미읽음이 있으면
+              알약에 빨간 점으로 신호만 남긴다 (웹 CleanHome 동일). */}
+          <Pressable
+            onPress={openDrawer}
+            hitSlop={6}
+            accessibilityLabel={unread > 0 ? `메뉴 열기 (새 알림 ${unread}개)` : '메뉴 열기'}
+            style={{
+              flexDirection: 'row', alignItems: 'center', gap: 5,
+              height: 34, paddingLeft: 10, paddingRight: 11, borderRadius: 11,
+              backgroundColor: P.searchBg, borderWidth: 1, borderColor: P.line,
+            }}
+          >
+            <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={2.4} strokeLinecap="round">
+              <Path d="M3 6h18M3 12h18M3 18h18" />
+            </Svg>
+            <Text style={ts(12.5, '800', P.ink)}>메뉴</Text>
+            {unread > 0 ? (
+              <View style={{ position: 'absolute', top: -3, right: -3, width: 9, height: 9, backgroundColor: RISE, borderRadius: 5, borderWidth: 1.5, borderColor: P.bg }} />
+            ) : null}
+          </Pressable>
         </View>
 
         {/* promo banner — 비면 컴포넌트 내장 폴백 슬라이드 */}
@@ -1142,11 +1147,17 @@ export function CleanHomeScreen() {
                           >
                             <Text style={{ fontSize: 19, width: 26, textAlign: 'center' }}>{dm.emoji}</Text>
                             <Text style={[ts(14.5, '700', P.ink), { flex: 1 }]}>{dm.label}</Text>
-                            {dm.badge ? (
-                              <View style={{ backgroundColor: dm.badgeBg ?? RISE, paddingVertical: 2, paddingHorizontal: 8, borderRadius: pixel ? 0 : 9 }}>
-                                <Text style={ts(10.5, '800', '#fff')}>{dm.badge}</Text>
-                              </View>
-                            ) : null}
+                            {(() => {
+                              // 알림 항목은 미읽음 수를 동적 배지로 (그 외엔 정적 badge).
+                              const badge = dm.href === '/my/messages'
+                                ? (unread > 0 ? String(Math.min(unread, 99)) : null)
+                                : dm.badge ?? null;
+                              return badge ? (
+                                <View style={{ backgroundColor: dm.badgeBg ?? RISE, paddingVertical: 2, paddingHorizontal: 8, borderRadius: pixel ? 0 : 9 }}>
+                                  <Text style={ts(10.5, '800', '#fff')}>{badge}</Text>
+                                </View>
+                              ) : null;
+                            })()}
                           </Pressable>
                         </Animated.View>
                       );

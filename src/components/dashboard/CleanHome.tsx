@@ -136,6 +136,8 @@ const DRAWER_SECTIONS: { label: string | null; items: DrawerItem[] }[] = [
   {
     label: '내 정보',
     items: [
+      // 알림(쪽지함) — 헤더 벨을 드로어로 통합. 미읽음 수는 렌더 시점에 동적 배지로.
+      { emoji: '🔔', label: '알림', href: '/my/messages' },
       { emoji: '📢', label: '공지사항', href: '/my/notices' },
       { emoji: '👤', label: '마이페이지', href: '/my' },
     ],
@@ -716,33 +718,26 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
           <span style={{ color: P.ink }}>ARVO</span>
           <span style={{ color: ACCENT30 }}>TCG</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <Link href="/my/messages" aria-label="알림" style={{ position: 'relative', display: 'block', color: P.ink }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.7 21a2 2 0 0 1-3.4 0" />
-            </svg>
-            {unread > 0 && (
-              <span style={{ position: 'absolute', top: 0, right: 1, width: 8, height: 8, background: RISE, borderRadius: '50%', border: '1.5px solid var(--paper)' }} />
-            )}
-          </Link>
-          {/* 메뉴 — 라벨이 있는 알약형 버튼 (디자인 시안: 우측 배치, 아이콘만일 때보다 가독성 ↑) */}
-          <button
-            type="button"
-            aria-label="메뉴 열기"
-            onClick={() => setDrawerOpen(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
-              height: 34, padding: '0 11px 0 10px', borderRadius: 11,
-              background: P.searchBg, border: `1px solid ${P.line}`,
-            }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="2.4" strokeLinecap="round">
-              <path d="M3 6h18M3 12h18M3 18h18" />
-            </svg>
-            <span style={{ fontSize: 12.5, fontWeight: 800, color: P.ink, whiteSpace: 'nowrap' }}>메뉴</span>
-          </button>
-        </div>
+        {/* 메뉴 — 라벨이 있는 알약형 버튼. 알림은 드로어 안으로 통합 — 미읽음이 있으면
+            알약에 빨간 점으로 신호만 남긴다. */}
+        <button
+          type="button"
+          aria-label={unread > 0 ? `메뉴 열기 (새 알림 ${unread}개)` : '메뉴 열기'}
+          onClick={() => setDrawerOpen(true)}
+          style={{
+            position: 'relative', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+            height: 34, padding: '0 11px 0 10px', borderRadius: 11,
+            background: P.searchBg, border: `1px solid ${P.line}`,
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="2.4" strokeLinecap="round">
+            <path d="M3 6h18M3 12h18M3 18h18" />
+          </svg>
+          <span style={{ fontSize: 12.5, fontWeight: 800, color: P.ink, whiteSpace: 'nowrap' }}>메뉴</span>
+          {unread > 0 && (
+            <span style={{ position: 'absolute', top: -3, right: -3, width: 9, height: 9, background: RISE, borderRadius: '50%', border: '1.5px solid var(--paper)' }} />
+          )}
+        </button>
       </div>
 
       {/* promo banner — 실제 배너 데이터(HeroSlider). 비면 컴포넌트 내장 폴백 슬라이드. */}
@@ -1023,9 +1018,15 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
                     >
                       <span style={{ fontSize: 19, width: 26, textAlign: 'center', flex: 'none' }}>{dm.emoji}</span>
                       <span style={{ flex: 1, fontSize: 14.5, fontWeight: 700, color: P.ink }}>{dm.label}</span>
-                      {dm.badge && (
-                        <span style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: dm.badgeBg ?? RISE, padding: '2px 8px', borderRadius: pixelTiles ? 0 : 9, flex: 'none' }}>{dm.badge}</span>
-                      )}
+                      {(() => {
+                        // 알림 항목은 미읽음 수를 동적 배지로 (그 외엔 정적 badge).
+                        const badge = dm.href === '/my/messages'
+                          ? (unread > 0 ? String(Math.min(unread, 99)) : null)
+                          : dm.badge ?? null;
+                        return badge ? (
+                          <span style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: dm.badgeBg ?? RISE, padding: '2px 8px', borderRadius: pixelTiles ? 0 : 9, flex: 'none' }}>{badge}</span>
+                        ) : null;
+                      })()}
                     </Link>
                   );
                 })}
