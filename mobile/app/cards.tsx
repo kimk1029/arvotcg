@@ -9,12 +9,14 @@ import { EmptyState, ErrorView, LoadingState } from '@/components/cv/ListState';
 import { fetchAllPacksWithHits, type PackWithHits } from '@/lib/myApi';
 import { useSWR } from '@/lib/swr';
 import { colors } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useThemeColors, useThemeTextVariant, useInputFont } from '@/components/ThemeProvider';
 import { shotSource } from '@/lib/shotMode';
 
 type SortMode = 'default' | 'name' | 'price';
 
 export default function PriceInfoScreen() {
+  // 클린·다크는 시스템 산세리프 — 인풋/placeholder 가 비트맵 폰트로 남지 않게.
+  const inputFont = useInputFont();
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
   const [query, setQuery] = useState('');
@@ -70,7 +72,7 @@ export default function PriceInfoScreen() {
                 onChangeText={setQuery}
                 placeholder="박스명, 팩명 검색..."
                 placeholderTextColor={tc.ink4}
-                style={styles.searchInput}
+                style={[styles.searchInput, { fontFamily: inputFont }]}
               />
             </View>
           </PixelFrame>

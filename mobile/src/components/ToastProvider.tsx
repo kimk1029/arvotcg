@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts } from '@/theme/tokens';
+import { usePixelFont } from '@/components/ThemeProvider';
 
 export type ToastKind = 'success' | 'error' | 'info';
 
@@ -62,6 +63,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 
 function ToastRow({ toast }: { toast: Toast }) {
+  // 클린·다크는 시스템 산세리프 — 토스트가 픽셀 폰트로 남지 않게.
+  const pixelFont = usePixelFont();
   const opacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(opacity, { toValue: 1, duration: 160, useNativeDriver: true }).start();
@@ -81,8 +84,8 @@ function ToastRow({ toast }: { toast: Toast }) {
 
   return (
     <Animated.View style={[styles.toast, { backgroundColor: bg, opacity }]}>
-      <Text style={styles.icon}>{icon}</Text>
-      <Text style={styles.msg} numberOfLines={2}>
+      <Text style={[styles.icon, { fontFamily: pixelFont }]}>{icon}</Text>
+      <Text style={[styles.msg, { fontFamily: pixelFont }]} numberOfLines={2}>
         {toast.message}
       </Text>
     </Animated.View>

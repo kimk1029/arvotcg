@@ -618,6 +618,11 @@ model SnkrdunkPriceSnapshot {
   pricePsa8    Int      @default(0)
   /// sales-chart 일별 시세 시리즈 (number[], 오래된→최신). 컬렉션 스파크라인용.
   trend        Json?
+  /// 시세상세 헤드라인과 동일한 대표 시세 (headlineFromHistory). 0 = 미계산.
+  /// 박스별 카드 목록이 상세와 같은 값을 보여주기 위해 저장한다.
+  headlinePrice Int     @default(0)
+  /// 위 대표 시세의 기준 등급 ('PSA 10' | 'PSA 9' | 'RAW'). 목록에 라벨로 표시.
+  headlineBasis String?
   fetchedAt    DateTime @default(now())
 
   @@index([apparelId, fetchedAt(sort: Desc)])

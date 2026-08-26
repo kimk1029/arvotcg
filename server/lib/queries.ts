@@ -723,6 +723,15 @@ export interface MyFavoriteRow {
   minPriceJpy: number;
 }
 
+/** 어제(직전 체결일) 대비 등락률 — 일별 시세 추이의 마지막 두 점. 데이터 부족 시 null. */
+function dayChangePct(trend: number[]): number | null {
+  if (trend.length < 2) return null;
+  const prev = trend[trend.length - 2];
+  const last = trend[trend.length - 1];
+  if (!(prev > 0) || !(last > 0)) return null;
+  return ((last - prev) / prev) * 100;
+}
+
 export async function getMyFavoritesWithPrices(
   userId: string,
   limit = 200,
@@ -744,7 +753,7 @@ export async function getMyFavoritesWithPrices(
   const uniqueIds = Array.from(new Set(rows.map((r) => r.snkrdunkApparelId)));
   const info = new Map<
     number,
-    { name: string; imageUrl: string | null; minPriceJpy: number }
+    { name: string; imageUrl: string | null; minPriceJpy: number; trend: number[] }
   >();
   // 우리 DB(카탈로그+최신 스냅샷) 우선 — 신선하면 스니덩 호출 생략.
   const catalog = await loadCatalogEntries(uniqueIds);
@@ -755,6 +764,7 @@ export async function getMyFavoritesWithPrices(
         name: translateKnownCardNameToKo(e.name),
         imageUrl: e.imageUrl,
         minPriceJpy: e.snapshot.minPrice > 0 ? e.snapshot.minPrice : e.snapshot.priceSingle,
+        trend: e.snapshot.trend ?? [],
       });
     }
   }
@@ -769,6 +779,7 @@ export async function getMyFavoritesWithPrices(
         name: translateKnownCardNameToKo(e.name),
         imageUrl: e.imageUrl,
         minPriceJpy: e.snapshot.minPrice > 0 ? e.snapshot.minPrice : e.snapshot.priceSingle,
+        trend: e.snapshot.trend ?? [],
       });
       void refreshApparelPrices(id);
     } else {
@@ -784,6 +795,7 @@ export async function getMyFavoritesWithPrices(
             name: translateKnownCardNameToKo(a.localizedName || a.name || ''),
             imageUrl: a.imageUrl,
             minPriceJpy: typeof a.minPrice === 'number' && a.minPrice > 0 ? a.minPrice : 0,
+            trend: [],
           });
           void upsertCatalogCard(a);
           if (a.minPrice > 0) {
@@ -805,6 +817,9 @@ export async function getMyFavoritesWithPrices(
       name: i?.name ?? null,
       imageUrl: i?.imageUrl ?? null,
       minPriceJpy: i?.minPriceJpy ?? 0,
+      trend: i?.trend ?? [],
+      // 어제(직전 체결일) 대비 등락 — 컬렉션 리스트와 같은 정의(추이 마지막 두 점).
+      changePct: dayChangePct(i?.trend ?? []),
     };
   });
 }

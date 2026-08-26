@@ -11,7 +11,7 @@ import { Seg } from '@/components/cv/Seg';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { PixelPress } from '@/components/cv/PixelPress';
 import { colors } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useThemeColors, useThemeTextVariant, useInputFont } from '@/components/ThemeProvider';
 import { cardPrice, displayCardName, fmt, inferCardCurrency, priceLabel, type CardItem } from '@/data/cardvault';
 import { updateCard, useCollection } from '@/lib/collection';
 import { usePriceMode } from '@/lib/priceMode';
@@ -44,6 +44,8 @@ type GradeResult = {
 };
 
 export default function CardDetail() {
+  // 클린·다크는 시스템 산세리프 — 인풋/placeholder 가 비트맵 폰트로 남지 않게.
+  const inputFont = useInputFont();
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -817,7 +819,7 @@ export default function CardDetail() {
                 paddingHorizontal: 14,
                 paddingVertical: 12,
                 fontSize: 17,
-                fontFamily: 'Galmuri11',
+                fontFamily: inputFont,
                 color: tc.ink,
                 borderColor: tc.ink,
                 borderWidth: 3,

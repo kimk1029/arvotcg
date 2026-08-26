@@ -253,9 +253,15 @@ function MarketCard({ hit }: { hit: PackHitCard }) {
       image={hit.imageUrl}
       title={koTitle}
       subtitle={jpTitle}
-      priceJpy={hit.minPrice}
+      // 시세상세 헤드라인과 같은 대표 시세(거래 많은 등급의 최근 체결가).
+      // 아직 계산 전(스냅샷에 없음)이면 최저 매물 호가로 폴백 — 그때만 라벨이 '최저매물'.
+      priceJpy={hit.headlinePrice > 0 ? hit.headlinePrice : hit.minPrice}
       footer={
-        hit.lastSaleText ? `최근 ${hit.lastSaleText}` : hit.listingCountText ? `매물 ${hit.listingCountText}건` : '매물 없음'
+        hit.headlinePrice > 0
+          ? `${hit.headlineBasis ?? 'RAW'} 최근 체결가`
+          : hit.minPrice > 0
+            ? '최저매물 호가'
+            : '매물 없음'
       }
     />
   );

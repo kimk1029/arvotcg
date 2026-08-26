@@ -19,7 +19,7 @@ import {
   upsertSearchResults,
 } from '../lib/snkrdunkCatalog.js';
 import { getCachedCardImageUrl } from '../lib/cardImageCache.js';
-import { computeApparelPrices } from '../../shared/snkrdunkPrice';
+import { computeApparelPrices, headlineFromHistory } from '../../shared/snkrdunkPrice';
 import { parseCardStatics } from '../../shared/cardStatics';
 
 const router = Router();
@@ -255,10 +255,14 @@ router.get('/apparels/:id', async (req: Request, res: Response) => {
         chart?.points ?? [],
         data.minPrice ?? 0,
       );
+      // 목록(박스별 카드)이 상세와 같은 값을 보여주도록 대표 시세도 함께 저장.
+      const headline = headlineFromHistory(hist?.history ?? [], data.minPrice ?? 0);
       if (data.minPrice > 0 || prices.single > 0 || prices.psa10 > 0) {
         await recordPriceSnapshot(apparelId, {
           minPrice: data.minPrice,
           listingCount: data.listingCount,
+          headlinePrice: headline.price,
+          headlineBasis: headline.basis,
           priceSingle: prices.single,
           pricePsa10: prices.psa10,
           pricePsa9: prices.psa9,

@@ -17,7 +17,7 @@ import { PixelText } from '@/components/PixelText';
 import { PixelPress } from '@/components/cv/PixelPress';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { LoadingState, ErrorView } from '@/components/cv/ListState';
-import { useThemeColors, useTheme } from '@/components/ThemeProvider';
+import { useThemeColors, useTheme, useInputFont } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import { fonts } from '@/theme/tokens';
 import { CARD_PACKS, packSetCode, type CardPackMeta, type CardPackGame } from '@/data/cardPacks';
@@ -85,6 +85,8 @@ function fetchPacksOnce(): Promise<PackWithBox[]> {
 export default function PackExplorerScreen() {
   const { format: formatCurrency } = useCurrency();
   // 클린·다크(플랫) — 웹 clean 디자인셋과 동일하게 픽셀 보더/직각을 라운드+소프트로.
+  // 클린·다크는 시스템 산세리프 — 인풋/placeholder 가 비트맵 폰트로 남지 않게.
+  const inputFont = useInputFont();
   const tc = useThemeColors();
   const { theme } = useTheme();
   const flat = isFlatTheme(theme);
@@ -189,7 +191,7 @@ export default function PackExplorerScreen() {
               onChangeText={setQuery}
               placeholder={SHOT ? '박스명·세트코드 검색 (예: SET-A, SET-B3)' : '박스명·세트코드 검색 (예: 151, sv2a)'}
               placeholderTextColor={tc.ink3}
-              style={{ flex: 1, padding: 0, paddingVertical: 10, fontFamily: fonts.ko, fontSize: 13, color: tc.ink }}
+              style={{ flex: 1, padding: 0, paddingVertical: 10, fontFamily: inputFont, fontSize: 13, color: tc.ink }}
             />
             {query ? (
               <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityLabel="검색어 지우기">

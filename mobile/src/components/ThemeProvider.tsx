@@ -13,7 +13,8 @@ import {
   type ThemeId,
 } from '@/lib/theme';
 import { getString, setString } from '@/lib/kvStore';
-import { colors } from '@/theme/tokens';
+import { colors, fonts } from '@/theme/tokens';
+import { isFlatTheme } from '@/lib/theme';
 
 interface Ctx {
   theme: ThemeId;
@@ -168,4 +169,20 @@ export function useThemeTextVariant(): 'pixel' | 'ko' {
   const { theme } = useTheme();
   // sports·clean·dark = 논픽셀(모던) 폰트
   return theme === 'sports' || theme === 'clean' || theme === 'dark' ? 'ko' : 'pixel';
+}
+
+/**
+ * TextInput 등 직접 fontFamily 를 지정해야 하는 곳의 폰트.
+ * 클린·다크(플랫 테마)는 시스템 산세리프(undefined) — 인풋과 placeholder 가
+ * 비트맵 폰트로 남지 않게 한다. 픽셀 테마는 기존 갈무리 유지.
+ */
+export function useInputFont(): string | undefined {
+  const { theme } = useTheme();
+  return isFlatTheme(theme) ? undefined : fonts.ko;
+}
+
+/** 위와 같되 픽셀(Press Start 2P) 슬롯 — 토스트 등 디스플레이 텍스트용. */
+export function usePixelFont(): string | undefined {
+  const { theme } = useTheme();
+  return isFlatTheme(theme) ? undefined : fonts.pixel;
 }

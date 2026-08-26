@@ -6,7 +6,7 @@ import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
 import { PixelButton } from '@/components/PixelButton';
 import { colors, space } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useThemeColors, useThemeTextVariant, useInputFont } from '@/components/ThemeProvider';
 import { api, ApiError } from '@/lib/apiClient';
 import { useToast } from '@/components/ToastProvider';
 import { uploadTradeImages } from '@/lib/uploads';
@@ -22,6 +22,8 @@ type TradeType = 'sell' | 'buy';
  * userCardId 프리필·avatarId 전송·리워드 안내도 웹 동일.
  */
 export default function WriteTrade() {
+  // 클린·다크는 시스템 산세리프 — 인풋/placeholder 가 비트맵 폰트로 남지 않게.
+  const inputFont = useInputFont();
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
   const toast = useToast();
@@ -164,7 +166,7 @@ export default function WriteTrade() {
           onChangeText={setTitle}
           placeholder="거래 제목을 입력하세요"
           placeholderTextColor={tc.ink3}
-          style={styles.input}
+          style={[styles.input, { fontFamily: inputFont }]}
         />
 
         {/* 가격 */}
@@ -181,7 +183,7 @@ export default function WriteTrade() {
           placeholder="예) 15,000 / 정가 / 협의"
           placeholderTextColor={tc.ink3}
           inputMode="numeric"
-          style={styles.input}
+          style={[styles.input, { fontFamily: inputFont }]}
         />
 
         {/* 카카오 */}
@@ -194,7 +196,7 @@ export default function WriteTrade() {
           placeholder="예) kakao_id 또는 오픈채팅 링크"
           placeholderTextColor={tc.ink3}
           autoCapitalize="none"
-          style={styles.input}
+          style={[styles.input, { fontFamily: inputFont }]}
         />
 
         {/* 사진 */}
@@ -233,7 +235,7 @@ export default function WriteTrade() {
           multiline
           placeholder="거래 관련 상세 내용"
           placeholderTextColor={tc.ink3}
-          style={[styles.input, { minHeight: 120, textAlignVertical: 'top' }]}
+          style={[styles.input, { fontFamily: inputFont, minHeight: 120, textAlignVertical: 'top' }]}
         />
 
         {/* 리워드 안내 — 웹 동일 */}

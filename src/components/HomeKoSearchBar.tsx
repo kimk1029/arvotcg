@@ -110,7 +110,7 @@ export function HomeKoSearchBar() {
           style={{
             width: '100%', height: 44, padding: '0 84px 0 36px', outline: 'none',
             // 인풋 텍스트 +2pt (11→13) — placeholder/검색어 가독성.
-            background: 'var(--white)', fontFamily: 'var(--f1)', fontSize: 13, color: 'var(--ink)', letterSpacing: 0.3,
+            background: 'var(--white)', fontFamily: 'var(--f2)', fontSize: 13, color: 'var(--ink)', letterSpacing: isClean ? 'normal' : 0.3,
             // 픽셀 폰트는 폭이 넓어 placeholder 가 줄바꿈→세로로 두꺼워졌다. 항상 한 줄.
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             ...(isClean

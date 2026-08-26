@@ -41,8 +41,12 @@ export interface PackHitCard {
   /** UI에 노출할 짧은 한국어/일본어 라벨. snkrdunk 응답에서 정리. */
   shortName: string;
   imageUrl: string | null;
-  /** 일본엔 (JPY) 최저가. 0 이면 매물 없음. */
+  /** 일본엔 (JPY) 최저 매물 호가. 0 이면 매물 없음. */
   minPrice: number;
+  /** 시세상세 헤드라인과 동일한 대표 시세(JPY). 0 이면 미계산 → minPrice 로 폴백. */
+  headlinePrice: number;
+  /** 대표 시세의 기준 등급 ('PSA 10' | 'PSA 9' | 'RAW'). 목록 라벨용. */
+  headlineBasis: string | null;
   displayPrice: string;
   listingCount: number;
   listingCountText: string;
@@ -81,6 +85,10 @@ function toHitCard(a: SnkrdunkApparel, override?: string): PackHitCard {
     shortName: override ?? shortenName(a.localizedName || a.name),
     imageUrl: a.imageUrl,
     minPrice: a.minPrice,
+    // 라이브(검색) 경로는 거래이력을 안 받아 헤드라인 계산 불가 → 목록은 minPrice 로 폴백하고,
+    // 상세 조회/일별 배치가 스냅샷에 헤드라인을 채우면 다음 목록부터 상세와 값이 일치한다.
+    headlinePrice: 0,
+    headlineBasis: null,
     displayPrice: a.displayPrice,
     listingCount: a.listingCount,
     listingCountText: a.listingCountText,
@@ -192,7 +200,7 @@ async function resolveGroupBoxes(pack: CardPackMeta): Promise<PackHitCard[]> {
 
 /** 정적 카드 행(SnkrdunkCard) + 최신 시세 → PackHitCard. lastSale 은 DB 캐시 대상이 아님. */
 type SnkrdunkCardRow = Awaited<ReturnType<typeof prisma.snkrdunkCard.findMany>>[number];
-interface LatestPrice { minPrice: number; listingCount: number; }
+interface LatestPrice { minPrice: number; listingCount: number; headlinePrice: number; headlineBasis: string | null; }
 
 function toHitCardFromDb(row: SnkrdunkCardRow, price?: LatestPrice): PackHitCard {
   const minPrice = price?.minPrice ?? 0;
@@ -205,7 +213,9 @@ function toHitCardFromDb(row: SnkrdunkCardRow, price?: LatestPrice): PackHitCard
     shortName: row.shortName,
     imageUrl: row.imageUrl,
     minPrice,
-    displayPrice: '', // UI 는 minPrice 를 자체 포맷 → 캐시엔 불필요
+    headlinePrice: price?.headlinePrice ?? 0,
+    headlineBasis: price?.headlineBasis ?? null,
+    displayPrice: '', // UI 는 시세를 자체 포맷 → 캐시엔 불필요
     listingCount,
     listingCountText: listingCount > 0 ? String(listingCount) : '',
     productNumber: row.productNumber,
@@ -220,14 +230,25 @@ async function latestPrices(ids: number[]): Promise<Map<number, LatestPrice>> {
   const map = new Map<number, LatestPrice>();
   if (ids.length === 0) return map;
   try {
-    const rows = await prisma.$queryRaw<Array<{ apparelId: number; minPrice: number; listingCount: number }>>`
-      SELECT DISTINCT ON ("apparelId") "apparelId", "minPrice", "listingCount"
+    const rows = await prisma.$queryRaw<
+      Array<{
+        apparelId: number; minPrice: number; listingCount: number;
+        headlinePrice: number; headlineBasis: string | null;
+      }>
+    >`
+      SELECT DISTINCT ON ("apparelId")
+        "apparelId", "minPrice", "listingCount", "headlinePrice", "headlineBasis"
       FROM "snkrdunk_price_snapshots"
       WHERE "apparelId" IN (${Prisma.join(ids)})
       ORDER BY "apparelId", "fetchedAt" DESC
     `;
     for (const r of rows) {
-      map.set(Number(r.apparelId), { minPrice: Number(r.minPrice), listingCount: Number(r.listingCount) });
+      map.set(Number(r.apparelId), {
+        minPrice: Number(r.minPrice),
+        listingCount: Number(r.listingCount),
+        headlinePrice: Number(r.headlinePrice ?? 0),
+        headlineBasis: r.headlineBasis ?? null,
+      });
     }
   } catch (err) {
     console.error('[cardPackHits.latestPrices]', err);

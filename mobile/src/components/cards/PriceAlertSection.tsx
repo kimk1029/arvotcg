@@ -9,7 +9,7 @@ import { PixelText } from '@/components/PixelText';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { SectHd } from '@/components/cv/SectHd';
 import { useToast } from '@/components/ToastProvider';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useThemeColors, useThemeTextVariant, useInputFont } from '@/components/ThemeProvider';
 import { useAuthed } from '@/lib/useAuthed';
 import {
   createPriceAlert,
@@ -26,6 +26,8 @@ interface Props {
 }
 
 export function PriceAlertSection({ apparelId, cardName, currentPriceJpy }: Props) {
+  // 클린·다크는 시스템 산세리프 — 인풋/placeholder 가 비트맵 폰트로 남지 않게.
+  const inputFont = useInputFont();
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
   const toast = useToast();
@@ -165,7 +167,7 @@ export function PriceAlertSection({ apparelId, cardName, currentPriceJpy }: Prop
                         paddingHorizontal: 8,
                         paddingVertical: 10,
                         fontSize: 14,
-                        fontFamily: 'Galmuri11',
+                        fontFamily: inputFont,
                         color: tc.ink,
                       }}
                     />

@@ -26,6 +26,19 @@ const SORT_OPTIONS: Array<{ key: SortMode; label: string }> = [
   { key: 'name', label: '이름순' },
 ];
 
+/**
+ * 목록에 표시할 시세 — 시세상세 헤드라인과 같은 대표 시세(거래 많은 등급의 최근 체결가).
+ * 아직 계산 전이면 최저 매물 호가로 폴백한다. (웹 PackMarketSections 와 동일 규칙)
+ */
+function priceOf(hit: PackHitCard): number {
+  return hit.headlinePrice > 0 ? hit.headlinePrice : hit.minPrice;
+}
+
+function priceLabel(hit: PackHitCard): string {
+  if (hit.headlinePrice > 0) return `${hit.headlineBasis ?? 'RAW'} 최근 체결가`;
+  return hit.minPrice > 0 ? '최저매물 호가' : '매물 없음';
+}
+
 export default function PackDetailScreen() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
@@ -331,8 +344,8 @@ export default function PackDetailScreen() {
                       imageUrl={hit.imageUrl}
                       koName={hit.koName || hit.shortName}
                       subName={hit.name}
-                      priceText={hit.minPrice > 0 ? formatCurrency(hit.minPrice) : null}
-                      metaText={hit.listingCountText ? `매물 ${hit.listingCountText}건` : '매물 없음'}
+                      priceText={priceOf(hit) > 0 ? formatCurrency(priceOf(hit)) : null}
+                      metaText={priceLabel(hit)}
                       nameMinHeight={30}
                       nameLineHeight={15}
                       thumbResizeMethod="resize"
@@ -433,8 +446,8 @@ function ListRow({ hit }: { hit: PackHitCard }) {
       imageUrl={hit.imageUrl}
       koName={hit.koName || hit.shortName}
       subName={hit.name}
-      priceText={hit.minPrice > 0 ? formatCurrency(hit.minPrice) : null}
-      metaText={hit.listingCountText ? `매물 ${hit.listingCountText}건` : '매물 없음'}
+      priceText={priceOf(hit) > 0 ? formatCurrency(priceOf(hit)) : null}
+      metaText={priceLabel(hit)}
       thumbResizeMethod="resize"
     />
   );

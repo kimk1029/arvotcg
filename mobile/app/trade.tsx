@@ -11,7 +11,7 @@ import { PixelText } from '@/components/PixelText';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { LoadingState } from '@/components/cv/ListState';
 import { fonts, space } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useThemeColors, useThemeTextVariant, useInputFont } from '@/components/ThemeProvider';
 import { api } from '@/lib/apiClient';
 import { formatPrice } from '@/lib/numberFormat';
 import { shotSource } from '@/lib/shotMode';
@@ -47,6 +47,8 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function TradeList() {
+  // 클린·다크는 시스템 산세리프 — 인풋/placeholder 가 비트맵 폰트로 남지 않게.
+  const inputFont = useInputFont();
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
   const [trades, setTrades] = useState<Trade[] | null>(null);
@@ -117,7 +119,7 @@ export default function TradeList() {
               onChangeText={setQuery}
               placeholder="제목 · 장소 · 닉네임 · 가격"
               placeholderTextColor={tc.ink3}
-              style={{ backgroundColor: tc.white, borderColor: tc.ink, borderWidth: 3, padding: 10, fontFamily: fonts.ko, fontSize: 13, color: tc.ink }}
+              style={{ backgroundColor: tc.white, borderColor: tc.ink, borderWidth: 3, padding: 10, fontFamily: inputFont, fontSize: 13, color: tc.ink }}
             />
             {q ? (
               <PixelText variant={txt} size={9} color={tc.ink3} style={{ marginTop: 6 }}>

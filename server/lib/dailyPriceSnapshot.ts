@@ -26,7 +26,7 @@ import {
   fetchSnkrdunkSalesHistory,
   fetchSnkrdunkSalesChart,
 } from '@/lib/snkrdunk';
-import { computeApparelPrices } from '../../shared/snkrdunkPrice';
+import { computeApparelPrices, headlineFromHistory } from '../../shared/snkrdunkPrice';
 
 /** 다음 KST `hour`시 정각까지 남은 ms. */
 function msUntilNextKstHour(hour: number, now = Date.now()): number {
@@ -113,10 +113,14 @@ export async function runDailyPriceSnapshot({
         ]);
         const minPrice = a?.minPrice ?? 0;
         const prices = computeApparelPrices(hist?.history ?? [], chart?.points ?? [], minPrice);
+        // 목록(박스별 카드)이 상세와 같은 값을 보여주도록 대표 시세도 함께 저장.
+        const headline = headlineFromHistory(hist?.history ?? [], minPrice);
         if (minPrice > 0 || prices.single > 0 || prices.psa10 > 0) {
           await recordPriceSnapshot(apparelId, {
             minPrice,
             listingCount: a?.listingCount ?? 0,
+            headlinePrice: headline.price,
+            headlineBasis: headline.basis,
             priceSingle: prices.single,
             pricePsa10: prices.psa10,
             pricePsa9: prices.psa9,

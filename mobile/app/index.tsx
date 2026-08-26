@@ -15,7 +15,7 @@ import { Chip } from '@/components/cv/Chip';
 import { RarBadge } from '@/components/cv/RarBadge';
 import { GradeBadge } from '@/components/cv/GradeBadge';
 import { colors } from '@/theme/tokens';
-import { useThemeColors, useTheme, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useThemeColors, useTheme, useThemeTextVariant, useInputFont } from '@/components/ThemeProvider';
 import { CleanHomeScreen } from '@/components/CleanHomeScreen';
 import { isFlatTheme } from '@/lib/theme';
 import { isAuthenticated, subscribeSession } from '@/lib/session';
@@ -122,6 +122,8 @@ export default function Home() {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function LegacyHome() {
   const authed = useAuthed();
+  // 클린·다크는 시스템 산세리프 — 인풋/placeholder 가 비트맵 폰트로 남지 않게.
+  const inputFont = useInputFont();
   const tc = useThemeColors();
   const { theme } = useTheme();
   const txt = useThemeTextVariant();
@@ -362,7 +364,7 @@ function LegacyHome() {
                   height: '100%',
                   paddingHorizontal: 9,
                   color: tc.ink,
-                  fontFamily: 'Galmuri11',
+                  fontFamily: inputFont,
                   fontSize: 11,
                 }}
               />

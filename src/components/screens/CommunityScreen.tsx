@@ -12,6 +12,7 @@ import { isAvatarId } from '@/lib/avatars';
 import { ShopSection, SHOP_REGIONS } from '@/components/screens/CommunityShop';
 import { isFeedCategory } from '@/lib/feedCategories';
 import type { FeedPost, Trade } from '@/lib/types';
+import { TitleSwapTabs } from '@/components/ui/TitleSwapTabs';
 
 /**
  * 커뮤니티 — Claude Design 'ARVOTCG 커뮤니티' 프로토타입 레이아웃.
@@ -263,7 +264,7 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '8px 16px' }}>
             {/* 커뮤니티 ↔ Shop 모드 토글 — 활성 타이틀이 왼쪽 큰 자리로, 비활성이
                 오른쪽 작은 자리로 서로 위치를 교환하며 애니메이션 */}
-            <ModeTitleSwap isShop={isShop} setMode={setMode} P={P} clean={clean} />
+            <TitleSwapTabs left={{ id: 'feed', label: '커뮤니티' }} right={{ id: 'shop', label: 'Shop' }} value={mode} onChange={setMode} ink={P.ink} dim={clean ? '#C7C7CC' : P.chev} />
             <div style={{ flex: 1 }} />
             {!isShop && <button type="button" aria-label="검색" onClick={() => setSearchOpen((v) => !v)} style={{ display: 'block', color: searchOpen ? P.accent : P.ink, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{Ic.search(searchOpen ? P.accent : P.ink)}</button>}
             <Link href="/my/messages" aria-label="알림" style={{ position: 'relative', display: 'block', color: P.ink }}>
@@ -444,58 +445,6 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
         <div className="bggap" />
       </div>
     </>
-  );
-}
-
-/**
- * 커뮤니티 ↔ Shop 타이틀 스왑 — 두 타이틀이 자리를 서로 교환하며 이동/크기 전환.
- * 큰(22px)/작은(16px) 폭을 숨김 측정해 절대 위치 + transform 으로 애니메이션.
- */
-const TITLE_GAP = 12;
-function ModeTitleSwap({ isShop, setMode, P, clean }: { isShop: boolean; setMode: (m: 'feed' | 'shop') => void; P: Palette; clean: boolean }) {
-  const measRef = useRef<HTMLDivElement | null>(null);
-  const [tw, setTw] = useState<{ cb: number; cs: number; sb: number; ss: number } | null>(null);
-
-  useLayoutEffect(() => {
-    const measure = () => {
-      const el = measRef.current;
-      if (!el) return;
-      const [cb, cs, sb, ss] = Array.from(el.children).map((c) => (c as HTMLElement).offsetWidth);
-      setTw({ cb, cs, sb, ss });
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    document.fonts?.ready?.then(measure).catch(() => {});
-    return () => window.removeEventListener('resize', measure);
-  }, []);
-
-  const dim = clean ? '#C7C7CC' : P.chev;
-  const commX = !tw ? 0 : isShop ? tw.sb + TITLE_GAP : 0;
-  const shopX = !tw ? (isShop ? 0 : 130) : isShop ? 0 : tw.cb + TITLE_GAP;
-  const boxW = !tw ? 180 : Math.max(tw.cb + TITLE_GAP + tw.ss, tw.sb + TITLE_GAP + tw.cs);
-
-  const btn = (active: boolean): CSSProperties => ({
-    position: 'absolute', left: 0, bottom: 0, lineHeight: 1,
-    fontSize: active ? 22 : 16, fontWeight: 900,
-    color: active ? P.ink : dim, letterSpacing: '-.6px',
-    background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
-    whiteSpace: 'nowrap',
-    transition: 'transform .3s cubic-bezier(.4,0,.2,1), font-size .3s cubic-bezier(.4,0,.2,1), color .3s',
-  });
-  const meas: CSSProperties = { fontWeight: 900, letterSpacing: '-.6px', lineHeight: 1, display: 'inline-block', whiteSpace: 'nowrap' };
-
-  return (
-    <div style={{ position: 'relative', width: boxW, height: 24 }}>
-      {/* 폭 측정용 숨김 스팬: 커뮤니티(대/소) · Shop(대/소) */}
-      <div ref={measRef} aria-hidden style={{ position: 'absolute', visibility: 'hidden', height: 0, overflow: 'hidden', whiteSpace: 'nowrap' }}>
-        <span style={{ ...meas, fontSize: 22 }}>커뮤니티</span>
-        <span style={{ ...meas, fontSize: 16 }}>커뮤니티</span>
-        <span style={{ ...meas, fontSize: 22 }}>Shop</span>
-        <span style={{ ...meas, fontSize: 16 }}>Shop</span>
-      </div>
-      <button type="button" onClick={() => setMode('feed')} style={{ ...btn(!isShop), transform: `translateX(${commX}px)` }}>커뮤니티</button>
-      <button type="button" onClick={() => setMode('shop')} style={{ ...btn(isShop), transform: `translateX(${shopX}px)` }}>Shop</button>
-    </div>
   );
 }
 

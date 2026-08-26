@@ -51,4 +51,8 @@ export interface MyFavoriteRow {
   name: string | null;
   imageUrl: string | null;
   minPriceJpy: number;
+  /** 일별 시세 추이(오래된 → 최신). 스냅샷이 없으면 빈 배열. */
+  trend: number[];
+  /** 어제(직전 체결일) 대비 등락률(%). 데이터 부족 시 null. */
+  changePct: number | null;
 }

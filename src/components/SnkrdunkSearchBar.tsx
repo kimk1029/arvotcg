@@ -86,10 +86,11 @@ export function SnkrdunkSearchBar() {
             border: 'none',
             outline: 'none',
             background: 'var(--white)',
-            fontFamily: 'var(--f1)',
+            // 인풋은 디스플레이(--f1) 가 아니라 본문 폰트(--f2) — 클린에선 Pretendard.
+            fontFamily: 'var(--f2)',
             fontSize: 11,
             color: 'var(--ink)',
-            letterSpacing: 0.3,
+            // 자간은 테마 CSS 에 맡긴다 — 클린은 globals.css 의 letter-spacing:normal 적용.
             // 픽셀 폰트 폭이 넓어도 placeholder 는 항상 한 줄(줄바꿈→세로 두꺼워짐 방지).
             whiteSpace: 'nowrap',
             overflow: 'hidden',

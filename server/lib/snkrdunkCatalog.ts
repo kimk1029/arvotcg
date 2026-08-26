@@ -133,6 +133,9 @@ export async function recordPriceSnapshot(
     pricePsa9?: number;
     pricePsa8?: number;
     trend?: number[];
+    /** 시세상세 헤드라인과 동일한 대표 시세 + 기준 등급 (목록·상세 값 일치용). */
+    headlinePrice?: number;
+    headlineBasis?: string;
   },
 ): Promise<void> {
   try {
@@ -145,6 +148,8 @@ export async function recordPriceSnapshot(
         pricePsa10: Math.max(0, Math.round(price.pricePsa10 ?? 0)),
         pricePsa9: Math.max(0, Math.round(price.pricePsa9 ?? 0)),
         pricePsa8: Math.max(0, Math.round(price.pricePsa8 ?? 0)),
+        headlinePrice: Math.max(0, Math.round(price.headlinePrice ?? 0)),
+        headlineBasis: price.headlineBasis ?? null,
         trend: price.trend && price.trend.length > 0 ? price.trend : Prisma.JsonNull,
       },
     });

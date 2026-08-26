@@ -99,6 +99,10 @@ export interface MyFavoriteRow {
   name: string | null;
   imageUrl: string | null;
   minPriceJpy: number;
+  /** 일별 시세 추이(오래된 → 최신). 스냅샷이 없으면 빈 배열. */
+  trend?: number[];
+  /** 어제(직전 체결일) 대비 등락률(%). 데이터 부족 시 null. */
+  changePct?: number | null;
 }
 
 export interface PortfolioSummary {
@@ -523,6 +527,10 @@ export interface PackHitCard {
   itemKind?: 'single' | 'box' | 'other';
   imageUrl: string | null;
   minPrice: number;
+  /** 시세상세 헤드라인과 동일한 대표 시세(JPY). 0 이면 minPrice 로 폴백. */
+  headlinePrice: number;
+  /** 대표 시세 기준 등급 ('PSA 10' | 'PSA 9' | 'RAW'). */
+  headlineBasis: string | null;
   displayPrice: string;
   listingCount: number;
   listingCountText: string;

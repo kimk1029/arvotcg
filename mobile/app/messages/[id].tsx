@@ -21,7 +21,7 @@ import { PixelText } from '@/components/PixelText';
 import { InlineLoginGate } from '@/components/InlineLoginGate';
 import { useToast } from '@/components/ToastProvider';
 import { colors, space } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useThemeColors, useThemeTextVariant, useInputFont } from '@/components/ThemeProvider';
 import { api } from '@/lib/apiClient';
 import { isAuthenticated, subscribeSession } from '@/lib/session';
 
@@ -58,6 +58,8 @@ function useAuthed(): boolean {
 }
 
 export default function MessagesThread() {
+  // 클린·다크는 시스템 산세리프 — 인풋/placeholder 가 비트맵 폰트로 남지 않게.
+  const inputFont = useInputFont();
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
   const toast = useToast();
@@ -230,7 +232,7 @@ export default function MessagesThread() {
             onChangeText={setInput}
             placeholder="쪽지 입력..."
             placeholderTextColor={tc.ink3}
-            style={styles.input}
+            style={[styles.input, { fontFamily: inputFont }]}
             onSubmitEditing={send}
             returnKeyType="send"
             maxLength={500}

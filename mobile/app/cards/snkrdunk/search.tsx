@@ -9,7 +9,7 @@ import { PixelPress } from '@/components/cv/PixelPress';
 import { EmptyState } from '@/components/cv/ListState';
 import { MarketListRow } from '@/components/cv/MarketListRow';
 import { colors } from '@/theme/tokens';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useThemeColors, useThemeTextVariant, useInputFont } from '@/components/ThemeProvider';
 import {
   fetchSnkrdunkApparel,
   searchSnkrdunkByQuery,
@@ -74,6 +74,8 @@ function fmtYen(n: number): string {
 }
 
 export default function SnkrdunkSearchScreen() {
+  // 클린·다크는 시스템 산세리프 — 인풋/placeholder 가 비트맵 폰트로 남지 않게.
+  const inputFont = useInputFont();
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
   const toast = useToast();
@@ -402,7 +404,7 @@ export default function SnkrdunkSearchScreen() {
                 height: 44,
                 paddingHorizontal: 8,
                 color: tc.ink,
-                fontFamily: 'Galmuri11',
+                fontFamily: inputFont,
                 fontSize: 12,
               }}
             />

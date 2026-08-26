@@ -16,7 +16,7 @@ import { PixelPress } from '@/components/cv/PixelPress';
 import { LoadingState } from '@/components/cv/ListState';
 import { ThumbImage } from '@/components/cv/ThumbImage';
 import { fonts, space } from '@/theme/tokens';
-import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useTheme, useThemeColors, useThemeTextVariant, useInputFont } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import {
   downsamplePricePoints,
@@ -84,6 +84,8 @@ function searchToSeed(r: SnkrdunkSearchResult): DisplaySeed {
 }
 
 export default function SnkrdunkLanding() {
+  // 클린·다크는 시스템 산세리프 — 인풋/placeholder 가 비트맵 폰트로 남지 않게.
+  const inputFont = useInputFont();
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
   const { theme } = useTheme();
@@ -189,7 +191,7 @@ export default function SnkrdunkLanding() {
                 onChangeText={setQ}
                 placeholder="카드 검색 (예: 카드명·세트코드)"
                 placeholderTextColor={tc.ink3}
-                style={{ flex: 1, fontFamily: fonts.ko, fontSize: 14, color: tc.ink, paddingVertical: 11 }}
+                style={{ flex: 1, fontFamily: inputFont, fontSize: 14, color: tc.ink, paddingVertical: 11 }}
                 onSubmitEditing={goSearch}
                 returnKeyType="search"
               />
