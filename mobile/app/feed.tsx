@@ -12,6 +12,7 @@ import { api } from '@/lib/apiClient';
 import { swrPeek, swrSet } from '@/lib/swr';
 import { ReportMenu } from '@/components/ReportMenu';
 import { shotSource } from '@/lib/shotMode';
+import { SegmentedTabs, SegIcons } from '@/components/cv/SegmentedTabs';
 
 /**
  * 커뮤니티 — Claude Design 'ARVOTCG 커뮤니티' 프로토타입 레이아웃 (네이티브).
@@ -393,19 +394,19 @@ export default function CommunityScreen() {
       {/* header */}
       <View style={{ backgroundColor: P.cardBg, paddingTop: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 8 }}>
-          {/* 커뮤니티 ↔ Shop 모드 토글 — 활성 타이틀이 왼쪽 큰 자리로, 비활성이
-              오른쪽 작은 자리로 서로 위치를 교환하며 애니메이션(LayoutAnimation) */}
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12 }}>
-            {(isShop ? (['shop', 'feed'] as const) : (['feed', 'shop'] as const)).map((m) => {
-              const active = m === mode;
-              const label = m === 'feed' ? '커뮤니티' : 'Shop';
-              return (
-                <Pressable key={m} onPress={() => switchMode(m)} hitSlop={6}>
-                  <Text style={ts(active ? 22 : 16, '900', active ? P.ink : isClean ? '#C7C7CC' : P.chev)}>{label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          {/* 커뮤니티 ↔ Shop 전환 — 세그먼트 컨트롤 (웹 SegmentedTabs 페어) */}
+          <SegmentedTabs
+            items={[
+              { id: 'feed', label: '커뮤니티', icon: SegIcons.chat },
+              { id: 'shop', label: 'Shop', icon: SegIcons.pin },
+            ]}
+            value={mode}
+            onChange={switchMode}
+            track={P.chip}
+            activeBg={P.ink}
+            activeFg={P.cardBg}
+            inactiveFg={P.ink3}
+          />
           <View style={{ flex: 1 }} />
           {!isShop ? (
             <Pressable onPress={() => setSearchOpen((v) => !v)} hitSlop={8}><Search c={searchOpen ? P.accent : P.ink} /></Pressable>

@@ -12,7 +12,7 @@ import { isAvatarId } from '@/lib/avatars';
 import { ShopSection, SHOP_REGIONS } from '@/components/screens/CommunityShop';
 import { isFeedCategory } from '@/lib/feedCategories';
 import type { FeedPost, Trade } from '@/lib/types';
-import { TitleSwapTabs } from '@/components/ui/TitleSwapTabs';
+import { SegmentedTabs, SegIcons } from '@/components/ui/SegmentedTabs';
 
 /**
  * 커뮤니티 — Claude Design 'ARVOTCG 커뮤니티' 프로토타입 레이아웃.
@@ -264,7 +264,18 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '8px 16px' }}>
             {/* 커뮤니티 ↔ Shop 모드 토글 — 활성 타이틀이 왼쪽 큰 자리로, 비활성이
                 오른쪽 작은 자리로 서로 위치를 교환하며 애니메이션 */}
-            <TitleSwapTabs left={{ id: 'feed', label: '커뮤니티' }} right={{ id: 'shop', label: 'Shop' }} value={mode} onChange={setMode} ink={P.ink} dim={clean ? '#C7C7CC' : P.chev} />
+            <SegmentedTabs
+              items={[
+                { id: 'feed', label: '커뮤니티', icon: SegIcons.chat },
+                { id: 'shop', label: 'Shop', icon: SegIcons.pin },
+              ]}
+              value={mode}
+              onChange={setMode}
+              track={P.chip}
+              activeBg={P.ink}
+              activeFg={P.cardBg}
+              inactiveFg={P.ink3}
+            />
             <div style={{ flex: 1 }} />
             {!isShop && <button type="button" aria-label="검색" onClick={() => setSearchOpen((v) => !v)} style={{ display: 'block', color: searchOpen ? P.accent : P.ink, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{Ic.search(searchOpen ? P.accent : P.ink)}</button>}
             <Link href="/my/messages" aria-label="알림" style={{ position: 'relative', display: 'block', color: P.ink }}>

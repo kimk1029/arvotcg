@@ -9,7 +9,7 @@ import { useCurrency } from '@/components/CurrencyProvider';
 import { usePriceMode } from '@/components/PriceModeProvider';
 import { Panel } from '@/components/ui/Panel';
 import { parseCardStatics } from '../../../shared/cardStatics';
-import { TitleSwapTabs } from '@/components/ui/TitleSwapTabs';
+import { SegmentedTabs, SegIcons } from '@/components/ui/SegmentedTabs';
 import { FavoritesPanel } from '@/components/screens/FavoritesPanel';
 
 interface HistPoint {
@@ -863,13 +863,13 @@ function CollectionHeader({ tab, setTab }: { tab?: AssetTab; setTab?: (t: AssetT
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px var(--gap) 10px' }}>
       {tab && setTab ? (
-        <TitleSwapTabs
-          left={{ id: 'assets', label: '내 자산' }}
-          right={{ id: 'favorites', label: '관심카드' }}
+        <SegmentedTabs
+          items={[
+            { id: 'assets', label: '내 자산', icon: SegIcons.wallet },
+            { id: 'favorites', label: '관심카드', icon: SegIcons.star },
+          ]}
           value={tab}
           onChange={setTab}
-          ink="var(--ink)"
-          dim="var(--ink3)"
         />
       ) : (
         <div style={{ fontFamily: 'var(--f1)', fontSize: 23, fontWeight: 900, color: 'var(--ink)', letterSpacing: '-0.5px' }}>

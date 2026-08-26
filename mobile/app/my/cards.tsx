@@ -37,6 +37,7 @@ import {
 import { useSWR } from '@/lib/swr';
 import { isAuthenticated, subscribeSession } from '@/lib/session';
 import { parseCardStatics } from '../../../shared/cardStatics';
+import { SegmentedTabs, SegIcons } from '@/components/cv/SegmentedTabs';
 
 type SortKey = 'value' | 'change' | 'recent' | 'name' | 'game';
 type ViewMode = 'grid' | 'list';
@@ -548,26 +549,20 @@ function CollectionHeader({
   tab: AssetTab;
   setTab: (t: AssetTab) => void;
 }) {
-  // 내 자산 ↔ 관심카드 — 활성 타이틀이 크게, 비활성은 작게 (웹 TitleSwapTabs 페어).
-  const title = (id: AssetTab, label: string) => (
-    <Pressable key={id} onPress={() => setTab(id)} hitSlop={8}>
-      <PixelText
-        variant="ko"
-        size={tab === id ? 22 : 16}
-        weight="bold"
-        color={tab === id ? tc.ink : tc.ink3}
-        style={{ letterSpacing: -0.5 }}
-      >
-        {label}
-      </PixelText>
-    </Pressable>
-  );
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10 }}>
-        {title('assets', '내 자산')}
-        {title('favorites', '관심카드')}
-      </View>
+      <SegmentedTabs
+        items={[
+          { id: 'assets', label: '내 자산', icon: SegIcons.wallet },
+          { id: 'favorites', label: '관심카드', icon: SegIcons.star },
+        ]}
+        value={tab}
+        onChange={setTab}
+        track={tc.pap2}
+        activeBg={tc.ink}
+        activeFg={tc.paper}
+        inactiveFg={tc.ink3}
+      />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
         <Pressable onPress={() => router.push('/cards/snkrdunk/search' as never)} hitSlop={6}>
           <Svg width={23} height={23} viewBox="0 0 24 24" fill="none" stroke={tc.ink} strokeWidth={2} strokeLinecap="round">
