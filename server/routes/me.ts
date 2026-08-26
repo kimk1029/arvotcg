@@ -36,6 +36,7 @@ import {
 } from '../lib/snkrdunkCatalog.js';
 import { getJpyKrwRate } from '../lib/fxRate.js';
 import { runDailyCheckIn } from '../lib/checkIn.js';
+import { logPointChange } from '../lib/pointLog.js';
 import { kstDateKey, kstDateKeyShifted } from '../../shared/kst';
 
 const router = Router();
@@ -654,6 +655,74 @@ router.get('/inventory', async (req: Request, res: Response) => {
   }
 });
 
+/* ── 알림 (포인트 적립·회수·레벨업) — PointLog 원장 기반 ─────────────── */
+
+router.get('/notifications', async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  try {
+    const [rows, u] = await Promise.all([
+      prisma.pointLog.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 50 }),
+      prisma.user.findUnique({ where: { id: userId }, select: { notificationsSeenAt: true } }),
+    ]);
+    const seenAt = u?.notificationsSeenAt ?? null;
+    const data = rows.map((r) => {
+      // 레벨업 파생 — 잔액과 증감량만으로 계산 (별도 기록 불필요).
+      const before = levelFromPoints(r.balanceAfter - r.delta);
+      const after = levelFromPoints(r.balanceAfter);
+      return {
+        id: r.id,
+        delta: r.delta,
+        reason: r.reason,
+        balanceAfter: r.balanceAfter,
+        createdAt: r.createdAt.toISOString(),
+        unseen: seenAt == null || r.createdAt > seenAt,
+        levelUp:
+          r.delta > 0 && after.level > before.level
+            ? { from: before.level, to: after.level, title: after.title }
+            : null,
+      };
+    });
+    res.json({ data });
+  } catch (err) {
+    console.error('[me.notifications]', err);
+    res.status(500).json({ data: [], error: 'internal' });
+  }
+});
+
+router.get('/notifications/unread', async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  try {
+    const u = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { notificationsSeenAt: true },
+    });
+    const count = await prisma.pointLog.count({
+      where: {
+        userId,
+        ...(u?.notificationsSeenAt ? { createdAt: { gt: u.notificationsSeenAt } } : {}),
+      },
+    });
+    res.json({ count });
+  } catch (err) {
+    console.error('[me.notifications.unread]', err);
+    res.json({ count: 0 });
+  }
+});
+
+router.post('/notifications/seen', async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { notificationsSeenAt: new Date() },
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[me.notifications.seen]', err);
+    res.status(500).json({ ok: false });
+  }
+});
+
 router.post('/points/spend', async (req: Request, res: Response) => {
   const userId = req.user!.userId;
   const amountRaw = (req.body as { amount?: unknown } | null)?.amount;
@@ -672,6 +741,7 @@ router.post('/points/spend', async (req: Request, res: Response) => {
       if (!exists) return res.status(404).json({ ok: false, error: 'user not found' });
       return res.status(400).json({ ok: false, error: '포인트 부족' });
     }
+    await logPointChange(prisma, userId, -amount, 'manual_spend');
     const inv = await getMyInventory(userId);
     res.json({ ok: true, inv });
   } catch (err) {

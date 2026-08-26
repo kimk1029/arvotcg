@@ -136,8 +136,9 @@ const DRAWER_SECTIONS: { label: string | null; items: DrawerItem[] }[] = [
   {
     label: '내 정보',
     items: [
-      // 알림(쪽지함) — 헤더 벨을 드로어로 통합. 미읽음 수는 렌더 시점에 동적 배지로.
-      { emoji: '🔔', label: '알림', href: '/my/messages' },
+      // 알림(포인트 적립·회수·레벨업)·쪽지함 — 미확인/미읽음 수는 렌더 시점에 동적 배지로.
+      { emoji: '🔔', label: '알림', href: '/my/notifications' },
+      { emoji: '✉️', label: '쪽지함', href: '/my/messages' },
       { emoji: '📢', label: '공지사항', href: '/my/notices' },
       { emoji: '👤', label: '마이페이지', href: '/my' },
     ],
@@ -509,6 +510,20 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
     return () => { alive = false; };
   }, [isLoggedIn, drawerMe, drawerOpen]);
 
+  // 알림(포인트 적립·회수·레벨업) 미확인 수 — 드로어 벨 점 + 항목 배지. 열람(seen) 시 0.
+  const [notifUnread, setNotifUnread] = useState(0);
+  useEffect(() => {
+    if (!isLoggedIn) { setNotifUnread(0); return; }
+    let alive = true;
+    fetch('/api/me/notifications/unread', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { count?: number } | null) => {
+        if (alive && j && Number.isFinite(j.count)) setNotifUnread(j.count ?? 0);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [isLoggedIn, drawerOpen]);
+
   // 헤더 포트폴리오 아이콘의 어제 대비 등락 화살표 — 세션 캐시(5분)로 무거운 집계 재사용.
   const [portPct, setPortPct] = useState<number | null>(null);
   useEffect(() => {
@@ -744,11 +759,11 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
           <span style={{ color: P.ink }}>ARVO</span>
           <span style={{ color: ACCENT30 }}>TCG</span>
         </div>
-        {/* 메뉴 — 라벨이 있는 알약형 버튼. 알림·포트폴리오는 드로어 상단으로 통합 —
-            미읽음이 있으면 알약에 빨간 점으로 신호만 남긴다. */}
+        {/* 메뉴 — 라벨이 있는 알약형 버튼. 알림·쪽지·포트폴리오는 드로어 상단으로 통합 —
+            새 소식(알림·쪽지)이 있으면 알약에 빨간 점으로 신호만 남긴다. */}
         <button
           type="button"
-          aria-label={unread > 0 ? `메뉴 열기 (새 알림 ${unread}개)` : '메뉴 열기'}
+          aria-label={unread + notifUnread > 0 ? `메뉴 열기 (새 소식 ${unread + notifUnread}개)` : '메뉴 열기'}
           onClick={() => setDrawerOpen(true)}
           style={{
             position: 'relative', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
@@ -760,7 +775,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
             <path d="M3 6h18M3 12h18M3 18h18" />
           </svg>
           <span style={{ fontSize: 12.5, fontWeight: 800, color: P.ink, whiteSpace: 'nowrap' }}>메뉴</span>
-          {unread > 0 && (
+          {unread + notifUnread > 0 && (
             <span style={{ position: 'absolute', top: -3, right: -3, width: 9, height: 9, background: RISE, borderRadius: '50%', border: '1.5px solid var(--paper)' }} />
           )}
         </button>
@@ -954,21 +969,35 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px 16px' }}>
-          {/* 드로어 최상단 — 로고 대신 알림·포트폴리오 아이콘.
-              알림: 미읽음 빨간 점(읽으면 사라짐) / 포트폴리오: 어제 대비 ▲빨강·▼파랑. */}
+          {/* 드로어 최상단 — 로고 대신 알림·쪽지함·포트폴리오 아이콘.
+              알림(포인트·레벨업): 미확인 점 / 쪽지함: 미읽음 점 / 포트폴리오: ▲빨강·▼파랑. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
             <Link
-              href="/my/messages"
+              href="/my/notifications"
               onClick={() => setDrawerOpen(false)}
-              aria-label={unread > 0 ? `알림 (안 읽음 ${unread}개)` : '알림'}
+              aria-label={notifUnread > 0 ? `알림 (새 알림 ${notifUnread}개)` : '알림'}
               style={{ position: 'relative', display: 'flex', color: P.ink }}
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                 <path d="M13.7 21a2 2 0 0 1-3.4 0" />
               </svg>
-              {unread > 0 && (
+              {notifUnread > 0 && (
                 <span style={{ position: 'absolute', top: 0, right: 1, width: 8, height: 8, background: RISE, borderRadius: '50%', border: `1.5px solid ${P.bg}` }} />
+              )}
+            </Link>
+            <Link
+              href="/my/messages"
+              onClick={() => setDrawerOpen(false)}
+              aria-label={unread > 0 ? `쪽지함 (안 읽음 ${unread}개)` : '쪽지함'}
+              style={{ position: 'relative', display: 'flex', color: P.ink }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <path d="m3 7 9 6 9-6" />
+              </svg>
+              {unread > 0 && (
+                <span style={{ position: 'absolute', top: -2, right: -2, width: 8, height: 8, background: RISE, borderRadius: '50%', border: `1.5px solid ${P.bg}` }} />
               )}
             </Link>
             <Link
@@ -1075,10 +1104,12 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
                       <span style={{ fontSize: 19, width: 26, textAlign: 'center', flex: 'none' }}>{dm.emoji}</span>
                       <span style={{ flex: 1, fontSize: 14.5, fontWeight: 700, color: P.ink }}>{dm.label}</span>
                       {(() => {
-                        // 알림 항목은 미읽음 수를 동적 배지로 (그 외엔 정적 badge).
+                        // 알림·쪽지함 항목은 미확인 수를 동적 배지로 (그 외엔 정적 badge).
                         const badge = dm.href === '/my/messages'
                           ? (unread > 0 ? String(Math.min(unread, 99)) : null)
-                          : dm.badge ?? null;
+                          : dm.href === '/my/notifications'
+                            ? (notifUnread > 0 ? String(Math.min(notifUnread, 99)) : null)
+                            : dm.badge ?? null;
                         return badge ? (
                           <span style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: dm.badgeBg ?? RISE, padding: '2px 8px', borderRadius: pixelTiles ? 0 : 9, flex: 'none' }}>{badge}</span>
                         ) : null;

@@ -3,6 +3,7 @@ import { BACKGROUNDS, FRAMES, isBackgroundId, isFrameId } from '@/lib/shop';
 import { getMyInventory, type InventorySnapshot } from './queries.js';
 import { defaultNameFor } from './defaultName.js';
 import { prisma } from './prisma.js';
+import { logPointChange } from './pointLog.js';
 
 type Result =
   | { ok: true; inv: InventorySnapshot }
@@ -85,6 +86,9 @@ async function genericBuy(
       return { ok: true, inv: await getMyInventory(userId) };
     }
     return { ok: false, error: '포인트 부족' };
+  }
+  if (expectedPrice > 0) {
+    await logPointChange(prisma, userId, -expectedPrice, 'shop_buy', { type: kind, id });
   }
   return { ok: true, inv: await getMyInventory(userId) };
 }

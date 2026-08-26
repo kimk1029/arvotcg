@@ -5,6 +5,7 @@ import { requireAuth, optionalAuth } from '../middleware/requireAuth.js';
 import { defaultNameFor } from '../lib/defaultName.js';
 import { getTradeById, getTrades } from '../lib/queries.js';
 import { REWARDS } from '../../shared/rewards';
+import { adjustPoints } from '../lib/pointLog.js';
 
 const MAX_LIMIT = 100;
 const MAX_BUMPS = 3;
@@ -82,9 +83,9 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
           images: images.length > 0 ? (images as unknown as object) : undefined,
         },
       });
-      await tx.user.update({
-        where: { id: userId },
-        data: { points: { increment: REWARDS.trade_post } },
+      await adjustPoints(tx, userId, REWARDS.trade_post, 'trade_post', {
+        type: 'trade',
+        id: String(row.id),
       });
       return row;
     });
@@ -243,9 +244,9 @@ router.patch('/:id/status', requireAuth, async (req: Request, res: Response) => 
     const updated = await prisma.$transaction(async (tx) => {
       const row = await tx.trade.update({ where: { id }, data: { status: status as TradeStatus } });
       if (becameDone && before.authorId) {
-        await tx.user.update({
-          where: { id: before.authorId },
-          data: { points: { increment: REWARDS.trade_done } },
+        await adjustPoints(tx, before.authorId, REWARDS.trade_done, 'trade_done', {
+          type: 'trade',
+          id: String(id),
         });
       }
       return row;

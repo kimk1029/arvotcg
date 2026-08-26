@@ -48,6 +48,19 @@ export async function runDailyCheckIn(userId: string): Promise<CheckInResult | n
     });
 
     if (result.count === 0) return null;
+
+    // 포인트 원장 — 출석은 lastCheckInAt 만 남아 복원 불가하므로 여기서 기록.
+    const after = await tx.user.findUnique({ where: { id: userId }, select: { points: true } });
+    const total = after?.points ?? 0;
+    await tx.pointLog.create({
+      data: { userId, delta: granted, reason: 'login_daily', balanceAfter: total - bonus },
+    });
+    if (bonus > 0) {
+      await tx.pointLog.create({
+        data: { userId, delta: bonus, reason: 'login_streak3_bonus', balanceAfter: total },
+      });
+    }
+
     return { granted, bonus, streak: nextStreak };
   });
 }

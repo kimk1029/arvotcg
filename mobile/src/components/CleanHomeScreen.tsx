@@ -29,7 +29,7 @@ import { pickHomeBoxPacks } from '../../../shared/homeBoxPacks';
 import { jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
 import { useScanToSearch } from '@/lib/useScanToSearch';
 import { api } from '@/lib/apiClient';
-import { fetchMySummary, fetchPortfolio, fetchUnreadCount, peekPortfolio, type MySummary } from '@/lib/myApi';
+import { fetchMySummary, fetchNotifUnreadCount, fetchPortfolio, fetchUnreadCount, peekPortfolio, type MySummary } from '@/lib/myApi';
 import { isAuthenticated } from '@/lib/session';
 import { setHomeHotRows } from '@/lib/homeHotStore';
 import { swrAge, swrKeys, swrPeek, swrSet } from '@/lib/swr';
@@ -204,8 +204,9 @@ const DRAWER_SECTIONS: { label: string | null; items: DrawerItem[] }[] = [
   {
     label: '내 정보',
     items: [
-      // 알림(쪽지함) — 헤더 벨을 드로어로 통합. 미읽음 수는 렌더 시점에 동적 배지로.
-      { emoji: '🔔', label: '알림', href: '/my/messages' },
+      // 알림(포인트 적립·회수·레벨업)·쪽지함 — 미확인/미읽음 수는 렌더 시점에 동적 배지로.
+      { emoji: '🔔', label: '알림', href: '/my/notifications' },
+      { emoji: '✉️', label: '쪽지함', href: '/my/messages' },
       { emoji: '📢', label: '공지사항', href: '/my/notices' },
       { emoji: '👤', label: '마이페이지', href: '/my' },
     ],
@@ -444,9 +445,13 @@ export function CleanHomeScreen() {
   // 미읽음 쪽지 수 — 헤더 알림 아이콘 빨간 점 + 드로어 '알림' 배지 (웹 useUnread 페어).
   // 화면 복귀 시 재조회 — 쪽지함을 읽고 돌아오면 점이 사라진다.
   const [unread, setUnread] = useState(0);
+  // 알림(포인트·레벨업) 미확인 수 — 드로어 벨 점·배지. 알림 화면 열람 후 복귀 시 0.
+  const [notifUnread, setNotifUnread] = useState(0);
   useFocusEffect(
     useCallback(() => {
-      if (isAuthenticated()) fetchUnreadCount().then(setUnread);
+      if (!isAuthenticated()) return;
+      fetchUnreadCount().then(setUnread);
+      fetchNotifUnreadCount().then(setNotifUnread);
     }, []),
   );
   // 헤더 포트폴리오 아이콘의 어제 대비 등락 화살표 (웹 CleanHome 페어).
@@ -829,7 +834,7 @@ export function CleanHomeScreen() {
           <Pressable
             onPress={openDrawer}
             hitSlop={6}
-            accessibilityLabel={unread > 0 ? `메뉴 열기 (새 알림 ${unread}개)` : '메뉴 열기'}
+            accessibilityLabel={unread + notifUnread > 0 ? `메뉴 열기 (새 소식 ${unread + notifUnread}개)` : '메뉴 열기'}
             style={{
               flexDirection: 'row', alignItems: 'center', gap: 5,
               height: 34, paddingLeft: 10, paddingRight: 11, borderRadius: 11,
@@ -840,7 +845,7 @@ export function CleanHomeScreen() {
               <Path d="M3 6h18M3 12h18M3 18h18" />
             </Svg>
             <Text style={ts(12.5, '800', P.ink)}>메뉴</Text>
-            {unread > 0 ? (
+            {unread + notifUnread > 0 ? (
               <View style={{ position: 'absolute', top: -3, right: -3, width: 9, height: 9, backgroundColor: RISE, borderRadius: 5, borderWidth: 1.5, borderColor: P.bg }} />
             ) : null}
           </Pressable>
@@ -1066,20 +1071,33 @@ export function CleanHomeScreen() {
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, paddingBottom: 18 }}>
-              {/* 드로어 최상단 — 로고 대신 알림·포트폴리오 아이콘 (웹 CleanHome 동일).
-                  알림: 미읽음 빨간 점(읽으면 사라짐) / 포트폴리오: 어제 대비 ▲빨강·▼파랑. */}
+              {/* 드로어 최상단 — 로고 대신 알림·쪽지함·포트폴리오 아이콘 (웹 CleanHome 동일).
+                  알림(포인트·레벨업): 미확인 점 / 쪽지함: 미읽음 점 / 포트폴리오: ▲빨강·▼파랑. */}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}>
                 <Pressable
-                  onPress={() => goFromDrawer('/my/messages')}
+                  onPress={() => goFromDrawer('/my/notifications')}
                   hitSlop={8}
-                  accessibilityLabel={unread > 0 ? `알림 (안 읽음 ${unread}개)` : '알림'}
+                  accessibilityLabel={notifUnread > 0 ? `알림 (새 알림 ${notifUnread}개)` : '알림'}
                 >
                   <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
                     <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                     <Path d="M13.7 21a2 2 0 0 1-3.4 0" />
                   </Svg>
-                  {unread > 0 ? (
+                  {notifUnread > 0 ? (
                     <View style={{ position: 'absolute', top: 0, right: 1, width: 8, height: 8, backgroundColor: RISE, borderRadius: 4, borderWidth: 1.5, borderColor: P.bg }} />
+                  ) : null}
+                </Pressable>
+                <Pressable
+                  onPress={() => goFromDrawer('/my/messages')}
+                  hitSlop={8}
+                  accessibilityLabel={unread > 0 ? `쪽지함 (안 읽음 ${unread}개)` : '쪽지함'}
+                >
+                  <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <Rect x={3} y={5} width={18} height={14} rx={2} />
+                    <Path d="m3 7 9 6 9-6" />
+                  </Svg>
+                  {unread > 0 ? (
+                    <View style={{ position: 'absolute', top: -2, right: -2, width: 8, height: 8, backgroundColor: RISE, borderRadius: 4, borderWidth: 1.5, borderColor: P.bg }} />
                   ) : null}
                 </Pressable>
                 <Pressable
@@ -1184,10 +1202,12 @@ export function CleanHomeScreen() {
                             <Text style={{ fontSize: 19, width: 26, textAlign: 'center' }}>{dm.emoji}</Text>
                             <Text style={[ts(14.5, '700', P.ink), { flex: 1 }]}>{dm.label}</Text>
                             {(() => {
-                              // 알림 항목은 미읽음 수를 동적 배지로 (그 외엔 정적 badge).
+                              // 알림·쪽지함 항목은 미확인 수를 동적 배지로 (그 외엔 정적 badge).
                               const badge = dm.href === '/my/messages'
                                 ? (unread > 0 ? String(Math.min(unread, 99)) : null)
-                                : dm.badge ?? null;
+                                : dm.href === '/my/notifications'
+                                  ? (notifUnread > 0 ? String(Math.min(notifUnread, 99)) : null)
+                                  : dm.badge ?? null;
                               return badge ? (
                                 <View style={{ backgroundColor: dm.badgeBg ?? RISE, paddingVertical: 2, paddingHorizontal: 8, borderRadius: pixel ? 0 : 9 }}>
                                   <Text style={ts(10.5, '800', '#fff')}>{badge}</Text>

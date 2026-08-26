@@ -8,6 +8,7 @@
  */
 import { randomInt } from 'node:crypto';
 import { prisma } from './prisma.js';
+import { logPointChange } from './pointLog.js';
 import type { OripaBox, OripaBoxPrize, OripaGrade, OripaTier, OripaTicket } from '@/lib/types';
 
 /**
@@ -291,6 +292,7 @@ export async function pullOripaTickets(
       if (charged.count === 0) {
         throw new OripaPullError('insufficient_points', '포인트가 부족합니다');
       }
+      await logPointChange(tx, user.id, -cost, 'oripa_pull', { type: 'oripa' });
     }
 
     return { results, alreadyDrawn, charged: cost };

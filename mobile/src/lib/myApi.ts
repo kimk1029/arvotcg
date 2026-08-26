@@ -171,6 +171,37 @@ export interface LevelInfo {
   maxLevel: number;
 }
 
+/* --- 알림 (포인트 적립·회수·레벨업, PointLog 원장) — 웹과 동일 엔드포인트 --- */
+
+export interface NotificationRow {
+  id: number;
+  delta: number;
+  reason: string;
+  balanceAfter: number;
+  createdAt: string;
+  unseen: boolean;
+  levelUp: { from: number; to: number; title: string } | null;
+}
+
+export function fetchNotifications(): Promise<NotificationRow[]> {
+  return api<{ data: NotificationRow[] }>('/api/me/notifications')
+    .then((r) => r.data ?? [])
+    .catch(() => []);
+}
+
+/** 미확인 알림 수 — 드로어 벨 점·배지용. 알림 화면 열람(seen) 시 0 이 된다. */
+export function fetchNotifUnreadCount(): Promise<number> {
+  return api<{ count: number }>('/api/me/notifications/unread')
+    .then((r) => (Number.isFinite(r.count) ? r.count : 0))
+    .catch(() => 0);
+}
+
+export function markNotificationsSeen(): Promise<void> {
+  return api('/api/me/notifications/seen', { method: 'POST' })
+    .then(() => undefined)
+    .catch(() => undefined);
+}
+
 /** 미읽음 쪽지 수 — 웹 UnreadProvider 와 동일 엔드포인트. */
 export function fetchUnreadCount(): Promise<number> {
   if (SHOT) return Promise.resolve(SHOT_UNREAD);

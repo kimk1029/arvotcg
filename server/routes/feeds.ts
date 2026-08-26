@@ -5,6 +5,7 @@ import { requireAuth, optionalAuth } from '../middleware/requireAuth.js';
 import { defaultNameFor } from '../lib/defaultName.js';
 import { getFeedPage, getBlockedIds } from '../lib/queries.js';
 import { REWARDS } from '../../shared/rewards';
+import { adjustPoints } from '../lib/pointLog.js';
 import { DEFAULT_FEED_CATEGORY, isFeedCategory } from '../../shared/feedCategories';
 
 const router = Router();
@@ -123,9 +124,9 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
           images: images.length > 0 ? images : undefined,
         },
       });
-      await tx.user.update({
-        where: { id: userId },
-        data: { points: { increment: REWARDS.feed_general } },
+      await adjustPoints(tx, userId, REWARDS.feed_general, 'feed_general', {
+        type: 'feed',
+        id: String(row.id),
       });
       return row;
     });

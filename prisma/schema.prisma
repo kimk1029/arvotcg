@@ -27,6 +27,8 @@ model User {
 
   // profile / inventory (클라이언트 로컬스토리지 대체)
   points           Int       @default(0)
+  /// 알림함을 마지막으로 연 시각 — 이후 생성된 PointLog 수 = 미확인 알림 배지.
+  notificationsSeenAt DateTime?
   /// 마지막 출석체크 시각. KST 일자 비교용. null = 아직 출석 한 번도 안 함.
   lastCheckInAt    DateTime?
   /// 연속 출석 일수. 3 의 배수에 도달할 때 보너스 지급.
@@ -61,8 +63,29 @@ model User {
   blocksMade       UserBlock[]     @relation("BlocksMade")
   blocksReceived   UserBlock[]     @relation("BlocksReceived")
   cardShowReservations CardShowReservation[]
+  pointLogs        PointLog[]
 
   @@map("users")
+}
+
+/// 포인트 적립·회수 원장 — 알림 피드(/api/me/notifications)의 데이터 소스.
+/// 레벨업은 balanceAfter/delta 로 파생 계산 (별도 테이블 불필요).
+model PointLog {
+  id           Int      @id @default(autoincrement())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 증감량 — 적립 양수, 회수(사용) 음수.
+  delta        Int
+  /// shared/rewards.ts 키 또는 사용처 키 (oripa_pull, shop_buy, manual_spend).
+  reason       String
+  /// 증감 직후 잔액 — 레벨업 파생·정합성 검증용.
+  balanceAfter Int
+  refType      String?
+  refId        String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("point_logs")
 }
 
 /// 콘텐츠 신고 — 게시글/댓글 등 UGC 신고 접수 (App Store 심사 지침 1.2 요건).
