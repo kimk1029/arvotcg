@@ -22,46 +22,63 @@ export interface Thread {
   unread: number;
 }
 
-/** 내가 주고받은 모든 상대별 최근 메시지 + unread 개수 */
+/**
+ * 내가 주고받은 상대별 최근 메시지 + unread 개수.
+ *
+ * 예전에는 내 메시지를 전부 불러와 JS 에서 그룹핑했다 — 대화가 쌓일수록(가격알림
+ * 시스템 쪽지 포함) 선형으로 느려진다. 이제 상대별 마지막 1건(DISTINCT ON)과
+ * 미읽음 집계만 DB 에서 가져온다.
+ */
 export async function getThreads(myId: string): Promise<Thread[]> {
-  // 내가 보낸 것 + 받은 것 전부 가져와서 peerId 로 그룹핑
-  const rows = await prisma.message.findMany({
-    where: { OR: [{ senderId: myId }, { receiverId: myId }] },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      sender: {
-        select: { id: true, name: true, avatarId: true, backgroundId: true, frameId: true },
-      },
-      receiver: {
-        select: { id: true, name: true, avatarId: true, backgroundId: true, frameId: true },
-      },
-    },
-  });
+  const [lastRows, unreadRows] = await Promise.all([
+    prisma.$queryRaw<
+      Array<{ peerId: string; text: string; createdAt: Date; lastFromMe: boolean }>
+    >`
+      SELECT DISTINCT ON (peer)
+        peer AS "peerId", "text", "createdAt", "fromMe" AS "lastFromMe"
+      FROM (
+        SELECT
+          CASE WHEN "senderId" = ${myId} THEN "receiverId" ELSE "senderId" END AS peer,
+          "text", "createdAt", ("senderId" = ${myId}) AS "fromMe"
+        FROM "messages"
+        WHERE "senderId" = ${myId} OR "receiverId" = ${myId}
+      ) t
+      ORDER BY peer, "createdAt" DESC
+    `,
+    prisma.message.groupBy({
+      by: ['senderId'],
+      where: { receiverId: myId, readAt: null },
+      _count: { _all: true },
+    }),
+  ]);
+  if (lastRows.length === 0) return [];
 
-  const threadMap = new Map<string, Thread>();
-  for (const r of rows) {
-    const isFromMe = r.senderId === myId;
-    const peerId = isFromMe ? r.receiverId : r.senderId;
-    const peer = isFromMe ? r.receiver : r.sender;
-    if (!threadMap.has(peerId)) {
-      threadMap.set(peerId, {
-        peerId,
-        peerName: peer.name,
-        peerAvatar: peer.avatarId,
-        peerBgId: peer.backgroundId,
-        peerFrameId: peer.frameId,
+  const unreadByPeer = new Map<string, number>(
+    unreadRows.map((r) => [r.senderId, r._count._all]),
+  );
+  const peers = await prisma.user.findMany({
+    where: { id: { in: lastRows.map((r) => r.peerId) } },
+    select: { id: true, name: true, avatarId: true, backgroundId: true, frameId: true },
+  });
+  type PeerRow = (typeof peers)[number];
+  const peerById = new Map<string, PeerRow>(peers.map((u) => [u.id, u]));
+
+  return lastRows
+    .map((r): Thread => {
+      const peer = peerById.get(r.peerId);
+      return {
+        peerId: r.peerId,
+        peerName: peer?.name ?? '알 수 없음',
+        peerAvatar: peer?.avatarId ?? '🐣',
+        peerBgId: peer?.backgroundId ?? 'default',
+        peerFrameId: peer?.frameId ?? 'none',
         lastText: r.text,
         lastAt: r.createdAt,
-        lastFromMe: isFromMe,
-        unread: 0,
-      });
-    }
-    if (!isFromMe && r.readAt === null) {
-      const t = threadMap.get(peerId);
-      if (t) t.unread += 1;
-    }
-  }
-  return Array.from(threadMap.values()).sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime());
+        lastFromMe: r.lastFromMe,
+        unread: unreadByPeer.get(r.peerId) ?? 0,
+      };
+    })
+    .sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime());
 }
 
 export async function getConversation(

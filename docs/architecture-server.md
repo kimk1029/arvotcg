@@ -58,3 +58,7 @@
 2. DB 쓰기 실패는 삼키고 로깅 — 사용자 응답을 죽이지 않는다.
 3. 배포 후 스모크는 `https://www.poke-30.com/api/...` 프록시로 (poke-30.com은 www로 308).
 4. 이 개발 박스에는 DATABASE_URL 없음 — DB는 NAS/Vercel에만. 로컬 검증은 임시 Postgres로.
+5. **`DATABASE_URL` 의 `connection_limit` 을 1 로 두지 말 것** (Vultr `server/.env`).
+   Prisma 커넥션이 1개면 서버 전체 쿼리가 한 줄로 직렬화돼, 일별 시세 배치가 도는
+   동안 모든 API 가 수 초씩 걸린다(2026-08 쪽지함 지연의 실제 원인). 10 권장.
+   pgbouncer 트랜잭션 모드(:6543)에는 `pgbouncer=true` 를 함께 유지.

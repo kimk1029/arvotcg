@@ -18,7 +18,7 @@ import { useSWR } from '@/lib/swr';
 export default function MyMessagesScreen() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
-  const { data, loading, error, refresh } = useSWR('me:threads', fetchMessageThreads, { ttlMs: 30_000 });
+  const { data, loading, error, refresh } = useSWR('me:threads', fetchMessageThreads, { ttlMs: 30_000, persist: true });
 
   return (
     <View style={{ flex: 1, backgroundColor: tc.paper }}>
