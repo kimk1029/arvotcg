@@ -5,11 +5,33 @@
  * 입력은 uncontrolled + FormData 로 읽는다 — 브라우저 자동완성 값이 React 상태에
  * 안 잡혀 버튼이 죽어 보이던 문제(반응 없음) 방지. 버튼은 항상 활성, 검증은 제출 시.
  */
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+
+// 소셜 로그인 — API 서버가 OAuth 후 권한을 확인하고 /api/oauth 로 되돌려준다.
+// (Apple 은 웹에서 별도 Services ID 도메인 검증이 필요해 앱 전용 — 여기선 제외)
+const API_ORIGIN = process.env.NEXT_PUBLIC_API_ORIGIN ?? 'https://api.arvotcg.com';
+const SOCIALS = [
+  { id: 'kakao', label: '카카오로 로그인', bg: '#FEE500', fg: '#3A1D00' },
+  { id: 'naver', label: '네이버로 로그인', bg: '#03C75A', fg: '#FFFFFF' },
+  { id: 'google', label: 'Google로 로그인', bg: '#FFFFFF', fg: '#1F1F1F' },
+];
+
+const OAUTH_ERRORS: Record<string, string> = {
+  forbidden: '이 계정에는 관리자 권한이 없습니다. 관리자에게 권한 부여를 요청해 주세요.',
+  invalid: '로그인 정보를 확인하지 못했습니다. 다시 시도해 주세요.',
+  notoken: '로그인이 완료되지 않았습니다. 다시 시도해 주세요.',
+  apidown: 'API 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+};
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // 소셜 로그인 실패 사유(?error=)를 화면에 표시.
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('error');
+    if (code) setError(OAUTH_ERRORS[code] ?? `로그인에 실패했습니다. (${code})`);
+  }, []);
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -67,6 +89,23 @@ export default function LoginPage() {
         <button className="login-btn" type="submit" disabled={busy}>
           {busy ? '확인 중…' : '로그인'}
         </button>
+
+        <div className="login-divider"><span>또는 소셜 계정으로</span></div>
+        <div className="login-socials">
+          {SOCIALS.map((s) => (
+            <a
+              key={s.id}
+              className="login-social"
+              style={{ background: s.bg, color: s.fg }}
+              href={`${API_ORIGIN}/auth/${s.id}?platform=admin`}
+            >
+              {s.label}
+            </a>
+          ))}
+        </div>
+        <p className="login-hint">
+          관리자 권한이 부여된 계정만 소셜 로그인으로 접근할 수 있어요.
+        </p>
       </form>
     </div>
   );

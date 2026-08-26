@@ -27,6 +27,9 @@ model User {
 
   // profile / inventory (클라이언트 로컬스토리지 대체)
   points           Int       @default(0)
+  /// 어드민 권한. 어드민 회원 관리에서 부여/해제하며, ADMIN_EMAILS env 와 합집합으로 판정.
+  /// 권한이 있으면 admin.arvotcg.com 에 소셜 로그인으로 접근할 수 있다.
+  isAdmin          Boolean   @default(false)
   /// 알림함을 마지막으로 연 시각 — 이후 생성된 PointLog 수 = 미확인 알림 배지.
   notificationsSeenAt DateTime?
   /// 마지막 출석체크 시각. KST 일자 비교용. null = 아직 출석 한 번도 안 함.

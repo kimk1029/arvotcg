@@ -5,7 +5,8 @@ import { ADMIN_COOKIE, verifySessionToken } from '@/lib/adminSession';
  * 어드민 접근 제어 — 세션 쿠키(HMAC 서명) 검증.
  * 브라우저 Basic Auth 팝업 대신 /login 페이지로 유도한다.
  */
-const PUBLIC_PATHS = new Set(['/login', '/api/login']);
+// /api/oauth = 소셜 로그인 세션 교환 (토큰 검증·권한 확인은 라우트 자체에서 수행)
+const PUBLIC_PATHS = new Set(['/login', '/api/login', '/api/oauth']);
 
 export async function middleware(req: NextRequest) {
   const user = process.env.ADMIN_USERNAME;

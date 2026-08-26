@@ -6,10 +6,13 @@ import { signSession, extractToken, verifySession } from '../lib/auth.js';
 import { setSessionCookie, clearSessionCookie } from '../lib/cookies.js';
 import { getProvider } from '../lib/oauth/index.js';
 import { defaultNameFor } from '../lib/defaultName.js';
+import { isAdminUser } from '../lib/admin.js';
 
 const router = Router();
 
 const WEB_BASE_URL = process.env.WEB_BASE_URL ?? 'http://localhost:3000';
+// 어드민 사이트(별도 도메인) — 소셜 로그인 성공 후 세션 교환 경로로 돌려보낸다.
+const ADMIN_BASE_URL = process.env.ADMIN_BASE_URL ?? 'https://admin.arvotcg.com';
 const MOBILE_SCHEME = process.env.MOBILE_DEEP_LINK_SCHEME ?? 'pokefesta30';
 const STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -145,7 +148,9 @@ router.get('/:provider', (req, res) => {
   if (!provider) return res.status(404).json({ error: 'unknown provider' });
 
   const nonce = randomBytes(16).toString('hex');
-  const platform = req.query.platform === 'mobile' ? 'mobile' : 'web';
+  // platform: web | mobile | admin — admin 은 콜백에서 권한 확인 후 어드민 도메인으로 보낸다.
+  const platform =
+    req.query.platform === 'mobile' || req.query.platform === 'admin' ? req.query.platform : 'web';
   const returnTo = safeReturnPath(typeof req.query.redirect === 'string' ? req.query.redirect : '/');
   const stateValue = signState({ n: nonce, p: platform, r: returnTo, t: Date.now() });
 
@@ -192,6 +197,16 @@ router.get('/callback/:provider', async (req, res) => {
       email: user.email ?? undefined,
       name: user.name,
     });
+
+    if (state.p === 'admin') {
+      // 어드민 로그인 — 권한 있는 계정만 어드민 도메인으로 토큰을 넘긴다.
+      // (권한 없으면 토큰을 주지 않고 사유만 실어 로그인 화면으로 되돌림)
+      const allowed = await isAdminUser(user.id);
+      if (!allowed) {
+        return res.redirect(`${ADMIN_BASE_URL}/login?error=forbidden`);
+      }
+      return res.redirect(`${ADMIN_BASE_URL}/api/oauth?token=${encodeURIComponent(token)}`);
+    }
 
     if (state.p === 'mobile') {
       // 앱 내부 WebView 가 가로챌 수 있도록 커스텀 스킴 대신 https 경로(같은 오리진)로

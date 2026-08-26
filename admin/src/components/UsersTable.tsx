@@ -11,6 +11,8 @@ interface Row {
   points: number;
   /** 'web' | 'mobile' | null(컬럼 도입 전 가입 — apple_ id 는 앱으로 추정) */
   signupPlatform: string | null;
+  /** 어드민 권한 — 부여 시 소셜 로그인으로 어드민 사이트 접근 가능. */
+  isAdmin: boolean;
   createdAt: string;
   updatedAt: string;
   counts: {
@@ -40,6 +42,35 @@ function fmt(d: string | null | undefined): string {
 
 export function UsersTable({ rows }: { rows: Row[] }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  // 권한 토글 결과를 즉시 반영 (서버 응답 성공 시에만 확정).
+  const [adminMap, setAdminMap] = useState<Record<string, boolean>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const toggleAdmin = async (u: Row) => {
+    const current = adminMap[u.id] ?? u.isAdmin;
+    const next = !current;
+    const who = u.email ?? u.name ?? u.id;
+    const ok = window.confirm(
+      next
+        ? `${who} 님에게 관리자 권한을 부여할까요?\n소셜 로그인으로 어드민 사이트에 접근할 수 있게 됩니다.`
+        : `${who} 님의 관리자 권한을 해제할까요?`,
+    );
+    if (!ok) return;
+    setBusyId(u.id);
+    try {
+      const r = await fetch(`/api/users/${encodeURIComponent(u.id)}/admin`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isAdmin: next }),
+      });
+      if (!r.ok) throw new Error(String(r.status));
+      setAdminMap((m) => ({ ...m, [u.id]: next }));
+    } catch {
+      window.alert('권한 변경에 실패했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   if (rows.length === 0) return <div className="empty">검색 결과가 없습니다.</div>;
 
@@ -52,6 +83,7 @@ export function UsersTable({ rows }: { rows: Row[] }) {
             <th>이름</th>
             <th>이메일</th>
             <th>가입경로</th>
+            <th>관리자</th>
             <th>아바타</th>
             <th style={{ textAlign: 'right' }}>포인트</th>
             <th style={{ textAlign: 'right' }}>컬렉션</th>
@@ -74,6 +106,23 @@ export function UsersTable({ rows }: { rows: Row[] }) {
               <td>{u.name}</td>
               <td className="mono" style={{ fontSize: 11 }}>{u.email ?? <span className="muted">-</span>}</td>
               <td><PlatformBadge platform={u.signupPlatform} userId={u.id} /></td>
+              <td>
+                {/* 권한 부여 시 이 계정으로 소셜 로그인해 어드민에 들어올 수 있다 */}
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={busyId === u.id}
+                  onClick={() => toggleAdmin(u)}
+                  title={(adminMap[u.id] ?? u.isAdmin) ? '클릭하면 권한 해제' : '클릭하면 권한 부여'}
+                  style={
+                    (adminMap[u.id] ?? u.isAdmin)
+                      ? { background: '#129782', borderColor: '#129782', color: '#fff' }
+                      : undefined
+                  }
+                >
+                  {busyId === u.id ? '…' : (adminMap[u.id] ?? u.isAdmin) ? '🔑 관리자' : '일반'}
+                </button>
+              </td>
               <td className="mono">{u.avatarId}</td>
               <td className="mono" style={{ textAlign: 'right' }}>{u.points.toLocaleString()}</td>
               <td className="mono" style={{ textAlign: 'right', fontWeight: u.counts.userCards > 0 ? 700 : 400 }}>{u.counts.userCards}</td>

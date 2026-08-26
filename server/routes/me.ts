@@ -48,7 +48,7 @@ router.get('/summary', async (req: Request, res: Response) => {
     const [inv, profile, tradeCount, savedCount, cardCount] = await Promise.all([
       getMyInventory(userId),
       prisma.user
-        .findUnique({ where: { id: userId }, select: { name: true, email: true } })
+        .findUnique({ where: { id: userId }, select: { name: true, email: true, isAdmin: true } })
         .catch(() => null),
       prisma.trade.count({ where: { authorId: userId } }).catch(() => 0),
       prisma.bookmark.count({ where: { userId } }).catch(() => 0),
@@ -60,7 +60,7 @@ router.get('/summary', async (req: Request, res: Response) => {
         id: userId,
         name: profile?.name ?? req.user!.name ?? null,
         email,
-        isAdmin: isAdminEmail(email),
+        isAdmin: (profile?.isAdmin ?? false) || isAdminEmail(email),
       },
       inventory: inv,
       level: levelFromPoints(inv.points),

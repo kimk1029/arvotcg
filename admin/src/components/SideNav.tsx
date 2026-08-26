@@ -23,13 +23,13 @@ const NAV = [
   { href: '/ads', label: '광고 분석', icon: '📢' },
 ];
 
-export function SideNav() {
+export function SideNav({ who }: { who?: string | null }) {
   const pathname = usePathname();
   return (
     <aside className="admin-side">
       <div className="admin-brand">
         ARVOTCG Admin
-        <small>운영 대시보드</small>
+        <small>{who ? `${who} 님` : '운영 대시보드'}</small>
       </div>
       <nav className="admin-nav">
         {NAV.map((n) => {

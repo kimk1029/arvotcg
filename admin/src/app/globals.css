@@ -102,6 +102,14 @@ form.search button{padding:8px 16px;background:#3B82F6;color:#fff;border:none;bo
   font-weight:700;cursor:pointer;margin-top:4px;}
 .login-btn:hover{background:#0E7A6A;}
 .login-btn:disabled{opacity:.5;cursor:default;}
+/* 소셜 로그인 — 관리자 권한이 부여된 계정만 통과 (서버가 확인) */
+.login-divider{display:flex;align-items:center;gap:10px;margin-top:6px;color:#94A3B8;font-size:11px;}
+.login-divider::before,.login-divider::after{content:"";flex:1;height:1px;background:#E2E8F0;}
+.login-socials{display:flex;flex-direction:column;gap:8px;}
+.login-social{height:40px;border-radius:8px;border:1px solid rgba(0,0,0,.08);display:flex;
+  align-items:center;justify-content:center;font-size:13px;font-weight:700;text-decoration:none;}
+.login-social:hover{filter:brightness(.96);}
+.login-hint{font-size:11px;color:#94A3B8;text-align:center;margin:2px 0 0;line-height:1.6;}
 
 /* 사이드바 로그아웃 */
 .admin-logout{margin:14px 10px 0;padding:9px 14px;width:calc(100% - 20px);text-align:left;
