@@ -2,24 +2,18 @@
  * API 엔드포인트 정본 — 웹·앱이 공통으로 쓰는 백엔드 오리진 표.
  *
  *   stage      = NAS (Synology, DSM 리버스 프록시 :3031 → 도커/pm2 :3030)
- *   production = Vultr (이전 완료 전까지 NAS 로 폴백)
+ *   production = Vultr (api.arvotcg.com) — 2026-08 이전 완료.
  *
- * 전환은 [[migration-order-web-then-app]] 규칙을 따른다:
- *   새 엔드포인트 실측 → 웹 적용·성공 확정 → 앱 반영.
- * Vultr 오리진이 확정되면 코드를 고칠 필요 없이 빌드 env 로 주입한다
- * (앱: eas.json `EXPO_PUBLIC_API_ORIGIN_PROD`, 웹: Vercel `API_ORIGIN_PROD`).
- * 완전히 이전이 끝나면 PRODUCTION_API_ORIGIN_FALLBACK 만 교체하면 된다.
+ * 빌드 env(앱: eas.json `EXPO_PUBLIC_API_ORIGIN_PROD`, 웹: Vercel `API_ORIGIN_PROD`)가
+ * 있으면 그 값이 우선하고, 없어도 아래 폴백이 Vultr 를 가리킨다.
+ * KREAM 등 안티봇 스크레이핑은 Vultr 서버가 NAS 릴레이(KREAM_RELAY_ORIGIN)로 우회한다.
  */
 
 /** NAS(Synology). stage 빌드가 항상 여기로 붙는다. */
 export const STAGE_API_ORIGIN = 'https://kimk1029.synology.me:3031';
 
-/**
- * production 빌드의 기본 오리진.
- * Vultr 인스턴스/도메인이 확정되기 전까지는 NAS 와 같다 —
- * 즉 이 커밋만으로는 운영 동작이 바뀌지 않는다(무해한 전환 준비).
- */
-export const PRODUCTION_API_ORIGIN_FALLBACK = STAGE_API_ORIGIN;
+/** production 빌드의 기본 오리진 — Vultr (이전 완료 후 교체됨). */
+export const PRODUCTION_API_ORIGIN_FALLBACK = 'https://api.arvotcg.com';
 
 export type ApiEnv = 'production' | 'stage';
 
