@@ -4,9 +4,9 @@
  * 실시간 데이터: /api/me/summary(카드·거래·찜·포인트·레벨) + /api/me/portfolio + 미읽음 쪽지.
  * 미인증 시 InlineLoginGate. 웹 MyScreen 과 페어.
  */
-import { useEffect, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Animated, Easing, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { InlineLoginGate } from '@/components/InlineLoginGate';
 import { useCurrency } from '@/components/CurrencyProvider';
@@ -99,6 +99,28 @@ function PencilIcon() {
 }
 
 /** 포트폴리오 스파크라인 — 88×28, history 정규화. 상승=빨강(디자인)/하락=파랑. */
+/**
+ * 0 → target 카운트업 (ease-out) — 포인트·XP 수치가 차오르는 연출 (웹 MyScreen 페어).
+ * runKey 가 바뀌면 처음부터 다시 — 탭으로 마이페이지에 재진입할 때마다 재생.
+ */
+function useCountUp(target: number, runKey = 0, duration = 900): number {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (target <= 0) { setVal(Math.max(0, target)); return; }
+    let raf = 0;
+    const t0 = Date.now();
+    const tick = () => {
+      const k = Math.min(1, (Date.now() - t0) / duration);
+      const e = 1 - Math.pow(1 - k, 3);
+      setVal(Math.round(target * e));
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, runKey, duration]);
+  return val;
+}
+
 function Sparkline({ points, color }: { points: number[]; color: string }) {
   const W = 100;
   const H = 28;
@@ -154,6 +176,33 @@ export default function MyScreen() {
   const [editOpen, setEditOpen] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [nameBusy, setNameBusy] = useState(false);
+
+  // 포인트·XP 카운트업 + XP 바 채움 애니메이션 (진입 시 1회, 웹 MyScreen 페어).
+  // 훅 순서 보장을 위해 아래 조기 return(로그인 게이트)보다 먼저 선언.
+  const pointsTarget = data?.inventory.points ?? 0;
+  const xpTarget = data?.level.xp ?? 0;
+  const xpPctTarget = data?.level
+    ? Math.max(0, Math.min(100, Math.round((data.level.xp / data.level.xpNeeded) * 100)))
+    : 0;
+  // 화면에 들어올 때마다 애니메이션 재생 (탭 전환으로 언마운트되지 않으므로 포커스로 트리거).
+  const [runKey, setRunKey] = useState(0);
+  useFocusEffect(useCallback(() => { setRunKey((k) => k + 1); }, []));
+  const animPoints = useCountUp(pointsTarget, runKey);
+  const animXp = useCountUp(xpTarget, runKey);
+  // 게이지는 트랙 실측 폭(px)으로 애니메이션 — Animated 의 '%' 문자열 보간은
+  // 값이 갱신돼도 초기 폭에 머무는 경우가 있어 픽셀 값으로 구동한다.
+  const [xpTrackW, setXpTrackW] = useState(0);
+  const xpBarAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (xpTrackW <= 0) return;
+    xpBarAnim.setValue(0);
+    Animated.timing(xpBarAnim, {
+      toValue: (Math.max(xpPctTarget, 6) / 100) * xpTrackW,
+      duration: 900,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [xpPctTarget, xpTrackW, runKey, xpBarAnim]);
 
   if (!authed) {
     return (
@@ -284,7 +333,9 @@ export default function MyScreen() {
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5 }}>
                   <Text style={{ fontSize: 12, fontWeight: '800', color: P.orange }}>★ {lv?.title ?? '트레이너'}</Text>
-                  <Text style={{ fontSize: 11.5, color: P.sub, fontWeight: '600' }}>· {points.toLocaleString('ko-KR')} 포인트</Text>
+                  <Text style={{ fontSize: 11.5, color: P.sub, fontWeight: '600' }}>
+                    · <Text style={{ color: P.orange, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{animPoints.toLocaleString('ko-KR')}</Text> 포인트
+                  </Text>
                 </View>
               </View>
             </View>
@@ -293,21 +344,30 @@ export default function MyScreen() {
             {lv ? (
               <View style={{ marginTop: 16 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: P.sub }}>XP {lv.xp} / {lv.xpNeeded}</Text>
+                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: P.sub, fontVariant: ['tabular-nums'] }}>XP {animXp} / {lv.xpNeeded}</Text>
                   <Text style={{ fontSize: 11.5, fontWeight: '700', color: P.sub }}>다음 LV.까지 <Text style={{ color: P.ink }}>{lv.xpNeeded - lv.xp} XP</Text></Text>
                 </View>
-                <View style={{ height: 8, borderRadius: 4, backgroundColor: P.chip, overflow: 'hidden' }}>
-                  <View style={{ width: `${Math.max(xpPct, 6)}%`, height: '100%', borderRadius: 4, overflow: 'hidden' }}>
-                    <Svg width="100%" height={8} preserveAspectRatio="none">
+                <View
+                  onLayout={(e) => {
+                    const w = e.nativeEvent.layout.width;
+                    if (w > 0 && Math.abs(w - xpTrackW) > 1) setXpTrackW(w);
+                  }}
+                  style={{ height: 8, borderRadius: 4, backgroundColor: P.chip, overflow: 'hidden' }}
+                >
+                  {/* 진입 시 0 → 목표치로 차오르는 게이지 */}
+                  {/* 그라디언트 SVG 는 트랙 전체 폭으로 고정하고, 애니메이션되는 부모가
+                      잘라낸다 — SVG 의 '100%' 는 부모 폭이 애니메이션돼도 다시 그려지지 않음. */}
+                  <Animated.View style={{ width: xpBarAnim, height: '100%', borderRadius: 4, overflow: 'hidden' }}>
+                    <Svg width={Math.max(xpTrackW, 1)} height={8} preserveAspectRatio="none">
                       <Defs>
                         <LinearGradient id="xp" x1="0" y1="0" x2="1" y2="0">
                           <Stop offset="0" stopColor="#FF9A4D" />
                           <Stop offset="1" stopColor="#FF7A00" />
                         </LinearGradient>
                       </Defs>
-                      <Rect width="100%" height={8} fill="url(#xp)" />
+                      <Rect width={Math.max(xpTrackW, 1)} height={8} fill="url(#xp)" />
                     </Svg>
-                  </View>
+                  </Animated.View>
                 </View>
               </View>
             ) : null}

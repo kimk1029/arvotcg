@@ -18,6 +18,8 @@ import type { LevelInfo } from '@/lib/level';
 interface Props {
   user: { name?: string | null; email?: string | null };
   level: LevelInfo;
+  /** 보유 포인트 — 프로필 카드에 카운트업 애니메이션으로 표시. */
+  points?: number;
   cardCount: number;
   tradeCount: number;
   savedCount: number;
@@ -56,6 +58,32 @@ interface MenuItem {
   disabled?: boolean;
 }
 
+/**
+ * 0 → target 카운트업 (ease-out). 마이페이지 진입 시 포인트·XP 수치가 차오르는 연출.
+ * prefers-reduced-motion 이면 즉시 목표값.
+ */
+function useCountUp(target: number, duration = 900): number {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (target <= 0) { setVal(Math.max(0, target)); return; }
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setVal(target);
+      return;
+    }
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - t0) / duration);
+      const e = 1 - Math.pow(1 - k, 3);
+      setVal(Math.round(target * e));
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return val;
+}
+
 function ChevronSvg({ s = 16 }: { s?: number }) {
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={P.chev} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}>
@@ -64,12 +92,21 @@ function ChevronSvg({ s = 16 }: { s?: number }) {
   );
 }
 
-export function MyScreen({ user, level, cardCount, tradeCount, savedCount, isGuest, isAdmin }: Props) {
+export function MyScreen({ user, level, points = 0, cardCount, tradeCount, savedCount, isGuest, isAdmin }: Props) {
   const router = useRouter();
   const { format } = useCurrency();
   const { count: unread } = useUnread();
   const p = level;
   const xpPct = Math.max(0, Math.min(100, Math.round((p.xp / p.xpNeeded) * 100)));
+
+  // 포인트·XP 카운트업 + XP 바 채움 애니메이션 (진입 시 1회).
+  const animPoints = useCountUp(points);
+  const animXp = useCountUp(p.xp);
+  const [barOn, setBarOn] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setBarOn(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   // 이름 편집 — PATCH /api/me/name (기존 EditableName 로직, 디자인 스타일).
   const [name, setName] = useState(user?.name ?? (isGuest ? '게스트' : '트레이너'));
@@ -217,7 +254,9 @@ export function MyScreen({ user, level, cardCount, tradeCount, savedCount, isGue
               )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5 }}>
                 <span style={{ fontSize: 12, fontWeight: 800, color: P.orange }}>★ {p.title}</span>
-                <span style={{ fontSize: 11.5, color: P.sub, fontWeight: 600 }}>· LV.{p.level}</span>
+                <span style={{ fontSize: 11.5, color: P.sub, fontWeight: 600 }}>
+                  · LV.{p.level} · <span style={{ color: P.orange, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{animPoints.toLocaleString('ko-KR')}</span> 포인트
+                </span>
               </div>
             </div>
           </div>
@@ -225,11 +264,19 @@ export function MyScreen({ user, level, cardCount, tradeCount, savedCount, isGue
           {/* XP */}
           <div style={{ marginTop: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, fontWeight: 700, color: P.sub, marginBottom: 6 }}>
-              <span>XP {p.xp} / {p.xpNeeded}</span>
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>XP {animXp} / {p.xpNeeded}</span>
               <span>다음 LV.까지 <span style={{ color: P.ink }}>{p.xpNeeded - p.xp} XP</span></span>
             </div>
             <div style={{ height: 8, borderRadius: 4, background: P.chip, overflow: 'hidden' }}>
-              <div style={{ width: `${Math.max(xpPct, 6)}%`, height: '100%', borderRadius: 4, background: 'linear-gradient(90deg,#FF9A4D,#FF7A00)' }} />
+              {/* 진입 시 0 → 목표치로 차오르는 게이지 */}
+              <div
+                style={{
+                  width: barOn ? `${Math.max(xpPct, 6)}%` : '0%',
+                  height: '100%', borderRadius: 4,
+                  background: 'linear-gradient(90deg,#FF9A4D,#FF7A00)',
+                  transition: 'width .9s cubic-bezier(.22,1,.36,1)',
+                }}
+              />
             </div>
           </div>
 

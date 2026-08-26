@@ -40,6 +40,7 @@ export default async function Page() {
     <MyScreen
       user={s.user}
       level={s.level}
+      points={s.inventory?.points ?? 0}
       cardCount={s.counts.cardCount}
       tradeCount={s.counts.tradeCount}
       savedCount={s.counts.savedCount}
