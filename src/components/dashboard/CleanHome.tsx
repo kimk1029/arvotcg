@@ -712,31 +712,37 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
     <div className="pagebg" style={{ fontFamily: 'var(--f1)', background: P.bg }}>
       {/* header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px 8px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-.5px' }}>
+          <span style={{ color: P.ink }}>ARVO</span>
+          <span style={{ color: ACCENT30 }}>TCG</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <Link href="/my/messages" aria-label="알림" style={{ position: 'relative', display: 'block', color: P.ink }}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+            </svg>
+            {unread > 0 && (
+              <span style={{ position: 'absolute', top: 0, right: 1, width: 8, height: 8, background: RISE, borderRadius: '50%', border: '1.5px solid var(--paper)' }} />
+            )}
+          </Link>
+          {/* 메뉴 — 라벨이 있는 알약형 버튼 (디자인 시안: 우측 배치, 아이콘만일 때보다 가독성 ↑) */}
           <button
             type="button"
             aria-label="메뉴 열기"
             onClick={() => setDrawerOpen(true)}
-            style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', margin: -6, padding: 6, background: 'none', border: 'none' }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+              height: 34, padding: '0 11px 0 10px', borderRadius: 11,
+              background: P.searchBg, border: `1px solid ${P.line}`,
+            }}
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="2.1" strokeLinecap="round">
-              <path d="M3 6h18M3 12h18M3 18h12" />
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="2.4" strokeLinecap="round">
+              <path d="M3 6h18M3 12h18M3 18h18" />
             </svg>
+            <span style={{ fontSize: 12.5, fontWeight: 800, color: P.ink, whiteSpace: 'nowrap' }}>메뉴</span>
           </button>
-          <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-.5px' }}>
-            <span style={{ color: P.ink }}>ARVO</span>
-            <span style={{ color: ACCENT30 }}>TCG</span>
-          </div>
         </div>
-        <Link href="/my/messages" aria-label="알림" style={{ position: 'relative', display: 'block', color: P.ink }}>
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-            <path d="M13.7 21a2 2 0 0 1-3.4 0" />
-          </svg>
-          {unread > 0 && (
-            <span style={{ position: 'absolute', top: 0, right: 1, width: 8, height: 8, background: RISE, borderRadius: '50%', border: '1.5px solid var(--paper)' }} />
-          )}
-        </Link>
       </div>
 
       {/* promo banner — 실제 배너 데이터(HeroSlider). 비면 컴포넌트 내장 폴백 슬라이드. */}

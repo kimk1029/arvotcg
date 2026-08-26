@@ -803,23 +803,34 @@ export function CleanHomeScreen() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
         {/* header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Pressable onPress={openDrawer} hitSlop={8} accessibilityLabel="메뉴 열기">
-              <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={2.1} strokeLinecap="round">
-                <Path d="M3 6h18M3 12h18M3 18h12" />
+          <Text style={ts(24, '900', P.ink)}>
+            <Text style={ts(24, '900', P.ink)}>ARVO</Text>
+            <Text style={ts(24, '900', ACCENT30)}>TCG</Text>
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Pressable onPress={() => router.push('/my/messages' as never)} hitSlop={8}>
+              <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <Path d="M13.7 21a2 2 0 0 1-3.4 0" />
               </Svg>
             </Pressable>
-            <Text style={ts(24, '900', P.ink)}>
-              <Text style={ts(24, '900', P.ink)}>ARVO</Text>
-              <Text style={ts(24, '900', ACCENT30)}>TCG</Text>
-            </Text>
+            {/* 메뉴 — 라벨이 있는 알약형 버튼 (디자인 시안: 우측 배치, 웹 CleanHome 동일) */}
+            <Pressable
+              onPress={openDrawer}
+              hitSlop={6}
+              accessibilityLabel="메뉴 열기"
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 5,
+                height: 34, paddingLeft: 10, paddingRight: 11, borderRadius: 11,
+                backgroundColor: P.searchBg, borderWidth: 1, borderColor: P.line,
+              }}
+            >
+              <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={2.4} strokeLinecap="round">
+                <Path d="M3 6h18M3 12h18M3 18h18" />
+              </Svg>
+              <Text style={ts(12.5, '800', P.ink)}>메뉴</Text>
+            </Pressable>
           </View>
-          <Pressable onPress={() => router.push('/my/messages' as never)} hitSlop={8}>
-            <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-              <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <Path d="M13.7 21a2 2 0 0 1-3.4 0" />
-            </Svg>
-          </Pressable>
         </View>
 
         {/* promo banner — 비면 컴포넌트 내장 폴백 슬라이드 */}
