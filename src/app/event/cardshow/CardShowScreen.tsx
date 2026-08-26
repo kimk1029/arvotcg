@@ -70,6 +70,8 @@ export function CardShowScreen() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  // 슬롯 클릭 → 바로 실행하지 않고 확인 모달을 먼저 띄운다 (예약/이동/취소 공통).
+  const [confirm, setConfirm] = useState<Slot | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -97,6 +99,7 @@ export function CardShowScreen() {
     if (busy || !data) return;
     setBusy(true);
     setNotice(null);
+    setConfirm(null);
     try {
       if (data.mySlotId === slot.id) {
         const r = await call('/api/cardshow/reserve', { method: 'DELETE' });
@@ -218,7 +221,7 @@ export function CardShowScreen() {
             <button
               key={s.id}
               disabled={full || busy}
-              onClick={() => act(s)}
+              onClick={() => setConfirm(s)}
               style={{
                 padding: '16px 12px', borderRadius: 16, cursor: full ? 'default' : 'pointer',
                 border: `2px solid ${mine ? P.gold : full ? 'transparent' : P.line}`,
@@ -240,6 +243,101 @@ export function CardShowScreen() {
         예약 변경은 원하는 시간대를 다시 선택하면 자동 이동됩니다.<br />
         현장 확인을 위해 예약한 계정으로 로그인한 화면을 보여주세요.
       </p>
+
+      {confirm ? (
+        <ConfirmModal
+          slot={confirm}
+          mySlot={data.slots.find((s) => s.id === data.mySlotId) ?? null}
+          busy={busy}
+          onConfirm={() => act(confirm)}
+          onClose={() => setConfirm(null)}
+        />
+      ) : null}
     </>,
+  );
+}
+
+/** 예약/이동/취소 공통 확인 모달 — 날짜·요일·시간 정보를 보여주고 확인을 받는다. */
+function ConfirmModal({
+  slot,
+  mySlot,
+  busy,
+  onConfirm,
+  onClose,
+}: {
+  slot: Slot;
+  mySlot: Slot | null;
+  busy: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const isCancel = mySlot?.id === slot.id;
+  const isMove = !isCancel && mySlot != null;
+  const fmt = (s: Slot) => `${s.date.replace(/-/g, '.')} (${weekdayKo(s.date)}) ${s.time}`;
+
+  const title = isCancel ? '예약을 취소하시겠습니까?' : isMove ? '예약을 이 시간으로 옮기시겠습니까?' : '예약하시겠습니까?';
+  const icon = isCancel ? '🗑️' : '🎟️';
+  const accent = isCancel ? P.red : P.teal;
+
+  const row = (label: string, value: string, strike = false) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 0', borderBottom: `1px solid ${P.line}` }}>
+      <span style={{ fontSize: 12.5, color: P.dim, flex: 'none' }}>{label}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 800, color: P.ink, textAlign: 'right', textDecoration: strike ? 'line-through' : 'none', opacity: strike ? 0.55 : 1 }}>
+        {value}
+      </span>
+    </div>
+  );
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 24, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 380, borderRadius: 20, padding: '26px 22px 20px',
+          background: '#12233F', border: `1px solid ${P.line}`, boxShadow: '0 18px 50px rgba(0,0,0,0.5)',
+        }}
+      >
+        <div style={{ textAlign: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 38 }}>{icon}</div>
+          <h3 style={{ fontSize: 17, fontWeight: 900, margin: '10px 0 0', color: P.ink }}>{title}</h3>
+        </div>
+
+        <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: '6px 14px', marginBottom: 18 }}>
+          {isMove && mySlot ? row('기존 예약', fmt(mySlot), true) : null}
+          {row(isCancel ? '취소할 예약' : '방문 일시', fmt(slot))}
+          {!isCancel ? row('잔여석', `${slot.remaining}석 (${slot.reserved}/${slot.capacity} 예약됨)`) : null}
+        </div>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            style={{
+              flex: 1, padding: '13px 0', borderRadius: 12, cursor: 'pointer', fontSize: 14.5, fontWeight: 800,
+              border: `1px solid ${P.line}`, background: 'transparent', color: P.sub,
+            }}
+          >
+            취소
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            style={{
+              flex: 1.4, padding: '13px 0', borderRadius: 12, cursor: 'pointer', fontSize: 14.5, fontWeight: 900,
+              border: 'none', background: accent, color: isCancel ? '#FFF' : '#043',
+              opacity: busy ? 0.6 : 1,
+            }}
+          >
+            {busy ? '처리 중…' : '확인'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
