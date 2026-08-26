@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { View, ScrollView, Pressable, Text, TextInput, Image, Animated, Easing, Modal, PanResponder } from 'react-native';
 import Svg, { Path, Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { HeroBanner, type HeroSlideData } from '@/components/HeroBanner';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { useTheme, useThemeColors } from '@/components/ThemeProvider';
@@ -29,7 +29,7 @@ import { pickHomeBoxPacks } from '../../../shared/homeBoxPacks';
 import { jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
 import { useScanToSearch } from '@/lib/useScanToSearch';
 import { api } from '@/lib/apiClient';
-import { fetchMySummary, fetchUnreadCount, type MySummary } from '@/lib/myApi';
+import { fetchMySummary, fetchPortfolio, fetchUnreadCount, peekPortfolio, type MySummary } from '@/lib/myApi';
 import { isAuthenticated } from '@/lib/session';
 import { setHomeHotRows } from '@/lib/homeHotStore';
 import { swrAge, swrKeys, swrPeek, swrSet } from '@/lib/swr';
@@ -441,11 +441,19 @@ export function CleanHomeScreen() {
   const drawerItemAnims = useRef(
     Array.from({ length: DRAWER_ROW_COUNT }, () => new Animated.Value(0)),
   ).current;
-  // 미읽음 쪽지 수 — 메뉴 알약의 빨간 점 + 드로어 '알림' 배지 (웹 useUnread 페어).
+  // 미읽음 쪽지 수 — 헤더 알림 아이콘 빨간 점 + 드로어 '알림' 배지 (웹 useUnread 페어).
+  // 화면 복귀 시 재조회 — 쪽지함을 읽고 돌아오면 점이 사라진다.
   const [unread, setUnread] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      if (isAuthenticated()) fetchUnreadCount().then(setUnread);
+    }, []),
+  );
+  // 헤더 포트폴리오 아이콘의 어제 대비 등락 화살표 (웹 CleanHome 페어).
+  const [portPct, setPortPct] = useState<number | null>(() => peekPortfolio()?.changePct ?? null);
   useEffect(() => {
     if (!isAuthenticated()) return;
-    fetchUnreadCount().then(setUnread);
+    fetchPortfolio().then((p) => setPortPct(p.changePct)).catch(() => undefined);
   }, []);
   const openDrawer = () => {
     if (isAuthenticated()) fetchUnreadCount().then(setUnread);
@@ -812,16 +820,43 @@ export function CleanHomeScreen() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
         {/* header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 8 }}>
-          <Text style={ts(24, '900', P.ink)}>
-            <Text style={ts(24, '900', P.ink)}>ARVO</Text>
-            <Text style={ts(24, '900', ACCENT30)}>TCG</Text>
-          </Text>
-          {/* 메뉴 — 라벨이 있는 알약형 버튼. 알림은 드로어 안으로 통합 — 미읽음이 있으면
-              알약에 빨간 점으로 신호만 남긴다 (웹 CleanHome 동일). */}
+          {/* 좌측 — 로고 대신 알림·포트폴리오 아이콘 (웹 CleanHome 동일).
+              알림: 미읽음 빨간 점(읽으면 사라짐) / 포트폴리오: 어제 대비 ▲빨강·▼파랑. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+            <Pressable
+              onPress={() => router.push('/my/messages' as never)}
+              hitSlop={8}
+              accessibilityLabel={unread > 0 ? `알림 (안 읽음 ${unread}개)` : '알림'}
+            >
+              <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <Path d="M13.7 21a2 2 0 0 1-3.4 0" />
+              </Svg>
+              {unread > 0 ? (
+                <View style={{ position: 'absolute', top: 0, right: 1, width: 8, height: 8, backgroundColor: RISE, borderRadius: 4, borderWidth: 1.5, borderColor: P.bg }} />
+              ) : null}
+            </Pressable>
+            <Pressable
+              onPress={() => router.push('/my/portfolio' as never)}
+              hitSlop={8}
+              accessibilityLabel="내 포트폴리오"
+            >
+              <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <Path d="M6 8h12l-1 12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z" />
+                <Path d="M9 8V6a3 3 0 0 1 6 0v2" />
+              </Svg>
+              {portPct != null && portPct !== 0 ? (
+                <Text style={{ position: 'absolute', top: -6, right: -7, fontSize: 10, fontWeight: '900', color: portPct > 0 ? P.rise : P.fall }}>
+                  {portPct > 0 ? '▲' : '▼'}
+                </Text>
+              ) : null}
+            </Pressable>
+          </View>
+          {/* 메뉴 — 라벨이 있는 알약형 버튼 (우측). */}
           <Pressable
             onPress={openDrawer}
             hitSlop={6}
-            accessibilityLabel={unread > 0 ? `메뉴 열기 (새 알림 ${unread}개)` : '메뉴 열기'}
+            accessibilityLabel="메뉴 열기"
             style={{
               flexDirection: 'row', alignItems: 'center', gap: 5,
               height: 34, paddingLeft: 10, paddingRight: 11, borderRadius: 11,
@@ -832,9 +867,6 @@ export function CleanHomeScreen() {
               <Path d="M3 6h18M3 12h18M3 18h18" />
             </Svg>
             <Text style={ts(12.5, '800', P.ink)}>메뉴</Text>
-            {unread > 0 ? (
-              <View style={{ position: 'absolute', top: -3, right: -3, width: 9, height: 9, backgroundColor: RISE, borderRadius: 5, borderWidth: 1.5, borderColor: P.bg }} />
-            ) : null}
           </Pressable>
         </View>
 

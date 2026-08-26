@@ -154,6 +154,8 @@ interface DrawerSummary {
 // 기다리지 않게, 홈 진입 시 선조회한 결과를 탭 세션 동안 재사용한다.
 const ME_CACHE_KEY = 'pf30:homeMe';
 const ME_TTL_MS = 5 * 60_000;
+// 헤더 포트폴리오 등락 인디케이터 캐시 — /api/me/portfolio 가 무거워(스냅샷 집계) 재사용.
+const PORT_CACHE_KEY = 'pf30:homePortPct';
 
 function loadMeCache(): DrawerSummary | null {
   try {
@@ -507,6 +509,30 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
     return () => { alive = false; };
   }, [isLoggedIn, drawerMe, drawerOpen]);
 
+  // 헤더 포트폴리오 아이콘의 어제 대비 등락 화살표 — 세션 캐시(5분)로 무거운 집계 재사용.
+  const [portPct, setPortPct] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isLoggedIn) { setPortPct(null); return; }
+    try {
+      const raw = window.sessionStorage.getItem(PORT_CACHE_KEY);
+      if (raw) {
+        const j = JSON.parse(raw) as { pct: number | null; at: number };
+        if (Date.now() - j.at < ME_TTL_MS) { setPortPct(j.pct); return; }
+      }
+    } catch { /* ignore */ }
+    let alive = true;
+    fetch('/api/me/portfolio', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { data?: { changePct?: number | null } } | null) => {
+        if (!alive) return;
+        const pct = typeof j?.data?.changePct === 'number' ? j.data.changePct : null;
+        setPortPct(pct);
+        try { window.sessionStorage.setItem(PORT_CACHE_KEY, JSON.stringify({ pct, at: Date.now() })); } catch { /* ignore */ }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [isLoggedIn]);
+
   // 홈 노출 게임 — 단일 선택(라디오). 기본 포켓몬, 다른 칩을 누르면 그 게임만 노출.
   // enabledGames(설정)는 어떤 칩을 보여줄지에만 쓰인다.
   const { enabledGames } = useGamePrefs();
@@ -714,18 +740,37 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
     <div className="pagebg" style={{ fontFamily: 'var(--f1)', background: P.bg }}>
       {/* header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px 8px' }}>
-        <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-.5px' }}>
-          <span style={{ color: P.ink }}>ARVO</span>
-          <span style={{ color: ACCENT30 }}>TCG</span>
+        {/* 좌측 — 로고 대신 알림·포트폴리오 아이콘. 알림은 미읽음 빨간 점(읽으면 사라짐),
+            포트폴리오는 어제 대비 등락 화살표(▲빨강/▼파랑) 인디케이터. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+          <Link href="/my/messages" aria-label={unread > 0 ? `알림 (안 읽음 ${unread}개)` : '알림'} style={{ position: 'relative', display: 'flex', color: P.ink }}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+            </svg>
+            {unread > 0 && (
+              <span style={{ position: 'absolute', top: 0, right: 1, width: 8, height: 8, background: RISE, borderRadius: '50%', border: '1.5px solid var(--paper)' }} />
+            )}
+          </Link>
+          <Link href="/my/portfolio" aria-label="내 포트폴리오" style={{ position: 'relative', display: 'flex', color: P.ink }}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 8h12l-1 12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z" />
+              <path d="M9 8V6a3 3 0 0 1 6 0v2" />
+            </svg>
+            {portPct != null && portPct !== 0 && (
+              <span style={{ position: 'absolute', top: -6, right: -7, fontSize: 10, fontWeight: 900, lineHeight: 1, color: portPct > 0 ? P.rise : P.fall }}>
+                {portPct > 0 ? '▲' : '▼'}
+              </span>
+            )}
+          </Link>
         </div>
-        {/* 메뉴 — 라벨이 있는 알약형 버튼. 알림은 드로어 안으로 통합 — 미읽음이 있으면
-            알약에 빨간 점으로 신호만 남긴다. */}
+        {/* 메뉴 — 라벨이 있는 알약형 버튼 (우측). */}
         <button
           type="button"
-          aria-label={unread > 0 ? `메뉴 열기 (새 알림 ${unread}개)` : '메뉴 열기'}
+          aria-label="메뉴 열기"
           onClick={() => setDrawerOpen(true)}
           style={{
-            position: 'relative', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
             height: 34, padding: '0 11px 0 10px', borderRadius: 11,
             background: P.searchBg, border: `1px solid ${P.line}`,
           }}
@@ -734,9 +779,6 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
             <path d="M3 6h18M3 12h18M3 18h18" />
           </svg>
           <span style={{ fontSize: 12.5, fontWeight: 800, color: P.ink, whiteSpace: 'nowrap' }}>메뉴</span>
-          {unread > 0 && (
-            <span style={{ position: 'absolute', top: -3, right: -3, width: 9, height: 9, background: RISE, borderRadius: '50%', border: '1.5px solid var(--paper)' }} />
-          )}
         </button>
       </div>
 
