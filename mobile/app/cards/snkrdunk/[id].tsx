@@ -55,6 +55,7 @@ function gradePredicate(key: string): (badge: string) => boolean {
 const GRADE_COLOR: Record<string, (tc: ReturnType<typeof useThemeColors>) => string> = {
   'PSA 10': (tc) => tc.red,
   'PSA 9': (tc) => tc.blu,
+  'PSA 8': (tc) => tc.pur,
   RAW: (tc) => tc.grn,
 };
 
@@ -264,7 +265,34 @@ export default function SnkrdunkDetail() {
               <View style={{ marginTop: 14 }}>
                 <PixelFrame bg={tc.white}>
                   <View style={{ padding: 16 }}>
-                    <PixelText variant={txt} size={11} weight="bold" color={tc.ink3}>최근 체결가 ({shotText(effectiveGrade)})</PixelText>
+                    {/* 헤드라인 등급 탭 — 목록에서 넘어온 기준이 기본 선택. 바로 옆에서
+                        RAW ↔ PSA 10 을 전환할 수 있게(웹 CardDetailView 동일).
+                        체결이 있는 등급만 노출한다. */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <PixelText variant={txt} size={11} weight="bold" color={tc.ink3}>
+                        최근 체결가{tradeGrades.length > 1 ? '' : ` (${shotText(effectiveGrade)})`}
+                      </PixelText>
+                      {tradeGrades.length > 1 ? (
+                        <View style={{ flexDirection: 'row', gap: 3, backgroundColor: tc.pap2, borderRadius: 999, padding: 3 }}>
+                          {tradeGrades.map((g) => {
+                            const on = g.key === effectiveGrade;
+                            const gc = (GRADE_COLOR[g.key] ?? (() => tc.ink))(tc);
+                            return (
+                              <Pressable
+                                key={g.key}
+                                onPress={() => setGradeKey(g.key)}
+                                hitSlop={4}
+                                style={{ paddingVertical: 5, paddingHorizontal: 10, borderRadius: 999, backgroundColor: on ? gc : 'transparent' }}
+                              >
+                                <PixelText variant={txt} size={10} weight="bold" color={on ? tc.white : tc.ink3}>
+                                  {shotText(g.key)}
+                                </PixelText>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      ) : null}
+                    </View>
                     <PixelText variant={txt} size={26} weight="bold" color={tc.ink} numberOfLines={1} adjustsFontSizeToFit style={{ marginTop: 5 }}>
                       {fmtYen(headlinePrice)}
                     </PixelText>

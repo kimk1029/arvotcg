@@ -56,6 +56,7 @@ interface Props {
 const GRADE_COLORS: Record<string, string> = {
   'PSA 10': 'var(--red)',
   'PSA 9': 'var(--blu)',
+  'PSA 8': 'var(--pur)',
   RAW: 'var(--grn)',
 };
 
@@ -191,6 +192,8 @@ export function CardDetailView({
 
   // 거래가 있는 등급만 — 거래내역 등급 토글 노출용(PSA10·RAW 등 전환).
   const tradeGrades = useMemo(() => grades.filter((g) => g.count > 0), [grades]);
+  // 헤드라인 위 등급 전환 탭 — 체결이 있는 등급만. 선택 상태는 아래 등급 카드와 공유.
+  const headlineTabs = tradeGrades;
 
   return (
     <>
@@ -231,8 +234,35 @@ export function CardDetailView({
 
         {/* 가격 박스 */}
         <Panel style={{ marginTop: 16, padding: 18 }}>
-          <div style={{ fontFamily: 'var(--f1)', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }}>
-            최근 체결가 ({gradeKey})
+          {/* 헤드라인 등급 탭 — 목록에서 넘어온 기준이 기본 선택. 바로 옆에서 RAW ↔ PSA 10
+              을 전환할 수 있어야 한다는 요구. 체결이 있는 등급만 노출(빈 탭 방지). */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ fontFamily: 'var(--f1)', fontSize: 12, fontWeight: 700, color: 'var(--ink3)', flex: 'none' }}>
+              최근 체결가{headlineTabs.length > 1 ? '' : ` (${gradeKey})`}
+            </div>
+            {headlineTabs.length > 1 && (
+              <div style={{ display: 'flex', gap: 3, background: 'var(--pap2)', borderRadius: 'var(--r-pill)', padding: 3, overflowX: 'auto' }}>
+                {headlineTabs.map((g) => {
+                  const on = g.key === gradeKey;
+                  return (
+                    <button
+                      key={g.key}
+                      type="button"
+                      onClick={() => setGradeKey(g.key)}
+                      style={{
+                        flex: 'none', cursor: 'pointer', border: 'none', whiteSpace: 'nowrap',
+                        borderRadius: 'var(--r-pill)', padding: '5px 11px',
+                        fontFamily: 'var(--f1)', fontSize: 11, fontWeight: 800,
+                        background: on ? (GRADE_COLORS[g.key] ?? 'var(--ink)') : 'transparent',
+                        color: on ? 'var(--white)' : 'var(--ink3)',
+                      }}
+                    >
+                      {g.key}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div style={{ fontFamily: 'var(--f1)', fontSize: 28, fontWeight: 900, color: 'var(--ink)', letterSpacing: 0.2, marginTop: 4 }}>
             <Price jpy={headlinePrice} empty="—" autoSizeBase={28} autoSizeMin={16} />
