@@ -537,6 +537,7 @@ export async function runMarketIndexBuild(): Promise<void> {
       }
     }
     seriesCache = null; // 응답 캐시 무효화
+    warmMarketIndexes();
   } catch (err) {
     MARKET_INDEX_STATE.lastError = err instanceof Error ? err.message : String(err);
     console.error('[marketIndex]', err);
@@ -562,6 +563,7 @@ export function startMarketIndexScheduler(): void {
     return;
   }
   setTimeout(() => void runMarketIndexBuild(), 90_000);
+  setTimeout(warmMarketIndexes, 20_000);
   const schedule = () => {
     const wait = msUntilNextKst(6, 30);
     setTimeout(() => {
@@ -616,6 +618,7 @@ async function fetchSpoke500(): Promise<SpokeCache | null> {
 
 let seriesCache: { at: number; data: MarketIndexResponse } | null = null;
 const SERIES_TTL_MS = 10 * 60_000;
+let refreshing: Promise<MarketIndexResponse> | null = null;
 
 async function computedSeries(def: ComputedIndexDef): Promise<MarketIndexSeries | null> {
   const rows = await prisma.marketIndexPoint.findMany({
@@ -638,8 +641,7 @@ async function computedSeries(def: ComputedIndexDef): Promise<MarketIndexSeries 
   };
 }
 
-export async function getMarketIndexes(): Promise<MarketIndexResponse> {
-  if (seriesCache && Date.now() - seriesCache.at < SERIES_TTL_MS) return seriesCache.data;
+async function buildResponse(): Promise<MarketIndexResponse> {
   const series: MarketIndexSeries[] = [];
   const spoke = await fetchSpoke500();
   if (spoke && spoke.points.length > 1) {
@@ -652,4 +654,27 @@ export async function getMarketIndexes(): Promise<MarketIndexResponse> {
   const data: MarketIndexResponse = { generatedAt: new Date().toISOString(), series };
   seriesCache = { at: Date.now(), data };
   return data;
+}
+
+/**
+ * 응답 — stale-while-revalidate. 캐시가 있으면(만료됐어도) 즉시 돌려주고 백그라운드로 갱신.
+ * 캐시가 전혀 없을 때만 대기. NAS 가 스냅샷 배치 등으로 바쁠 때 콜드 요청이 47초까지 걸려
+ * 클라이언트 타임아웃(15초)에 걸리던 실측 — 지표는 하루 한 번 바뀌는 데이터라 stale 이 무해하다.
+ */
+export async function getMarketIndexes(): Promise<MarketIndexResponse> {
+  const fresh = seriesCache && Date.now() - seriesCache.at < SERIES_TTL_MS;
+  if (seriesCache && !fresh && !refreshing) {
+    refreshing = buildResponse().finally(() => {
+      refreshing = null;
+    });
+    void refreshing.catch(() => undefined);
+  }
+  if (seriesCache) return seriesCache.data;
+  if (!refreshing) refreshing = buildResponse().finally(() => { refreshing = null; });
+  return refreshing;
+}
+
+/** 부팅·일일 빌드 후 캐시 워밍 — 첫 사용자가 콜드 비용을 내지 않게. */
+export function warmMarketIndexes(): void {
+  void getMarketIndexes().catch(() => undefined);
 }

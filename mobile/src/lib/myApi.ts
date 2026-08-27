@@ -599,6 +599,15 @@ export async function fetchPackHits(code: string, limit = 30): Promise<PackWithH
 /* ── 시장 지표(TCG 인덱스) — 포트폴리오 '시장 지표' 섹션 (웹 PortfolioScreen fetch 동일) ── */
 export type { MarketIndexResponse, MarketIndexSeries } from '../../../shared/marketIndex';
 
-export function fetchMarketIndexes(): Promise<import('../../../shared/marketIndex').MarketIndexResponse> {
-  return api<{ data: import('../../../shared/marketIndex').MarketIndexResponse }>('/api/market-index').then((r) => r.data);
+export async function fetchMarketIndexes(): Promise<import('../../../shared/marketIndex').MarketIndexResponse> {
+  // 600+ 포인트 페이로드 + 보조 정보 — 기본 타임아웃보다 넉넉히(30초) 잡고 1회 재시도.
+  // (에뮬레이터/약한 회선에서 기본 타임아웃에 걸려 비교 차트·시장 지표가 통째로 빠지던 실측.)
+  const once = () =>
+    api<{ data: import('../../../shared/marketIndex').MarketIndexResponse }>('/api/market-index', { timeoutMs: 30_000 }).then((r) => r.data);
+  try {
+    return await once();
+  } catch {
+    await new Promise((r) => setTimeout(r, 2000));
+    return once();
+  }
 }

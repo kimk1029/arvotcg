@@ -88,8 +88,13 @@ export function PortfolioScreen() {
     let alive = true;
     (async () => {
       try {
-        const r = await fetch('/api/market-index', { cache: 'no-store' });
-        if (!r.ok) return;
+        // 보조 정보 — 한 번 실패해도 2초 뒤 1회 재시도(앱 fetchMarketIndexes 동일).
+        let r = await fetch('/api/market-index', { cache: 'no-store' }).catch(() => null);
+        if (!r || !r.ok) {
+          await new Promise((res) => setTimeout(res, 2000));
+          r = await fetch('/api/market-index', { cache: 'no-store' }).catch(() => null);
+        }
+        if (!alive || !r || !r.ok) return;
         const j = (await r.json().catch(() => null)) as { data?: MarketIndexResponse } | null;
         if (!alive || !j?.data) return;
         const enabled = new Set<string>(loadEnabledGames());

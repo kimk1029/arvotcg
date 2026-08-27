@@ -200,7 +200,7 @@ export function InsightTiles({
     { label: '승률', value: ws ? `${ws.winRate.toFixed(0)}%` : '—', sub: ws ? `${ws.n}종 중 상승` : undefined, color: ws && ws.winRate >= 50 ? VIZ_UP : undefined },
     { label: '평균 손익률', value: ws ? pct(ws.avgPct) : '—', sub: ws ? `중앙값 ${pct(ws.medianPct)}` : undefined, color: ws ? (ws.avgPct >= 0 ? VIZ_UP : VIZ_DOWN) : undefined },
     { label: 'PSA10 환산 업사이드', value: upside ? pct(upside.pct, 0) : '—', sub: upside ? `${upside.n}종 · ${format(upside.diffJpy)}` : '비등급 카드 없음', color: upside ? '#A78BFA' : undefined },
-    { label: '최고 평가일 대비', value: fromAth != null ? pct(fromAth) : '—', sub: ath ? `${ath.date} ${format(ath.totalJpy)}` : undefined, color: fromAth != null ? (fromAth >= 0 ? VIZ_UP : VIZ_DOWN) : undefined },
+    { label: '최고 평가일 대비', value: fromAth == null ? '—' : fromAth > -0.05 ? '최고가' : pct(fromAth), sub: ath ? `${ath.date} ${format(ath.totalJpy)}` : undefined, color: fromAth != null ? (fromAth >= 0 ? VIZ_UP : VIZ_DOWN) : undefined },
   ];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
