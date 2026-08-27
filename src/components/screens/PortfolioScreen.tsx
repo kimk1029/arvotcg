@@ -244,9 +244,12 @@ export function PortfolioScreen() {
     };
   }, [allRows]);
 
+  // 시장 지표는 로그인·보유 카드와 무관한 공개 데이터 — 에러/빈 상태에서도 아래에 그린다.
+  const marketOnly = <MarketIndexPanel series={marketSeries} />;
   if (err)
     return (
-      <div className="cv-pf-board cv-pf-msg">
+      <div className="cv-pf-board">
+      <div className="cv-pf-msg">
         ⚠ {err}
         <br />
         <button
@@ -266,16 +269,21 @@ export function PortfolioScreen() {
           다시 시도
         </button>
       </div>
+      {marketOnly}
+      </div>
     );
   if (!port || !cards) return <div className="cv-pf-board cv-pf-msg">불러오는 중…</div>;
   if (port.totalCount === 0)
     return (
-      <div className="cv-pf-board cv-pf-msg">
+      <div className="cv-pf-board">
+      <div className="cv-pf-msg">
         아직 보유 카드가 없어요.
         <br />
         <Link href="/cards/add" style={{ color: '#7FB0FF', textDecoration: 'underline' }}>
           카드 추가하러 가기 →
         </Link>
+      </div>
+      {marketOnly}
       </div>
     );
 

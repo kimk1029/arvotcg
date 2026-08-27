@@ -198,18 +198,25 @@ export default function PortfolioPage() {
     <View style={{ flex: 1, backgroundColor: bodyBg }}>
       <AppBar onBack={() => router.push('/my' as never)} title="포트폴리오" />
       {err ? (
-        <View style={{ padding: 30, alignItems: 'center' }}>
-          <PixelText variant={txt} size={13} color={flat ? DOWN : tc.red}>⚠ {err}</PixelText>
-        </View>
+        // 시장 지표는 로그인·보유 카드와 무관한 공개 데이터 — 에러/빈 상태에서도 아래에 그린다(웹 동일).
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 120, gap: 16 }}>
+          <View style={{ padding: 30, alignItems: 'center' }}>
+            <PixelText variant={txt} size={13} color={flat ? DOWN : tc.red}>⚠ {err}</PixelText>
+          </View>
+          <MarketIndexPanel series={marketSeries} />
+        </ScrollView>
       ) : !port || !cards ? (
         <LoadingState />
       ) : port.totalCount === 0 ? (
-        <View style={{ padding: 30, alignItems: 'center', gap: 12 }}>
-          <PixelText variant={txt} size={13} color={flat ? W60 : tc.ink3}>아직 보유 카드가 없어요</PixelText>
-          <Pressable onPress={() => router.push('/cards/add' as never)}>
-            <PixelText variant={txt} size={13} color={flat ? '#7FB0FF' : tc.blu}>카드 추가하러 가기 →</PixelText>
-          </Pressable>
-        </View>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 120, gap: 16 }}>
+          <View style={{ padding: 30, alignItems: 'center', gap: 12 }}>
+            <PixelText variant={txt} size={13} color={flat ? W60 : tc.ink3}>아직 보유 카드가 없어요</PixelText>
+            <Pressable onPress={() => router.push('/cards/add' as never)}>
+              <PixelText variant={txt} size={13} color={flat ? '#7FB0FF' : tc.blu}>카드 추가하러 가기 →</PixelText>
+            </Pressable>
+          </View>
+          <MarketIndexPanel series={marketSeries} />
+        </ScrollView>
       ) : flat ? (
         /* ─────────── 클린(플랫) 다크 보드 — 웹 PortfolioScreen 패리티 ─────────── */
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 120, gap: 16 }}>
