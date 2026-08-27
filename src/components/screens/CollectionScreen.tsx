@@ -40,6 +40,8 @@ interface CardRow {
   pricePsa10Jpy: number;
   /** 등급 기준 현재시세(JPY) — 서버가 등록가와 같은 규칙(PSA10/9/8→등급가, 타사→PSA10, 싱글→raw)으로 산정. */
   currentPriceJpy: number;
+  /** currentPriceJpy 의 등급 기준('RAW'|'PSA 10'|…) — 시세상세를 같은 탭으로 열기 위해 전달. */
+  priceBasis?: string | null;
   /** 등록 시점 시세(JPY) — "등록가격". 구매가 미입력 카드의 손익 기준. */
   registerPriceJpy: number | null;
   trend: number[];
@@ -58,6 +60,17 @@ interface CardRow {
   gradeValue: string | null;
   ocrSetCode: string | null;
   ocrCardNumber: string | null;
+}
+
+/**
+ * 컬렉션 카드 → 시세상세 링크. 목록이 보여준 가격의 등급 기준을 `?grade=` 로 넘겨
+ * 상세 첫 화면이 같은 등급·같은 금액으로 열리게 한다(RAW 저장 카드는 RAW 탭 먼저,
+ * PSA10 은 탭으로 전환). 기준이 없으면 상세가 스스로 최다거래 등급을 고른다.
+ */
+function cardDetailHref(c: Pick<CardRow, 'snkrdunkApparelId' | 'priceBasis'>): string | undefined {
+  if (!c.snkrdunkApparelId) return undefined;
+  const q = c.priceBasis ? `?grade=${encodeURIComponent(c.priceBasis)}` : '';
+  return `/cards/snkrdunk/${c.snkrdunkApparelId}${q}`;
 }
 
 // KR 관례: 상승=빨강, 하락=파랑.
@@ -682,7 +695,7 @@ function GradedLabel({ company, grade }: { company?: string | null; grade?: stri
 }
 
 /** 카드 더보기(⋯) 메뉴 — 시세 보기 / 컬렉션에서 제거. Link/Panel 바깥에 형제로 배치. */
-function CardMenu({ apparelId, onRemove, plain = false }: { apparelId: number | null; onRemove: () => void; plain?: boolean }) {
+function CardMenu({ apparelId, basis, onRemove, plain = false }: { apparelId: number | null; basis?: string | null; onRemove: () => void; plain?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -735,7 +748,7 @@ function CardMenu({ apparelId, onRemove, plain = false }: { apparelId: number | 
               onClick={(e) => {
                 stop(e);
                 setOpen(false);
-                router.push(`/cards/snkrdunk/${apparelId}`);
+                router.push(cardDetailHref({ snkrdunkApparelId: apparelId, priceBasis: basis }) ?? `/cards/snkrdunk/${apparelId}`);
               }}
               style={menuItemStyle}
             >
@@ -768,7 +781,7 @@ const menuItemStyle: React.CSSProperties = {
 function CardGridItem({ row, rank, format, onRemove }: { row: Row; rank: number; format: (j: number) => string; onRemove: (id: number) => void }) {
   const { c, curJpy, qty, basisJpy, profitPct } = row;
   const img = c.snkrdunkImageUrl || c.photoUrl || null;
-  const href = c.snkrdunkApparelId ? `/cards/snkrdunk/${c.snkrdunkApparelId}` : undefined;
+  const href = cardDetailHref(c);
   const body = (
     <>
       <CardThumb
@@ -814,7 +827,7 @@ function CardGridItem({ row, rank, format, onRemove }: { row: Row; rank: number;
       )}
       {/* ⋯ 메뉴 — Link/Panel 바깥 형제(이미지 우상단 오버레이). */}
       <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 6 }}>
-        <CardMenu apparelId={c.snkrdunkApparelId} onRemove={() => onRemove(c.id)} />
+        <CardMenu apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} />
       </div>
     </div>
   );
@@ -823,7 +836,7 @@ function CardGridItem({ row, rank, format, onRemove }: { row: Row; rank: number;
 function CardListItem({ row, format, last, onRemove }: { row: Row; format: (j: number) => string; last: boolean; onRemove: (id: number) => void }) {
   const { c, curJpy, qty, basisJpy, profitPct } = row;
   const img = c.snkrdunkImageUrl || c.photoUrl || null;
-  const href = c.snkrdunkApparelId ? `/cards/snkrdunk/${c.snkrdunkApparelId}` : '#';
+  const href = cardDetailHref(c) ?? '#';
   return (
     <div style={{ position: 'relative', borderBottom: last ? 'none' : '1px solid var(--pap3)' }}>
       <Link href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px 11px 2px', textDecoration: 'none', color: 'inherit' }}>
@@ -851,7 +864,7 @@ function CardListItem({ row, format, last, onRemove }: { row: Row; format: (j: n
       </Link>
       {/* ⋯ 메뉴 — Link 바깥 형제(우측 세로 중앙). 컨테이너 없는 plain 변형. */}
       <div style={{ position: 'absolute', top: '50%', right: -2, transform: 'translateY(-50%)', zIndex: 6 }}>
-        <CardMenu apparelId={c.snkrdunkApparelId} onRemove={() => onRemove(c.id)} plain />
+        <CardMenu apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} plain />
       </div>
       {c.graded && <GradedLabel company={c.gradeCompany} grade={c.gradeValue} />}
     </div>

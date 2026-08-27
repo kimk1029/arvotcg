@@ -22,7 +22,7 @@ import type {
   TradeType,
 } from '@/lib/types';
 import { fetchSnkrdunkApparel } from '@/lib/snkrdunk';
-import { currentBasisJpy } from '../../shared/snkrdunkPrice';
+import { registerBasisJpy } from '../../shared/snkrdunkPrice';
 import { translateKnownCardNameToKo } from '../../shared/cardTranslate';
 import { getCardPackMeta } from '@/lib/cardPacks';
 import { getCachedJpyKrw } from './fxRate.js';
@@ -418,6 +418,12 @@ export interface MyCardWithPrice extends MyCardRow {
    * 데이터 없으면 0.
    */
   currentPriceJpy: number;
+  /**
+   * currentPriceJpy 가 어느 등급 시세를 쓴 값인지 — 'RAW' | 'PSA 10' | 'PSA 9' | 'PSA 8'.
+   * 목록에서 시세상세로 넘길 때(?grade=) 이 값을 그대로 실어 보내면 상세 첫 화면
+   * 가격이 목록과 같아진다. 등급 데이터가 없어 폴백된 경우까지 정확히 반영한다.
+   */
+  priceBasis: string;
   /** 소속 시리즈(박스) 한국어명 — 카탈로그 packCode→CARD_PACKS, 폴백 setCode. 없으면 null. */
   series: string | null;
   /** 카드 게임 종류 ('pokemon'|'onepiece'|'yugioh'|'other') — 카탈로그 game. 없으면 null. */
@@ -523,14 +529,16 @@ export async function getMyCardsWithPrices(
         pricePsa9Jpy: 0,
         pricePsa8Jpy: 0,
         currentPriceJpy: 0,
+        priceBasis: 'RAW',
         series: null,
         game: null,
       };
     }
     const info = apparelInfo.get(c.snkrdunkApparelId);
-    // 등급 기준 현재시세 — 등록가와 같은 규칙(currentBasisJpy)으로 산정해 등락률 비교 성립.
-    const current = info
-      ? currentBasisJpy(
+    // 등급 기준 현재시세 — 등록가와 같은 규칙(registerBasisJpy)으로 산정해 등락률 비교 성립.
+    // basis 도 같이 받아 목록→시세상세 이동 시 같은 등급 탭으로 열도록 넘긴다.
+    const basis = info
+      ? registerBasisJpy(
           {
             single: info.priceSingleJpy,
             psa10: info.pricePsa10Jpy,
@@ -540,7 +548,8 @@ export async function getMyCardsWithPrices(
           },
           { graded: c.graded, gradeCompany: c.gradeCompany, gradeValue: c.gradeValue },
         )
-      : 0;
+      : { price: 0, basis: 'RAW' };
+    const current = basis.price;
     return {
       // 컬렉션/포트폴리오의 메인 타이틀 — 일본어 원문을 한국어(사전+음역)로.
       snkrdunkName: info?.name ? translateKnownCardNameToKo(info.name) : null,
@@ -551,6 +560,7 @@ export async function getMyCardsWithPrices(
       pricePsa9Jpy: info?.pricePsa9Jpy ?? 0,
       pricePsa8Jpy: info?.pricePsa8Jpy ?? 0,
       currentPriceJpy: current,
+      priceBasis: basis.basis,
       series: seriesById.get(c.snkrdunkApparelId) ?? null,
       game: gameById.get(c.snkrdunkApparelId) ?? null,
     };
@@ -644,6 +654,8 @@ export interface MyCardPriceRow {
   pricePsa9Jpy: number;
   pricePsa8Jpy: number;
   currentPriceJpy: number;
+  /** currentPriceJpy 의 등급 기준 — MyCardWithPrice.priceBasis 와 같은 값. */
+  priceBasis: string;
   trend: number[];
 }
 
@@ -681,14 +693,16 @@ export async function getMyCardPrices(userId: string, limit = 200): Promise<MyCa
         pricePsa9Jpy: 0,
         pricePsa8Jpy: 0,
         currentPriceJpy: 0,
+        priceBasis: 'RAW',
         trend: [],
       };
     }
     const single = s.priceSingle || s.minPrice;
-    const current = currentBasisJpy(
+    const basis = registerBasisJpy(
       { single, psa10: s.pricePsa10, psa9: s.pricePsa9, psa8: s.pricePsa8, trendJpy: [] },
       { graded: c.graded, gradeCompany: c.gradeCompany, gradeValue: c.gradeValue },
     );
+    const current = basis.price;
     return {
       id: c.id,
       priceSingleJpy: single,
@@ -696,6 +710,7 @@ export async function getMyCardPrices(userId: string, limit = 200): Promise<MyCa
       pricePsa9Jpy: s.pricePsa9,
       pricePsa8Jpy: s.pricePsa8,
       currentPriceJpy: current,
+      priceBasis: basis.basis,
       trend: s.trend,
     };
   });

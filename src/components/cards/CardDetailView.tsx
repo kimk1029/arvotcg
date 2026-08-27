@@ -10,7 +10,7 @@ import { KreamCompare } from '@/components/cards/KreamCompare';
 import { MultiSourceKoPrice } from '@/components/cards/MultiSourceKoPrice';
 import { PsaPopPanel } from '@/components/cards/PsaPopPanel';
 import { downsamplePricePoints, isGradedSnkrdunkBadge } from '@/lib/snkrdunk';
-import { gradeUplift } from '@/lib/snkrdunkPrice';
+import { defaultGradeKey, gradeDisplayJpy, gradeUplift, type SnkrGradeAgg } from '@/lib/snkrdunkPrice';
 
 /**
  * 카드 시세 상세 — ARVOTCG '카드상세' 디자인 레이아웃.
@@ -18,14 +18,8 @@ import { gradeUplift } from '@/lib/snkrdunkPrice';
  * 미연결 섹션(지역/플랫폼 비교/ROI)은 '준비 중' 으로 레이아웃만 유지.
  */
 
-export interface GradeAgg {
-  /** 'PSA 10' | 'PSA 9' | 'RAW' */
-  key: string;
-  recent: number;
-  avg: number;
-  low: number;
-  count: number;
-}
+/** 정본 집계 타입 재수출 — 등급 집계는 shared gradeAgg 하나만 쓴다. */
+export type GradeAgg = SnkrGradeAgg;
 
 export interface TradeRow {
   price: number;
@@ -43,6 +37,12 @@ interface Props {
   listingCountText: string;
   productNumber: string;
   grades: GradeAgg[];
+  /**
+   * 진입 시 열어둘 등급 탭 — 목록에서 `?grade=` 로 넘어온 값.
+   * 목록(홈 HOT·내 컬렉션)이 보여준 가격과 첫 화면 헤드라인을 일치시킨다.
+   * 해당 등급에 체결이 없으면 무시하고 기본 규칙(거래 최다 등급)을 쓴다.
+   */
+  initialGrade?: string | null;
   chartPoints: Array<[number, number]>;
   trades: TradeRow[];
   /** KREAM 매칭 힌트 — 콜렉터 번호. */
@@ -118,34 +118,35 @@ export function CardDetailView({
   listingCountText,
   productNumber,
   grades,
+  initialGrade,
   chartPoints,
   trades,
   kreamCardNumber,
   kreamSetCode,
   kreamRarity,
 }: Props) {
-  // 데이터가 가장 많은 등급을 기본 선택(없으면 RAW).
-  const defaultGrade =
-    grades.slice().sort((a, b) => b.count - a.count).find((g) => g.count > 0)?.key ??
-    grades[grades.length - 1]?.key ??
-    'RAW';
+  // 목록에서 넘어온 등급이 있으면 그 탭으로 연다(목록 가격 == 첫 화면 가격).
+  // 없거나 그 등급에 체결이 없으면 데이터가 가장 많은 등급(기본 규칙).
+  const requested = grades.find((g) => g.key === initialGrade && g.count > 0)?.key;
+  const defaultGrade = requested ?? defaultGradeKey(grades);
   const [gradeKey, setGradeKey] = useState<string>(defaultGrade);
   const [region, setRegion] = useState<string>('일본판');
   const [rangeIdx, setRangeIdx] = useState<number>(4); // 전체
 
   const sel = grades.find((g) => g.key === gradeKey) ?? grades[0];
-  const headlinePrice = sel?.recent || sel?.avg || minPrice || 0;
+  // 정본 gradeDisplayJpy — 홈 HOT·내 컬렉션 목록가와 같은 통계(최근 체결 중앙값).
+  const headlinePrice = gradeDisplayJpy(sel, minPrice);
   // KREAM 비교 기준 = RAW(비등급) 최근 거래가. 없으면 최저매물.
   const rawGrade = grades.find((g) => g.key === 'RAW');
   // 등급별 투자 수익률 — RAW 평균가 → PSA10 평균가 상승폭 (정본 shared gradeUplift).
   const uplift = gradeUplift(rawGrade?.avg ?? 0, grades.find((g) => g.key === 'PSA 10')?.avg ?? 0);
-  const rawRecent = rawGrade?.recent || rawGrade?.avg || minPrice || 0;
+  const rawRecent = gradeDisplayJpy(rawGrade, minPrice);
 
   // 등록 팝업의 등급별 등록가 미리보기용 — PSA10/9는 집계 재사용, PSA8은 거래내역에서.
   const gradePrices = useMemo(() => {
     const pick = (key: string) => {
       const g = grades.find((x) => x.key === key);
-      return g?.recent || g?.avg || 0;
+      return g?.median || g?.avg || 0;
     };
     const psa8 = trades.find((t) => /PSA\s*8\b/i.test(t.badge))?.price ?? 0;
     return { single: rawRecent, psa10: pick('PSA 10'), psa9: pick('PSA 9'), psa8 };
@@ -231,7 +232,7 @@ export function CardDetailView({
         {/* 가격 박스 */}
         <Panel style={{ marginTop: 16, padding: 18 }}>
           <div style={{ fontFamily: 'var(--f1)', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }}>
-            최근 거래가 ({gradeKey})
+            최근 체결가 ({gradeKey})
           </div>
           <div style={{ fontFamily: 'var(--f1)', fontSize: 28, fontWeight: 900, color: 'var(--ink)', letterSpacing: 0.2, marginTop: 4 }}>
             <Price jpy={headlinePrice} empty="—" autoSizeBase={28} autoSizeMin={16} />
@@ -326,9 +327,10 @@ export function CardDetailView({
                 {g.key}
               </span>
               <div style={{ fontFamily: 'var(--f1)', fontSize: 19, fontWeight: 900, color: 'var(--ink)', marginTop: 11 }}>
-                <Price jpy={g.recent} empty="—" autoSizeBase={19} autoSizeMin={12} />
+                <Price jpy={g.median} empty="—" autoSizeBase={19} autoSizeMin={12} />
               </div>
               <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <GradeRow label="최근 체결" value={<Price jpy={g.recent} empty="—" />} />
                 <GradeRow label="평균가" value={<Price jpy={g.avg} empty="—" />} />
                 <GradeRow label="최근 최저" value={<Price jpy={g.low} empty="—" />} />
                 <GradeRow label="거래 건수" value={g.count > 0 ? `${g.count}건` : '—'} />

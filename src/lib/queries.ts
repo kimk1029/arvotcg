@@ -42,6 +42,8 @@ export interface MyCardWithPrice extends MyCardRow {
    * 싱글→raw)으로 산정. 등락률은 이 값과 registerPriceJpy 를 비교한다. 없으면 0.
    */
   currentPriceJpy: number;
+  /** currentPriceJpy 의 등급 기준('RAW'|'PSA 10'|'PSA 9'|'PSA 8') — 시세상세 탭 전달용. */
+  priceBasis?: string | null;
 }
 
 export interface MyFavoriteRow {

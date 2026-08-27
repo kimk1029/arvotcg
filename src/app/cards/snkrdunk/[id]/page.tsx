@@ -7,24 +7,22 @@ import { JsonLd } from '@/components/JsonLd';
 import { absUrl } from '@/lib/seo';
 import { CardDetailView, type GradeAgg, type TradeRow } from '@/components/cards/CardDetailView';
 import {
-  isGradedSnkrdunkBadge,
   localizeSnkrdunkText,
   type SnkrdunkApparel,
   type SnkrdunkSalesChart,
   type SnkrdunkSalesHistory,
 } from '@/lib/snkrdunk';
 import { translateKnownCardNameToKo } from '@/lib/cardTranslate';
-import { gradeAgg } from '@/lib/snkrdunkPrice';
+import { gradeAggsFromHistory } from '@/lib/snkrdunkPrice';
 import { SNKRDUNK_FEATURED_CARDS } from '@/lib/snkrdunkCards';
 import { serverFetch } from '@/lib/apiServer';
 import { parseKreamHints } from '../../../../../shared/util/kreamMatch';
 
 interface PageProps {
   params: { id: string };
+  /** `?grade=RAW|PSA 10|…` — 목록에서 넘긴 등급 탭(목록 가격과 첫 화면 가격 일치용). */
+  searchParams?: { grade?: string };
 }
-
-const PSA10_RE = /PSA\s*10\b/i;
-const PSA9_RE = /PSA\s*9\b/i;
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const apparelId = Number(params.id);
@@ -57,7 +55,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function Page({ params }: PageProps) {
+export default async function Page({ params, searchParams }: PageProps) {
   const apparelId = Number(params.id);
   if (!Number.isInteger(apparelId) || apparelId <= 0) notFound();
 
@@ -77,12 +75,8 @@ export default async function Page({ params }: PageProps) {
   const koName = seed?.shortName ?? translateKnownCardNameToKo(jpName) ?? jpName;
   const history = salesHistory?.history ?? [];
 
-  const grades: GradeAgg[] = [
-    gradeAgg(history, (b) => PSA10_RE.test(b), 'PSA 10'),
-    gradeAgg(history, (b) => PSA9_RE.test(b), 'PSA 9'),
-    // RAW = 비등급만. PSA 외 타 등급사(BGS·CGC 등)·"○以下" 버킷은 제외해 오염 방지.
-    gradeAgg(history, (b) => !isGradedSnkrdunkBadge(b), 'RAW'),
-  ];
+  // 등급 집계는 정본 하나만 — 목록(홈 HOT·컬렉션)이 쓰는 함수와 동일해야 숫자가 맞는다.
+  const grades: GradeAgg[] = gradeAggsFromHistory(history);
 
   const trades: TradeRow[] = history.slice(0, 40).map((h) => ({
     price: h.price,
@@ -133,6 +127,7 @@ export default async function Page({ params }: PageProps) {
         listingCountText={apparel.listingCountText ?? ''}
         productNumber={apparel.productNumber ?? ''}
         grades={grades}
+        initialGrade={searchParams?.grade ?? null}
         chartPoints={salesChart?.points ?? []}
         trades={trades}
         kreamCardNumber={kreamHints.cardNumber}

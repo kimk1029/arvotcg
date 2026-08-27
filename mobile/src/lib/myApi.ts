@@ -73,6 +73,11 @@ export interface MyCardRow {
    * 타사→PSA10, 싱글→raw)으로 산정. 등락률은 registerPriceJpy 와 이 값을 비교.
    */
   currentPriceJpy?: number;
+  /**
+   * currentPriceJpy 의 등급 기준('RAW'|'PSA 10'|'PSA 9'|'PSA 8').
+   * 시세상세를 같은 등급 탭으로 열어(?grade=) 목록 가격과 첫 화면 가격을 맞춘다.
+   */
+  priceBasis?: string | null;
   /** 등록 시점 시세(JPY) 기준값 — "등록가격". 등급카드는 등급 시세로 스냅. */
   registerPriceJpy?: number | null;
   /** 구매 정보 / 등급 정보. */
@@ -351,6 +356,8 @@ export interface MyCardPriceRow {
   pricePsa9Jpy: number;
   pricePsa8Jpy: number;
   currentPriceJpy: number;
+  /** currentPriceJpy 의 등급 기준 — MyCardRow.priceBasis 와 같은 값. */
+  priceBasis?: string | null;
   trend: number[];
 }
 
@@ -380,6 +387,7 @@ export async function fetchMyCardsSmart(): Promise<MyCardRow[]> {
         pricePsa9Jpy: p.pricePsa9Jpy > 0 ? p.pricePsa9Jpy : c.pricePsa9Jpy,
         pricePsa8Jpy: p.pricePsa8Jpy > 0 ? p.pricePsa8Jpy : c.pricePsa8Jpy,
         currentPriceJpy: p.currentPriceJpy > 0 ? p.currentPriceJpy : c.currentPriceJpy,
+        priceBasis: p.currentPriceJpy > 0 ? p.priceBasis : c.priceBasis,
         trend: p.trend.length > 0 ? p.trend : c.trend,
       };
     });

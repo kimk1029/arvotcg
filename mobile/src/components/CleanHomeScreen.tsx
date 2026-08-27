@@ -613,6 +613,15 @@ export function CleanHomeScreen() {
   const [priceById, setPriceById] = useState<Record<number, number>>({});
   // 대표 시세의 등급 기준('PSA 10' 이면 우하단에 PSA10 마크 표시).
   const [basisById, setBasisById] = useState<Record<number, string>>({});
+  /**
+   * 목록 → 시세상세 이동. 목록이 보여준 등급 기준(basis)을 `?grade=` 로 실어 보내
+   * 상세 첫 화면 헤드라인이 목록 가격과 같아지게 한다.
+   */
+  const openDetail = (apparelId: number) => {
+    const b = basisById[apparelId];
+    const q = b ? `?grade=${encodeURIComponent(b)}` : '';
+    router.push(`/cards/snkrdunk/${apparelId}${q}` as never);
+  };
   useEffect(() => {
     if (snkrRows.length === 0) return;
     let alive = true;
@@ -957,7 +966,7 @@ export function CleanHomeScreen() {
               itemWidth={100}
               gap={14}
               renderItem={({ seed, data }, idx) => (
-                <Pressable onPress={() => router.push(`/cards/snkrdunk/${seed.apparelId}` as never)}>
+                <Pressable onPress={() => openDetail(seed.apparelId)}>
                   <CardArt imageUrl={data?.imageUrl ?? seed.imageUrl ?? null} fallbackIdx={idx} width={100} height={138} radius={11}>
                     <View
                       style={{
@@ -994,7 +1003,7 @@ export function CleanHomeScreen() {
               itemWidth={100}
               gap={14}
               renderItem={({ seed, data }, idx) => (
-                <Pressable onPress={() => router.push(`/cards/snkrdunk/${seed.apparelId}` as never)}>
+                <Pressable onPress={() => openDetail(seed.apparelId)}>
                   <CardArt imageUrl={data?.imageUrl ?? null} fallbackIdx={idx} width={100} height={100} radius={13} />
                   <Text numberOfLines={1} style={[ts(12.5, '700', P.ink), { marginTop: 9 }]}>{seed.shortName}</Text>
                   <Text style={[ts(11, '400', P.ink2), { marginTop: 3 }]}>
@@ -1026,7 +1035,7 @@ export function CleanHomeScreen() {
                 return (
                   <Pressable
                     key={seed.apparelId}
-                    onPress={() => router.push(`/cards/snkrdunk/${seed.apparelId}` as never)}
+                    onPress={() => openDetail(seed.apparelId)}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: P.line }}
                   >
                     <Text style={[ts(15, '800', i < 3 ? P.rise : P.ink), { width: 14, textAlign: 'center' }]}>{i + 1}</Text>

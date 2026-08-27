@@ -28,40 +28,22 @@ import {
 import { jaToKoCached, jaToKoServer } from '@/lib/cardLang';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { parseKreamHints } from '../../../../shared/util/kreamMatch';
-import { gradeUplift } from '../../../../shared/snkrdunkPrice';
+import {
+  defaultGradeKey,
+  gradeAggsFromHistory,
+  gradeDisplayJpy,
+  gradeUplift,
+  type SnkrGradeAgg,
+} from '../../../../shared/snkrdunkPrice';
+import { isGradedSnkrdunkBadge } from '../../../../shared/snkrdunk';
 import { shotSetCode, shotSource, shotText } from '@/lib/shotMode';
 
-/* ── 등급 집계 — 웹 page.tsx gradeAgg 와 동일 ── */
-interface GradeAgg {
-  key: string; // 'PSA 10' | 'PSA 9' | 'RAW'
-  recent: number;
-  avg: number;
-  low: number;
-  count: number;
-}
+/* ── 등급 집계 — 정본 shared gradeAggsFromHistory 하나만 쓴다(웹과 동일 표본·통계) ── */
+type GradeAgg = SnkrGradeAgg;
 
-const PSA10_RE = /PSA\s*10\b/i;
-const PSA9_RE = /PSA\s*9\b/i;
+const isGradedBadge = (b: string) => isGradedSnkrdunkBadge(b);
+/** 거래내역 행의 등급 배지 강조용(웹 동일) — 색만 결정, 시세 계산엔 쓰지 않는다. */
 const PSA_ANY_RE = /PSA\s*\d+/i;
-// 웹 isGradedSnkrdunkBadge 와 동일 — PSA 외 등급사·"○以下" 버킷·숫자 포함이면 등급으로 간주.
-const GRADED_BADGE_RE = /PSA|BGS|CGC|SGC|ARS|ACE|BVG|HGA|以下|\d/i;
-const isGradedBadge = (b: string) => GRADED_BADGE_RE.test((b ?? '').trim());
-
-function gradeAgg(
-  history: ReadonlyArray<{ price: number; condition?: string; label?: string }>,
-  predicate: (badge: string) => boolean,
-  key: string,
-): GradeAgg {
-  const matches = history
-    .filter((h) => typeof h.price === 'number' && h.price > 0)
-    .filter((h) => predicate((h.condition || h.label || '').trim()))
-    .map((h) => h.price);
-  if (matches.length === 0) return { key, recent: 0, avg: 0, low: 0, count: 0 };
-  const top5 = matches.slice(0, 5);
-  const avg = Math.round(top5.reduce((a, b) => a + b, 0) / top5.length);
-  const low = Math.min(...matches.slice(0, 10));
-  return { key, recent: matches[0], avg, low, count: matches.length };
-}
 
 function gradePredicate(key: string): (badge: string) => boolean {
   if (key === 'RAW') return (b) => !isGradedBadge(b);
@@ -95,7 +77,7 @@ export default function SnkrdunkDetail() {
   const { format } = useCurrency();
   const fmtYen = (n: number) => (!n ? '—' : format(n));
   const flat = isFlatTheme(theme);
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, grade } = useLocalSearchParams<{ id: string; grade?: string }>();
   const apparelId = Number(id);
   const seed = SNKRDUNK_FEATURED_CARDS.find((c) => c.apparelId === apparelId);
 
@@ -153,21 +135,17 @@ export default function SnkrdunkDetail() {
   const allPoints = chart?.points ?? [];
 
   const historyList = history?.history ?? [];
-  const grades = useMemo<GradeAgg[]>(
-    () => [
-      gradeAgg(historyList, (b) => PSA10_RE.test(b), 'PSA 10'),
-      gradeAgg(historyList, (b) => PSA9_RE.test(b), 'PSA 9'),
-      gradeAgg(historyList, (b) => !isGradedBadge(b), 'RAW'),
-    ],
-    [historyList],
-  );
-  const defaultGrade =
-    grades.slice().sort((a, b) => b.count - a.count).find((g) => g.count > 0)?.key ?? 'RAW';
+  const grades = useMemo<GradeAgg[]>(() => gradeAggsFromHistory(historyList), [historyList]);
+  // 목록에서 `?grade=` 로 넘어온 등급이 있으면 그 탭으로 연다 — 목록에 보이던 가격과
+  // 상세 첫 화면 가격이 같아진다. 그 등급에 체결이 없으면 기본(최다거래 등급).
+  const requestedGrade = grades.find((g) => g.key === grade && g.count > 0)?.key;
+  const defaultGrade = requestedGrade ?? defaultGradeKey(grades);
   const effectiveGrade = gradeKey ?? defaultGrade;
   const sel = grades.find((g) => g.key === effectiveGrade) ?? grades[grades.length - 1];
-  const headlinePrice = sel?.recent || sel?.avg || apparel?.minPrice || 0;
+  // 정본 gradeDisplayJpy — 홈 HOT·내 컬렉션 목록가와 같은 통계(최근 체결 중앙값).
+  const headlinePrice = gradeDisplayJpy(sel, apparel?.minPrice ?? 0);
   const rawGrade = grades.find((g) => g.key === 'RAW');
-  const rawRecent = rawGrade?.recent || rawGrade?.avg || apparel?.minPrice || 0;
+  const rawRecent = gradeDisplayJpy(rawGrade, apparel?.minPrice ?? 0);
   // 등급별 투자 수익률 — RAW 평균가 → PSA10 평균가 상승폭 (웹 동일, 정본 shared).
   const uplift = gradeUplift(rawGrade?.avg ?? 0, grades.find((g) => g.key === 'PSA 10')?.avg ?? 0);
 
@@ -175,7 +153,7 @@ export default function SnkrdunkDetail() {
   const gradePrices = useMemo(() => {
     const pick = (key: string) => {
       const g = grades.find((x) => x.key === key);
-      return g?.recent || g?.avg || 0;
+      return g?.median || g?.avg || 0;
     };
     const psa8 = historyList.find((h) => /PSA\s*8\b/i.test((h.condition || h.label || '').trim()))?.price ?? 0;
     return { single: rawRecent, psa10: pick('PSA 10'), psa9: pick('PSA 9'), psa8 };
@@ -286,7 +264,7 @@ export default function SnkrdunkDetail() {
               <View style={{ marginTop: 14 }}>
                 <PixelFrame bg={tc.white}>
                   <View style={{ padding: 16 }}>
-                    <PixelText variant={txt} size={11} weight="bold" color={tc.ink3}>최근 거래가 ({shotText(effectiveGrade)})</PixelText>
+                    <PixelText variant={txt} size={11} weight="bold" color={tc.ink3}>최근 체결가 ({shotText(effectiveGrade)})</PixelText>
                     <PixelText variant={txt} size={26} weight="bold" color={tc.ink} numberOfLines={1} adjustsFontSizeToFit style={{ marginTop: 5 }}>
                       {fmtYen(headlinePrice)}
                     </PixelText>
@@ -369,8 +347,9 @@ export default function SnkrdunkDetail() {
                         </View>
                         {/* adjustsFontSizeToFit 금지 — 가로 ScrollView(무한폭 측정) 안에서 RN 0.81
                             Android 레이아웃이 폭주해 섹션 전체가 빈 공간이 되는 원인이었음. */}
-                        <PixelText variant={txt} size={16} weight="bold" color={tc.ink} numberOfLines={1} style={{ marginTop: 10 }}>{fmtYen(g.recent)}</PixelText>
+                        <PixelText variant={txt} size={16} weight="bold" color={tc.ink} numberOfLines={1} style={{ marginTop: 10 }}>{fmtYen(g.median)}</PixelText>
                         <View style={{ marginTop: 11, gap: 8 }}>
+                          <GradeRow tc={tc} txt={txt} label="최근 체결" value={fmtYen(g.recent)} />
                           <GradeRow tc={tc} txt={txt} label="평균가" value={fmtYen(g.avg)} />
                           <GradeRow tc={tc} txt={txt} label="최근 최저" value={fmtYen(g.low)} />
                           <GradeRow tc={tc} txt={txt} label="거래 건수" value={g.count > 0 ? `${g.count}건` : '—'} />

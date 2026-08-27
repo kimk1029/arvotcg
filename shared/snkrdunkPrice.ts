@@ -18,7 +18,6 @@ import { isGradedSnkrdunkBadge, type SnkrdunkSaleEntry } from './snkrdunk';
 const PSA10_RE = /PSA\s*10\b/i;
 const PSA9_RE = /PSA\s*9\b/i;
 const PSA8_RE = /PSA\s*8\b/i;
-const PSA_ANY_RE = /PSA\s*\d+/i;
 
 /** PSA 등급 숫자(10/9/8…)에 해당하는 배지 정규식. */
 export function psaGradeRe(n: number): RegExp {
@@ -60,12 +59,14 @@ export function computeApparelPrices(
   const psa10Prices = pickPrices((b) => PSA10_RE.test(b));
   const psa9Prices = pickPrices((b) => PSA9_RE.test(b));
   const psa8Prices = pickPrices((b) => PSA8_RE.test(b));
-  const rawMedian = median(pickPrices((b) => !PSA_ANY_RE.test(b)));
+  // RAW 판정은 gradeAgg('RAW') 와 반드시 같은 술어를 써야 한다 — 목록가(중앙값)와
+  // 시세상세 RAW 탭이 같은 표본에서 나와야 숫자가 일치한다.
+  const rawMedian = median(pickPrices((b) => !isGradedSnkrdunkBadge(b)));
   const rawCeil = rawMedian > 0 ? rawMedian * 2.5 : Infinity;
   const trendJpy = (chartPoints ?? [])
     .map((p) => p[1])
     .filter((n) => typeof n === 'number' && n > 0 && n <= rawCeil);
-  const hasGradedSales = pickPrices((b) => PSA_ANY_RE.test(b)).length > 0;
+  const hasGradedSales = pickPrices((b) => isGradedSnkrdunkBadge(b)).length > 0;
 
   let single = rawMedian;
   if (single === 0 && !hasGradedSales) {
@@ -139,6 +140,12 @@ export function currentBasisJpy(prices: ApparelPrices, grade: RegisterGradeInput
 export interface SnkrGradeAgg {
   /** 'PSA 10' | 'PSA 9' | 'RAW' */
   key: string;
+  /**
+   * 대표가 — 최근 체결 중앙값(최대 7건). 목록(홈 HOT·컬렉션)과 시세상세 헤드라인이
+   * 모두 이 값을 쓴다. 단일 체결(recent)은 튀는 값 하나에 화면이 흔들려 기준으로
+   * 쓰지 않는다(파일 상단 규칙 — "최근 체결 중앙값"이 정본).
+   */
+  median: number;
   recent: number;
   avg: number;
   low: number;
@@ -155,11 +162,12 @@ export function gradeAgg(
     .filter((h) => typeof h.price === 'number' && h.price > 0)
     .filter((h) => predicate((h.condition || h.label || '').trim()))
     .map((h) => h.price);
-  if (matches.length === 0) return { key, recent: 0, avg: 0, low: 0, count: 0 };
+  if (matches.length === 0) return { key, median: 0, recent: 0, avg: 0, low: 0, count: 0 };
   const top5 = matches.slice(0, 5);
   const avg = Math.round(top5.reduce((a, b) => a + b, 0) / top5.length);
   const low = Math.min(...matches.slice(0, 10));
-  return { key, recent: matches[0], avg, low, count: matches.length };
+  // computeApparelPrices 와 같은 표본(최근 7건)·같은 통계(중앙값).
+  return { key, median: median(matches.slice(0, 7)), recent: matches[0], avg, low, count: matches.length };
 }
 
 /** RAW→PSA10 그레이딩 시 가격 상승폭 — 등급별 투자 수익률 섹션(웹·앱 공통). */
@@ -185,21 +193,45 @@ export interface Headline {
   basis: string;
 }
 
-/**
- * 시세상세 헤드라인과 동일한 '대표 시세' — 거래가 가장 많은 등급의 최근 체결가
- * (없으면 평균 → 최저매물 순 폴백)와 그 등급 기준을 함께 반환.
- * CardDetailView 의 기본 헤드라인 계산과 일치.
- */
-export function headlineFromHistory(history: SnkrdunkSaleEntry[], minPrice: number): Headline {
-  const grades = [
+/** 시세상세가 노출하는 등급 탭 — 표시 순서 그대로. */
+export function gradeAggsFromHistory(history: SnkrdunkSaleEntry[]): SnkrGradeAgg[] {
+  // PSA 8 은 체결이 있을 때만 탭을 만든다 — 등록가가 PSA8 기준인 컬렉션 카드가
+  // 시세상세에서 같은 가격을 보이려면 탭이 있어야 한다(빈 탭은 만들지 않음).
+  const psa8 = gradeAgg(history, (b) => PSA8_RE.test(b), 'PSA 8');
+  return [
     gradeAgg(history, (b) => PSA10_RE.test(b), 'PSA 10'),
     gradeAgg(history, (b) => PSA9_RE.test(b), 'PSA 9'),
+    ...(psa8.count > 0 ? [psa8] : []),
     gradeAgg(history, (b) => !isGradedSnkrdunkBadge(b), 'RAW'),
   ];
-  const sel =
-    grades.slice().sort((a, b) => b.count - a.count).find((g) => g.count > 0) ??
-    grades[grades.length - 1];
-  return { price: sel?.recent || sel?.avg || minPrice || 0, basis: sel?.key ?? 'RAW' };
+}
+
+/**
+ * 한 등급의 화면 표시가 — 중앙값 → 평균 → 최저매물 순 폴백.
+ * 목록(홈 HOT·컬렉션)과 시세상세 헤드라인이 반드시 이 함수를 거쳐야 숫자가 일치한다.
+ */
+export function gradeDisplayJpy(agg: SnkrGradeAgg | undefined, minPrice: number): number {
+  return agg?.median || agg?.avg || minPrice || 0;
+}
+
+/** 거래가 가장 많은 등급(= 시세상세 기본 탭). 데이터가 없으면 RAW. */
+export function defaultGradeKey(grades: SnkrGradeAgg[]): string {
+  return (
+    grades.slice().sort((a, b) => b.count - a.count).find((g) => g.count > 0)?.key ??
+    grades[grades.length - 1]?.key ??
+    'RAW'
+  );
+}
+
+/**
+ * 시세상세 헤드라인과 동일한 '대표 시세' — 거래가 가장 많은 등급의 최근 체결 중앙값
+ * (없으면 평균 → 최저매물 순 폴백)과 그 등급 기준을 함께 반환.
+ * 목록에서 이 basis 를 시세상세로 넘기면(?grade=) 첫 화면 가격이 목록과 같아진다.
+ */
+export function headlineFromHistory(history: SnkrdunkSaleEntry[], minPrice: number): Headline {
+  const grades = gradeAggsFromHistory(history);
+  const key = defaultGradeKey(grades);
+  return { price: gradeDisplayJpy(grades.find((g) => g.key === key), minPrice), basis: key };
 }
 
 /** 대표 시세 가격만 (기준 등급은 무시). */

@@ -224,6 +224,15 @@ function searchHitToRow(r: PopularSearchHit): SnkrdunkRow {
   };
 }
 
+/**
+ * 목록 → 시세상세 링크. 목록이 보여준 등급 기준(basis)을 실어 보내 상세 첫 화면
+ * 헤드라인이 목록 가격과 같아지게 한다 (기본은 상세가 스스로 정한 최다거래 등급).
+ */
+function detailHref(apparelId: number, basis?: string | null): string {
+  const q = basis ? `?grade=${encodeURIComponent(basis)}` : '';
+  return `/cards/snkrdunk/${apparelId}${q}`;
+}
+
 /** 행에 대표가·등락률을 채운다 — sales-history 헤드라인가 + sales-chart trendChangePct (정본 /shared). */
 async function enrichRow(row: SnkrdunkRow): Promise<SnkrdunkRow> {
   if (row.changePct !== undefined || row.recentPrice !== undefined) return row;
@@ -837,7 +846,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
               return (
                 <Link
                   key={`${c.apparelId}-${i}`}
-                  href={`/cards/snkrdunk/${c.apparelId}`}
+                  href={detailHref(c.apparelId, c.basis)}
                   style={{ flex: 'none', width: 100, textDecoration: 'none', color: 'inherit' }}
                 >
                   <CardArt imageUrl={c.imageUrl} fallbackIdx={i} width={100} height={138} radius={11}>
@@ -885,7 +894,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
             {boxDisplay.map((b, i) => (
               <Link
                 key={`${b.apparelId}-${i}`}
-                href={`/cards/snkrdunk/${b.apparelId}`}
+                href={detailHref(b.apparelId, b.basis)}
                 style={{ flex: 'none', width: 100, textDecoration: 'none', color: 'inherit' }}
               >
                 <CardArt imageUrl={b.imageUrl} fallbackIdx={i} width={100} height={100} radius={13} />
@@ -925,7 +934,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
             return (
               <Link
                 key={m.apparelId}
-                href={`/cards/snkrdunk/${m.apparelId}`}
+                href={detailHref(m.apparelId, m.basis)}
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: `1px solid ${P.line}`, textDecoration: 'none', color: 'inherit' }}
               >
                 <div style={{ fontSize: 15, fontWeight: 800, color: i < 3 ? P.rise : P.ink, width: 14, textAlign: 'center' }}>{i + 1}</div>

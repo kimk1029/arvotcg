@@ -329,13 +329,22 @@ export default function MyCardsScreen() {
   );
 }
 
+/**
+ * 컬렉션 카드 → 시세상세 이동. 목록이 보여준 가격의 등급 기준(priceBasis)을
+ * `?grade=` 로 넘겨 상세 첫 화면이 같은 등급·같은 금액으로 열리게 한다
+ * (RAW 저장 카드는 RAW 탭 먼저, PSA10 은 탭으로 전환).
+ */
+function openCardDetail(apparelId: number | null | undefined, basis?: string | null): void {
+  if (!apparelId) return;
+  const q = basis ? `?grade=${encodeURIComponent(basis)}` : '';
+  router.push(`/cards/snkrdunk/${apparelId}${q}` as never);
+}
+
 /* ── 그리드 셀 — 웹 CardGridItem 동일 (2열, 정사각 썸네일, 랭크 배지, 그레이딩 라벨) ── */
 function CardGridItem({ row, rank, format, onRemove, tc }: { row: Row; rank: number; format: (j: number) => string; onRemove: (id: number) => void; tc: ReturnType<typeof useThemeColors> }) {
   const { c, curJpy, qty, basisJpy, profitPct } = row;
   const img = c.snkrdunkImageUrl || c.photoUrl || null;
-  const open = () => {
-    if (c.snkrdunkApparelId) router.push(`/cards/snkrdunk/${c.snkrdunkApparelId}` as never);
-  };
+  const open = () => openCardDetail(c.snkrdunkApparelId, c.priceBasis);
   return (
     <View style={{ width: '47.5%', position: 'relative' }}>
       <Pressable onPress={open} style={{ backgroundColor: tc.white, borderColor: tc.pap3, borderWidth: 1, borderRadius: 12, overflow: 'hidden' }}>
@@ -362,7 +371,7 @@ function CardGridItem({ row, rank, format, onRemove, tc }: { row: Row; rank: num
         </View>
       </Pressable>
       <View style={{ position: 'absolute', top: 6, right: 6, zIndex: 6 }}>
-        <CardMenu apparelId={c.snkrdunkApparelId} onRemove={() => onRemove(c.id)} tc={tc} />
+        <CardMenu apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} tc={tc} />
       </View>
     </View>
   );
@@ -372,9 +381,7 @@ function CardGridItem({ row, rank, format, onRemove, tc }: { row: Row; rank: num
 function CardListItem({ row, format, last, onRemove, tc }: { row: Row; format: (j: number) => string; last: boolean; onRemove: (id: number) => void; tc: ReturnType<typeof useThemeColors> }) {
   const { c, curJpy, qty, basisJpy, profitPct } = row;
   const img = c.snkrdunkImageUrl || c.photoUrl || null;
-  const open = () => {
-    if (c.snkrdunkApparelId) router.push(`/cards/snkrdunk/${c.snkrdunkApparelId}` as never);
-  };
+  const open = () => openCardDetail(c.snkrdunkApparelId, c.priceBasis);
   return (
     <View style={{ position: 'relative', borderBottomWidth: last ? 0 : 1, borderBottomColor: tc.pap3 }}>
       <Pressable onPress={open} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingRight: 20, paddingLeft: 2 }}>
@@ -398,7 +405,7 @@ function CardListItem({ row, format, last, onRemove, tc }: { row: Row; format: (
         </View>
       </Pressable>
       <View style={{ position: 'absolute', top: '50%', right: -2, transform: [{ translateY: -13 }], zIndex: 6 }}>
-        <CardMenu apparelId={c.snkrdunkApparelId} onRemove={() => onRemove(c.id)} tc={tc} plain />
+        <CardMenu apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} tc={tc} plain />
       </View>
       {c.graded ? <GradedLabel gold={tc.gold} company={c.gradeCompany} grade={c.gradeValue} /> : null}
     </View>
@@ -422,7 +429,7 @@ function GradedLabel({ gold, company, grade }: { gold: string; company?: string 
 }
 
 /** 카드 ⋯ 메뉴 — 시세 보기 / 컬렉션에서 제거 (웹 CardMenu 동일). */
-function CardMenu({ apparelId, onRemove, tc, plain = false }: { apparelId: number | null; onRemove: () => void; tc: ReturnType<typeof useThemeColors>; plain?: boolean }) {
+function CardMenu({ apparelId, basis, onRemove, tc, plain = false }: { apparelId: number | null; basis?: string | null; onRemove: () => void; tc: ReturnType<typeof useThemeColors>; plain?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <View style={{ position: 'relative' }}>
@@ -443,7 +450,7 @@ function CardMenu({ apparelId, onRemove, tc, plain = false }: { apparelId: numbe
             <Pressable
               onPress={() => {
                 setOpen(false);
-                router.push(`/cards/snkrdunk/${apparelId}` as never);
+                openCardDetail(apparelId, basis);
               }}
               style={{ paddingVertical: 9, paddingHorizontal: 13 }}
             >
