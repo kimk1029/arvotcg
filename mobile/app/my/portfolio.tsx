@@ -12,6 +12,8 @@ import { fetchPortfolio, fetchMyCards, type PortfolioSummary, type MyCardRow } f
 import { colors } from '@/theme/tokens';
 import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
+import { PortfolioInfographics } from '@/components/portfolio/PortfolioInfographics';
+import type { VizCard } from '../../../shared/portfolioViz';
 import { shotSource } from '@/lib/shotMode';
 
 type Filter = 'all' | 'up' | 'down' | 'graded' | 'pull';
@@ -107,6 +109,27 @@ export default function PortfolioPage() {
     const pct = invested > 0 ? (profit / invested) * 100 : null;
     return { invested, current, profit, pct };
   }, [allRows]);
+
+  // 인포그래픽 입력 — 집계는 전부 정본 shared/portfolioViz.ts (웹과 같은 함수).
+  const vizCards = useMemo<VizCard[]>(
+    () =>
+      allRows
+        .filter((r) => r.curJpy > 0)
+        .map((r) => ({
+          id: r.c.id,
+          name: r.c.snkrdunkName || r.c.nickname || '이름 미상',
+          valueJpy: r.value,
+          basisJpy: r.basisJpy != null ? r.basisJpy * r.qty : null,
+          changePct: r.changePct,
+          graded: !!r.c.graded,
+          gradeLabel:
+            r.c.priceBasis || (r.c.graded ? `${r.c.gradeCompany ?? 'PSA'} ${r.c.gradeValue ?? ''}`.trim() : 'RAW'),
+          game: r.c.game ?? null,
+          series: r.c.series ?? null,
+          selfPulled: !!r.c.selfPulled,
+        })),
+    [allRows],
+  );
 
   // 오늘의 등락 — 웹 movers 동일.
   const movers = useMemo(() => {
@@ -224,6 +247,9 @@ export default function PortfolioPage() {
               <Mover flat row={movers.down} dir="down" tc={tc} txt={txt} />
             </View>
           ) : null}
+
+          {/* 인포그래픽 (구성·분류·손익 분포) — 웹 PortfolioInfographics 페어 */}
+          <PortfolioInfographics cards={vizCards} format={format} />
 
           {/* 필터 5종 */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
@@ -414,6 +440,9 @@ export default function PortfolioPage() {
               <Mover row={movers.down} dir="down" tc={tc} txt={txt} />
             </View>
           ) : null}
+
+          {/* 인포그래픽 (구성·분류·손익 분포) — 웹 PortfolioInfographics 페어 */}
+          <PortfolioInfographics cards={vizCards} format={format} />
 
           {/* 필터 — 웹 동일 5종(건수 표시) */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>

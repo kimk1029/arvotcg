@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { usePriceMode } from '@/components/PriceModeProvider';
+import { PortfolioInfographics } from '@/components/portfolio/PortfolioInfographics';
+import type { VizCard } from '../../../shared/portfolioViz';
 
 interface HistPoint {
   date: string;
@@ -41,6 +43,11 @@ interface CardRow {
   gradeValue: string | null;
   ocrSetCode: string | null;
   ocrCardNumber: string | null;
+  /** 등급 기준('RAW'|'PSA 10'…) — 인포그래픽 등급 구성용. */
+  priceBasis?: string | null;
+  /** 작품(pokemon|onepiece|…) · 시리즈(팩 한글명) — 분류별 구성용. */
+  game?: string | null;
+  series?: string | null;
 }
 
 const UP = '#22C55E';
@@ -151,6 +158,26 @@ export function PortfolioScreen() {
     const pct = invested > 0 ? (profit / invested) * 100 : null;
     return { invested, current, profit, pct };
   }, [allRows]);
+
+  // 인포그래픽 입력 — 집계는 전부 정본 shared/portfolioViz.ts 가 한다.
+  const vizCards = useMemo<VizCard[]>(
+    () =>
+      allRows
+        .filter((r) => r.curJpy > 0)
+        .map((r) => ({
+          id: r.c.id,
+          name: r.c.snkrdunkName || r.c.nickname || '이름 미상',
+          valueJpy: r.value,
+          basisJpy: r.basisJpy != null ? r.basisJpy * r.qty : null,
+          changePct: r.changePct,
+          graded: r.c.graded,
+          gradeLabel: r.c.priceBasis || (r.c.graded ? `${r.c.gradeCompany ?? 'PSA'} ${r.c.gradeValue ?? ''}`.trim() : 'RAW'),
+          game: r.c.game ?? null,
+          series: r.c.series ?? null,
+          selfPulled: r.c.selfPulled,
+        })),
+    [allRows],
+  );
 
   const movers = useMemo(() => {
     const withChg = allRows.filter((r) => r.changePct != null);
@@ -265,6 +292,9 @@ export function PortfolioScreen() {
           <Mover row={movers.down} dir="down" format={format} />
         </div>
       )}
+
+      {/* ── 인포그래픽 (구성·분류·손익 분포) ── */}
+      <PortfolioInfographics cards={vizCards} format={format} />
 
       {/* ── 필터 + 정렬 ── */}
       <div className="cv-pf-filters">
