@@ -5,6 +5,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { usePriceMode } from '@/components/PriceModeProvider';
 import { PortfolioInfographics } from '@/components/portfolio/PortfolioInfographics';
+import { MarketIndexPanel } from '@/components/portfolio/MarketIndexPanel';
+import { loadEnabledGames } from '@/lib/gamePrefs';
+import type { MarketIndexResponse, MarketIndexSeries } from '../../../shared/marketIndex';
 import type { VizCard } from '../../../shared/portfolioViz';
 
 interface HistPoint {
@@ -67,6 +70,24 @@ export function PortfolioScreen() {
   const [sort, setSort] = useState<'value' | 'change'>('value');
   const [filter, setFilter] = useState<Filter>('all');
   const [range, setRange] = useState<Range>(30);
+  // 시장 지표 — 포트폴리오 본체와 독립 조회(실패/지연이 자산 표시를 막지 않게). 설정에서 켠 게임만.
+  const [marketSeries, setMarketSeries] = useState<MarketIndexSeries[]>([]);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch('/api/market-index', { cache: 'no-store' });
+        if (!r.ok) return;
+        const j = (await r.json().catch(() => null)) as { data?: MarketIndexResponse } | null;
+        if (!alive || !j?.data) return;
+        const enabled = new Set<string>(loadEnabledGames());
+        setMarketSeries(j.data.series.filter((x) => enabled.has(x.key)));
+      } catch {
+        // 지표는 보조 정보 — 조용히 숨긴다.
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -295,6 +316,9 @@ export function PortfolioScreen() {
 
       {/* ── 인포그래픽 (구성·분류·손익 분포) ── */}
       <PortfolioInfographics cards={vizCards} format={format} />
+
+      {/* ── 시장 지표 (포켓몬 S&Poké 500 · 원피스 ARVO OP200) ── */}
+      <MarketIndexPanel series={marketSeries} />
 
       {/* ── 필터 + 정렬 ── */}
       <div className="cv-pf-filters">

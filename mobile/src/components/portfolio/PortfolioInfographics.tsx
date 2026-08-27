@@ -94,8 +94,8 @@ function Section({
   return (
     <View>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
-        <Text style={ts(12, '800', INK, ff)}>{title}</Text>
-        {sub ? <Text style={ts(9, '400', MUTED, ff)}>{sub}</Text> : null}
+        <Text style={ts(14, '800', INK, ff)}>{title}</Text>
+        {sub ? <Text style={ts(11, '400', MUTED, ff)}>{sub}</Text> : null}
       </View>
       <View
         style={{
@@ -144,7 +144,7 @@ function StackBlock({ slices, format, ff }: { slices: VizSlice[]; format: (n: nu
       {active ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
           <Swatch color={active.color} />
-          <Text style={ts(10, '700', INK, ff)} numberOfLines={1}>
+          <Text style={ts(12, '700', INK, ff)} numberOfLines={1}>
             {active.label} · {format(active.value)} ({active.pct.toFixed(1)}%)
           </Text>
         </View>
@@ -163,11 +163,11 @@ function StackBlock({ slices, format, ff }: { slices: VizSlice[]; format: (n: nu
             }}
           >
             <Swatch color={s.color} />
-            <Text style={[ts(11, '400', LABEL, ff), { flex: 1 }]} numberOfLines={1}>
+            <Text style={[ts(13, '400', LABEL, ff), { flex: 1 }]} numberOfLines={1}>
               {s.label}
             </Text>
-            <Text style={ts(11, '800', INK, ff)}>{format(s.value)}</Text>
-            <Text style={[ts(10, '400', MUTED, ff), { width: 44, textAlign: 'right' }]}>
+            <Text style={ts(13, '800', INK, ff)}>{format(s.value)}</Text>
+            <Text style={[ts(12, '400', MUTED, ff), { width: 44, textAlign: 'right' }]}>
               {s.pct.toFixed(1)}%
             </Text>
           </Pressable>
@@ -185,8 +185,8 @@ function MiniStack({ label, slices, ff }: { label: string; slices: VizSlice[]; f
   return (
     <View>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
-        <Text style={ts(10, '800', LABEL, ff)}>{label}</Text>
-        <Text style={ts(9, '400', MUTED, ff)}>{slices.length}종</Text>
+        <Text style={ts(12, '800', LABEL, ff)}>{label}</Text>
+        <Text style={ts(11, '400', MUTED, ff)}>{slices.length}종</Text>
       </View>
       <Svg width="100%" height={MINI_H} viewBox={`0 0 ${BAR_W} ${MINI_H}`} preserveAspectRatio="none">
         {segs.map(({ slice, x, w }) => (
@@ -197,8 +197,8 @@ function MiniStack({ label, slices, ff }: { label: string; slices: VizSlice[]; f
         {slices.map((s) => (
           <View key={s.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginRight: 7 }}>
             <Swatch color={s.color} />
-            <Text style={ts(10, '400', LABEL, ff)}>{s.label}</Text>
-            <Text style={ts(10, '400', MUTED, ff)}>{s.pct.toFixed(0)}%</Text>
+            <Text style={ts(12, '400', LABEL, ff)}>{s.label}</Text>
+            <Text style={ts(12, '400', MUTED, ff)}>{s.pct.toFixed(0)}%</Text>
           </View>
         ))}
       </View>
@@ -221,8 +221,8 @@ function Meter({ label, pct, ff }: { label: string; pct: number; ff?: string }) 
   const clamped = Math.max(0, Math.min(100, pct));
   return (
     <View style={{ flex: 1 }}>
-      <Text style={ts(9, '400', MUTED, ff)}>{label}</Text>
-      <Text style={[ts(15, '900', INK, ff), { marginTop: 3 }]}>{clamped.toFixed(1)}%</Text>
+      <Text style={ts(11, '400', MUTED, ff)}>{label}</Text>
+      <Text style={[ts(18, '900', INK, ff), { marginTop: 3 }]}>{clamped.toFixed(1)}%</Text>
       <View style={{ height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)', marginTop: 6, overflow: 'hidden' }}>
         <View style={{ width: `${clamped}%`, height: '100%', backgroundColor: VIZ_UP, borderRadius: 3 }} />
       </View>
@@ -248,7 +248,7 @@ function Diverging({
         const up = pct >= 0;
         return (
           <View key={card.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={[ts(10, '400', LABEL, ff), { width: 84 }]} numberOfLines={1}>
+            <Text style={[ts(12, '400', LABEL, ff), { width: 84 }]} numberOfLines={1}>
               {card.name}
             </Text>
             {/* 0 기준선을 가운데 두고 좌(하락)/우(상승)로 뻗는다. */}
@@ -281,11 +281,11 @@ function Diverging({
                 ) : null}
               </View>
             </View>
-            <Text style={[ts(11, '800', up ? VIZ_UP : VIZ_DOWN, ff), { width: 54, textAlign: 'right' }]}>
+            <Text style={[ts(13, '800', up ? VIZ_UP : VIZ_DOWN, ff), { width: 54, textAlign: 'right' }]}>
               {up ? '+' : ''}
               {pct.toFixed(1)}%
             </Text>
-            <Text style={[ts(10, '400', MUTED, ff), { width: 58, textAlign: 'right' }]} numberOfLines={1}>
+            <Text style={[ts(12, '400', MUTED, ff), { width: 58, textAlign: 'right' }]} numberOfLines={1}>
               {format(card.valueJpy)}
             </Text>
           </View>

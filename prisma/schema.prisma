@@ -843,3 +843,34 @@ model ScanLog {
   @@index([userId])
   @@map("scan_logs")
 }
+
+/// 시장 지표(TCG 인덱스) 일별 포인트 — 포트폴리오 '시장 지표' 섹션.
+/// key: 'onepiece' 등 서버가 직접 계산하는 지수만 저장(포켓몬은 S&Poké 500 외부 JSON 을
+/// 캐시로 서빙해 DB 에 두지 않는다). 계산 정본은 server/lib/marketIndex.ts.
+model MarketIndexPoint {
+  id         Int      @id @default(autoincrement())
+  key        String
+  /// 시세 기준일 (tcgcsv 아카이브 날짜, UTC, "YYYY-MM-DD").
+  date       String
+  /// 지수값 (기준일 = 1000).
+  value      Float
+  /// 바스켓 시가총액 합(USD, TCGplayer market price).
+  totalValue Float    @default(0)
+  /// 바스켓 종목 수.
+  count      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@unique([key, date])
+  @@index([key, date(sort: Desc)])
+  @@map("market_index_points")
+}
+
+/// 지수 연속 계산 상태 — 디바이저·직전 바스켓·forward-fill 가격·글리치 가드 윈도.
+/// 매일 한 스텝 진행할 때 읽고 다시 쓴다. 백필 시드(server/data/marketIndexSeed.json)로 초기화.
+model MarketIndexState {
+  key       String   @id
+  json      Json
+  updatedAt DateTime @updatedAt
+
+  @@map("market_index_states")
+}

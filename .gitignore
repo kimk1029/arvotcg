@@ -32,3 +32,6 @@ apk/
 
 # 스토어 제출용 산출물(AAB·스크린샷·설명문) — 로컬 보관, git 미추적
 store-assets/
+
+# 시장 지표 백필용 tcgcsv 아카이브 캐시 (server/scripts/marketIndexBackfill.ts)
+server/.tcgcsv-archive/

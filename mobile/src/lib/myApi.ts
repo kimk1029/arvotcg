@@ -595,3 +595,10 @@ export async function fetchPackHits(code: string, limit = 30): Promise<PackWithH
   }
 }
 
+
+/* ── 시장 지표(TCG 인덱스) — 포트폴리오 '시장 지표' 섹션 (웹 PortfolioScreen fetch 동일) ── */
+export type { MarketIndexResponse, MarketIndexSeries } from '../../../shared/marketIndex';
+
+export function fetchMarketIndexes(): Promise<import('../../../shared/marketIndex').MarketIndexResponse> {
+  return api<{ data: import('../../../shared/marketIndex').MarketIndexResponse }>('/api/market-index').then((r) => r.data);
+}

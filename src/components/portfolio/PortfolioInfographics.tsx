@@ -76,10 +76,10 @@ function Section({ title, sub, children }: { title: string; sub?: string; childr
   return (
     <section>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
-        <h3 style={{ margin: 0, fontFamily: 'var(--f1)', fontSize: 12, fontWeight: 800, color: INK, letterSpacing: 0.6 }}>
+        <h3 style={{ margin: 0, fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 800, color: INK, letterSpacing: 0.6 }}>
           {title}
         </h3>
-        {sub && <span style={{ fontFamily: 'var(--f1)', fontSize: 9, color: MUTED }}>{sub}</span>}
+        {sub && <span style={{ fontFamily: 'var(--f1)', fontSize: 11, color: MUTED }}>{sub}</span>}
       </div>
       <div
         style={{
@@ -135,7 +135,7 @@ function StackBlock({ slices, format }: { slices: VizSlice[]; format: (n: number
             style={{
               marginTop: 8,
               fontFamily: 'var(--f1)',
-              fontSize: 10,
+              fontSize: 12,
               color: INK,
               display: 'flex',
               gap: 8,
@@ -162,7 +162,7 @@ function StackBlock({ slices, format }: { slices: VizSlice[]; format: (n: number
                 flex: 1,
                 minWidth: 0,
                 fontFamily: 'var(--f1)',
-                fontSize: 11,
+                fontSize: 13,
                 color: LABEL,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -171,10 +171,10 @@ function StackBlock({ slices, format }: { slices: VizSlice[]; format: (n: number
             >
               {s.label}
             </span>
-            <span style={{ fontFamily: 'var(--f1)', fontSize: 11, fontWeight: 800, color: INK, flex: 'none' }}>
+            <span style={{ fontFamily: 'var(--f1)', fontSize: 13, fontWeight: 800, color: INK, flex: 'none' }}>
               {format(s.value)}
             </span>
-            <span style={{ fontFamily: 'var(--f1)', fontSize: 10, color: MUTED, width: 44, textAlign: 'right', flex: 'none' }}>
+            <span style={{ fontFamily: 'var(--f1)', fontSize: 12, color: MUTED, width: 44, textAlign: 'right', flex: 'none' }}>
               {s.pct.toFixed(1)}%
             </span>
           </li>
@@ -198,8 +198,8 @@ function MiniStack({ label, slices, format }: { label: string; slices: VizSlice[
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
-        <span style={{ fontFamily: 'var(--f1)', fontSize: 10, fontWeight: 800, color: LABEL, letterSpacing: 0.5 }}>{label}</span>
-        <span style={{ fontFamily: 'var(--f1)', fontSize: 9, color: MUTED }}>{slices.length}종</span>
+        <span style={{ fontFamily: 'var(--f1)', fontSize: 12, fontWeight: 800, color: LABEL, letterSpacing: 0.5 }}>{label}</span>
+        <span style={{ fontFamily: 'var(--f1)', fontSize: 11, color: MUTED }}>{slices.length}종</span>
       </div>
       <svg width="100%" height={MINI_H} viewBox={`0 0 ${BAR_W} ${MINI_H}`} preserveAspectRatio="none" style={{ display: 'block' }}>
         {segs.map(({ slice, x, w }) => (
@@ -210,7 +210,7 @@ function MiniStack({ label, slices, format }: { label: string; slices: VizSlice[
       </svg>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 12px', marginTop: 7 }}>
         {slices.map((s) => (
-          <span key={s.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--f1)', fontSize: 10, color: LABEL }}>
+          <span key={s.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--f1)', fontSize: 12, color: LABEL }}>
             <Swatch color={s.color} />
             {s.label}
             <em style={{ fontStyle: 'normal', color: MUTED }}>{s.pct.toFixed(0)}%</em>
@@ -236,8 +236,8 @@ function Meter({ label, pct }: { label: string; pct: number }) {
   const clamped = Math.max(0, Math.min(100, pct));
   return (
     <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ fontFamily: 'var(--f1)', fontSize: 9, color: MUTED }}>{label}</div>
-      <div style={{ fontFamily: 'var(--f1)', fontSize: 15, fontWeight: 900, color: INK, marginTop: 3 }}>
+      <div style={{ fontFamily: 'var(--f1)', fontSize: 11, color: MUTED }}>{label}</div>
+      <div style={{ fontFamily: 'var(--f1)', fontSize: 18, fontWeight: 900, color: INK, marginTop: 3 }}>
         {clamped.toFixed(1)}%
       </div>
       <div style={{ height: 5, borderRadius: 3, background: 'rgba(255,255,255,.08)', marginTop: 6, overflow: 'hidden' }}>
@@ -268,7 +268,7 @@ function Diverging({
                 width: 96,
                 flex: 'none',
                 fontFamily: 'var(--f1)',
-                fontSize: 10,
+                fontSize: 12,
                 color: LABEL,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -298,7 +298,7 @@ function Diverging({
                 flex: 'none',
                 textAlign: 'right',
                 fontFamily: 'var(--f1)',
-                fontSize: 11,
+                fontSize: 13,
                 fontWeight: 800,
                 color: up ? VIZ_UP : VIZ_DOWN,
               }}
@@ -306,7 +306,7 @@ function Diverging({
               {up ? '+' : ''}
               {pct.toFixed(1)}%
             </span>
-            <span style={{ width: 62, flex: 'none', textAlign: 'right', fontFamily: 'var(--f1)', fontSize: 10, color: MUTED }}>
+            <span style={{ width: 62, flex: 'none', textAlign: 'right', fontFamily: 'var(--f1)', fontSize: 12, color: MUTED }}>
               {format(card.valueJpy)}
             </span>
           </div>

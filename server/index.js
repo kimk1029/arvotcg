@@ -58,6 +58,8 @@ import cardshowRouter from './routes/cardshow.ts';
 import cardLangRouter from './routes/cardLang.ts';
 import { startPriceAlertScheduler } from './lib/priceAlerts.ts';
 import { startDailyPriceSnapshotScheduler } from './lib/dailyPriceSnapshot.ts';
+import { startMarketIndexScheduler } from './lib/marketIndex.ts';
+import marketIndexRouter from './routes/marketIndex.ts';
 import { startCollectionBackfill } from './lib/collectionBackfill.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -83,6 +85,7 @@ app.use('/api/feeds', feedsRouter);
 app.use('/api/trades', tradesRouter);
 app.use('/api/me', meRouter);
 app.use('/api/fx', fxRouter);
+app.use('/api/market-index', marketIndexRouter);
 app.use('/api/messages', messagesRouter);
 app.use('/api/bookmarks', bookmarksRouter);
 app.use('/api/oripa', oripaRouter);
@@ -819,6 +822,8 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   startCardImageWarmer();
   // 일일 시세 스냅샷 — 매일 새벽 3시(KST) 카탈로그 전체 순회, 가격 통계용 히스토리 적재.
   startDailyPriceSnapshotScheduler();
+  // 시장 지표(TCG 인덱스) — 부팅 캐치업 + 매일 06:30 KST 한 스텝 (tcgcsv 갱신 후).
+  startMarketIndexScheduler();
   // 컬렉션 카드 DB 보증 — 스냅샷이 없는 보유 카드를 부팅 후/주기적으로 메운다.
   startCollectionBackfill();
 });

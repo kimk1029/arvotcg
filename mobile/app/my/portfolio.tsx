@@ -13,6 +13,9 @@ import { colors } from '@/theme/tokens';
 import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import { PortfolioInfographics } from '@/components/portfolio/PortfolioInfographics';
+import { MarketIndexPanel } from '@/components/portfolio/MarketIndexPanel';
+import { loadEnabledGames } from '@/lib/gamePrefs';
+import { fetchMarketIndexes, type MarketIndexSeries } from '@/lib/myApi';
 import type { VizCard } from '../../../shared/portfolioViz';
 import { shotSource } from '@/lib/shotMode';
 
@@ -45,6 +48,21 @@ export default function PortfolioPage() {
   const [sort, setSort] = useState<'value' | 'change'>('value');
   const [filter, setFilter] = useState<Filter>('all');
   const [range, setRange] = useState<Range>(30);
+  // 시장 지표 — 본체와 독립 조회(실패해도 자산 표시를 막지 않음). 설정에서 켠 게임만 (웹 동일).
+  const [marketSeries, setMarketSeries] = useState<MarketIndexSeries[]>([]);
+  useEffect(() => {
+    let alive = true;
+    fetchMarketIndexes()
+      .then((r) => {
+        if (!alive) return;
+        const enabled = new Set<string>(loadEnabledGames());
+        setMarketSeries(r.series.filter((x) => enabled.has(x.key)));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -151,15 +169,15 @@ export default function PortfolioPage() {
       <AppBar onBack={() => router.push('/my' as never)} title="포트폴리오" />
       {err ? (
         <View style={{ padding: 30, alignItems: 'center' }}>
-          <PixelText variant={txt} size={11} color={flat ? DOWN : tc.red}>⚠ {err}</PixelText>
+          <PixelText variant={txt} size={13} color={flat ? DOWN : tc.red}>⚠ {err}</PixelText>
         </View>
       ) : !port || !cards ? (
         <LoadingState />
       ) : port.totalCount === 0 ? (
         <View style={{ padding: 30, alignItems: 'center', gap: 12 }}>
-          <PixelText variant={txt} size={11} color={flat ? W60 : tc.ink3}>아직 보유 카드가 없어요</PixelText>
+          <PixelText variant={txt} size={13} color={flat ? W60 : tc.ink3}>아직 보유 카드가 없어요</PixelText>
           <Pressable onPress={() => router.push('/cards/add' as never)}>
-            <PixelText variant={txt} size={11} color={flat ? '#7FB0FF' : tc.blu}>카드 추가하러 가기 →</PixelText>
+            <PixelText variant={txt} size={13} color={flat ? '#7FB0FF' : tc.blu}>카드 추가하러 가기 →</PixelText>
           </Pressable>
         </View>
       ) : flat ? (
@@ -174,25 +192,25 @@ export default function PortfolioPage() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: UP }} />
-                    <PixelText variant={txt} size={10} weight="bold" color={W60} style={{ letterSpacing: 1 }}>
+                    <PixelText variant={txt} size={12} weight="bold" color={W60} style={{ letterSpacing: 1 }}>
                       MY PORTFOLIO{usePsa10 ? ' · PSA10' : ''}
                     </PixelText>
                   </View>
-                  <PixelText variant={txt} size={9} color={W38}>{port.asOfDate ?? '실시간'} · KST</PixelText>
+                  <PixelText variant={txt} size={11} color={W38}>{port.asOfDate ?? '실시간'} · KST</PixelText>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-                  <PixelText variant={txt} size={34} weight="bold" color={tc.gold} style={{ letterSpacing: -1 }}>
+                  <PixelText variant={txt} size={38} weight="bold" color={tc.gold} style={{ letterSpacing: -1 }}>
                     {format(totalJpy)}
                   </PixelText>
                   {port.changePct != null && (
-                    <PixelText variant={txt} size={13} weight="bold" color={up ? UP : DOWN} style={{ marginBottom: 4 }}>
+                    <PixelText variant={txt} size={15} weight="bold" color={up ? UP : DOWN} style={{ marginBottom: 4 }}>
                       {up ? '▲ +' : '▼ '}
                       {port.changePct.toFixed(2)}%
                       {port.changeAbsJpy != null ? ` (${up ? '+' : '-'}${format(Math.abs(port.changeAbsJpy))})` : ''}
                     </PixelText>
                   )}
                 </View>
-                <PixelText variant={txt} size={9} color={W38} style={{ marginTop: 6 }}>
+                <PixelText variant={txt} size={11} color={W38} style={{ marginTop: 6 }}>
                   {port.pricedCount}/{port.totalCount}장 · 어제(KST)대비
                 </PixelText>
               </View>
@@ -231,7 +249,7 @@ export default function PortfolioPage() {
                   onPress={() => setRange(r)}
                   style={{ flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 9, backgroundColor: on ? tc.gold : CELL }}
                 >
-                  <PixelText variant={txt} size={11} weight="bold" color={on ? '#16161a' : W60}>{r === 0 ? '전체' : `${r}일`}</PixelText>
+                  <PixelText variant={txt} size={13} weight="bold" color={on ? '#16161a' : W60}>{r === 0 ? '전체' : `${r}일`}</PixelText>
                 </Pressable>
               );
             })}
@@ -251,6 +269,9 @@ export default function PortfolioPage() {
           {/* 인포그래픽 (구성·분류·손익 분포) — 웹 PortfolioInfographics 페어 */}
           <PortfolioInfographics cards={vizCards} format={format} />
 
+          {/* 시장 지표 (포켓몬 S&Poké 500 · 원피스 ARVO OP200) — 웹 MarketIndexPanel 페어 */}
+          <MarketIndexPanel series={marketSeries} />
+
           {/* 필터 5종 */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
             {(
@@ -269,7 +290,7 @@ export default function PortfolioPage() {
                   onPress={() => setFilter(f.k)}
                   style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, backgroundColor: on ? WHITE : CELL }}
                 >
-                  <PixelText variant={txt} size={11} weight="bold" color={on ? '#16161a' : W60}>
+                  <PixelText variant={txt} size={13} weight="bold" color={on ? '#16161a' : W60}>
                     {f.label} {f.n}
                   </PixelText>
                 </Pressable>
@@ -279,7 +300,7 @@ export default function PortfolioPage() {
 
           {/* 리스트 헤더 + 정렬 */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <PixelText variant={txt} size={11} weight="bold" color={W60} style={{ letterSpacing: 1 }}>
+            <PixelText variant={txt} size={13} weight="bold" color={W60} style={{ letterSpacing: 1 }}>
               보유 종목 {rows.length}
             </PixelText>
             <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -287,7 +308,7 @@ export default function PortfolioPage() {
                 const on = sort === s;
                 return (
                   <Pressable key={s} onPress={() => setSort(s)} style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: on ? tc.gold : CELL }}>
-                    <PixelText variant={txt} size={10} weight="bold" color={on ? '#16161a' : W60}>{s === 'value' ? '평가액순' : '등락순'}</PixelText>
+                    <PixelText variant={txt} size={12} weight="bold" color={on ? '#16161a' : W60}>{s === 'value' ? '평가액순' : '등락순'}</PixelText>
                   </Pressable>
                 );
               })}
@@ -297,7 +318,7 @@ export default function PortfolioPage() {
           {/* 리스트 — 다크 행 */}
           <View style={{ gap: 8 }}>
             {rows.length === 0 ? (
-              <PixelText variant={txt} size={11} color={W38} style={{ textAlign: 'center', paddingVertical: 20 }}>
+              <PixelText variant={txt} size={13} color={W38} style={{ textAlign: 'center', paddingVertical: 20 }}>
                 해당 조건의 종목이 없어요
               </PixelText>
             ) : null}
@@ -312,15 +333,15 @@ export default function PortfolioPage() {
                     {img ? (
                       <Image source={shotSource(img)} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                     ) : (
-                      <PixelText variant={txt} size={18}>🃏</PixelText>
+                      <PixelText variant={txt} size={20}>🃏</PixelText>
                     )}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <PixelText variant="ko" size={12.5} weight="bold" color={WHITE} numberOfLines={1}>
+                    <PixelText variant="ko" size={14} weight="bold" color={WHITE} numberOfLines={1}>
                       {name}
                       {c.graded ? `  [${c.gradeCompany ?? 'PSA'} ${c.gradeValue ?? ''}]` : ''}
                     </PixelText>
-                    <PixelText variant={txt} size={9.5} color={W38} style={{ marginTop: 3 }}>
+                    <PixelText variant={txt} size={11} color={W38} style={{ marginTop: 3 }}>
                       {[c.ocrSetCode?.toUpperCase(), c.ocrCardNumber].filter(Boolean).join(' · ')}
                       {qty > 1 ? ` · ×${qty}` : ''}
                       {c.selfPulled ? ' · 직접뽑기' : ''}
@@ -330,9 +351,9 @@ export default function PortfolioPage() {
                     <SparkFlat trend={c.trend} up={changeUp} />
                   ) : null}
                   <View style={{ alignItems: 'flex-end' }}>
-                    <PixelText variant={txt} size={12} weight="bold" color={WHITE}>{curJpy > 0 ? format(curJpy) : '시세없음'}</PixelText>
+                    <PixelText variant={txt} size={14} weight="bold" color={WHITE}>{curJpy > 0 ? format(curJpy) : '시세없음'}</PixelText>
                     {changePct != null && (
-                      <PixelText variant={txt} size={10} weight="bold" color={changeUp ? UP : DOWN} style={{ marginTop: 3 }}>
+                      <PixelText variant={txt} size={12} weight="bold" color={changeUp ? UP : DOWN} style={{ marginTop: 3 }}>
                         {changeUp ? '▲ +' : '▼ '}
                         {changePct.toFixed(1)}% {basisJpy != null ? '매입' : '전일'}
                       </PixelText>
@@ -343,7 +364,7 @@ export default function PortfolioPage() {
             })}
           </View>
 
-          <PixelText variant={txt} size={9} color={W38} style={{ textAlign: 'center', marginTop: 4, lineHeight: 14 }}>
+          <PixelText variant={txt} size={11} color={W38} style={{ textAlign: 'center', marginTop: 4, lineHeight: 14 }}>
             스니덩크 최근 체결 중앙값 기준 · 관심카드 제외 · 어제(KST 정각) 대비
           </PixelText>
         </ScrollView>
@@ -357,30 +378,30 @@ export default function PortfolioPage() {
             return (
               <PixelFrame bg={tc.ink} borderWidth={3} shadow={6}>
                 <View style={{ padding: 14 }}>
-                  <PixelText variant={txt} size={9} color="rgba(255,255,255,0.5)" style={{ letterSpacing: 0.5 }}>
+                  <PixelText variant={txt} size={11} color="rgba(255,255,255,0.5)" style={{ letterSpacing: 0.5 }}>
                     총 평가액 (스니덩크 시세 합계)
                   </PixelText>
-                  <PixelText variant={txt} size={24} color={tc.gold} style={{ marginTop: 6 }}>
+                  <PixelText variant={txt} size={26} color={tc.gold} style={{ marginTop: 6 }}>
                     {format(totalJpy)}
                   </PixelText>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                     {port.changePct != null && (
-                      <PixelText variant={txt} size={12} color={up ? '#22C55E' : '#FF6B7A'}>
+                      <PixelText variant={txt} size={14} color={up ? '#22C55E' : '#FF6B7A'}>
                         {up ? '▲ +' : '▼ '}
                         {port.changePct.toFixed(2)}%
                         {port.changeAbsJpy != null ? ` (${up ? '+' : '-'}${format(Math.abs(port.changeAbsJpy))})` : ''}
                       </PixelText>
                     )}
-                    <PixelText variant={txt} size={9} color="rgba(255,255,255,0.45)">
+                    <PixelText variant={txt} size={11} color="rgba(255,255,255,0.45)">
                       {port.pricedCount}/{port.totalCount}장 · 어제(KST)대비
                     </PixelText>
                   </View>
                   {totals.pct != null && (
                     <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)' }}>
-                      <PixelText variant={txt} size={10} color="rgba(255,255,255,0.7)" style={{ lineHeight: 16 }}>
+                      <PixelText variant={txt} size={12} color="rgba(255,255,255,0.7)" style={{ lineHeight: 16 }}>
                         매입 {format(totals.invested)} → 현재 {format(totals.current)}
                         {`\n`}
-                        <PixelText variant={txt} size={10} color={totals.profit >= 0 ? '#22C55E' : '#FF6B7A'}>
+                        <PixelText variant={txt} size={12} color={totals.profit >= 0 ? '#22C55E' : '#FF6B7A'}>
                           {totals.profit >= 0 ? '+' : '-'}
                           {format(Math.abs(totals.profit))} ({totals.profit >= 0 ? '+' : ''}
                           {totals.pct.toFixed(1)}%)
@@ -424,7 +445,7 @@ export default function PortfolioPage() {
                   onPress={() => setRange(r)}
                   style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: on ? tc.ink : tc.white, borderColor: tc.ink, borderWidth: 2 }}
                 >
-                  <PixelText variant={txt} size={9} color={on ? tc.gold : tc.ink3}>{r === 0 ? '전체' : `${r}일`}</PixelText>
+                  <PixelText variant={txt} size={11} color={on ? tc.gold : tc.ink3}>{r === 0 ? '전체' : `${r}일`}</PixelText>
                 </Pressable>
               );
             })}
@@ -444,6 +465,9 @@ export default function PortfolioPage() {
           {/* 인포그래픽 (구성·분류·손익 분포) — 웹 PortfolioInfographics 페어 */}
           <PortfolioInfographics cards={vizCards} format={format} />
 
+          {/* 시장 지표 (포켓몬 S&Poké 500 · 원피스 ARVO OP200) — 웹 MarketIndexPanel 페어 */}
+          <MarketIndexPanel series={marketSeries} />
+
           {/* 필터 — 웹 동일 5종(건수 표시) */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
             {(
@@ -462,7 +486,7 @@ export default function PortfolioPage() {
                   onPress={() => setFilter(f.k)}
                   style={{ paddingVertical: 7, paddingHorizontal: 10, backgroundColor: on ? tc.ink : tc.white, borderColor: tc.ink, borderWidth: 2 }}
                 >
-                  <PixelText variant={txt} size={9} color={on ? tc.gold : tc.ink3}>
+                  <PixelText variant={txt} size={11} color={on ? tc.gold : tc.ink3}>
                     {f.label} {f.n}
                   </PixelText>
                 </Pressable>
@@ -472,7 +496,7 @@ export default function PortfolioPage() {
 
           {/* 리스트 헤더 + 정렬 — 웹 동일 */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <PixelText variant={txt} size={11} color={tc.ink2} style={{ letterSpacing: 1 }}>
+            <PixelText variant={txt} size={13} color={tc.ink2} style={{ letterSpacing: 1 }}>
               보유 종목 {rows.length}
             </PixelText>
             <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -480,7 +504,7 @@ export default function PortfolioPage() {
                 const on = sort === s;
                 return (
                   <Pressable key={s} onPress={() => setSort(s)} style={{ paddingVertical: 5, paddingHorizontal: 8, backgroundColor: on ? tc.gold : tc.white, borderColor: tc.ink, borderWidth: 2 }}>
-                    <PixelText variant={txt} size={8} color={tc.ink}>{s === 'value' ? '평가액순' : '등락순'}</PixelText>
+                    <PixelText variant={txt} size={10} color={tc.ink}>{s === 'value' ? '평가액순' : '등락순'}</PixelText>
                   </Pressable>
                 );
               })}
@@ -488,7 +512,7 @@ export default function PortfolioPage() {
           </View>
           <View style={{ gap: 8 }}>
             {rows.length === 0 ? (
-              <PixelText variant={txt} size={10} color={tc.ink3} style={{ textAlign: 'center', paddingVertical: 20 }}>
+              <PixelText variant={txt} size={12} color={tc.ink3} style={{ textAlign: 'center', paddingVertical: 20 }}>
                 해당 조건의 종목이 없어요
               </PixelText>
             ) : null}
@@ -504,15 +528,15 @@ export default function PortfolioPage() {
                       {img ? (
                         <Image source={shotSource(img)} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                       ) : (
-                        <PixelText variant={txt} size={18}>🃏</PixelText>
+                        <PixelText variant={txt} size={20}>🃏</PixelText>
                       )}
                     </View>
                     <View style={{ flex: 1 }}>
-                      <PixelText variant="ko" size={12} weight="bold" numberOfLines={1}>
+                      <PixelText variant="ko" size={14} weight="bold" numberOfLines={1}>
                         {name}
                         {c.graded ? `  [${c.gradeCompany ?? 'PSA'} ${c.gradeValue ?? ''}]` : ''}
                       </PixelText>
-                      <PixelText variant={txt} size={9} color={tc.ink3} style={{ marginTop: 3 }}>
+                      <PixelText variant={txt} size={11} color={tc.ink3} style={{ marginTop: 3 }}>
                         {[c.ocrSetCode?.toUpperCase(), c.ocrCardNumber].filter(Boolean).join(' · ')}
                         {qty > 1 ? ` · ×${qty}` : ''}
                         {c.selfPulled ? ' · 직접뽑기' : ''}
@@ -522,9 +546,9 @@ export default function PortfolioPage() {
                       <Spark trend={c.trend} up={changeUp} tc={tc} />
                     ) : null}
                     <View style={{ alignItems: 'flex-end' }}>
-                      <PixelText variant={txt} size={11}>{curJpy > 0 ? format(curJpy) : '시세없음'}</PixelText>
+                      <PixelText variant={txt} size={13}>{curJpy > 0 ? format(curJpy) : '시세없음'}</PixelText>
                       {changePct != null && (
-                        <PixelText variant={txt} size={10} color={changeUp ? tc.grnDk : tc.red} style={{ marginTop: 3 }}>
+                        <PixelText variant={txt} size={12} color={changeUp ? tc.grnDk : tc.red} style={{ marginTop: 3 }}>
                           {changeUp ? '▲ +' : '▼ '}
                           {changePct.toFixed(1)}% {basisJpy != null ? '매입' : '전일'}
                         </PixelText>
@@ -547,13 +571,13 @@ function Kpi({ label, value, sub, color }: { label: string; value: string; sub?:
   const txt = useThemeTextVariant();
   return (
     <View style={{ width: '31.5%', flexGrow: 1, backgroundColor: tc.white, borderColor: tc.ink, borderWidth: 2, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'center' }}>
-      <PixelText variant={txt} size={10} weight="bold" color={color ?? tc.ink} numberOfLines={1} adjustsFontSizeToFit>
+      <PixelText variant={txt} size={12} weight="bold" color={color ?? tc.ink} numberOfLines={1} adjustsFontSizeToFit>
         {value}
       </PixelText>
       {sub ? (
-        <PixelText variant={txt} size={8} color={color ?? tc.ink3} style={{ marginTop: 2 }}>{sub}</PixelText>
+        <PixelText variant={txt} size={10} color={color ?? tc.ink3} style={{ marginTop: 2 }}>{sub}</PixelText>
       ) : null}
-      <PixelText variant={txt} size={8} color={tc.ink3} style={{ marginTop: 4 }}>{label}</PixelText>
+      <PixelText variant={txt} size={10} color={tc.ink3} style={{ marginTop: 4 }}>{label}</PixelText>
     </View>
   );
 }
@@ -562,13 +586,13 @@ function Kpi({ label, value, sub, color }: { label: string; value: string; sub?:
 function KpiFlat({ label, value, sub, color, txt }: { label: string; value: string; sub?: string; color?: string; txt: 'pixel' | 'ko' }) {
   return (
     <View style={{ width: '31.5%', flexGrow: 1, backgroundColor: CELL, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 8, alignItems: 'center' }}>
-      <PixelText variant={txt} size={13} weight="bold" color={color ?? WHITE} numberOfLines={1} adjustsFontSizeToFit>
+      <PixelText variant={txt} size={15} weight="bold" color={color ?? WHITE} numberOfLines={1} adjustsFontSizeToFit>
         {value}
       </PixelText>
       {sub ? (
-        <PixelText variant={txt} size={9} weight="bold" color={color ?? W60} style={{ marginTop: 3 }}>{sub}</PixelText>
+        <PixelText variant={txt} size={11} weight="bold" color={color ?? W60} style={{ marginTop: 3 }}>{sub}</PixelText>
       ) : null}
-      <PixelText variant={txt} size={9} color={W38} style={{ marginTop: 5 }}>{label}</PixelText>
+      <PixelText variant={txt} size={11} color={W38} style={{ marginTop: 5 }}>{label}</PixelText>
     </View>
   );
 }
@@ -599,18 +623,18 @@ function Mover({
   const valColor = flat ? color : pixelColor;
   return (
     <View style={boxStyle}>
-      <PixelText variant={txt} size={9} weight="bold" color={headColor}>{head}</PixelText>
+      <PixelText variant={txt} size={11} weight="bold" color={headColor}>{head}</PixelText>
       {row ? (
         <>
-          <PixelText variant="ko" size={11} weight="bold" color={nameColor} numberOfLines={1} style={{ marginTop: 6 }}>
+          <PixelText variant="ko" size={13} weight="bold" color={nameColor} numberOfLines={1} style={{ marginTop: 6 }}>
             {row.c.snkrdunkName || row.c.nickname || '이름 미상'}
           </PixelText>
-          <PixelText variant={txt} size={11} weight="bold" color={valColor} style={{ marginTop: 3 }}>
+          <PixelText variant={txt} size={13} weight="bold" color={valColor} style={{ marginTop: 3 }}>
             {(row.changePct ?? 0) >= 0 ? '+' : ''}{(row.changePct ?? 0).toFixed(1)}%
           </PixelText>
         </>
       ) : (
-        <PixelText variant={txt} size={10} color={subColor} style={{ marginTop: 6 }}>—</PixelText>
+        <PixelText variant={txt} size={12} color={subColor} style={{ marginTop: 6 }}>—</PixelText>
       )}
     </View>
   );
@@ -675,7 +699,7 @@ function PortfolioChart({
     return (
       <Wrap>
         <View style={{ alignItems: 'center', paddingVertical: 4 }}>
-          <PixelText variant={txt} size={9} color={inkColor}>
+          <PixelText variant={txt} size={11} color={inkColor}>
             일별 데이터가 2일 이상 쌓이면 차트가 표시돼요
           </PixelText>
         </View>
@@ -711,17 +735,17 @@ function PortfolioChart({
     <Wrap>
       {sel != null ? (
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
-          <PixelText variant={txt} size={10} color={inkColor}>{history[sel].date}</PixelText>
-          <PixelText variant={txt} size={14} weight="bold" color={strongColor}>{format(history[sel].totalJpy)}</PixelText>
+          <PixelText variant={txt} size={12} color={inkColor}>{history[sel].date}</PixelText>
+          <PixelText variant={txt} size={16} weight="bold" color={strongColor}>{format(history[sel].totalJpy)}</PixelText>
           {selPct != null && (
-            <PixelText variant={txt} size={11} weight="bold" color={selPct >= 0 ? (flat ? UP : tc.grnDk) : (flat ? DOWN : tc.red)}>
+            <PixelText variant={txt} size={13} weight="bold" color={selPct >= 0 ? (flat ? UP : tc.grnDk) : (flat ? DOWN : tc.red)}>
               {selPct >= 0 ? '▲ +' : '▼ '}
               {selPct.toFixed(2)}%
             </PixelText>
           )}
         </View>
       ) : (
-        <PixelText variant={txt} size={9} color={inkColor} style={{ marginBottom: 8 }}>
+        <PixelText variant={txt} size={11} color={inkColor} style={{ marginBottom: 8 }}>
           차트의 점을 눌러 그 날의 금액·등락률을 확인하세요
         </PixelText>
       )}
@@ -751,9 +775,9 @@ function PortfolioChart({
         })}
       </Svg>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-        <PixelText variant={txt} size={8} color={inkColor}>{history[0].date}</PixelText>
-        <PixelText variant={txt} size={8} color={inkColor}>최근 {history.length}일</PixelText>
-        <PixelText variant={txt} size={8} color={inkColor}>{history[history.length - 1].date}</PixelText>
+        <PixelText variant={txt} size={10} color={inkColor}>{history[0].date}</PixelText>
+        <PixelText variant={txt} size={10} color={inkColor}>최근 {history.length}일</PixelText>
+        <PixelText variant={txt} size={10} color={inkColor}>{history[history.length - 1].date}</PixelText>
       </View>
     </Wrap>
   );
