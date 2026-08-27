@@ -15,6 +15,7 @@ import {
   type VizCard,
   type VizSlice,
 } from '../../../../shared/portfolioViz';
+import { RingComposition } from './PortfolioExtras';
 
 /**
  * 포트폴리오 인포그래픽 — 앱. 웹 src/components/portfolio/PortfolioInfographics.tsx 와 페어.
@@ -29,6 +30,8 @@ interface Props {
   format: (jpy: number) => string;
   /** 픽셀 테마는 도트 폰트, 클린/다크는 시스템 폰트를 쓰도록 상위에서 전달. */
   fontFamily?: string;
+  /** 링 가운데 총 평가액. */
+  totalJpy?: number;
 }
 
 const LABEL = 'rgba(255,255,255,0.55)';
@@ -41,7 +44,7 @@ const BAR_W = 320;
 const BAR_H = 26;
 const MINI_H = 12;
 
-export function PortfolioInfographics({ cards, format, fontFamily }: Props) {
+export function PortfolioInfographics({ cards, format, fontFamily, totalJpy }: Props) {
   const byCard = compositionByCard(cards, 5);
   const byGrade = compositionByGrade(cards, 4);
   const byGame = compositionByGame(cards, 4);
@@ -56,6 +59,7 @@ export function PortfolioInfographics({ cards, format, fontFamily }: Props) {
   return (
     <View style={{ gap: 18 }}>
       <Section title="자산 구성" sub="평가액 비중 · 상위 5종" ff={ff}>
+        <RingComposition slices={byCard} total={totalJpy ?? cards.reduce((a, c) => a + c.valueJpy, 0)} format={format} ff={ff} />
         <StackBlock slices={byCard} format={format} ff={ff} />
         <Meters conc={conc} ff={ff} />
       </Section>

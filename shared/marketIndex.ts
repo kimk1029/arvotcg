@@ -181,3 +181,42 @@ export function nearestIndex(geometry: LineGeometry, fracX: number, width: numbe
   }
   return best;
 }
+
+/** 여러 시계열을 같은 시간·값 축에 배치 — 내 자산 vs 시장(100 재기준) 비교 차트. */
+export interface MultiLineGeometry {
+  lines: Array<{ key: string; xy: Array<[number, number]>; path: string }>;
+  min: number;
+  max: number;
+  t0: number;
+  t1: number;
+}
+export function multiLineGeometry(
+  series: Array<{ key: string; points: MarketIndexPoint[] }>,
+  width: number,
+  height: number,
+  pad = 6,
+): MultiLineGeometry {
+  const all = series.flatMap((s) => s.points);
+  if (all.length === 0) return { lines: [], min: 0, max: 0, t0: 0, t1: 0 };
+  const ts = all.map((p) => Date.parse(`${p.date}T00:00:00Z`));
+  const t0 = Math.min(...ts);
+  const t1 = Math.max(...ts);
+  const span = Math.max(1, t1 - t0);
+  const vals = all.map((p) => p.value);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const vspan = Math.max(1e-9, max - min);
+  const innerW = width - pad * 2;
+  const innerH = height - pad * 2;
+  const lines = series.map((s) => {
+    const xy = s.points.map((p): [number, number] => {
+      const t = Date.parse(`${p.date}T00:00:00Z`);
+      return [
+        Number((pad + ((t - t0) / span) * innerW).toFixed(2)),
+        Number((pad + (1 - (p.value - min) / vspan) * innerH).toFixed(2)),
+      ];
+    });
+    return { key: s.key, xy, path: xy.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x} ${y}`).join(' ') };
+  });
+  return { lines, min, max, t0, t1 };
+}

@@ -6,6 +6,16 @@ import { useCurrency } from '@/components/CurrencyProvider';
 import { usePriceMode } from '@/components/PriceModeProvider';
 import { PortfolioInfographics } from '@/components/portfolio/PortfolioInfographics';
 import { MarketIndexPanel } from '@/components/portfolio/MarketIndexPanel';
+import {
+  AcquisitionBars,
+  CompareChart,
+  GradingUpsideCard,
+  Histograms,
+  InsightTiles,
+  Section as VizSection,
+  upsideFromCards,
+} from '@/components/portfolio/PortfolioExtras';
+import type { VizAcquisition } from '../../../shared/portfolioViz';
 import { loadEnabledGames } from '@/lib/gamePrefs';
 import type { MarketIndexResponse, MarketIndexSeries } from '../../../shared/marketIndex';
 import type { VizCard } from '../../../shared/portfolioViz';
@@ -40,6 +50,8 @@ interface CardRow {
   buyCurrency: string | null;
   qty: number;
   buyDate: string | null;
+  /** 등록일 — 매입일이 없을 때 취득 타임라인의 월 기준. */
+  createdAt?: string;
   selfPulled: boolean;
   graded: boolean;
   gradeCompany: string | null;
@@ -200,6 +212,21 @@ export function PortfolioScreen() {
     [allRows],
   );
 
+  // 월별 취득(매입일 없으면 등록일) · PSA10 환산 업사이드 — 집계는 정본 shared/portfolioViz.
+  const acquisitions = useMemo<VizAcquisition[]>(
+    () =>
+      allRows.map((r) => ({
+        month: (r.c.buyDate || r.c.createdAt || '').slice(0, 7),
+        basisJpy: r.basisJpy != null ? r.basisJpy * r.qty : 0,
+        qty: r.qty,
+      })).filter((a) => /^\d{4}-\d{2}$/.test(a.month)),
+    [allRows],
+  );
+  const upside = useMemo(
+    () => upsideFromCards((cards ?? []).map((c) => ({ graded: c.graded, qty: Math.max(1, c.qty || 1), priceSingleJpy: c.priceSingleJpy, pricePsa10Jpy: c.pricePsa10Jpy }))),
+    [cards],
+  );
+
   const movers = useMemo(() => {
     const withChg = allRows.filter((r) => r.changePct != null);
     if (withChg.length === 0) return { up: null, down: null, nUp: 0, nDown: 0 };
@@ -306,6 +333,21 @@ export function PortfolioScreen() {
       </div>
       <PortfolioChart history={hist} format={format} />
 
+      {/* ── 인사이트 타일 (승률·평균 손익·PSA10 업사이드·최고 평가일 대비) ── */}
+      <div style={{ marginTop: 12 }}>
+        <InsightTiles cards={vizCards} upside={upside} history={port.history} format={format} />
+      </div>
+
+      {/* ── 내 자산 vs 시장 (구간 시작 = 100) ── */}
+      <div style={{ marginTop: 18 }}>
+        <VizSection title="내 자산 vs 시장" sub="선택 구간 시작일 = 100 · 같은 축">
+          <CompareChart history={hist} market={marketSeries} format={format} />
+        </VizSection>
+      </div>
+
+      {/* ── 시장 지표 (포켓몬 S&Poké 500 · 원피스 ARVO OP200) ── */}
+      <MarketIndexPanel series={marketSeries} />
+
       {/* ── 오늘의 등락 (movers) ── */}
       {(movers.up || movers.down) && (
         <div className="cv-pf-movers">
@@ -315,10 +357,23 @@ export function PortfolioScreen() {
       )}
 
       {/* ── 인포그래픽 (구성·분류·손익 분포) ── */}
-      <PortfolioInfographics cards={vizCards} format={format} />
+      <PortfolioInfographics cards={vizCards} format={format} totalJpy={totalJpy} />
 
-      {/* ── 시장 지표 (포켓몬 S&Poké 500 · 원피스 ARVO OP200) ── */}
-      <MarketIndexPanel series={marketSeries} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 18 }}>
+        <VizSection title="분포" sub="손익률 · 평가액 가격대">
+          <Histograms cards={vizCards} />
+        </VizSection>
+        {acquisitions.length > 0 && (
+          <VizSection title="취득 타임라인" sub="월별 장수 · 매입액">
+            <AcquisitionBars rows={acquisitions} format={format} />
+          </VizSection>
+        )}
+        {upside && (
+          <VizSection title="그레이딩 잠재가치" sub="비등급 보유분 RAW vs PSA10 환산">
+            <GradingUpsideCard upside={upside} format={format} />
+          </VizSection>
+        )}
+      </div>
 
       {/* ── 필터 + 정렬 ── */}
       <div className="cv-pf-filters">

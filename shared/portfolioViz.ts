@@ -242,3 +242,194 @@ export function concentration(cards: VizCard[]): { top1: number; top3: number } 
   const sum = (n: number) => vals.slice(0, n).reduce((a, v) => a + v, 0);
   return { top1: (sum(1) / total) * 100, top3: (sum(3) / total) * 100 };
 }
+
+/* ------------------------------------------------------------------ */
+/* 확장 인포그래픽 — 히스토그램·타임라인·그레이딩 잠재가치·링·시장 비교      */
+/* ------------------------------------------------------------------ */
+
+/** 막대 한 칸 — 히스토그램/타임라인 공용. */
+export interface VizBar {
+  key: string;
+  label: string;
+  value: number;
+  /** 보조 값(타임라인의 매입액 등). */
+  extra?: number;
+  /** 이 목록 최대값 대비 0~1. */
+  ratio: number;
+  color: string;
+}
+
+function toBars(rows: Array<{ key: string; label: string; value: number; extra?: number; color: string }>): VizBar[] {
+  const max = Math.max(...rows.map((r) => r.value), 0);
+  return rows.map((r) => ({ ...r, ratio: max > 0 ? r.value / max : 0 }));
+}
+
+/** 손익률 분포 — 구간별 종목 수. 손익 정보 없는 카드는 제외. */
+export function profitHistogram(cards: VizCard[]): VizBar[] {
+  const buckets: Array<{ key: string; label: string; test: (p: number) => boolean; up: boolean }> = [
+    { key: 'lt-20', label: '−20%↓', test: (p) => p < -20, up: false },
+    { key: '-20-0', label: '−20~0', test: (p) => p >= -20 && p < 0, up: false },
+    { key: '0-20', label: '0~20', test: (p) => p >= 0 && p < 20, up: true },
+    { key: '20-50', label: '20~50', test: (p) => p >= 20 && p < 50, up: true },
+    { key: 'gt50', label: '+50%↑', test: (p) => p >= 50, up: true },
+  ];
+  const withPct = cards.filter((c) => c.changePct != null && Number.isFinite(c.changePct));
+  return toBars(
+    buckets.map((b) => ({
+      key: b.key,
+      label: b.label,
+      value: withPct.filter((c) => b.test(c.changePct as number)).length,
+      color: b.up ? VIZ_UP : VIZ_DOWN,
+    })),
+  );
+}
+
+/** 평가액(JPY) 가격대 분포 — 구간별 종목 수. */
+export function valueHistogram(cards: VizCard[]): VizBar[] {
+  const buckets: Array<{ key: string; label: string; lo: number; hi: number }> = [
+    { key: 'a', label: '~5천', lo: 0, hi: 5_000 },
+    { key: 'b', label: '5천~2만', lo: 5_000, hi: 20_000 },
+    { key: 'c', label: '2만~5만', lo: 20_000, hi: 50_000 },
+    { key: 'd', label: '5만~10만', lo: 50_000, hi: 100_000 },
+    { key: 'e', label: '10만~', lo: 100_000, hi: Infinity },
+  ];
+  return toBars(
+    buckets.map((b) => ({
+      key: b.key,
+      label: b.label,
+      value: cards.filter((c) => c.valueJpy >= b.lo && c.valueJpy < b.hi).length,
+      color: VIZ_SERIES[0],
+    })),
+  );
+}
+
+/** 승률·평균/중앙 손익률 — 손익 정보 있는 카드 기준. 없으면 null. */
+export interface WinStats {
+  n: number;
+  winRate: number;
+  avgPct: number;
+  medianPct: number;
+}
+export function winStats(cards: VizCard[]): WinStats | null {
+  const pcts = cards
+    .map((c) => c.changePct)
+    .filter((p): p is number => p != null && Number.isFinite(p))
+    .sort((a, b) => a - b);
+  if (pcts.length === 0) return null;
+  const wins = pcts.filter((p) => p > 0).length;
+  const mid = Math.floor(pcts.length / 2);
+  return {
+    n: pcts.length,
+    winRate: (wins / pcts.length) * 100,
+    avgPct: pcts.reduce((a, b) => a + b, 0) / pcts.length,
+    medianPct: pcts.length % 2 ? pcts[mid] : (pcts[mid - 1] + pcts[mid]) / 2,
+  };
+}
+
+/** 매입 타임라인 입력 — 카드별 취득 월("YYYY-MM")과 매입/등록 기준액. */
+export interface VizAcquisition {
+  month: string;
+  basisJpy: number;
+  qty: number;
+}
+
+/** 월별 취득 건수·매입액 — 최근 `months`개월(빈 달 0 포함). 오래된 → 최신. */
+export function acquisitionTimeline(rows: VizAcquisition[], months = 12): VizBar[] {
+  if (rows.length === 0) return [];
+  const last = rows.map((r) => r.month).sort().pop() as string;
+  const [y0, m0] = last.split('-').map(Number);
+  const keys: string[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(Date.UTC(y0, m0 - 1 - i, 1));
+    keys.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
+  }
+  const byMonth = new Map<string, { n: number; spend: number }>();
+  for (const r of rows) {
+    const cur = byMonth.get(r.month) ?? { n: 0, spend: 0 };
+    cur.n += Math.max(1, r.qty);
+    cur.spend += r.basisJpy;
+    byMonth.set(r.month, cur);
+  }
+  return toBars(
+    keys.map((k) => {
+      const v = byMonth.get(k);
+      return { key: k, label: k.slice(2).replace('-', '.'), value: v?.n ?? 0, extra: v?.spend ?? 0, color: VIZ_SERIES[2] };
+    }),
+  );
+}
+
+/** 그레이딩 잠재가치 — 비등급 보유분의 raw 총액 vs PSA10 환산 총액. */
+export interface GradingUpside {
+  /** PSA10 시세가 있는 비등급 카드 수. */
+  n: number;
+  rawJpy: number;
+  psa10Jpy: number;
+  diffJpy: number;
+  pct: number;
+}
+export function gradingUpside(
+  rows: Array<{ graded: boolean; qty: number; singleJpy: number; psa10Jpy: number }>,
+): GradingUpside | null {
+  let raw = 0;
+  let psa = 0;
+  let n = 0;
+  for (const r of rows) {
+    if (r.graded || !(r.singleJpy > 0) || !(r.psa10Jpy > 0)) continue;
+    const q = Math.max(1, r.qty);
+    raw += r.singleJpy * q;
+    psa += r.psa10Jpy * q;
+    n += 1;
+  }
+  if (n === 0 || raw <= 0) return null;
+  return { n, rawJpy: raw, psa10Jpy: psa, diffJpy: psa - raw, pct: ((psa - raw) / raw) * 100 };
+}
+
+/** 링(도넛) 조각 — SVG arc path. 총합 0 이면 빈 배열. */
+export interface RingArc {
+  slice: VizSlice;
+  d: string;
+}
+function polar(cx: number, cy: number, r: number, deg: number): [number, number] {
+  const rad = ((deg - 90) * Math.PI) / 180;
+  return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
+}
+export function ringArcs(slices: VizSlice[], cx: number, cy: number, rOuter: number, rInner: number, gapDeg = 2): RingArc[] {
+  const total = slices.reduce((a, s) => a + s.value, 0);
+  if (total <= 0) return [];
+  let start = 0;
+  const out: RingArc[] = [];
+  for (const slice of slices) {
+    const sweep = (slice.value / total) * 360;
+    const a0 = start + gapDeg / 2;
+    const a1 = start + sweep - gapDeg / 2;
+    start += sweep;
+    if (a1 <= a0) continue;
+    const large = a1 - a0 > 180 ? 1 : 0;
+    const [ox0, oy0] = polar(cx, cy, rOuter, a0);
+    const [ox1, oy1] = polar(cx, cy, rOuter, a1);
+    const [ix0, iy0] = polar(cx, cy, rInner, a1);
+    const [ix1, iy1] = polar(cx, cy, rInner, a0);
+    const f = (n: number) => n.toFixed(2);
+    out.push({
+      slice,
+      d: `M ${f(ox0)} ${f(oy0)} A ${rOuter} ${rOuter} 0 ${large} 1 ${f(ox1)} ${f(oy1)} L ${f(ix0)} ${f(iy0)} A ${rInner} ${rInner} 0 ${large} 0 ${f(ix1)} ${f(iy1)} Z`,
+    });
+  }
+  return out;
+}
+
+/** 날짜·값 시계열을 첫 포인트 = 100 으로 재기준화 (내 자산 vs 시장 비교용). */
+export function rebaseTo100(points: Array<{ date: string; value: number }>): Array<{ date: string; value: number }> {
+  const base = points.find((p) => p.value > 0)?.value;
+  if (!base) return [];
+  return points.filter((p) => p.value > 0).map((p) => ({ date: p.date, value: (p.value / base) * 100 }));
+}
+
+/** 기준 구간(내 자산 히스토리의 첫 날짜 이후)으로 시장 시리즈를 잘라 100 재기준화. */
+export function alignAndRebase(
+  points: Array<{ date: string; value: number }>,
+  fromDate: string,
+  toDate: string,
+): Array<{ date: string; value: number }> {
+  return rebaseTo100(points.filter((p) => p.date >= fromDate && p.date <= toDate));
+}
