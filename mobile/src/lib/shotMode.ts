@@ -158,6 +158,9 @@ export function shotSanitize<T>(v: T): T {
 
 function walk(v: unknown, key: string): unknown {
   if (typeof v === 'string') {
+    // 식별자 필드는 치환 금지 — 'pokemon'/'onepiece' 같은 key 값이 브랜드 치환에 걸려
+    // 'TCG A' 로 바뀌면 클라이언트 필터(설정 게임 매칭)가 전부 탈락한다(시장 지표 미표시).
+    if (key === 'key' || key === 'game') return v;
     if (NAME_KEYS.has(key)) return shotCardName(v);
     if (PACK_NAME_KEYS.has(key)) return shotPackName(v);
     if (CODE_KEYS.has(key)) return shotSetCode(v);
