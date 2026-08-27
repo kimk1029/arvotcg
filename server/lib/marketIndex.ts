@@ -83,6 +83,17 @@ export const COMPUTED_INDEXES: ComputedIndexDef[] = [
     source: 'ARVOTCG 산출 · 시세: tcgcsv.com (TCGplayer)',
     sourceUrl: 'https://tcgcsv.com',
   },
+  {
+    // 유희왕은 세트가 658개라 일일 라이브 수집이 ~1,300 요청(≈5분) — 하루 한 번이라 허용.
+    key: 'yugioh',
+    category: 2,
+    size: 200,
+    label: '유희왕 TCG 지수',
+    indexName: 'ARVO YGO200',
+    basketLabel: '영문 raw 싱글 상위 200종 · TCGplayer 시장가',
+    source: 'ARVOTCG 산출 · 시세: tcgcsv.com (TCGplayer)',
+    sourceUrl: 'https://tcgcsv.com',
+  },
 ];
 
 const POKEMON_DEF = {
@@ -205,22 +216,32 @@ export async function buildCatalog(category: number, log?: (s: string) => void):
   return catalog;
 }
 
-/** 인쇄판 중 최대 market price. 1st Edition 은 그것뿐일 때만 폴백. */
-function repPrice(rows: TcgPriceRow[]): number {
+/**
+ * 인쇄판 중 최대 market price.
+ * excludeFirstEdition(포켓몬 영문, S&Poké 규칙): 1st Edition 은 그것뿐일 때만 폴백 —
+ * 빈티지 1st Ed 의 TCGplayer market 값이 깨져 있어서다. 유희왕은 1st Edition 이 표준 인쇄
+ * (한 세트 697/700 행)라 제외하면 안 되므로 카테고리별로 켠다.
+ */
+function repPrice(rows: TcgPriceRow[], excludeFirstEdition: boolean): number {
   let best = 0;
   let fallback = 0;
   for (const r of rows) {
     const v = r.marketPrice;
     if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) continue;
     const sub = (r.subTypeName ?? '').toLowerCase();
-    if (sub.includes('1st edition')) fallback = Math.max(fallback, v);
+    if (excludeFirstEdition && sub.includes('1st edition')) fallback = Math.max(fallback, v);
     else best = Math.max(best, v);
   }
   return best || fallback;
 }
 
+/** 카테고리별 1st Edition 제외 여부 — 포켓몬 영문(3)만. */
+export function firstEditionExcluded(category: number): boolean {
+  return category === 3;
+}
+
 /** 한 그룹 price rows → out 에 {productId → 대표가} 누적. */
-export function pricesFromRows(rows: TcgPriceRow[], out: Map<string, number>): void {
+export function pricesFromRows(rows: TcgPriceRow[], out: Map<string, number>, excludeFirstEdition = false): void {
   const grouped = new Map<string, TcgPriceRow[]>();
   for (const r of rows) {
     const k = String(r.productId);
@@ -229,7 +250,7 @@ export function pricesFromRows(rows: TcgPriceRow[], out: Map<string, number>): v
     else grouped.set(k, [r]);
   }
   for (const [pid, arr] of grouped) {
-    const p = repPrice(arr);
+    const p = repPrice(arr, excludeFirstEdition);
     if (p > 0) out.set(pid, Math.round(p * 100) / 100);
   }
 }
@@ -243,7 +264,7 @@ export async function livePrices(category: number, log?: (s: string) => void): P
     i += 1;
     try {
       const j = await getJson<{ results: TcgPriceRow[] }>(`${TCGCSV}/tcgplayer/${category}/${g.groupId}/prices`);
-      pricesFromRows(j.results ?? [], out);
+      pricesFromRows(j.results ?? [], out, firstEditionExcluded(category));
     } catch {
       // 그룹 하나 실패는 건너뛴다 — 종목은 carry 로 forward-fill 된다.
     }

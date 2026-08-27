@@ -24,7 +24,6 @@ import {
   upsideFromCards,
 } from '@/components/portfolio/PortfolioExtras';
 import type { VizAcquisition } from '../../../shared/portfolioViz';
-import { loadEnabledGames } from '@/lib/gamePrefs';
 import { fetchMarketIndexes, type MarketIndexSeries } from '@/lib/myApi';
 import type { VizCard } from '../../../shared/portfolioViz';
 import { shotSource } from '@/lib/shotMode';
@@ -65,8 +64,8 @@ export default function PortfolioPage() {
     fetchMarketIndexes()
       .then((r) => {
         if (!alive) return;
-        const enabled = new Set<string>(loadEnabledGames());
-        setMarketSeries(r.series.filter((x) => enabled.has(x.key)));
+        // 패널 안 게임 칩으로 고르므로 설정 필터는 걸지 않는다(응답 전부 보관, 웹 동일).
+        setMarketSeries(r.series);
       })
       .catch(() => undefined);
     return () => {

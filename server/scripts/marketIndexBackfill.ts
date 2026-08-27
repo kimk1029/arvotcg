@@ -23,6 +23,7 @@ import {
   buildCatalog,
   carryPrices,
   eligibilityFor,
+  firstEditionExcluded,
   guardPrices,
   pricesFromRows,
   pruneWindows,
@@ -107,7 +108,7 @@ async function archivePrices(date: string, category: number): Promise<Map<string
   for (const g of groups) {
     try {
       const j = JSON.parse(await readFile(path.join(catDir, g, 'prices'), 'utf8')) as { results?: unknown[] };
-      pricesFromRows((j.results ?? []) as Parameters<typeof pricesFromRows>[0], out);
+      pricesFromRows((j.results ?? []) as Parameters<typeof pricesFromRows>[0], out, firstEditionExcluded(category));
     } catch {
       // 파일 하나 손상은 건너뜀
     }

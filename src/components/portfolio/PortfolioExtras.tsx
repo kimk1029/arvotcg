@@ -67,7 +67,7 @@ function pct(v: number | null | undefined, digits = 1): string {
 
 const CW = 320;
 const CH = 150;
-const COMPARE_COLORS: Record<string, string> = { mine: '#FFD23F', pokemon: VIZ_SERIES[0], onepiece: VIZ_SERIES[1] };
+const COMPARE_COLORS: Record<string, string> = { mine: '#FFD23F', pokemon: VIZ_SERIES[0], onepiece: VIZ_SERIES[1], yugioh: VIZ_SERIES[2] };
 
 export function CompareChart({
   history,

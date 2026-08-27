@@ -10,9 +10,17 @@
  *              가격가중·디바이저 방식, 2024-02-08 = 1000. 공개 JSON 을 캐시 서빙.
  *  · onepiece: ARVO OP200 — 같은 산식을 tcgcsv(TCGplayer 일별 시세 덤프)의
  *              원피스 카테고리에 적용해 서버가 직접 계산. 2024-02-08 = 1000.
+ *  · yugioh  : ARVO YGO200 — 동일 산식, tcgcsv 유희왕 카테고리(2).
  */
 
-export type MarketIndexKey = 'pokemon' | 'onepiece';
+/** 패널 선택 칩 순서·라벨 — 웹·앱 동일. */
+export const MARKET_INDEX_CHIPS: ReadonlyArray<{ key: MarketIndexKey; label: string }> = [
+  { key: 'pokemon', label: '포켓몬' },
+  { key: 'onepiece', label: '원피스' },
+  { key: 'yugioh', label: '유희왕' },
+];
+
+export type MarketIndexKey = 'pokemon' | 'onepiece' | 'yugioh';
 
 export interface MarketIndexPoint {
   /** "YYYY-MM-DD" (UTC 기준일). */

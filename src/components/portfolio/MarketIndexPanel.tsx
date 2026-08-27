@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import {
+  MARKET_INDEX_CHIPS,
   MARKET_INDEX_RANGES,
   lineGeometry,
   nearestIndex,
@@ -32,12 +33,18 @@ const LINE = 'rgba(255,255,255,.08)';
 const SERIES_COLOR: Record<string, string> = {
   pokemon: VIZ_SERIES[0],
   onepiece: VIZ_SERIES[1],
+  yugioh: VIZ_SERIES[2],
 };
 
 export function MarketIndexPanel({ series }: Props) {
   const [rangeIdx, setRangeIdx] = useState(2); // 6개월
+  // 게임 선택 칩 — 포켓몬·원피스·유희왕 중 하나. 응답에 있는 게임만 활성.
+  const [gameKey, setGameKey] = useState<string | null>(null);
   if (series.length === 0) return null;
   const days = MARKET_INDEX_RANGES[rangeIdx].days;
+  const available = MARKET_INDEX_CHIPS.filter((c) => series.some((s) => s.key === c.key));
+  const activeKey = gameKey && series.some((s) => s.key === gameKey) ? gameKey : available[0]?.key ?? series[0].key;
+  const shown = series.filter((s) => s.key === activeKey);
 
   return (
     <section style={{ marginTop: 20 }}>
@@ -69,8 +76,30 @@ export function MarketIndexPanel({ series }: Props) {
           })}
         </div>
       </div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+        {available.map((c) => {
+          const on = c.key === activeKey;
+          const col = SERIES_COLOR[c.key] ?? VIZ_SERIES[0];
+          return (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => setGameKey(c.key)}
+              style={{
+                cursor: 'pointer', borderRadius: 999, padding: '7px 14px',
+                border: `1.5px solid ${on ? col : 'rgba(255,255,255,.14)'}`,
+                background: on ? col : 'transparent',
+                fontFamily: 'var(--f1)', fontSize: 12, fontWeight: 800,
+                color: on ? '#fff' : LABEL,
+              }}
+            >
+              {c.label}
+            </button>
+          );
+        })}
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {series.map((s) => (
+        {shown.map((s) => (
           <IndexCard key={s.key} s={s} days={days} />
         ))}
       </div>

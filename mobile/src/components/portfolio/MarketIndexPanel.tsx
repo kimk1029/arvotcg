@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Linking, Pressable, Text, View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 import {
+  MARKET_INDEX_CHIPS,
   MARKET_INDEX_RANGES,
   lineGeometry,
   nearestIndex,
@@ -31,6 +32,7 @@ const LINE = 'rgba(255,255,255,0.08)';
 const SERIES_COLOR: Record<string, string> = {
   pokemon: VIZ_SERIES[0],
   onepiece: VIZ_SERIES[1],
+  yugioh: VIZ_SERIES[2],
 };
 
 const W = 320;
@@ -51,9 +53,14 @@ function fmtIdx(v: number): string {
 
 export function MarketIndexPanel({ series, fontFamily }: Props) {
   const [rangeIdx, setRangeIdx] = useState(2); // 6개월
+  // 게임 선택 칩 — 포켓몬·원피스·유희왕 중 하나. 응답에 있는 게임만 활성(웹 동일).
+  const [gameKey, setGameKey] = useState<string | null>(null);
   if (series.length === 0) return null;
   const days = MARKET_INDEX_RANGES[rangeIdx].days;
   const ff = fontFamily;
+  const available = MARKET_INDEX_CHIPS.filter((c) => series.some((s) => s.key === c.key));
+  const activeKey = gameKey && series.some((s) => s.key === gameKey) ? gameKey : available[0]?.key ?? series[0].key;
+  const shown = series.filter((s) => s.key === activeKey);
 
   return (
     <View>
@@ -80,8 +87,23 @@ export function MarketIndexPanel({ series, fontFamily }: Props) {
           })}
         </View>
       </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+        {available.map((c) => {
+          const on = c.key === activeKey;
+          const col = SERIES_COLOR[c.key] ?? VIZ_SERIES[0];
+          return (
+            <Pressable
+              key={c.key}
+              onPress={() => setGameKey(c.key)}
+              style={{ borderRadius: 999, paddingVertical: 7, paddingHorizontal: 14, borderWidth: 1.5, borderColor: on ? col : 'rgba(255,255,255,0.14)', backgroundColor: on ? col : 'transparent' }}
+            >
+              <Text style={ts(12, '800', on ? '#fff' : LABEL, ff)}>{c.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
       <View style={{ gap: 12 }}>
-        {series.map((s) => (
+        {shown.map((s) => (
           <IndexCard key={s.key} s={s} days={days} ff={ff} />
         ))}
       </View>
