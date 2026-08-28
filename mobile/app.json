@@ -32,7 +32,7 @@
       "package": "com.arvotcg.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#129782"
+        "backgroundColor": "#0a1121"
       },
       "versionCode": 11
     },
