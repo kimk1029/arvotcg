@@ -321,7 +321,7 @@ function BannerForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) =>
       {draft.visualType === 'image' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <label style={{ ...uploadBtn, opacity: uploading ? 0.6 : 1 }}>
-            {uploading ? '업로드 중…' : '🖼 이미지 업로드 (jpg/png/webp, ≤4MB)'}
+            {uploading ? '업로드 중…' : '🖼 이미지 업로드 (jpg/png/webp, ≤4MB) — 배너 전체를 채움, 권장 1080×480 (가로형)'}
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
@@ -333,7 +333,7 @@ function BannerForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) =>
           {upErr && <span style={{ fontSize: 11, color: '#B91C1C' }}>⚠ {upErr}</span>}
           {hasPreview && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={draft.visualValue} alt="미리보기" style={{ height: 64, width: 'auto', objectFit: 'contain', border: '1px solid #E2E8F0', borderRadius: 4, background: '#F8FAFC' }} />
+            <img src={draft.visualValue} alt="미리보기(배너 비율 9:4, cover)" style={{ width: 360, height: 160, objectFit: 'cover', border: '1px solid #E2E8F0', borderRadius: 4, background: '#F8FAFC' }} />
           )}
         </div>
       )}

@@ -33,6 +33,8 @@ interface Slide {
   onClick: HeroOnClick;
   linkUrl?: string | null;
   ctaHint?: string | null;
+  /** 이미지 슬라이드: 배너 전체를 덮는 이미지 URL (visualType === 'image'). */
+  fullImage?: string | null;
 }
 
 /** DB 가 비었을 때를 위한 폴백 — 어드민에서 모두 삭제해도 빈 화면이 되지 않도록. */
@@ -102,6 +104,7 @@ export function HeroSlider({ slides, compact = false }: HeroSliderProps = {}) {
     onClick: s.onClick,
     linkUrl: s.linkUrl ?? null,
     ctaHint: s.ctaHint ?? null,
+    fullImage: s.visualType === 'image' ? s.visualValue : null,
   }));
   const [cur, setCur] = useState(0);
   const [showRally, setShowRally] = useState(false);
@@ -187,11 +190,17 @@ export function HeroSlider({ slides, compact = false }: HeroSliderProps = {}) {
           {SLIDES.map((sl, i) => (
             <div
               key={i}
-              className={`hero-slide ${sl.cls}${sl.onClick || sl.linkUrl ? ' clickable' : ''}`}
+              className={`hero-slide ${sl.cls}${sl.onClick || sl.linkUrl ? ' clickable' : ''}${sl.fullImage ? ' hero-slide--image' : ''}`}
               onClick={() => handleSlideClick(sl)}
               role={sl.onClick || sl.linkUrl ? 'button' : undefined}
               tabIndex={sl.onClick || sl.linkUrl ? 0 : undefined}
             >
+              {sl.fullImage ? (
+                // 이미지 슬라이드 — 어드민 업로드 이미지가 배너 전체를 꽉 채운다(문구는 이미지 안에).
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={sl.fullImage} alt={sl.badge} className="hero-bg" draggable={false} />
+              ) : (
+              <>
               <span className="hero-badge">{sl.badge}</span>
               {sl.ctaHint && <span className="hero-cta-hint">{sl.ctaHint}</span>}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -215,6 +224,8 @@ export function HeroSlider({ slides, compact = false }: HeroSliderProps = {}) {
                 </div>
                 {sl.visual}
               </div>
+              </>
+              )}
             </div>
           ))}
         </div>

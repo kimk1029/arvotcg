@@ -200,6 +200,11 @@ a{color:inherit;text-decoration:none;}
     radial-gradient(circle at 75% 75%, rgba(255,100,112,.25) 0%, transparent 50%),
     linear-gradient(160deg,var(--red-dk) 0%,#5E0B15 55%,var(--ink) 100%);
   box-shadow:inset 0 4px 0 var(--red-lt),inset 0 -4px 0 #3A0810;}
+/* 이미지 슬라이드 — 업로드 이미지가 배너 영역 전체를 채움(앱 HeroBanner 와 동일, 높이 176 기준) */
+.hero-slide--image{padding:0;min-height:176px;}
+.hero-slide--image::before{display:none;}
+.hero-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;user-select:none;}
+.hero-wrap--compact .hero-slide--image{padding:0;}
 .hero-slide.clickable{cursor:pointer;}
 .hero-slide.clickable:active{transform:translate(1px,1px);}
 .hero-cta-hint{position:absolute;top:10px;right:12px;z-index:3;

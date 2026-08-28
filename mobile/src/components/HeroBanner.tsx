@@ -164,6 +164,15 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
                 transform: [{ scale: pressed ? 0.98 : 1 }],
               })}
             >
+              {s.visualType === 'image' ? (
+                // 이미지 슬라이드 — 어드민 업로드 이미지가 배너 전체를 꽉 채운다(웹 .hero-slide--image 와 동일).
+                <Image
+                  source={shotSource(imageUri(s.visualValue))}
+                  style={{ position: 'absolute', left: 0, top: 0, width, height: slideHeight }}
+                  resizeMode="cover"
+                />
+              ) : (
+              <>
               {/* badge */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ alignSelf: 'flex-start', backgroundColor: 'rgba(0,0,0,0.22)', paddingHorizontal: 7, paddingVertical: 3, marginBottom: 9, borderRadius: 6 }}>
@@ -182,12 +191,10 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
                     {s.sub.replace(/\n/g, ' ')}
                   </PixelText>
                 </View>
-                {s.visualType === 'image' ? (
-                  <Image source={shotSource(imageUri(s.visualValue))} style={{ width: 86, height: 122, resizeMode: 'cover' }} />
-                ) : (
-                  <Text style={{ fontSize: 64, lineHeight: 72 }}>{s.visualValue}</Text>
-                )}
+                <Text style={{ fontSize: 64, lineHeight: 72 }}>{s.visualValue}</Text>
               </View>
+              </>
+              )}
             </Pressable>
           );
         })}
