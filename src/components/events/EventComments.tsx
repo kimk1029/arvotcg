@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ReportMenu } from '@/components/ReportMenu';
+import { ensureUgcTerms } from '@/components/UgcTermsGate';
 
 interface EventComment {
   id: number;
@@ -39,6 +40,7 @@ export function EventComments({ postId }: { postId: number }) {
   const submit = async () => {
     const t = text.trim();
     if (!t || sending) return;
+    if (!(await ensureUgcTerms())) return; // 커뮤니티 이용규칙 동의 게이트
     setSending(true);
     setHint(null);
     try {

@@ -23,6 +23,7 @@ import { fetchInventory } from '@/lib/myApi';
 import { REWARDS } from '@/lib/rewards';
 import { DEFAULT_FEED_CATEGORY, FEED_CATEGORIES, type FeedCategory } from '@/lib/feedCategories';
 import { isAuthenticated, subscribeSession } from '@/lib/session';
+import { ensureUgcTerms } from '@/components/UgcTermsGate';
 
 const MAX_IMAGES = 3;
 
@@ -118,6 +119,7 @@ export default function WriteFeed() {
       toast.error('내용을 입력해주세요');
       return;
     }
+    if (!(await ensureUgcTerms())) return; // 커뮤니티 이용규칙(UGC EULA) 동의 게이트
     setSubmitting(true);
     try {
       await api('/api/feeds', {

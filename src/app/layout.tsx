@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { ActionTracker } from '@/components/ActionTracker';
 import { AdScripts } from '@/components/ads/AdScripts';
 import { GoogleAnalytics } from '@/components/GoogleAnalytics';
+import { UgcTermsGateHost } from '@/components/UgcTermsGate';
 import { InAppBrowserNotice } from '@/components/InAppBrowserNotice';
 import { InventoryProvider } from '@/components/InventoryProvider';
 import { JsonLd } from '@/components/JsonLd';
@@ -151,6 +152,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <PageviewBeacon />
                 <ActionTracker />
                 <InAppBrowserNotice />
+                <UgcTermsGateHost />
                 <PhoneShell>{children}</PhoneShell>
                   </UnreadProvider>
                 </InventoryProvider>

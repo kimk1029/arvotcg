@@ -13,6 +13,7 @@ import { space } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { api } from '@/lib/apiClient';
 import { ReportMenu } from '@/components/ReportMenu';
+import { ensureUgcTerms } from '@/components/UgcTermsGate';
 import { shotSource } from '@/lib/shotMode';
 import {
   EVENT_CATEGORY_STYLE,
@@ -144,6 +145,7 @@ function EventComments({ postId, tc, txt }: { postId: number; tc: ReturnType<typ
   const submit = async () => {
     const t = text.trim();
     if (!t || sending) return;
+    if (!(await ensureUgcTerms())) return; // 커뮤니티 이용규칙 동의 게이트
     setSending(true);
     setHint(null);
     try {

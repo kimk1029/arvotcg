@@ -34,6 +34,7 @@ import { GamePrefsProvider } from '@/components/GamePrefsProvider';
 import { NavPrefsProvider } from '@/components/NavPrefsProvider';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { ToastProvider } from '@/components/ToastProvider';
+import { UgcTermsGateHost } from '@/components/UgcTermsGate';
 import { extractOAuthToken, persistTokenAndGoHome } from '@/lib/oauth';
 import { colors } from '@/theme/tokens';
 
@@ -152,6 +153,7 @@ export default function RootLayout() {
              * 전환 애니메이션은 잃지만 터치가 100% 보장되는 구조.
              */}
             <Slot />
+                <UgcTermsGateHost />
                 </ActionTracker>
                 </PhoneShell>
               </PriceModeProvider>

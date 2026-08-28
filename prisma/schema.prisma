@@ -42,6 +42,10 @@ model User {
   ownedAvatars     String[]  @default(["bulbasaur", "charmander", "squirtle"])
   ownedBackgrounds String[]  @default(["default"])
   ownedFrames      String[]  @default(["none"])
+  /// 커뮤니티 이용규칙(UGC EULA, shared/ugcTerms.ts) 동의 시각. null = 미동의 → 글·댓글 작성 전 동의 게이트.
+  ugcTermsAgreedAt DateTime?
+  /// 동의한 규칙 버전(UGC_TERMS_VERSION). 규칙 개정 시 버전이 낮으면 재동의.
+  ugcTermsVersion  Int       @default(0)
 
   /// 가입 플랫폼 — 'web' | 'mobile'(앱). 최초 가입(create) 시 기록. null = 컬럼 도입 전 가입.
   signupPlatform String?

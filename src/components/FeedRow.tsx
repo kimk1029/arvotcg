@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { BookmarkButton } from './BookmarkButton';
 import { ComposedAvatar } from './ComposedAvatar';
 import { ReportMenu } from './ReportMenu';
+import { ensureUgcTerms } from './UgcTermsGate';
 import { isAvatarId } from '@/lib/avatars';
 import type { FeedPost } from '@/lib/types';
 
@@ -230,6 +231,7 @@ export function FeedComments({ feedId, dateLabel }: { feedId: number; dateLabel:
   const submit = async () => {
     const t = text.trim();
     if (!t || sending) return;
+    if (!(await ensureUgcTerms())) return; // 커뮤니티 이용규칙 동의 게이트
     setSending(true);
     setHint(null);
     try {

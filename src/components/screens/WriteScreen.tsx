@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useInventory } from '@/components/InventoryProvider';
+import { ensureUgcTerms } from '@/components/UgcTermsGate';
 import { TradeImagePicker } from '@/components/TradeImagePicker';
 import { REWARDS } from '@/lib/rewards';
 import { AppBar } from '@/components/ui/AppBar';
@@ -63,7 +64,7 @@ export function WriteScreen({ mode, places = [], prefill }: Props) {
 
   const isFeed = mode === 'feed';
 
-  const submit = () => {
+  const submit = async () => {
     if (pending || submitLockRef.current) return;
     if (mode === 'trade') {
       if (!title.trim()) return setError('제목을 입력해주세요');
@@ -73,6 +74,11 @@ export function WriteScreen({ mode, places = [], prefill }: Props) {
     }
     setError(null);
     submitLockRef.current = true;
+    // 커뮤니티 이용규칙(UGC EULA) 동의 — 미동의면 게이트 모달, 취소 시 등록 중단.
+    if (!(await ensureUgcTerms())) {
+      submitLockRef.current = false;
+      return;
+    }
 
     if (mode === 'trade') {
       startTransition(async () => {

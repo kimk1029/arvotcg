@@ -11,6 +11,7 @@ import { fonts } from '@/theme/tokens';
 import { api } from '@/lib/apiClient';
 import { swrPeek, swrSet } from '@/lib/swr';
 import { ReportMenu } from '@/components/ReportMenu';
+import { ensureUgcTerms } from '@/components/UgcTermsGate';
 import { shotSource } from '@/lib/shotMode';
 import { SegmentedTabs, SegIcons } from '@/components/cv/SegmentedTabs';
 
@@ -834,6 +835,7 @@ function FeedComments({ feedId, dateLabel, P, ts }: { feedId: number; dateLabel:
   const submit = async () => {
     const t = text.trim();
     if (!t || sending) return;
+    if (!(await ensureUgcTerms())) return; // 커뮤니티 이용규칙 동의 게이트
     setSending(true);
     setHint(null);
     try {

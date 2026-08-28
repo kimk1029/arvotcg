@@ -38,6 +38,7 @@ import { getJpyKrwRate } from '../lib/fxRate.js';
 import { runDailyCheckIn } from '../lib/checkIn.js';
 import { logPointChange } from '../lib/pointLog.js';
 import { kstDateKey, kstDateKeyShifted } from '../../shared/kst';
+import { UGC_TERMS_VERSION } from '../../shared/ugcTerms';
 
 const router = Router();
 router.use(requireAuth);
@@ -866,6 +867,51 @@ router.delete('/listing-favorites/:source/:externalId', async (req: Request, res
     res.json({ ok: true });
   } catch (err) {
     console.error('[me.listing-favorites.DELETE]', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+// ── 커뮤니티 이용규칙(UGC EULA) 동의 (App Store 심사 지침 1.2) ─────────────
+// 글·댓글 작성 전 클라이언트가 GET 으로 확인 → 미동의/구버전이면 동의 게이트 → POST.
+// 규칙 정본·버전: shared/ugcTerms.ts
+
+/** GET /api/me/ugc-terms — { agreed, agreedAt, version, currentVersion } */
+router.get('/ugc-terms', async (req: Request, res: Response) => {
+  try {
+    const u = await prisma.user.findUnique({
+      where: { id: req.user!.userId },
+      select: { ugcTermsAgreedAt: true, ugcTermsVersion: true },
+    });
+    const agreed = !!u?.ugcTermsAgreedAt && (u.ugcTermsVersion ?? 0) >= UGC_TERMS_VERSION;
+    res.json({
+      agreed,
+      agreedAt: u?.ugcTermsAgreedAt ?? null,
+      version: u?.ugcTermsVersion ?? 0,
+      currentVersion: UGC_TERMS_VERSION,
+    });
+  } catch (err) {
+    console.error('[me.ugc-terms.GET]', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+/** POST /api/me/ugc-terms — 현재 버전 규칙에 동의 기록. */
+router.post('/ugc-terms', async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  try {
+    await prisma.user.upsert({
+      where: { id: userId },
+      update: { ugcTermsAgreedAt: new Date(), ugcTermsVersion: UGC_TERMS_VERSION },
+      create: {
+        id: userId,
+        name: defaultNameFor(userId),
+        ugcTermsAgreedAt: new Date(),
+        ugcTermsVersion: UGC_TERMS_VERSION,
+      },
+    });
+    res.json({ ok: true, agreed: true, version: UGC_TERMS_VERSION });
+  } catch (err) {
+    console.error('[me.ugc-terms.POST]', userId, err);
     res.status(500).json({ error: 'internal' });
   }
 });

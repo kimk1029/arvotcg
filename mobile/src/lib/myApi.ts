@@ -273,6 +273,16 @@ export function unblockUser(userId: string): Promise<{ ok?: boolean; error?: str
   });
 }
 
+/** 커뮤니티 이용규칙(UGC EULA) 동의 여부 — GET /api/me/ugc-terms (shared/ugcTerms.ts). */
+export function fetchUgcTerms(): Promise<{ agreed: boolean; agreedAt: string | null; version: number; currentVersion: number }> {
+  return api('/api/me/ugc-terms');
+}
+
+/** 커뮤니티 이용규칙 동의 기록 — POST /api/me/ugc-terms. */
+export function agreeUgcTerms(): Promise<{ ok?: boolean; agreed?: boolean }> {
+  return api('/api/me/ugc-terms', { method: 'POST' });
+}
+
 /** 회원 탈퇴 — 웹 MyScreen 과 동일 DELETE /api/me. 성공 후 클라이언트가 세션을 비운다. */
 export function deleteMyAccount(): Promise<{ ok?: boolean; error?: string }> {
   return api<{ ok?: boolean; error?: string }>('/api/me', { method: 'DELETE' });

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { UGC_RULES } from '../../../shared/ugcTerms';
 import { AppBar } from '@/components/ui/AppBar';
 import { SectionTitle } from '@/components/ui/SectionTitle';
 import { StatusBar } from '@/components/ui/StatusBar';
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/terms' },
 };
 
-const UPDATED_AT = '2026.04.26';
+const UPDATED_AT = '2026.08.28';
 const CONTACT_EMAIL =
   process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? 'arvotcg@example.com';
 
@@ -134,6 +135,25 @@ export default function TermsPage() {
               회원이 탈퇴한 경우, 게시물 작성자 표시는 익명 처리되며
               본문은 서비스 운영·법적 보존 의무가 있는 한 유지될 수
               있습니다.
+            </Li>
+          </Ul>
+
+          <H>제7조의2 (커뮤니티 이용규칙 — 불쾌한 콘텐츠·악성 이용자 무관용)</H>
+          <P>
+            피드·거래글·댓글 등 이용자 생성 콘텐츠(UGC)에 대해 서비스는{' '}
+            <B>무관용 원칙(Zero Tolerance)</B>을 적용합니다. 회원은 최초
+            게시물·댓글 작성 전 본 조항에 명시적으로 동의해야 하며, 동의하지
+            않으면 커뮤니티 작성 기능을 이용할 수 없습니다.
+          </P>
+          <Ul>
+            {UGC_RULES.map((r) => (
+              <Li key={r}>{r}</Li>
+            ))}
+            <Li>
+              신고된 콘텐츠는 운영팀이 <B>24시간 이내</B> 검토하여 위반 시
+              삭제하고, 작성자에 대해 경고·이용 정지·영구 제한 조치를
+              합니다. 차단·신고는 마이페이지 &gt; 차단 관리 및 각 게시물의 ⋯
+              메뉴에서 이용할 수 있습니다.
             </Li>
           </Ul>
 

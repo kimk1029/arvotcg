@@ -12,6 +12,7 @@ import { useToast } from '@/components/ToastProvider';
 import { uploadTradeImages } from '@/lib/uploads';
 import { fetchInventory } from '@/lib/myApi';
 import { REWARDS } from '@/lib/rewards';
+import { ensureUgcTerms } from '@/components/UgcTermsGate';
 
 const MAX_IMAGES = 5;
 type TradeType = 'sell' | 'buy';
@@ -105,6 +106,7 @@ export default function WriteTrade() {
       toast.error('제목을 입력해주세요');
       return;
     }
+    if (!(await ensureUgcTerms())) return; // 커뮤니티 이용규칙(UGC EULA) 동의 게이트
     setSubmitting(true);
     try {
       await api('/api/trades', {
