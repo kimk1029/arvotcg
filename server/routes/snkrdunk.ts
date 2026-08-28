@@ -22,6 +22,7 @@ import {
 import { getCachedCardImageUrl } from '../lib/cardImageCache.js';
 import { computeApparelPrices, headlineFromHistory } from '../../shared/snkrdunkPrice';
 import { parseCardStatics } from '../../shared/cardStatics';
+import { translateKnownCardNameToKo } from '../../shared/cardTranslate';
 
 const router = Router();
 
@@ -425,6 +426,7 @@ interface RankingRawRow {
   apparelId: number;
   shortName: string;
   name: string;
+  koName: string;
   localizedName: string;
   imageUrl: string | null;
   cdnImageUrl: string | null;
@@ -468,7 +470,7 @@ router.get('/ranking', async (req: Request, res: Response) => {
           WHERE "fetchedAt" >= ${since}
           ORDER BY "apparelId", "fetchedAt" DESC
         )
-        SELECT c."apparelId", c."shortName", c."name", c."localizedName", c."imageUrl", c."cdnImageUrl",
+        SELECT c."apparelId", c."shortName", c."name", c."koName", c."localizedName", c."imageUrl", c."cdnImageUrl",
                s."minPrice", s."priceSingle", s."pricePsa10", s."headlinePrice", s."headlineBasis"
         FROM latest s JOIN "snkrdunk_cards" c ON c."apparelId" = s."apparelId"
         WHERE c."itemKind" = 'single' AND c."game" = ${game} AND ${priceExpr} > 0
@@ -485,7 +487,7 @@ router.get('/ranking', async (req: Request, res: Response) => {
           WHERE "apparelId" IN (SELECT "apparelId" FROM held)
           ORDER BY "apparelId", "fetchedAt" DESC
         )
-        SELECT c."apparelId", c."shortName", c."name", c."localizedName", c."imageUrl", c."cdnImageUrl",
+        SELECT c."apparelId", c."shortName", c."name", c."koName", c."localizedName", c."imageUrl", c."cdnImageUrl",
                s."minPrice", s."priceSingle", s."pricePsa10", s."headlinePrice", s."headlineBasis", h.holders, h.qty
         FROM held h JOIN latest s ON s."apparelId" = h."apparelId" JOIN "snkrdunk_cards" c ON c."apparelId" = h."apparelId"
         WHERE c."game" = ${game} AND ${priceExpr} > 0
@@ -494,10 +496,13 @@ router.get('/ranking', async (req: Request, res: Response) => {
     }
     const data = rows.map((r) => {
       const rep = representativePrice(r);
+      // 표시명은 HOT 카드와 같은 규칙 — 카탈로그 한글명(koName) 우선, 없으면 공용 번역 엔진으로 일본어→한글.
+      const jaName = r.shortName || r.name;
+      const koName = r.koName || translateKnownCardNameToKo(jaName);
       return {
         apparelId: Number(r.apparelId),
-        shortName: r.shortName || r.name,
-        localizedName: r.localizedName || undefined,
+        shortName: koName || jaName,
+        localizedName: jaName && jaName !== koName ? jaName : (r.localizedName || undefined),
         imageUrl: r.cdnImageUrl || r.imageUrl || null,
         category: null,
         minPrice: Number(r.minPrice),

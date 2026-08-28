@@ -35,7 +35,7 @@ on:
         options: [all, nas, vultr]
 
 concurrency:
-  group: deploy-server
+  group: deploy-hosts   # deploy.yml 과 같은 그룹 — 동시 git reset/npm ci 로 prisma client 가 날아가 크래시루프(2026-08-29)
   cancel-in-progress: false
 
 jobs:

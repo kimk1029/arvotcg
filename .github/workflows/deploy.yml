@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-admin
+  group: deploy-hosts   # 서버·어드민 워크플로가 같은 체크아웃(/root/dev/pokefesta30)을 만지므로 직렬화
   cancel-in-progress: false
 
 jobs:
