@@ -3,7 +3,7 @@ name: Migrate & Deploy Admin
 # Vercel 이 main 앱을 자동 배포하므로 이 워크플로우는:
 #  (1) Supabase 에 pre-migrate SQL 실행 (backfill · dedupe — prisma db push 가 거부하는 케이스 해결)
 #  (2) prisma db push 로 스키마 동기화
-#  (3) Synology 의 admin 재빌드/재시작
+#  (3) Synology(stage) + Vultr(운영 admin.arvotcg.com) 의 admin 재빌드/재시작
 # admin/**, prisma/schema.prisma 변경 시만 실행.
 
 on:
@@ -148,21 +148,50 @@ jobs:
         run: npx prisma db push --accept-data-loss --skip-generate
 
   deploy-admin:
-    name: Deploy admin to Synology
+    name: Deploy admin to ${{ matrix.target }}
     runs-on: ubuntu-latest
     needs: migrate
     # migrate(GH 러너→Supabase) 가 실패해도 admin 은 배포한다.
     # 스키마 변경은 nullable 추가뿐이고, NAS 에서 도는 admin 은 Supabase 에 닿으므로
     # "기본 배너 채우기" 버튼이 linkUrl 컬럼을 자체 보정(ADD COLUMN IF NOT EXISTS)한다.
     if: ${{ !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # admin.arvotcg.com(운영)은 Vultr 에서 pm2 pokefesta30-admin 으로 돈다 — 서버와 같은 박스.
+          # deploy-server.yml 과 같은 시크릿을 쓰며, 호스트 시크릿이 없으면 조용히 건너뛴다.
+          - target: nas
+            host_secret: SSH_HOST
+            user_secret: SSH_USER
+            key_secret: SSH_KEY
+            port_secret: SSH_PORT
+          - target: vultr
+            host_secret: VULTR_SSH_HOST
+            user_secret: VULTR_SSH_USER
+            key_secret: VULTR_SSH_KEY
+            port_secret: VULTR_SSH_PORT
     steps:
+      - name: Resolve target
+        id: gate
+        env:
+          HOST: ${{ secrets[matrix.host_secret] }}
+        run: |
+          if [ -z "$HOST" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "⏭  ${{ matrix.target }} — ${{ matrix.host_secret }} 시크릿 미설정, 건너뜀"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: SSH & deploy admin
+        if: steps.gate.outputs.run == 'true'
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
+          host: ${{ secrets[matrix.host_secret] }}
+          username: ${{ secrets[matrix.user_secret] }}
+          key: ${{ secrets[matrix.key_secret] }}
+          port: ${{ secrets[matrix.port_secret] || 22 }}
           # NAS 에서 npm ci(~7분) + prisma generate + next build 가 도는데
           # drone-ssh 기본 command_timeout 은 10분이라 빌드 막바지에 끊긴다. 넉넉히 20분.
           command_timeout: 20m
