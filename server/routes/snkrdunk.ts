@@ -498,7 +498,10 @@ router.get('/ranking', async (req: Request, res: Response) => {
       const rep = representativePrice(r);
       // 표시명은 HOT 카드와 같은 규칙 — 카탈로그 한글명(koName) 우선, 없으면 공용 번역 엔진으로 일본어→한글.
       const jaName = r.shortName || r.name;
-      const koName = r.koName || translateKnownCardNameToKo(jaName);
+      // 웹 HOT 카드(searchHitToRow)와 동일: 항상 번역 엔진을 먼저 태우고, '|' 뒤 꼬리를 잘라 22자 제한.
+      const koFull = translateKnownCardNameToKo(jaName) || r.koName || jaName;
+      const koCut = koFull.split(/[|｜]/)[0].trim();
+      const koName = koCut.length > 22 ? koCut.slice(0, 21) + '…' : koCut;
       return {
         apparelId: Number(r.apparelId),
         shortName: koName || jaName,
