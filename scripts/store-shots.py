@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """스토어 스크린샷 합성기 — 파노라마(1·2페이지에 걸쳐 한 화면) + 단일 슬라이드.
 
-입력: store-assets/shots-v2/raw/*.png (앱 원본 캡처, 1080x2326)
+입력: store-assets/shots-v3/raw-real/*.png (에뮬레이터 실캡처 1080x2400, SHOT 모드 아님; SHOTS_RAW 환경변수로 변경)
 출력: store-assets/shots-v3/{android-phone,ios-6.9}/0N-*.png
 
 사용: python3 scripts/store-shots.py
@@ -12,7 +12,7 @@ import os, math
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RAW = os.path.join(ROOT, "store-assets/shots-v2/raw")
+RAW = os.path.join(ROOT, os.environ.get("SHOTS_RAW", "store-assets/shots-v3/raw-real"))
 OUT = os.path.join(ROOT, "store-assets/shots-v3")
 FONT_DIR = os.path.expanduser("~/.fonts")
 
