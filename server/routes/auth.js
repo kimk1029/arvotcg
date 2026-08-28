@@ -127,7 +127,7 @@ router.post('/apple/native', async (req, res) => {
         name: givenName || defaultNameFor(userId),
         ...(email ? { email } : {}),
         // Sign in with Apple 은 iOS 앱 전용 경로.
-        signupPlatform: 'mobile',
+        signupPlatform: 'ios',
       },
     });
     const token = await signSession({
@@ -143,14 +143,19 @@ router.post('/apple/native', async (req, res) => {
   }
 });
 
+// 앱 가입경로 값. 'mobile' 은 ios/android 구분 이전 앱(≤1.1.1) 호환용.
+const MOBILE_PLATFORMS = new Set(['ios', 'android', 'mobile']);
+
 router.get('/:provider', (req, res) => {
   const provider = getProvider(req.params.provider);
   if (!provider) return res.status(404).json({ error: 'unknown provider' });
 
   const nonce = randomBytes(16).toString('hex');
-  // platform: web | mobile | admin — admin 은 콜백에서 권한 확인 후 어드민 도메인으로 보낸다.
-  const platform =
-    req.query.platform === 'mobile' || req.query.platform === 'admin' ? req.query.platform : 'web';
+  // platform: web | ios | android | mobile(구버전 앱) | admin — admin 은 콜백에서 권한 확인 후
+  // 어드민 도메인으로 보낸다. ios/android 는 가입경로 기록에 그대로 저장된다.
+  const platform = MOBILE_PLATFORMS.has(req.query.platform) || req.query.platform === 'admin'
+    ? req.query.platform
+    : 'web';
   const returnTo = safeReturnPath(typeof req.query.redirect === 'string' ? req.query.redirect : '/');
   const stateValue = signState({ n: nonce, p: platform, r: returnTo, t: Date.now() });
 
@@ -187,7 +192,7 @@ router.get('/callback/:provider', async (req, res) => {
         name: displayName,
         ...(info.email ? { email: info.email } : {}),
         // 가입 경로 기록 — 어드민 회원 관리에서 앱/웹 구분 표시.
-        signupPlatform: state.p === 'mobile' ? 'mobile' : 'web',
+        signupPlatform: MOBILE_PLATFORMS.has(state.p) ? state.p : 'web',
       },
     });
 
@@ -208,7 +213,7 @@ router.get('/callback/:provider', async (req, res) => {
       return res.redirect(`${ADMIN_BASE_URL}/api/oauth?token=${encodeURIComponent(token)}`);
     }
 
-    if (state.p === 'mobile') {
+    if (MOBILE_PLATFORMS.has(state.p)) {
       // 앱 내부 WebView 가 가로챌 수 있도록 커스텀 스킴 대신 https 경로(같은 오리진)로
       // 리다이렉트. WebView 는 이 네비게이션에서 token 을 추출해 세션 저장 후 홈으로
       // 이동하며 페이지는 로드하지 않는다. (커스텀 스킴 302 → WebView intent → 404 회피)

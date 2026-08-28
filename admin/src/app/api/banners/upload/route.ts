@@ -1,21 +1,23 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * 히어로 배너 이미지 업로드 — 파일을 NAS API 서버(/api/admin/banners/upload)로 전달한다.
+ * 서버가 자기 디스크(server/public/cdn/uploads/banner)에 저장하고 /api/cdn/... 절대 URL 을
+ * 돌려준다(카드 자체 CDN·피드 이미지와 같은 트리). Vercel Blob 은 서버 쪽 옵션일 뿐이다.
+ *
+ * 어드민은 사용자 JWT 가 없으므로 서버와 공유하는 ADMIN_UPLOAD_SECRET 로 인증한다.
+ */
+const API_ORIGIN = process.env.ADMIN_API_ORIGIN ?? 'https://api.arvotcg.com';
 const MAX_BYTES = 4 * 1024 * 1024;
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
-function extFor(mime: string): string {
-  if (mime === 'image/png') return 'png';
-  if (mime === 'image/webp') return 'webp';
-  return 'jpg';
-}
-
 export async function POST(req: Request) {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  const secret = process.env.ADMIN_UPLOAD_SECRET;
+  if (!secret) {
     return NextResponse.json(
-      { error: 'Vercel Blob 미설정 — BLOB_READ_WRITE_TOKEN 환경변수를 추가하세요.' },
+      { error: 'ADMIN_UPLOAD_SECRET 미설정 — admin/.env.local 과 server/.env 에 같은 값을 넣으세요.' },
       { status: 503 },
     );
   }
@@ -34,13 +36,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '4MB 이하만 업로드 가능' }, { status: 400 });
   }
   try {
-    const buf = Buffer.from(await file.arrayBuffer());
-    const pathname = `banner/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extFor(file.type)}`;
-    const { url } = await put(pathname, buf, { access: 'public', contentType: file.type });
-    return NextResponse.json({ url });
+    const fd = new FormData();
+    fd.append('file', file, file.name || 'banner');
+    const r = await fetch(`${API_ORIGIN}/api/admin/banners/upload`, {
+      method: 'POST',
+      headers: { 'x-admin-upload-secret': secret },
+      body: fd,
+      cache: 'no-store',
+    });
+    const body = (await r.json().catch(() => ({}))) as { url?: string; error?: string };
+    if (!r.ok) {
+      return NextResponse.json({ error: body.error ?? `API ${r.status}` }, { status: r.status });
+    }
+    if (!body.url) return NextResponse.json({ error: '서버 응답에 url 이 없습니다' }, { status: 502 });
+    return NextResponse.json({ url: body.url });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[admin.banners.upload]', msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: `API 서버 연결 실패: ${msg}` }, { status: 502 });
   }
 }

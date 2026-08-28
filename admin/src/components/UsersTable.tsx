@@ -9,7 +9,7 @@ interface Row {
   email: string | null;
   avatarId: string;
   points: number;
-  /** 'web' | 'mobile' | null(컬럼 도입 전 가입 — apple_ id 는 앱으로 추정) */
+  /** 'web' | 'ios' | 'android' | 'mobile'(구버전 앱, OS 미상) | null(컬럼 도입 전 가입 — apple_ id 는 iOS 로 추정) */
   signupPlatform: string | null;
   /** 어드민 권한 — 부여 시 소셜 로그인으로 어드민 사이트 접근 가능. */
   isAdmin: boolean;
@@ -22,11 +22,17 @@ interface Row {
   };
 }
 
-/** 가입 경로 배지 — 기록 없으면(레거시) Apple id 만 앱으로 추정, 나머지는 미상. */
+/** 가입 경로 배지 — 기록 없으면(레거시) Apple id 만 iOS 로 추정, 나머지는 미상. */
 function PlatformBadge({ platform, userId }: { platform: string | null; userId: string }) {
-  const p = platform ?? (userId.startsWith('apple_') ? 'mobile' : null);
+  const p = platform ?? (userId.startsWith('apple_') ? 'ios' : null);
+  if (p === 'ios') {
+    return <span className="tag" style={{ background: '#F1F5F9', color: '#0F172A' }}> iOS</span>;
+  }
+  if (p === 'android') {
+    return <span className="tag" style={{ background: '#ECFDF5', color: '#047857' }}>🤖 AOS</span>;
+  }
   if (p === 'mobile') {
-    return <span className="tag" style={{ background: '#EFF6FF', color: '#1D4ED8' }}>📱 앱</span>;
+    return <span className="tag" style={{ background: '#EFF6FF', color: '#1D4ED8' }} title="1.1.1 이전 앱 가입 — OS 미기록">📱 앱</span>;
   }
   if (p === 'web') {
     return <span className="tag" style={{ background: '#F0FDF4', color: '#166534' }}>💻 웹</span>;

@@ -43,7 +43,11 @@ table.tbl{width:100%;border-collapse:collapse;background:#fff;border:1px solid #
 table.tbl thead{background:#F8FAFC;}
 table.tbl th{text-align:left;padding:10px 14px;font-size:11px;color:#64748B;letter-spacing:.5px;
   text-transform:uppercase;border-bottom:1px solid #E2E8F0;font-weight:600;}
-table.tbl td{padding:12px 14px;border-bottom:1px solid #F1F5F9;font-size:13px;vertical-align:middle;}
+table.tbl td{padding:12px 14px;border-bottom:1px solid #F1F5F9;font-size:13px;vertical-align:middle;
+  white-space:nowrap;max-width:360px;overflow:hidden;text-overflow:ellipsis;}
+table.tbl th{white-space:nowrap;}
+/* 열이 많아 넘치면 표만 가로 스크롤 (본문은 줄바꿈 대신 잘라서 표시) */
+.admin-main{overflow-x:auto;}
 table.tbl tr:last-child td{border-bottom:none;}
 table.tbl tr:hover td{background:#F8FAFC;}
 .muted{color:#94A3B8;font-size:11px;}

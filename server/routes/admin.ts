@@ -4,7 +4,10 @@ import { put } from '@vercel/blob';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
-import { warmCatalogImages, getWarmState } from '../lib/cardImageCache.js';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { timingSafeEqual } from 'node:crypto';
+import { warmCatalogImages, getWarmState, CARD_CDN_DIR } from '../lib/cardImageCache.js';
 
 const SLIDE_CLASSES = ['slide-a', 'slide-b', 'slide-c', 'slide-d'] as const;
 const VISUAL_TYPES = ['emoji', 'image'] as const;
@@ -114,7 +117,21 @@ function validateBanner(
 }
 
 const router = Router();
-router.use(requireAdmin);
+
+/**
+ * 어드민 앱(admin.arvotcg.com, 별도 Next 프로세스)은 사용자 JWT 가 없어 requireAdmin 을
+ * 통과할 수 없다. 배너 업로드 한 경로만 서버 간 공유 비밀(ADMIN_UPLOAD_SECRET)로 허용한다.
+ */
+function hasUploadSecret(req: Request): boolean {
+  const expected = process.env.ADMIN_UPLOAD_SECRET ?? '';
+  const got = req.header('x-admin-upload-secret') ?? '';
+  if (!expected || got.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(got), Buffer.from(expected));
+}
+router.use((req, res, next) => {
+  if (req.path === '/banners/upload' && hasUploadSecret(req)) return next();
+  return requireAdmin(req, res, next);
+});
 
 /* ── 카드 이미지 자체 CDN: 커버리지 상태 + 일괄 워밍 ─────────────── */
 
@@ -229,7 +246,7 @@ router.delete('/banners/:id', async (req: Request, res: Response) => {
 });
 
 /* ------------------------------------------------------------------ */
-/* banner image upload — Vercel Blob (admin only)                      */
+/* banner image upload — NAS 디스크(/api/cdn/uploads/banner), Blob 은 옵션   */
 /* ------------------------------------------------------------------ */
 const BANNER_IMG_MAX_BYTES = 4 * 1024 * 1024;
 const BANNER_IMG_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -244,24 +261,30 @@ function bannerExt(mime: string): string {
   return 'jpg';
 }
 
+// 피드/거래 이미지(upload.ts)와 같은 규칙: 토큰 없으면 NAS 디스크, 항상 절대 URL 반환.
+const BANNER_UPLOADS_DIR = join(CARD_CDN_DIR, 'uploads', 'banner');
+function uploadsPublicOrigin(): string {
+  return (process.env.UPLOADS_PUBLIC_ORIGIN || process.env.WEB_BASE_URL || '').replace(/\/+$/, '');
+}
+
 router.post('/banners/upload', bannerUpload.single('file'), async (req: Request, res: Response) => {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    return res.status(503).json({
-      error: 'Vercel Blob 이 설정되지 않았습니다. Vercel → Storage → Blob store 생성 후 연결 필요.',
-    });
-  }
   const file = req.file as Express.Multer.File | undefined;
   if (!file) return res.status(400).json({ error: 'no file' });
   if (!BANNER_IMG_TYPES.has(file.mimetype)) {
     return res.status(400).json({ error: `지원하지 않는 형식: ${file.mimetype}` });
   }
   try {
-    const pathname = `banner/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${bannerExt(file.mimetype)}`;
-    const { url } = await put(pathname, file.buffer, {
-      access: 'public',
-      contentType: file.mimetype,
-    });
-    res.json({ url });
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${bannerExt(file.mimetype)}`;
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      const { url } = await put(`banner/${filename}`, file.buffer, {
+        access: 'public',
+        contentType: file.mimetype,
+      });
+      return res.json({ url });
+    }
+    await mkdir(BANNER_UPLOADS_DIR, { recursive: true });
+    await writeFile(join(BANNER_UPLOADS_DIR, filename), file.buffer);
+    res.json({ url: `${uploadsPublicOrigin()}/api/cdn/uploads/banner/${filename}` });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[admin.banners.upload]', msg);

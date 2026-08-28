@@ -11,6 +11,7 @@
  * 에서 OAuth 를 진행하고, `pokefesta30://auth?token=` 리다이렉트를 WebView 네비게이션
  * 단계에서 직접 가로채 토큰을 회수한다. → Chrome 없이도, 딥링크 없이도 동작한다.
  */
+import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { setSession } from './session';
 import { getApiBaseUrl } from './apiClient';
@@ -26,7 +27,9 @@ const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** 주어진 provider 의 OAuth 시작 URL. */
 export function buildAuthUrl(provider: AuthProvider): string {
-  return `${WEB_OAUTH_ORIGIN}/auth/${provider}?platform=mobile`;
+  // 가입경로 기록용 — 서버는 ios/android 를 그대로 저장한다(구버전 앱은 'mobile').
+  const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+  return `${WEB_OAUTH_ORIGIN}/auth/${provider}?platform=${platform}`;
 }
 
 /**
