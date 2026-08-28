@@ -201,9 +201,12 @@ a{color:inherit;text-decoration:none;}
     linear-gradient(160deg,var(--red-dk) 0%,#5E0B15 55%,var(--ink) 100%);
   box-shadow:inset 0 4px 0 var(--red-lt),inset 0 -4px 0 #3A0810;}
 /* 이미지 슬라이드 — 업로드 이미지가 배너 영역 전체를 채움(앱 HeroBanner 와 동일, 높이 176 기준) */
-.hero-slide--image{padding:0;min-height:176px;}
+.hero-slide--image{padding:0;display:flex;align-items:center;background:var(--ink);}
 .hero-slide--image::before{display:none;}
-.hero-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;user-select:none;}
+/* 가로 100% · 높이는 이미지 비율대로 — 좌우가 절대 잘리지 않는다. 트랙의 다른(텍스트) 슬라이드는
+   flex stretch 로 같은 높이가 되며, 이미지가 텍스트 슬라이드(≈176px)보다 낮으면 위아래 여백은 --ink. */
+.hero-bg{position:static;width:100%;height:auto;display:block;user-select:none;}
+.hero-slide:not(.hero-slide--image){display:flex;flex-direction:column;justify-content:center;}
 .hero-wrap--compact .hero-slide--image{padding:0;}
 .hero-slide.clickable{cursor:pointer;}
 .hero-slide.clickable:active{transform:translate(1px,1px);}

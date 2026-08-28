@@ -93,7 +93,7 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
   const txt = useThemeTextVariant();
   // 웹 홈과 동일: 모든 테마에서 컨테이너 보더 없이 좌우 풀블리드 + 세로로 큰 배너
   // (색/폰트만 테마별로 다르게). 픽셀 프레임/작은 높이는 제거.
-  const slideHeight = 176;
+  const TEXT_SLIDE_H = 176;
   const router = useRouter();
   const scrollRef = useRef<ScrollView | null>(null);
   const [idx, setIdx] = useState(0);
@@ -102,6 +102,22 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
 
   // DB 배너 없으면 폴백 슬라이드 (웹과 동일하게 항상 영역 노출).
   const data = slides.length > 0 ? slides : FALLBACK_SLIDES;
+
+  // 이미지 슬라이드는 가로 100% · 높이 = 폭 ÷ 이미지 비율 (좌우 잘림 없음, 웹 .hero-bg 와 동일).
+  // 가로 ScrollView 의 모든 페이지는 같은 높이여야 하므로 슬라이드 높이 = max(텍스트 176, 이미지 높이들).
+  const [aspect, setAspect] = useState<Record<string, number>>({});
+  useEffect(() => {
+    for (const s of data) {
+      if (s.visualType !== 'image') continue;
+      const uri = imageUri(s.visualValue);
+      if (aspect[uri]) continue;
+      Image.getSize(uri, (w, h) => { if (w > 0 && h > 0) setAspect((m) => ({ ...m, [uri]: w / h })); }, () => {});
+    }
+  }, [data, aspect]);
+  const imgHeights = data
+    .filter((s) => s.visualType === 'image')
+    .map((s) => { const a = aspect[imageUri(s.visualValue)]; return a ? width / a : 0; });
+  const slideHeight = Math.round(Math.max(TEXT_SLIDE_H, ...imgHeights));
 
   // 자동 회전 (4초). 슬라이드 1개면 미적용.
   useEffect(() => {
@@ -148,7 +164,7 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
         onMomentumScrollEnd={onEnd}
       >
         {data.map((s, i) => {
-          const bg = SLIDE_BG[s.cls] ?? tc.ink;
+          const bg = s.visualType === 'image' ? tc.ink : (SLIDE_BG[s.cls] ?? tc.ink);
           return (
             <Pressable
               key={i}
@@ -169,7 +185,7 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
                 <Image
                   source={shotSource(imageUri(s.visualValue))}
                   style={{ position: 'absolute', left: 0, top: 0, width, height: slideHeight }}
-                  resizeMode="cover"
+                  resizeMode="contain"
                 />
               ) : (
               <>

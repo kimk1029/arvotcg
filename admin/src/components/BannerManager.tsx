@@ -275,6 +275,7 @@ function BannerForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) =>
   };
 
   const hasPreview = draft.visualValue && /^(https?:\/\/|\/)/.test(draft.visualValue);
+  const [dim, setDim] = useState<{ w: number; h: number } | null>(null);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -321,7 +322,7 @@ function BannerForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) =>
       {draft.visualType === 'image' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <label style={{ ...uploadBtn, opacity: uploading ? 0.6 : 1 }}>
-            {uploading ? '업로드 중…' : '🖼 이미지 업로드 (jpg/png/webp, ≤4MB) — 배너 전체를 채움, 권장 1080×480 (가로형)'}
+            {uploading ? '업로드 중…' : '🖼 이미지 업로드 (jpg/png/webp, ≤4MB)'}
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
@@ -331,11 +332,10 @@ function BannerForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) =>
             />
           </label>
           {upErr && <span style={{ fontSize: 11, color: '#B91C1C' }}>⚠ {upErr}</span>}
-          {hasPreview && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={draft.visualValue} alt="미리보기(배너 비율 9:4, cover)" style={{ width: 360, height: 160, objectFit: 'cover', border: '1px solid #E2E8F0', borderRadius: 4, background: '#F8FAFC' }} />
-          )}
         </div>
+      )}
+      {draft.visualType === 'image' && (
+        <BannerSpec previewUrl={hasPreview ? draft.visualValue : null} dim={dim} onDim={setDim} />
       )}
 
       <Field label="클릭 동작 (특수 액션 — 링크보다 우선)">
@@ -389,3 +389,56 @@ const uploadBtn: React.CSSProperties = {
 const chip: React.CSSProperties = {
   fontSize: 11, padding: '3px 7px', borderRadius: 4, background: '#1E293B', color: '#fff', lineHeight: 1,
 };
+
+
+/* ── 히어로 배너 표시 영역 스펙 + 업로드 이미지 판정 ───────────────────────── */
+// 웹 홈은 390px 폰 프레임(≤480px 뷰포트에선 100vw), 앱은 기기 폭(대개 360~430pt).
+// 이미지 슬라이드는 가로 100% · 높이 = 폭 ÷ (가로/세로) 로 좌우 잘림 없이 표시된다.
+// 텍스트 슬라이드 높이는 176px 이므로, 그와 비슷한 높이가 되는 2.2:1 근처가 가장 자연스럽다.
+const BANNER_WEB_W = 390;
+const BANNER_TEXT_H = 176;
+const RATIO_BEST = BANNER_WEB_W / BANNER_TEXT_H; // ≈ 2.22
+
+function BannerSpec({ previewUrl, dim, onDim }: {
+  previewUrl: string | null;
+  dim: { w: number; h: number } | null;
+  onDim: (d: { w: number; h: number } | null) => void;
+}) {
+  const ratio = dim ? dim.w / dim.h : null;
+  const webH = ratio ? Math.round(BANNER_WEB_W / ratio) : null;
+  let verdict: { text: string; color: string } | null = null;
+  if (ratio) {
+    if (dim!.w < 720) verdict = { text: `가로 ${dim!.w}px — 저해상도. 고밀도 화면에서 흐려집니다. 1080px 이상 권장`, color: '#B45309' };
+    else if (ratio < 1.6) verdict = { text: `비율 ${ratio.toFixed(2)}:1 — 세로로 너무 길어 배너가 ${webH}px 로 커집니다(텍스트 슬라이드 ${BANNER_TEXT_H}px). 2:1 이상 권장`, color: '#B45309' };
+    else if (ratio > 3.2) verdict = { text: `비율 ${ratio.toFixed(2)}:1 — 너무 납작해 배너 높이가 ${webH}px 로 낮고 위아래 여백이 생깁니다. 2~2.5:1 권장`, color: '#B45309' };
+    else verdict = { text: `비율 ${ratio.toFixed(2)}:1 — 적합 ✓ (웹 390px 폭에서 높이 ${webH}px)`, color: '#047857' };
+  }
+  return (
+    <div style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px', background: '#F8FAFC', fontSize: 12, lineHeight: 1.7 }}>
+      <div style={{ fontWeight: 700, marginBottom: 2 }}>📐 히어로 배너 표시 영역</div>
+      <div style={{ color: '#475569' }}>
+        · 웹 홈: 폭 <b>{BANNER_WEB_W}px</b> (폰 프레임) · 앱: 기기 폭 <b>360~430pt</b> — 이미지는 <b>가로 100%, 높이는 비율대로</b> (좌우 잘림 없음)<br />
+        · 텍스트 슬라이드 높이 {BANNER_TEXT_H}px → <b>최적 비율 {RATIO_BEST.toFixed(2)}:1</b>, 권장 해상도 <b>1080×486</b> (또는 1170×527, 2160×972)<br />
+        · 허용 범위 2:1 ~ 2.5:1 · 가로 1080px 이상 · 4MB 이하 · 문구는 이미지 안에 직접(배지/제목/부제는 이미지 슬라이드에서 표시되지 않음)
+      </div>
+      {previewUrl && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ width: BANNER_WEB_W, background: '#0F172A', borderRadius: 4, overflow: 'hidden', border: '1px solid #CBD5E1' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewUrl}
+              alt="실제 웹 폭(390px) 미리보기"
+              style={{ width: '100%', height: 'auto', display: 'block' }}
+              onLoad={(e) => { const im = e.currentTarget; onDim({ w: im.naturalWidth, h: im.naturalHeight }); }}
+              onError={() => onDim(null)}
+            />
+          </div>
+          <div style={{ marginTop: 4, color: '#475569' }}>
+            {dim ? <>업로드 이미지 <b>{dim.w}×{dim.h}px</b> · </> : '이미지 정보를 읽는 중… · '}
+            {verdict && <span style={{ color: verdict.color, fontWeight: 600 }}>{verdict.text}</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
