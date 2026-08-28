@@ -718,7 +718,8 @@ export function CleanHomeScreen() {
   // 최종 실패 시 []로 확정해 HeroBanner 내장 폴백 슬라이드라도 뜨게 한다. 세션 캐시로 재진입 즉시.
   const [banners, setBanners] = useState<HeroSlideData[] | null>(() => swrPeek<HeroSlideData[]>(BANNERS_KEY));
   useEffect(() => {
-    if (swrAge(BANNERS_KEY) < HOME_TTL_MS) return; // 신선 — 재조회 생략
+    // 배너는 어드민이 수시로 바꾸므로 TTL 을 두지 않는다 — 캐시로 즉시 그리고(위 swrPeek),
+    // 홈 진입마다 항상 재조회해 갱신한다(웹 SSR 도 no-store). 응답 한 건이라 비용은 미미.
     let alive = true;
     (async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
