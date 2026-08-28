@@ -54,3 +54,52 @@ See how your watchlist moved today. Scan cards into your collection, track portf
 • Prices in box card lists now match the card detail screen.
 • Cleaner typography, clearer loading states, and a much faster message inbox.
 ```
+
+## 이 버전의 새로운 기능 — 1.1.1 (iOS build 19 · Android vc11, 2026-08-29)
+
+Guideline 1.2(UGC) 반려 후 재심사 빌드. Play 용 3개 언어 원문은 `store-assets/release-notes-v1.1.1.txt`.
+
+### 한국어
+
+```
+• 내 자산 화면이 인포그래픽 대시보드로 확장됐어요 — 자산 구성·분류별 비중·손익 분포·취득·그레이딩 현황을 한눈에.
+• 카드 게임별 시장 지수가 추가됐어요 — 내 컬렉션 수익률을 시장 흐름과 비교해 보세요.
+• 시세 상세에 등급 전환 탭이 생겼어요 — 일반 카드와 PSA 10 시세를 바로 전환.
+• 목록 가격과 시세 상세의 대표 시세 기준을 통일했어요.
+• 커뮤니티 이용규칙 동의 절차와 신고·차단 안내를 강화했어요.
+• 카메라 스캔 버튼이 반응하지 않던 문제를 수정하고, 시장 지표 로딩 안정성을 개선했어요.
+```
+
+### English
+
+```
+• My Assets is now an infographic dashboard — allocation, category breakdown, P&L distribution, acquisitions and grading at a glance.
+• New market indices per card game — compare your collection's return against the market.
+• Grade switcher on price detail — flip between raw and PSA 10 prices instantly.
+• List prices now use the same reference price as the detail screen.
+• Clearer community guidelines with an agreement step, plus report and block guidance.
+• Fixed the camera scan button not responding, and made market data loading more reliable.
+```
+
+### 프로모션 텍스트 — 1.1.1 갱신안 (심사 무관, 언제든 교체)
+
+한국어 (99자):
+
+```
+내 컬렉션, 시장보다 잘 가고 있을까? 카드 게임별 시장 지수와 인포그래픽 대시보드로 자산 흐름을 한눈에. 스캔 등록·시세 비교·직거래·커뮤니티까지 트레이딩 카드의 모든 것.
+```
+
+English (166자):
+
+```
+Is your collection beating the market? New per-game market indices and an infographic dashboard show where your assets stand. Scan, compare prices, trade, and talk shop.
+```
+
+### 심사 메모 (Resolution Center 답변용, 1.2 UGC)
+
+```
+We have addressed Guideline 1.2 in build 19:
+- Users must explicitly agree to the Community Guidelines (zero-tolerance for objectionable content and abusive users) via a checkbox dialog before posting, commenting, or listing. Agreement is recorded server-side and re-requested when the guidelines change.
+- Terms of Service updated (Article 7-2) with the zero-tolerance policy and our commitment to act on reports within 24 hours by removing content and ejecting the offending user.
+- Existing report and block features remain available on every post, comment and user profile.
+```
