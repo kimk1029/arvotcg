@@ -169,16 +169,6 @@ export async function searchSnkrdunkByQuery(
  *  Mode toggles in the UI just swap which segment's median we display. */
 export type PriceMode = 'single' | 'psa10';
 
-/** True when the sales history has at least one PSA-10 graded transaction.
- *  Used to decide whether the singles/PSA10 toggle should be shown — packs
- *  and boxes never have PSA grades and hiding the toggle there avoids a
- *  useless control. */
-export function hasPsa10Transactions(
-  history: SnkrdunkSalesHistory | null | undefined,
-): boolean {
-  return (history?.history ?? []).some((h) => /^PSA\s*10$/i.test((h.condition ?? '').trim()));
-}
-
 /** Parse snkrdunk's relative-date strings ("3時間前", "1日前", "2025/05/10",
  *  "어제" after localization etc) into an absolute millisecond timestamp.
  *  Returns null when the format isn't recognized. */
@@ -207,56 +197,6 @@ export function parseSnkrdunkDate(text: string | null | undefined, now = Date.no
     if (Number.isFinite(t)) return t;
   }
   return null;
-}
-
-/** Convert sales history into `[ms, price]` pairs filtered by mode, sorted
- *  oldest→newest. Used to derive chart points when the sales-chart endpoint
- *  is empty (common for newer cards), and to split a single chart into two
- *  series (singles vs PSA10). */
-export function salesHistoryToPoints(
-  history: SnkrdunkSalesHistory | null | undefined,
-  mode: PriceMode,
-): Array<[number, number]> {
-  const now = Date.now();
-  const filtered = (history?.history ?? []).filter((h) => inSegment(h.condition, mode));
-  const points: Array<[number, number]> = [];
-  for (const h of filtered) {
-    const t = parseSnkrdunkDate(h.date, now);
-    const p = Number(h.price);
-    if (t != null && Number.isFinite(p) && p > 0) points.push([t, p]);
-  }
-  return points.sort((a, b) => a[0] - b[0]);
-}
-
-function inSegment(condition: string | null | undefined, mode: PriceMode): boolean {
-  const c = (condition ?? '').trim();
-  if (mode === 'psa10') return /^PSA\s*10$/i.test(c);
-  // single = anything that ISN'T a PSA-graded sale. "A" / "B" / "中古" /
-  // 新品 / empty all qualify.
-  return !/PSA\s*\d+/i.test(c);
-}
-
-/** Median price of the most recent N transactions in the given segment.
- *  Median (not mean) so a single outlier sale doesn't drag the typical
- *  price upward. Returns null when there's no usable history — caller
- *  falls back to apparel.minPrice. */
-export function recentTransactionMedian(
-  history: SnkrdunkSalesHistory | null | undefined,
-  mode: PriceMode = 'single',
-  n = 5,
-): number | null {
-  const filtered = (history?.history ?? [])
-    .filter((h) => inSegment(h.condition, mode))
-    .slice(0, n);
-  const sorted = filtered
-    .map((h) => Number(h.price))
-    .filter((p) => Number.isFinite(p) && p > 0)
-    .sort((a, b) => a - b);
-  if (sorted.length === 0) return null;
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0
-    ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
-    : sorted[mid];
 }
 
 /**

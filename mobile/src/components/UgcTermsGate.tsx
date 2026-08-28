@@ -30,7 +30,8 @@ export async function ensureUgcTerms(): Promise<boolean> {
   try {
     agreed = (await fetchUgcTerms()).agreed;
   } catch (e) {
-    if (e instanceof ApiError && e.status === 401) return true; // 비로그인 — 로그인 게이트가 처리
+    // 401 비로그인 → 로그인 게이트가 처리. 404 = 라우트 없는 구버전 서버 → 게이트 건너뜀(글쓰기 차단 방지).
+    if (e instanceof ApiError && (e.status === 401 || e.status === 404)) return true;
     agreed = false;
   }
   if (agreed) {

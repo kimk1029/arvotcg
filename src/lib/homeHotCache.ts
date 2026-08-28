@@ -1,6 +1,6 @@
 'use client';
 
-import type { SnkrdunkRow } from '@/components/dashboard/DashboardScreen';
+import type { SnkrdunkRow } from '@/lib/snkrdunkRow';
 
 /**
  * 홈 HOT 카드 목록 공유 캐시 (sessionStorage).

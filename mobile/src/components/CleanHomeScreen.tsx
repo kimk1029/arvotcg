@@ -1007,7 +1007,7 @@ export function CleanHomeScreen() {
                   <CardArt imageUrl={data?.imageUrl ?? null} fallbackIdx={idx} width={100} height={100} radius={13} />
                   <Text numberOfLines={1} style={[ts(12.5, '700', P.ink), { marginTop: 9 }]}>{seed.shortName}</Text>
                   <Text style={[ts(11, '400', P.ink2), { marginTop: 3 }]}>
-                    평균 시세 <Text style={ts(11, '800', P.rise)}>{fmtPrice(data?.minPrice ?? 0)}</Text>
+                    최저 매물 <Text style={ts(11, '800', P.rise)}>{fmtPrice(data?.minPrice ?? 0)}</Text>
                   </Text>
                 </Pressable>
               )}

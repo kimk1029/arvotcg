@@ -25,7 +25,7 @@ import {
   getMyTrades,
 } from '../lib/queries.js';
 import { fetchSnkrdunkApparel, fetchSnkrdunkSalesHistory, fetchSnkrdunkSalesChart } from '@/lib/snkrdunk';
-import { computeApparelPrices, registerBasisJpy } from '../../shared/snkrdunkPrice';
+import { computeApparelPrices, headlineFromHistory, registerBasisJpy } from '../../shared/snkrdunkPrice';
 import {
   ensureCatalogCard,
   isFreshEntry,
@@ -163,9 +163,12 @@ router.post('/cards', async (req: Request, res: Response) => {
       // 이왕 받아온 시세는 스냅샷/카탈로그에 재적재 (응답 경로 밖, 실패 무시).
       if (a) {
         void upsertCatalogCard(a);
+        const headline = headlineFromHistory(hist?.history ?? [], a.minPrice ?? 0);
         void recordPriceSnapshot(snkrdunkApparelId, {
           minPrice: a.minPrice ?? 0,
           listingCount: a.listingCount,
+          headlinePrice: headline.price,
+          headlineBasis: headline.basis,
           priceSingle: prices.single,
           pricePsa10: prices.psa10,
           pricePsa9: prices.psa9,

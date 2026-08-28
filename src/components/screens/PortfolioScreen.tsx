@@ -44,6 +44,8 @@ interface CardRow {
   snkrdunkImageUrl: string | null;
   priceSingleJpy: number;
   pricePsa10Jpy: number;
+  /** 등급 기준 대표 시세(registerBasisJpy) — 컬렉션 리스트·시세상세와 같은 값. */
+  currentPriceJpy?: number;
   trend: number[];
   buyPrice: number | null;
   buyCurrency: string | null;
@@ -154,7 +156,13 @@ export function PortfolioScreen() {
   const allRows = useMemo(() => {
     if (!cards) return [];
     const mapped = cards.map((c) => {
-      const curJpy = usePsa10 && c.pricePsa10Jpy > 0 ? c.pricePsa10Jpy : c.priceSingleJpy;
+      // PSA10 토글이 아니면 등급 기준 시세(currentPriceJpy)를 우선 — PSA9 카드가 raw 값으로 보이던 불일치 수정.
+      const curJpy =
+        usePsa10 && c.pricePsa10Jpy > 0
+          ? c.pricePsa10Jpy
+          : (c.currentPriceJpy ?? 0) > 0
+            ? (c.currentPriceJpy as number)
+            : c.priceSingleJpy;
       const qty = Math.max(1, c.qty || 1);
       const basisJpy =
         c.buyPrice != null && c.buyPrice > 0

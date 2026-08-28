@@ -23,6 +23,7 @@ import {
   fetchSnkrdunkApparel,
   fetchSnkrdunkBrowse,
   fetchSnkrdunkSalesChart,
+  fetchSnkrdunkSalesHistory,
   searchSnkrdunkByQuery,
   SNKRDUNK_FEATURED_CARDS,
   type SnkrdunkApparel,
@@ -32,6 +33,7 @@ import {
 import { jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
 import { getHomeHotRows } from '@/lib/homeHotStore';
 import { SNKRDUNK_GAME_KEYWORD } from '../../../../shared/gameKeyword';
+import { headlineFromHistory } from '../../../../shared/snkrdunkPrice';
 
 type Category = 'SAR' | '프로모' | 'SR' | '원피스';
 
@@ -46,6 +48,9 @@ interface CardRow {
   seed: DisplaySeed;
   apparel: SnkrdunkApparel | null;
   chart: SnkrdunkSalesChart | null;
+  /** 대표 시세(시세상세 헤드라인) + 기준. 없으면 minPrice(최저 매물) 폴백 표시. */
+  price?: number;
+  basis?: string;
 }
 
 const FEATURED_BY_ID = new Map(SNKRDUNK_FEATURED_CARDS.map((s) => [s.apparelId, s]));
@@ -130,6 +135,7 @@ export default function SnkrdunkLanding() {
             productNumber: '',
           } as SnkrdunkApparel,
           chart: null,
+          price: r.recentPrice,
         }));
       } else {
         // 폴백 — 홈을 안 거친 직접 진입/다른 게임 요청: 해당 게임 상단 10종 (웹 동일).
@@ -158,10 +164,21 @@ export default function SnkrdunkLanding() {
       setRows(base);
       // 스파크라인 차트 — 목록이 뜬 뒤 점진 로드 (진입을 막지 않음).
       base.forEach(async (row) => {
-        const chart = await fetchSnkrdunkSalesChart(row.seed.apparelId).catch(() => null);
-        if (!alive || !chart) return;
+        const [chart, hist] = await Promise.all([
+          fetchSnkrdunkSalesChart(row.seed.apparelId).catch(() => null),
+          row.price ? Promise.resolve(null) : fetchSnkrdunkSalesHistory(row.seed.apparelId).catch(() => null),
+        ]);
+        if (!alive) return;
+        // 대표 시세 — 시세상세 헤드라인과 같은 계산(shared headlineFromHistory).
+        const head = hist ? headlineFromHistory(hist.history, row.apparel?.minPrice ?? 0) : null;
         setRows((prev) =>
-          prev ? prev.map((r) => (r.seed.apparelId === row.seed.apparelId ? { ...r, chart } : r)) : prev,
+          prev
+            ? prev.map((r) =>
+                r.seed.apparelId === row.seed.apparelId
+                  ? { ...r, chart: chart ?? r.chart, price: head && head.price > 0 ? head.price : r.price, basis: head?.basis ?? r.basis }
+                  : r,
+              )
+            : prev,
         );
       });
     })();
@@ -217,7 +234,7 @@ export default function SnkrdunkLanding() {
           <View style={{ paddingTop: 20 }}><LoadingState /></View>
         ) : (
           <View style={{ marginHorizontal: space.gap, gap: 8 }}>
-            {rows.map(({ seed, apparel, chart }) => {
+            {rows.map(({ seed, apparel, chart, price, basis }) => {
               const pts = downsamplePricePoints([...(chart?.points ?? [])].sort((a, b) => a[0] - b[0]));
               return (
                 <PixelPress
@@ -246,7 +263,7 @@ export default function SnkrdunkLanding() {
                         </PixelText>
                       ) : null}
                       <PixelText variant={txt} size={11} weight="bold" color={tc.red} style={{ marginTop: 5 }}>
-                        {fmtYen(apparel?.minPrice ?? 0)}
+                        {price && price > 0 ? `${basis ? basis + ' ' : ''}${fmtYen(price)}` : `최저 ${fmtYen(apparel?.minPrice ?? 0)}`}
                       </PixelText>
                     </View>
                     <Sparkline points={pts} tc={tc} txt={txt} />

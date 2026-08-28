@@ -21,7 +21,7 @@ import {
   fetchSnkrdunkSalesHistory,
   type SnkrdunkApparel,
 } from '@/lib/snkrdunk';
-import { computeApparelPrices, type ApparelPrices } from '../../shared/snkrdunkPrice';
+import { computeApparelPrices, headlineFromHistory, type ApparelPrices } from '../../shared/snkrdunkPrice';
 import { parseCardStatics } from '../../shared/cardStatics';
 
 export { parseCardStatics } from '../../shared/cardStatics';
@@ -203,6 +203,9 @@ export interface CatalogEntry {
     pricePsa10: number;
     pricePsa9: number;
     pricePsa8: number;
+    /** 시세상세 헤드라인과 동일한 대표 시세(0 = 미계산 스냅샷) + 기준 등급. */
+    headlinePrice: number;
+    headlineBasis: string | null;
     trend: number[];
     fetchedAt: Date;
   } | null;
@@ -224,12 +227,14 @@ export async function loadCatalogEntries(ids: number[]): Promise<Map<number, Cat
           pricePsa10: number;
           pricePsa9: number;
           pricePsa8: number;
+          headlinePrice: number | null;
+          headlineBasis: string | null;
           trend: unknown;
           fetchedAt: Date;
         }>
       >`
         SELECT DISTINCT ON ("apparelId")
-          "apparelId", "minPrice", "listingCount", "priceSingle", "pricePsa10", "pricePsa9", "pricePsa8", "trend", "fetchedAt"
+          "apparelId", "minPrice", "listingCount", "priceSingle", "pricePsa10", "pricePsa9", "pricePsa8", "headlinePrice", "headlineBasis", "trend", "fetchedAt"
         FROM "snkrdunk_price_snapshots"
         WHERE "apparelId" IN (${Prisma.join(ids)})
         ORDER BY "apparelId", "fetchedAt" DESC
@@ -256,6 +261,8 @@ export async function loadCatalogEntries(ids: number[]): Promise<Map<number, Cat
               pricePsa10: Number(s.pricePsa10),
               pricePsa9: Number(s.pricePsa9 ?? 0),
               pricePsa8: Number(s.pricePsa8 ?? 0),
+              headlinePrice: Number(s.headlinePrice ?? 0),
+              headlineBasis: s.headlineBasis ?? null,
               trend: Array.isArray(s.trend) ? (s.trend as number[]) : [],
               fetchedAt: s.fetchedAt,
             }
@@ -280,6 +287,9 @@ export function isFreshEntry(e: CatalogEntry | undefined, ttlMs = CATALOG_PRICE_
 /* ── 라이브 갱신 (stale-while-revalidate 공용) ───────────────────── */
 
 export interface RefreshedApparel extends ApparelPrices {
+  /** 시세상세 헤드라인과 동일한 대표 시세 + 기준 (headlineFromHistory). */
+  headlinePrice: number;
+  headlineBasis: string | null;
   name: string;
   imageUrl: string | null;
   minPrice: number;
@@ -299,10 +309,15 @@ export async function refreshApparelPrices(apparelId: number): Promise<Refreshed
     ]);
     if (!a) return null;
     const prices = computeApparelPrices(hist?.history ?? [], chart?.points ?? [], a.minPrice ?? 0);
+    // 헤드라인(시세상세 대표가)도 함께 기록 — 빠지면 0 으로 저장돼 최신 스냅샷이
+    // /apparels/:id·일별 배치가 남긴 좋은 값을 덮어쓰고 팩 그리드가 최저가로 폴백한다.
+    const headline = headlineFromHistory(hist?.history ?? [], a.minPrice ?? 0);
     void upsertCatalogCard(a);
     void recordPriceSnapshot(apparelId, {
       minPrice: a.minPrice ?? 0,
       listingCount: a.listingCount,
+      headlinePrice: headline.price,
+      headlineBasis: headline.basis,
       priceSingle: prices.single,
       pricePsa10: prices.psa10,
       pricePsa9: prices.psa9,
@@ -311,6 +326,8 @@ export async function refreshApparelPrices(apparelId: number): Promise<Refreshed
     });
     return {
       ...prices,
+      headlinePrice: headline.price,
+      headlineBasis: headline.basis ?? null,
       name: a.localizedName || a.name || '',
       imageUrl: a.imageUrl,
       minPrice: a.minPrice ?? 0,

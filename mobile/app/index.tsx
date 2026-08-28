@@ -38,11 +38,11 @@ import { api } from '@/lib/apiClient';
 import { usePriceMode } from '@/lib/priceMode';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { fetchPortfolio, type PortfolioSummary } from '@/lib/myApi';
+import { computeApparelPrices } from '../../shared/snkrdunkPrice';
 import {
   fetchSnkrdunkApparel,
   fetchSnkrdunkBrowse,
   fetchSnkrdunkSalesHistory,
-  recentTransactionMedian,
   recoverSnkrdunkApparelId,
   SNKRDUNK_FEATURED_CARDS,
   type SnkrdunkApparel,
@@ -212,8 +212,10 @@ function LegacyHome() {
         // Same logic as detail: store BOTH segment medians so the home
         // portfolio total can flip between singles and PSA10 instantly
         // without re-fetching every card.
-        const singleP = recentTransactionMedian(history, 'single') ?? apparel?.minPrice ?? 0;
-        const psa10P = recentTransactionMedian(history, 'psa10') ?? 0;
+        // 시세 정본(shared/snkrdunkPrice) — 시세상세·서버 스냅샷과 같은 규칙(7건 중앙값, 등급 뱃지 판별).
+        const prices = computeApparelPrices(history?.history ?? [], [], apparel?.minPrice ?? 0);
+        const singleP = prices.single > 0 ? prices.single : apparel?.minPrice ?? 0;
+        const psa10P = prices.psa10;
         if (singleP <= 0 && psa10P <= 0) return;
         const needsUpdate =
           (singleP > 0 && c.priceSingle !== singleP) ||

@@ -22,6 +22,8 @@ async function fetchAgreed(): Promise<boolean | null> {
   try {
     const r = await fetch('/api/me/ugc-terms', { credentials: 'include', cache: 'no-store' });
     if (r.status === 401) return null;
+    // 404 = 라우트가 아직 없는 구버전 서버 — 게이트를 건너뛰어 글쓰기를 막지 않는다.
+    if (r.status === 404) return null;
     if (!r.ok) return false;
     const j = (await r.json()) as { agreed?: boolean };
     return !!j.agreed;

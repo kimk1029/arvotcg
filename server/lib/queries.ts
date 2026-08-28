@@ -32,6 +32,7 @@ import {
   recordPriceSnapshot,
   refreshApparelPrices,
   upsertCatalogCard,
+  type CatalogEntry,
 } from './snkrdunkCatalog.js';
 
 /* ------------------------------------------------------------------ */
@@ -735,7 +736,13 @@ export interface MyFavoriteRow {
   createdAt: string;
   name: string | null;
   imageUrl: string | null;
+  /**
+   * 대표 시세 — 시세상세 헤드라인(headlinePrice)과 같은 값. 없으면 raw 중앙값 → 최저매물 순 폴백.
+   * (이름은 호환용으로 유지. 과거엔 최저매물 호가였음 — 목록/상세 불일치 원인.)
+   */
   minPriceJpy: number;
+  /** minPriceJpy 의 기준 — 'RAW' | 'PSA 10' … | '최저매물'. 상세 링크 ?grade= 에 전달. */
+  priceBasis: string | null;
 }
 
 /** 어제(직전 체결일) 대비 등락률 — 일별 시세 추이의 마지막 두 점. 데이터 부족 시 null. */
@@ -768,8 +775,15 @@ export async function getMyFavoritesWithPrices(
   const uniqueIds = Array.from(new Set(rows.map((r) => r.snkrdunkApparelId)));
   const info = new Map<
     number,
-    { name: string; imageUrl: string | null; minPriceJpy: number; trend: number[] }
+    { name: string; imageUrl: string | null; minPriceJpy: number; priceBasis: string | null; trend: number[] }
   >();
+  /** 스냅샷 → 대표 시세: 헤드라인 > raw 중앙값 > 최저매물 (시세상세와 같은 우선순위). */
+  const pickPrice = (sn: NonNullable<CatalogEntry['snapshot']>) =>
+    sn.headlinePrice > 0
+      ? { minPriceJpy: sn.headlinePrice, priceBasis: sn.headlineBasis }
+      : sn.priceSingle > 0
+        ? { minPriceJpy: sn.priceSingle, priceBasis: 'RAW' }
+        : { minPriceJpy: sn.minPrice, priceBasis: sn.minPrice > 0 ? '최저매물' : null };
   // 우리 DB(카탈로그+최신 스냅샷) 우선 — 신선하면 스니덩 호출 생략.
   const catalog = await loadCatalogEntries(uniqueIds);
   for (const id of uniqueIds) {
@@ -778,7 +792,7 @@ export async function getMyFavoritesWithPrices(
       info.set(id, {
         name: translateKnownCardNameToKo(e.name),
         imageUrl: e.imageUrl,
-        minPriceJpy: e.snapshot.minPrice > 0 ? e.snapshot.minPrice : e.snapshot.priceSingle,
+        ...pickPrice(e.snapshot),
         trend: e.snapshot.trend ?? [],
       });
     }
@@ -793,7 +807,7 @@ export async function getMyFavoritesWithPrices(
       info.set(id, {
         name: translateKnownCardNameToKo(e.name),
         imageUrl: e.imageUrl,
-        minPriceJpy: e.snapshot.minPrice > 0 ? e.snapshot.minPrice : e.snapshot.priceSingle,
+        ...pickPrice(e.snapshot),
         trend: e.snapshot.trend ?? [],
       });
       void refreshApparelPrices(id);
@@ -804,18 +818,17 @@ export async function getMyFavoritesWithPrices(
   await Promise.all(
     favBlocking.map(async (id) => {
       try {
-        const a = await fetchSnkrdunkApparel(id);
-        if (a) {
+        // 풀 스냅샷 경로(refreshApparelPrices) — 예전처럼 minPrice 만 기록하면 그 반쪽
+        // 스냅샷이 30분간 '신선'으로 취급돼 컬렉션·팩 그리드까지 최저매물로 오염됐다.
+        const r = await refreshApparelPrices(id);
+        if (r) {
           info.set(id, {
-            name: translateKnownCardNameToKo(a.localizedName || a.name || ''),
-            imageUrl: a.imageUrl,
-            minPriceJpy: typeof a.minPrice === 'number' && a.minPrice > 0 ? a.minPrice : 0,
-            trend: [],
+            name: translateKnownCardNameToKo(r.name),
+            imageUrl: r.imageUrl,
+            minPriceJpy: r.headlinePrice > 0 ? r.headlinePrice : r.single > 0 ? r.single : r.minPrice,
+            priceBasis: r.headlinePrice > 0 ? r.headlineBasis : r.single > 0 ? 'RAW' : r.minPrice > 0 ? '최저매물' : null,
+            trend: r.trendJpy ?? [],
           });
-          void upsertCatalogCard(a);
-          if (a.minPrice > 0) {
-            void recordPriceSnapshot(id, { minPrice: a.minPrice, listingCount: a.listingCount });
-          }
         }
       } catch (err) {
         console.warn('[getMyFavoritesWithPrices] apparel fetch failed', id, err);
@@ -832,6 +845,7 @@ export async function getMyFavoritesWithPrices(
       name: i?.name ?? null,
       imageUrl: i?.imageUrl ?? null,
       minPriceJpy: i?.minPriceJpy ?? 0,
+      priceBasis: i?.priceBasis ?? null,
       trend: i?.trend ?? [],
       // 어제(직전 체결일) 대비 등락 — 컬렉션 리스트와 같은 정의(추이 마지막 두 점).
       changePct: dayChangePct(i?.trend ?? []),

@@ -190,7 +190,8 @@ function MetaPill({ text }: { text: string }) {
 }
 
 function packTopPrice(pack: PackWithHits): number {
-  return Math.max(0, ...pack.hits.map((h) => h.minPrice || 0));
+  // 대표 시세 = 시세상세 헤드라인(headlinePrice). 미계산 스냅샷이면 최저 매물 폴백.
+  return Math.max(0, ...pack.hits.map((h) => (h.headlinePrice > 0 ? h.headlinePrice : h.minPrice) || 0));
 }
 
 const styles = StyleSheet.create({

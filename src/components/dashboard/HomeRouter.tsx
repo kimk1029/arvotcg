@@ -1,7 +1,7 @@
 'use client';
 
 import { StatusBar } from '@/components/ui/StatusBar';
-import { type SnkrdunkRow } from '@/components/dashboard/DashboardScreen';
+import type { SnkrdunkRow } from '@/lib/snkrdunkRow';
 import { CleanHome } from '@/components/dashboard/CleanHome';
 import type { HeroSlideData } from '@/components/HeroSlider';
 import type { MyCardWithPrice } from '@/lib/queries';

@@ -15,7 +15,7 @@ import { SNKRDUNK_GAME_KEYWORD } from '../../shared/gameKeyword';
 import { downsamplePricePoints } from '@/lib/snkrdunk';
 import { translateKnownCardNameToKo } from '@/lib/cardTranslate';
 import { loadHomeHotRows } from '@/lib/homeHotCache';
-import type { SnkrdunkRow } from '@/components/dashboard/DashboardScreen';
+import type { SnkrdunkRow } from '@/lib/snkrdunkRow';
 
 /**
  * /cards/snkrdunk — 스니덩크 시세 랜딩 (클라이언트).
@@ -197,7 +197,9 @@ export function SnkrdunkLandingScreen() {
         ) : (
           rows.map((row) => {
             const bg = row.category ? CATEGORY_BG[row.category] ?? 'var(--ink2)' : 'var(--ink2)';
-            const priceJpy = row.minPrice;
+            // 대표 시세(시세상세 헤드라인, 홈 캐시가 보유) 우선, 없으면 최저 매물 호가.
+            const priceJpy = row.recentPrice && row.recentPrice > 0 ? row.recentPrice : row.minPrice;
+            const priceLabel = row.recentPrice && row.recentPrice > 0 ? (row.basis ?? '최근') : '최저';
             const listingText = row.listingCountText ? `매물 ${row.listingCountText}건` : null;
             const pts = charts[row.apparelId];
             const sparkPoints = pts ? downsamplePricePoints([...pts].sort((a, b) => a[0] - b[0])).slice(-30) : [];
@@ -271,7 +273,7 @@ export function SnkrdunkLandingScreen() {
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    최저 <Price jpy={priceJpy} empty="—" />
+                    {priceLabel} <Price jpy={priceJpy} empty="—" />
                   </div>
                   {listingText ? (
                     <div

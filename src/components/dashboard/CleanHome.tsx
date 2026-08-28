@@ -19,7 +19,7 @@ type HomePackMeta = Pick<CardPackMeta, 'game' | 'apparelGroupId' | 'releasedAt' 
 import { headlineFromHistory, trendChangePct } from '@/lib/snkrdunkPrice';
 import { saveHomeHotRows } from '@/lib/homeHotCache';
 import { SNKRDUNK_GAME_KEYWORD } from '../../../shared/gameKeyword';
-import type { SnkrdunkRow } from '@/components/dashboard/DashboardScreen';
+import type { SnkrdunkRow } from '@/lib/snkrdunkRow';
 import type { MvcAuctionItem } from '@/lib/navercafe';
 
 /**
@@ -902,7 +902,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
                   {b.shortName}
                 </div>
                 <div style={{ fontSize: 11, color: P.ink2, marginTop: 3 }}>
-                  평균 시세 <span style={{ color: P.rise, fontWeight: 800 }}>{fmtPrice(b.minPrice)}</span>
+                  최저 매물 <span style={{ color: P.rise, fontWeight: 800 }}>{fmtPrice(b.minPrice)}</span>
                 </div>
               </Link>
             ))}
