@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 /**
- * 히어로 배너 이미지 업로드 — 파일을 NAS API 서버(/api/admin/banners/upload)로 전달한다.
+ * 히어로 배너 이미지 업로드 — 파일을 API 서버(운영 Vultr api.arvotcg.com, /api/admin/banners/upload)로 전달한다.
  * 서버가 자기 디스크(server/public/cdn/uploads/banner)에 저장하고 /api/cdn/... 절대 URL 을
  * 돌려준다(카드 자체 CDN·피드 이미지와 같은 트리). Vercel Blob 은 서버 쪽 옵션일 뿐이다.
  *

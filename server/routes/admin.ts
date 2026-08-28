@@ -246,7 +246,7 @@ router.delete('/banners/:id', async (req: Request, res: Response) => {
 });
 
 /* ------------------------------------------------------------------ */
-/* banner image upload — NAS 디스크(/api/cdn/uploads/banner), Blob 은 옵션   */
+/* banner image upload — 서버 디스크(/api/cdn/uploads/banner), Blob 은 옵션    */
 /* ------------------------------------------------------------------ */
 const BANNER_IMG_MAX_BYTES = 4 * 1024 * 1024;
 const BANNER_IMG_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -261,7 +261,7 @@ function bannerExt(mime: string): string {
   return 'jpg';
 }
 
-// 피드/거래 이미지(upload.ts)와 같은 규칙: 토큰 없으면 NAS 디스크, 항상 절대 URL 반환.
+// 피드/거래 이미지(upload.ts)와 같은 규칙: 토큰 없으면 이 서버의 디스크, 항상 절대 URL 반환.
 const BANNER_UPLOADS_DIR = join(CARD_CDN_DIR, 'uploads', 'banner');
 function uploadsPublicOrigin(): string {
   return (process.env.UPLOADS_PUBLIC_ORIGIN || process.env.WEB_BASE_URL || '').replace(/\/+$/, '');
