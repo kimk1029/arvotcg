@@ -273,6 +273,13 @@ interface Props {
  * 캐시를 먼저 그린 채 백그라운드 갱신한다 (앱 CleanHomeScreen hotCache/boxCache 페어).
  * sessionStorage 백업으로 새로고침(F5)에도 즉시 페인트 — 앱 디스크 캐시와 동일 역할. */
 const HOME_TTL_MS = 5 * 60_000;
+type MoverTab = 'surge' | 'snkr' | 'collection';
+type RankRow = SnkrdunkRow & { holders?: number; qty?: number };
+const MOVER_TABS: { id: MoverTab; label: string; title: string }[] = [
+  { id: 'surge', label: '실시간 급등', title: '실시간 급등 카드' },
+  { id: 'snkr', label: 'SNKR 최고가', title: '스니덩크 체결가 TOP 10' },
+  { id: 'collection', label: '컬렉션 TOP', title: '회원 컬렉션 TOP 10' },
+];
 const HOME_SS_KEY = 'pf30:home-cache:v1';
 const hotCache: Record<string, { t: number; rows: SnkrdunkRow[] }> = {};
 const boxCache: Record<string, { t: number; rows: SnkrdunkRow[] }> = {};
@@ -751,6 +758,25 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
   const moverRows = [...hotRows].sort(
     (a, b) => (b.changePct ?? -Infinity) - (a.changePct ?? -Infinity),
   );
+  // 하단 섹션 탭: 실시간 급등(HOT 후보 등락률) | SNKR 최고가(스니덩크 카탈로그 전체 체결가 TOP10)
+  // | 컬렉션 TOP(회원 컬렉션 등록 카드 시세순, 직접 입력 제외). 랭킹 2종은 /api/snkrdunk/ranking.
+  const [moverTab, setMoverTab] = useState<MoverTab>('surge');
+  const [rankRows, setRankRows] = useState<Record<string, RankRow[]>>({});
+  const rankKey = `${moverTab}:${homeGame}`;
+  useEffect(() => {
+    if (moverTab === 'surge' || rankRows[rankKey]) return;
+    let alive = true;
+    (async () => {
+      const kind = moverTab === 'snkr' ? 'snkr' : 'collection';
+      const j = await fetch(`/api/snkrdunk/ranking?game=${homeGame}&kind=${kind}&limit=10`)
+        .then((r) => (r.ok ? (r.json() as Promise<{ data?: RankRow[] }>) : null))
+        .catch(() => null);
+      if (alive) setRankRows((p) => ({ ...p, [rankKey]: j?.data ?? [] }));
+    })();
+    return () => { alive = false; };
+  }, [moverTab, homeGame, rankKey, rankRows]);
+  const listRows: RankRow[] = moverTab === 'surge' ? moverRows : (rankRows[rankKey] ?? []);
+  const rankLoading = moverTab !== 'surge' && rankRows[rankKey] === undefined;
 
   // HOT / 박스 캐러셀 자동 슬라이딩(카드를 두 벌 이어붙여 끊김 없이 루프).
   const hotRef = useRef<HTMLDivElement>(null);
@@ -910,8 +936,8 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
         </div>
       )}
 
-      {/* realtime movers */}
-      {hotRows.length > 0 && (
+      {/* realtime movers / rankings */}
+      {(hotRows.length > 0 || moverTab !== 'surge') && (
         <div style={{ padding: '0 20px 30px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 18, fontWeight: 800, color: P.ink }}>
@@ -919,7 +945,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
                 <path d="m3 17 6-6 4 4 8-8" />
                 <path d="M17 7h4v4" />
               </svg>
-              실시간 급등 카드
+              {MOVER_TABS.find((t) => t.id === moverTab)?.title}
             </div>
             <Link href={`/cards/snkrdunk?game=${homeGame}`} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 13, fontWeight: 600, color: P.ink3, textDecoration: 'none' }}>
               더보기
@@ -928,9 +954,32 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
               </svg>
             </Link>
           </div>
-          {moverRows.map((m, i) => {
-            const sub = m.localizedName && m.localizedName !== m.shortName ? m.localizedName : m.category ?? '카드';
-            const pc = pctInfo(m.changePct, P);
+          <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+            {MOVER_TABS.map((t) => {
+              const on = t.id === moverTab;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setMoverTab(t.id)}
+                  style={{ border: 'none', cursor: 'pointer', padding: '6px 11px', borderRadius: 999, fontSize: 12, fontWeight: 700, fontFamily: 'inherit', background: on ? P.ink : P.tileBg, color: on ? P.bg : P.ink3 }}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+          {rankLoading && <div style={{ padding: '18px 0', fontSize: 12.5, color: P.ink3 }}>불러오는 중…</div>}
+          {!rankLoading && moverTab !== 'surge' && listRows.length === 0 && (
+            <div style={{ padding: '18px 0', fontSize: 12.5, color: P.ink3 }}>{moverTab === 'collection' ? '아직 등록된 컬렉션 카드가 없어요' : '랭킹 데이터가 아직 없어요'}</div>
+          )}
+          {listRows.map((m, i) => {
+            const sub = moverTab === 'collection'
+              ? `보유 ${m.holders ?? 0}명 · ${m.qty ?? 0}장${m.basis ? ` · ${m.basis}` : ''}`
+              : moverTab === 'snkr'
+                ? `${m.localizedName && m.localizedName !== m.shortName ? m.localizedName : '스니덩크 체결가'}${m.basis ? ` · ${m.basis}` : ''}`
+                : (m.localizedName && m.localizedName !== m.shortName ? m.localizedName : m.category ?? '카드');
+            const pc = moverTab === 'surge' ? pctInfo(m.changePct, P) : null;
             return (
               <Link
                 key={m.apparelId}

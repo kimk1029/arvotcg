@@ -108,6 +108,13 @@ const FEATURED_BY_ID = new Map(SNKRDUNK_FEATURED_CARDS.map((s) => [s.apparelId, 
  * 스타트)에도 마지막 홈이 즉시 그려지고, TTL 이 지나면 백그라운드로 갱신한다
  * (웹 CleanHome 페어). */
 const HOME_TTL_MS = 5 * 60_000;
+type MoverTab = 'surge' | 'snkr' | 'collection';
+type RankRow = { apparelId: number; shortName: string; localizedName?: string; imageUrl: string | null; minPrice: number; recentPrice?: number; basis?: string; holders?: number; qty?: number };
+const MOVER_TABS: { id: MoverTab; label: string; title: string }[] = [
+  { id: 'surge', label: '실시간 급등', title: '실시간 급등 카드' },
+  { id: 'snkr', label: 'SNKR 최고가', title: '스니덩크 체결가 TOP 10' },
+  { id: 'collection', label: '컬렉션 TOP', title: '회원 컬렉션 TOP 10' },
+];
 const HOT_PREFIX = 'home:hot:';
 const BOX_PREFIX = 'home:box:';
 const BANNERS_KEY = 'home:banners';
@@ -617,6 +624,27 @@ export function CleanHomeScreen() {
    * 목록 → 시세상세 이동. 목록이 보여준 등급 기준(basis)을 `?grade=` 로 실어 보내
    * 상세 첫 화면 헤드라인이 목록 가격과 같아지게 한다.
    */
+  // 하단 섹션 탭 (웹 CleanHome 동일): 급등 | SNKR 최고가 | 컬렉션 TOP — 랭킹 2종은 /api/snkrdunk/ranking.
+  const [moverTab, setMoverTab] = useState<MoverTab>('surge');
+  const [rankRows, setRankRows] = useState<Record<string, RankRow[]>>({});
+  const rankKey = `${moverTab}:${homeGame}`;
+  useEffect(() => {
+    if (moverTab === 'surge' || rankRows[rankKey]) return;
+    let alive = true;
+    (async () => {
+      const kind = moverTab === 'snkr' ? 'snkr' : 'collection';
+      let rows: RankRow[] = [];
+      try {
+        const r = await api<{ data?: RankRow[] }>(`/api/snkrdunk/ranking?game=${homeGame}&kind=${kind}&limit=10`, { auth: false });
+        rows = Array.isArray(r?.data) ? r.data : [];
+      } catch { /* 빈 목록으로 확정 */ }
+      if (alive) setRankRows((p) => ({ ...p, [rankKey]: rows }));
+    })();
+    return () => { alive = false; };
+  }, [moverTab, homeGame, rankKey, rankRows]);
+  const rankList = rankRows[rankKey];
+  const rankLoading = moverTab !== 'surge' && rankList === undefined;
+
   const openDetail = (apparelId: number) => {
     const b = basisById[apparelId];
     const q = b ? `?grade=${encodeURIComponent(b)}` : '';
@@ -1016,8 +1044,8 @@ export function CleanHomeScreen() {
           </View>
         ) : null}
 
-        {/* realtime movers */}
-        {snkrRows.length > 0 ? (
+        {/* realtime movers / rankings */}
+        {snkrRows.length > 0 || moverTab !== 'surge' ? (
           <View style={{ paddingHorizontal: 20, paddingBottom: 30 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
@@ -1025,11 +1053,47 @@ export function CleanHomeScreen() {
                   <Path d="m3 17 6-6 4 4 8-8" />
                   <Path d="M17 7h4v4" />
                 </Svg>
-                <Text style={ts(18, '800', P.ink)}>실시간 급등 카드</Text>
+                <Text style={ts(18, '800', P.ink)}>{MOVER_TABS.find((t) => t.id === moverTab)?.title}</Text>
               </View>
               <MoreLink onPress={() => router.push(`/cards/snkrdunk?game=${homeGame}` as never)} />
             </View>
-            {[...snkrRows]
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
+              {MOVER_TABS.map((t) => {
+                const on = t.id === moverTab;
+                return (
+                  <Pressable key={t.id} onPress={() => setMoverTab(t.id)} style={{ paddingVertical: 6, paddingHorizontal: 11, borderRadius: 999, backgroundColor: on ? P.ink : P.tileBg }}>
+                    <Text style={ts(12, '700', on ? P.bg : P.ink3)}>{t.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {rankLoading ? <Text style={[ts(12.5, '400', P.ink3), { paddingVertical: 18 }]}>불러오는 중…</Text> : null}
+            {!rankLoading && moverTab !== 'surge' && (rankList?.length ?? 0) === 0 ? (
+              <Text style={[ts(12.5, '400', P.ink3), { paddingVertical: 18 }]}>{moverTab === 'collection' ? '아직 등록된 컬렉션 카드가 없어요' : '랭킹 데이터가 아직 없어요'}</Text>
+            ) : null}
+            {moverTab !== 'surge' && rankList ? rankList.map((m, i) => {
+              const sub = moverTab === 'collection'
+                ? `보유 ${m.holders ?? 0}명 · ${m.qty ?? 0}장${m.basis ? ` · ${m.basis}` : ''}`
+                : `${m.localizedName && m.localizedName !== m.shortName ? m.localizedName : '스니덩크 체결가'}${m.basis ? ` · ${m.basis}` : ''}`;
+              return (
+                <Pressable
+                  key={m.apparelId}
+                  onPress={() => openDetail(m.apparelId)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: P.line }}
+                >
+                  <Text style={[ts(15, '800', i < 3 ? P.rise : P.ink), { width: 14, textAlign: 'center' }]}>{i + 1}</Text>
+                  <CardArt imageUrl={m.imageUrl} fallbackIdx={i} width={46} height={46} radius={9} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text numberOfLines={1} style={ts(14, '700', P.ink)}>{m.shortName}</Text>
+                    <Text numberOfLines={1} style={[ts(12, '400', P.ink3), { marginTop: 2 }]}>{sub}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={ts(14.5, '900', P.ink)}>{fmtPrice(m.recentPrice ?? m.minPrice)}</Text>
+                  </View>
+                </Pressable>
+              );
+            }) : null}
+            {moverTab === 'surge' ? [...snkrRows]
               .sort((a, b) => (changeById[b.seed.apparelId] ?? -Infinity) - (changeById[a.seed.apparelId] ?? -Infinity))
               .map(({ seed, data }, i) => {
                 const pc = pctInfo(changeById[seed.apparelId], P);
@@ -1051,7 +1115,7 @@ export function CleanHomeScreen() {
                     </View>
                   </Pressable>
                 );
-              })}
+              }) : null}
           </View>
         ) : null}
       </ScrollView>

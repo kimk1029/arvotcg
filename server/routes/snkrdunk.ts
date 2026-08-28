@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { DAILY_SNAPSHOT_STATE } from '../lib/dailyPriceSnapshot.js';
 import { kstDateKey, kstDayStart } from '../../shared/kst';
@@ -404,6 +405,115 @@ router.get('/apparels/:id/sales-chart', async (req: Request, res: Response) => {
       .json({ data: null, reason: 'SNKRDUNK 시세 차트를 가져오지 못했습니다.' });
   }
   res.json({ data });
+});
+
+/**
+ * 홈 랭킹 — GET /api/snkrdunk/ranking?game=pokemon&kind=snkr|collection&limit=10
+ *  - snkr:       스니덩크 카탈로그 전체(싱글) 중 대표 체결가가 가장 높은 카드 TOP N.
+ *                대표가 = headlinePrice(시세상세 헤드라인) → PSA10 → raw 싱글 → 최저가 순 폴백.
+ *                최근 RANKING_SNAPSHOT_DAYS 일 내 최신 스냅샷만 사용(오래된 값이 순위를 차지하지 않게).
+ *  - collection: 회원 컬렉션(user_cards)에 등록된 카드 중 시세 높은 순 TOP N.
+ *                스니덩크 시세 연동 카드(snkrdunkApparelId)만 — 직접 입력/수동 등록 카드는 제외.
+ *                holders = 보유 회원 수, qty = 총 등록 수량.
+ *  응답 행은 SnkrdunkRow 와 호환(apparelId·shortName·localizedName·imageUrl·recentPrice·basis·minPrice).
+ */
+const RANKING_SNAPSHOT_DAYS = 21;
+const RANKING_TTL_MS = 30 * 60 * 1000;
+const rankingCache = new Map<string, { t: number; data: unknown[] }>();
+
+interface RankingRawRow {
+  apparelId: number;
+  shortName: string;
+  name: string;
+  localizedName: string;
+  imageUrl: string | null;
+  cdnImageUrl: string | null;
+  minPrice: number;
+  priceSingle: number;
+  pricePsa10: number;
+  headlinePrice: number;
+  headlineBasis: string | null;
+  holders?: number;
+  qty?: number;
+}
+
+function representativePrice(r: RankingRawRow): { price: number; basis: string } {
+  if (r.headlinePrice > 0) return { price: r.headlinePrice, basis: r.headlineBasis || 'RAW' };
+  if (r.pricePsa10 > 0) return { price: r.pricePsa10, basis: 'PSA 10' };
+  if (r.priceSingle > 0) return { price: r.priceSingle, basis: 'RAW' };
+  return { price: r.minPrice, basis: 'RAW' };
+}
+
+router.get('/ranking', async (req: Request, res: Response) => {
+  const game = typeof req.query.game === 'string' && /^[a-z]+$/.test(req.query.game) ? req.query.game : 'pokemon';
+  const kind = req.query.kind === 'collection' ? 'collection' : 'snkr';
+  const limitRaw = Number(req.query.limit ?? 10);
+  const limit = Math.max(1, Math.min(30, Number.isFinite(limitRaw) ? Math.round(limitRaw) : 10));
+  const key = `${kind}:${game}:${limit}`;
+  const hit = rankingCache.get(key);
+  if (hit && Date.now() - hit.t < RANKING_TTL_MS) {
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    return res.json({ data: hit.data, cachedAt: new Date(hit.t).toISOString() });
+  }
+  const since = new Date(Date.now() - RANKING_SNAPSHOT_DAYS * 86_400_000);
+  // 대표가 SQL 식 — representativePrice() 와 같은 폴백 순서.
+  const priceExpr = Prisma.sql`COALESCE(NULLIF(s."headlinePrice",0), NULLIF(s."pricePsa10",0), NULLIF(s."priceSingle",0), s."minPrice")`;
+  try {
+    let rows: RankingRawRow[];
+    if (kind === 'snkr') {
+      rows = await prisma.$queryRaw<RankingRawRow[]>`
+        WITH latest AS (
+          SELECT DISTINCT ON ("apparelId") "apparelId", "minPrice", "priceSingle", "pricePsa10", "headlinePrice", "headlineBasis"
+          FROM "snkrdunk_price_snapshots"
+          WHERE "fetchedAt" >= ${since}
+          ORDER BY "apparelId", "fetchedAt" DESC
+        )
+        SELECT c."apparelId", c."shortName", c."name", c."localizedName", c."imageUrl", c."cdnImageUrl",
+               s."minPrice", s."priceSingle", s."pricePsa10", s."headlinePrice", s."headlineBasis"
+        FROM latest s JOIN "snkrdunk_cards" c ON c."apparelId" = s."apparelId"
+        WHERE c."itemKind" = 'single' AND c."game" = ${game} AND ${priceExpr} > 0
+        ORDER BY ${priceExpr} DESC
+        LIMIT ${limit}`;
+    } else {
+      rows = await prisma.$queryRaw<RankingRawRow[]>`
+        WITH held AS (
+          SELECT "snkrdunkApparelId" AS "apparelId", COUNT(DISTINCT "userId")::int AS holders, SUM("qty")::int AS qty
+          FROM "user_cards" WHERE "snkrdunkApparelId" IS NOT NULL GROUP BY 1
+        ), latest AS (
+          SELECT DISTINCT ON ("apparelId") "apparelId", "minPrice", "priceSingle", "pricePsa10", "headlinePrice", "headlineBasis"
+          FROM "snkrdunk_price_snapshots"
+          WHERE "apparelId" IN (SELECT "apparelId" FROM held)
+          ORDER BY "apparelId", "fetchedAt" DESC
+        )
+        SELECT c."apparelId", c."shortName", c."name", c."localizedName", c."imageUrl", c."cdnImageUrl",
+               s."minPrice", s."priceSingle", s."pricePsa10", s."headlinePrice", s."headlineBasis", h.holders, h.qty
+        FROM held h JOIN latest s ON s."apparelId" = h."apparelId" JOIN "snkrdunk_cards" c ON c."apparelId" = h."apparelId"
+        WHERE c."game" = ${game} AND ${priceExpr} > 0
+        ORDER BY ${priceExpr} DESC
+        LIMIT ${limit}`;
+    }
+    const data = rows.map((r) => {
+      const rep = representativePrice(r);
+      return {
+        apparelId: Number(r.apparelId),
+        shortName: r.shortName || r.name,
+        localizedName: r.localizedName || undefined,
+        imageUrl: r.cdnImageUrl || r.imageUrl || null,
+        category: null,
+        minPrice: Number(r.minPrice),
+        recentPrice: rep.price,
+        basis: rep.basis,
+        listingCountText: '',
+        ...(kind === 'collection' ? { holders: Number(r.holders ?? 0), qty: Number(r.qty ?? 0) } : {}),
+      };
+    });
+    rankingCache.set(key, { t: Date.now(), data });
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json({ data, cachedAt: new Date().toISOString() });
+  } catch (err) {
+    console.error('[snkrdunk.ranking]', err);
+    res.status(500).json({ error: 'ranking failed' });
+  }
 });
 
 export default router;
