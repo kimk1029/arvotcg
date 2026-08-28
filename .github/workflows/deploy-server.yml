@@ -8,7 +8,7 @@ name: Deploy Server
 #
 #   nas   : SSH_HOST / SSH_USER / SSH_KEY / SSH_PORT        + SERVER_ENV
 #   vultr : VULTR_SSH_HOST / VULTR_SSH_USER / VULTR_SSH_KEY / VULTR_SSH_PORT
-#           + VULTR_SERVER_ENV (없으면 SERVER_ENV 재사용)
+#           + VULTR_SERVER_ENV (없으면 서버의 기존 server/.env 유지)
 #
 # VULTR_SSH_HOST 시크릿이 비어있으면 vultr 대상은 **조용히 건너뛴다** —
 # 인스턴스를 만들기 전에도 이 워크플로가 깨지지 않는다.
@@ -88,8 +88,9 @@ jobs:
           # `.env` 는 .gitignore 라 git pull 로 안 옴. GitHub Secret 에
           # `.env` 파일 내용 전체를 넣어두면 배포 시 server/.env 로 기록.
           # 비워두면 대상 서버에 이미 놓인 파일을 그대로 사용.
-          # vultr 는 전용 시크릿이 없으면 NAS 와 같은 SERVER_ENV 를 재사용한다.
-          SERVER_ENV_CONTENT: ${{ secrets[matrix.env_secret] || secrets.SERVER_ENV }}
+          # 대상별 전용 시크릿만 사용한다. vultr(운영) 에 VULTR_SERVER_ENV 가 없으면
+          # NAS(stage) 의 SERVER_ENV 로 덮어쓰지 않고 서버에 있는 .env 를 유지한다.
+          SERVER_ENV_CONTENT: ${{ secrets[matrix.env_secret] }}
           DEPLOY_DIR: ${{ matrix.dir }}
           DEPLOY_TARGET: ${{ matrix.target }}
         with:
