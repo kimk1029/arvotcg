@@ -110,6 +110,22 @@ export function HeroSlider({ slides, compact = false }: HeroSliderProps = {}) {
   const [showRally, setShowRally] = useState(false);
   const startX = useRef(0);
   const dragged = useRef(false);
+  // 래퍼 높이를 "현재 슬라이드"의 실제 높이에 맞춘다 — 이미지 슬라이드는 어드민이 올린 이미지
+  // 비율 그대로(위아래 여백 없음), 텍스트 슬라이드는 자기 콘텐츠 높이. 전환 시 높이 트랜지션.
+  const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [wrapH, setWrapH] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    const el = slideRefs.current[cur];
+    if (!el) return;
+    const measure = () => setWrapH(el.offsetHeight);
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    // 이미지 로드 후 높이가 정해지는 경우
+    const img = el.querySelector('img');
+    img?.addEventListener('load', measure);
+    return () => { ro?.disconnect(); img?.removeEventListener('load', measure); };
+  }, [cur, SLIDES.length]);
   const tmr = useRef<ReturnType<typeof setInterval> | null>(null);
   const n = SLIDES.length;
 
@@ -167,6 +183,7 @@ export function HeroSlider({ slides, compact = false }: HeroSliderProps = {}) {
     <>
       <div
         className={`hero-wrap${compact ? ' hero-wrap--compact' : ''}`}
+        style={wrapH ? { height: wrapH } : undefined}
         onTouchStart={(e) => {
           startX.current = e.touches[0].clientX;
           dragged.current = false;
@@ -190,6 +207,7 @@ export function HeroSlider({ slides, compact = false }: HeroSliderProps = {}) {
           {SLIDES.map((sl, i) => (
             <div
               key={i}
+              ref={(el) => { slideRefs.current[i] = el; }}
               className={`hero-slide ${sl.cls}${sl.onClick || sl.linkUrl ? ' clickable' : ''}${sl.fullImage ? ' hero-slide--image' : ''}`}
               onClick={() => handleSlideClick(sl)}
               role={sl.onClick || sl.linkUrl ? 'button' : undefined}

@@ -114,10 +114,14 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
       Image.getSize(uri, (w, h) => { if (w > 0 && h > 0) setAspect((m) => ({ ...m, [uri]: w / h })); }, () => {});
     }
   }, [data, aspect]);
-  const imgHeights = data
-    .filter((s) => s.visualType === 'image')
-    .map((s) => { const a = aspect[imageUri(s.visualValue)]; return a ? width / a : 0; });
-  const slideHeight = Math.round(Math.max(TEXT_SLIDE_H, ...imgHeights));
+  // 슬라이드별 높이: 이미지 = 폭 ÷ 비율(어드민 이미지 그대로, 여백 없음), 텍스트 = 176.
+  // 컨테이너 높이는 "현재 슬라이드" 높이를 따른다(웹 HeroSlider wrapH 와 동일).
+  const heightOf = (s: HeroSlideData): number => {
+    if (s.visualType !== 'image') return TEXT_SLIDE_H;
+    const a = aspect[imageUri(s.visualValue)];
+    return a ? Math.round(width / a) : TEXT_SLIDE_H;
+  };
+  const slideHeight = heightOf(data[Math.min(idx, data.length - 1)] ?? data[0]);
 
   // 자동 회전 (4초). 슬라이드 1개면 미적용.
   useEffect(() => {
@@ -150,7 +154,7 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
 
   const track = (
     <View
-      style={{ overflow: 'hidden' }}
+      style={{ overflow: 'hidden', height: slideHeight }}
       onLayout={(e) => {
         const w = e.nativeEvent.layout.width;
         if (w > 0 && Math.abs(w - width) > 1) setWidth(w);
@@ -171,7 +175,7 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
               onPress={() => go(s)}
               style={({ pressed }) => ({
                 width,
-                height: slideHeight,
+                height: heightOf(s),
                 backgroundColor: bg,
                 paddingVertical: 20,
                 paddingHorizontal: 20,
@@ -184,7 +188,7 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
                 // 이미지 슬라이드 — 어드민 업로드 이미지가 배너 전체를 꽉 채운다(웹 .hero-slide--image 와 동일).
                 <Image
                   source={shotSource(imageUri(s.visualValue))}
-                  style={{ position: 'absolute', left: 0, top: 0, width, height: slideHeight }}
+                  style={{ position: 'absolute', left: 0, top: 0, width, height: heightOf(s) }}
                   resizeMode="contain"
                 />
               ) : (

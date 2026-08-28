@@ -188,7 +188,9 @@ a{color:inherit;text-decoration:none;}
   box-shadow:
     0 -4px 0 var(--ink),0 4px 0 var(--ink),
     inset 0 4px 0 rgba(255,255,255,.2),inset 0 -4px 0 rgba(0,0,0,.3);}
-.hero-track{display:flex;transition:transform .35s steps(8);}
+.hero-track{display:flex;align-items:flex-start;transition:transform .35s steps(8);}
+/* 래퍼 높이는 HeroSlider 가 현재 슬라이드 높이로 지정(인라인) — 슬라이드 간 높이 차를 부드럽게 */
+.hero-wrap{transition:height .3s ease;}
 .hero-slide{min-width:100%;padding:14px 16px 28px;color:var(--white);position:relative;overflow:hidden;}
 .hero-slide::before{content:'';position:absolute;inset:0;
   background-image:
@@ -206,7 +208,7 @@ a{color:inherit;text-decoration:none;}
 /* 가로 100% · 높이는 이미지 비율대로 — 좌우가 절대 잘리지 않는다. 트랙의 다른(텍스트) 슬라이드는
    flex stretch 로 같은 높이가 되며, 이미지가 텍스트 슬라이드(≈176px)보다 낮으면 위아래 여백은 --ink. */
 .hero-bg{position:static;width:100%;height:auto;display:block;user-select:none;}
-.hero-slide:not(.hero-slide--image){display:flex;flex-direction:column;justify-content:center;}
+.hero-slide:not(.hero-slide--image){display:flex;flex-direction:column;justify-content:center;min-height:176px;}
 .hero-wrap--compact .hero-slide--image{padding:0;}
 .hero-slide.clickable{cursor:pointer;}
 .hero-slide.clickable:active{transform:translate(1px,1px);}
