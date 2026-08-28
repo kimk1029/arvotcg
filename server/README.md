@@ -37,3 +37,5 @@ Returns `CardScanResponse` (see `mobile/src/types/cardScan.ts`).
   for number/set/rarity and multilingual OCR for Korean/Japanese/English names.
 - **Vision (opt-in)** — set `OPENAI_API_KEY` in `.env`. Routes to GPT-4o-mini
   vision for full-card extraction including Korean names.
+
+<!-- 2026-08-29: Vultr 자동 배포 시크릿 등록 후 첫 트리거 (deploy-server vultr 잡 검증) -->
