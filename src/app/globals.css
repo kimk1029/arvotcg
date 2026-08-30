@@ -184,14 +184,12 @@ a{color:inherit;text-decoration:none;}
 /* ── HERO SLIDER ── */
 /* 좌우 풀블리드(패딩 없이 화면 끝까지) — 좌우 마진 0, 측면 보더·대각 그림자는
    풀블리드에서 잘려 보이므로 제거하고 상하 픽셀 보더만 유지. */
-.hero-wrap{margin:var(--gap) 0 var(--cg);position:relative;overflow:hidden;
+.hero-wrap{margin:var(--gap) 0 var(--cg);position:relative;overflow:hidden;height:176px;
   box-shadow:
     0 -4px 0 var(--ink),0 4px 0 var(--ink),
     inset 0 4px 0 rgba(255,255,255,.2),inset 0 -4px 0 rgba(0,0,0,.3);}
-.hero-track{display:flex;align-items:flex-start;transition:transform .35s steps(8);}
-/* 래퍼 높이는 HeroSlider 가 현재 슬라이드 높이로 지정(인라인) — 슬라이드 간 높이 차를 부드럽게 */
-.hero-wrap{transition:height .3s ease;}
-.hero-slide{min-width:100%;padding:14px 16px 28px;color:var(--white);position:relative;overflow:hidden;}
+.hero-track{display:flex;align-items:stretch;height:100%;transition:transform .35s steps(8);}
+.hero-slide{min-width:100%;height:176px;padding:14px 16px 28px;color:var(--white);position:relative;overflow:hidden;}
 .hero-slide::before{content:'';position:absolute;inset:0;
   background-image:
     linear-gradient(rgba(255,255,255,.07) 2px,transparent 2px),
@@ -205,10 +203,9 @@ a{color:inherit;text-decoration:none;}
 /* 이미지 슬라이드 — 업로드 이미지가 배너 영역 전체를 채움(앱 HeroBanner 와 동일, 높이 176 기준) */
 .hero-slide--image{padding:0;display:flex;align-items:center;background:var(--ink);}
 .hero-slide--image::before{display:none;}
-/* 가로 100% · 높이는 이미지 비율대로 — 좌우가 절대 잘리지 않는다. 트랙의 다른(텍스트) 슬라이드는
-   flex stretch 로 같은 높이가 되며, 이미지가 텍스트 슬라이드(≈176px)보다 낮으면 위아래 여백은 --ink. */
-.hero-bg{position:static;width:100%;height:auto;display:block;user-select:none;}
-.hero-slide:not(.hero-slide--image){display:flex;flex-direction:column;justify-content:center;min-height:176px;}
+/* 모든 배너를 100% × 176px 로 고정한다. 원본 비율은 보존하고 넘치는 가장자리만 잘라낸다. */
+.hero-bg{position:static;width:100%;height:176px;object-fit:cover;display:block;user-select:none;}
+.hero-slide:not(.hero-slide--image){display:flex;flex-direction:column;justify-content:center;}
 .hero-wrap--compact .hero-slide--image{padding:0;}
 .hero-slide.clickable{cursor:pointer;}
 .hero-slide.clickable:active{transform:translate(1px,1px);}

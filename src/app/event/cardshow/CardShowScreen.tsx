@@ -24,6 +24,12 @@ interface Slot {
 interface SlotsResp {
   loggedIn: boolean;
   mySlotId: number | null;
+  myReservation: {
+    slotId: number;
+    reservedAt: string;
+    checkedInAt: string | null;
+    slot: Pick<Slot, 'id' | 'date' | 'time' | 'capacity'>;
+  } | null;
   slots: Slot[];
 }
 
@@ -72,6 +78,7 @@ export function CardShowScreen() {
   const [failed, setFailed] = useState(false);
   // 슬롯 클릭 → 바로 실행하지 않고 확인 모달을 먼저 띄운다 (예약/이동/취소 공통).
   const [confirm, setConfirm] = useState<Slot | null>(null);
+  const [showCheckInConfirm, setShowCheckInConfirm] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -121,6 +128,27 @@ export function CardShowScreen() {
           );
         }
       }
+      await load();
+    } catch {
+      setNotice('요청에 실패했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const checkIn = async () => {
+    if (busy || !data?.myReservation) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const r = await call('/api/cardshow/check-in', { method: 'POST', body: '{}' });
+      const j = (await r.json().catch(() => null)) as { error?: string } | null;
+      if (!r.ok) {
+        setNotice(j?.error ?? '입장 확인에 실패했어요. 다시 시도해 주세요.');
+        return;
+      }
+      setShowCheckInConfirm(false);
+      setNotice('입장 확인이 완료되었습니다. 즐거운 관람 되세요! 🎉');
       await load();
     } catch {
       setNotice('요청에 실패했어요. 잠시 후 다시 시도해 주세요.');
@@ -185,6 +213,39 @@ export function CardShowScreen() {
 
   return shell(
     <>
+      {data.myReservation ? (() => {
+        const mySlot = data.slots.find((s) => s.id === data.myReservation!.slotId) ?? data.myReservation.slot;
+        const checkedIn = Boolean(data.myReservation.checkedInAt);
+        return (
+          <section style={{ marginBottom: 20, padding: '18px 18px 16px', borderRadius: 18, background: checkedIn ? 'rgba(45,212,191,0.14)' : 'rgba(255,210,63,0.12)', border: `2px solid ${checkedIn ? P.teal : P.gold}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <div style={{ color: checkedIn ? P.teal : P.gold, fontSize: 12, fontWeight: 900, letterSpacing: 1.5 }}>
+                  {checkedIn ? '✓ 입장 완료' : 'MY RESERVATION'}
+                </div>
+                <div style={{ marginTop: 7, fontSize: 21, fontWeight: 900 }}>
+                  {mySlot.date.replace(/-/g, '.')} ({weekdayKo(mySlot.date)}) {mySlot.time}
+                </div>
+              </div>
+              <div style={{ fontSize: 36 }}>{checkedIn ? '✅' : '🎟️'}</div>
+            </div>
+            {checkedIn ? (
+              <div style={{ marginTop: 13, paddingTop: 12, borderTop: `1px solid ${P.line}`, color: P.sub, fontSize: 12.5 }}>
+                입장 확인 시각: {new Date(data.myReservation.checkedInAt!).toLocaleString('ko-KR')}
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowCheckInConfirm(true)}
+                disabled={busy}
+                style={{ width: '100%', marginTop: 16, padding: '13px 16px', border: 'none', borderRadius: 12, background: P.gold, color: '#3A2D00', fontSize: 15, fontWeight: 900, cursor: 'pointer' }}
+              >
+                담당자 확인
+              </button>
+            )}
+          </section>
+        );
+      })() : null}
+
       {/* 날짜 탭 */}
       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6, marginBottom: 16 }}>
         {dates.map((d, i) => {
@@ -221,7 +282,10 @@ export function CardShowScreen() {
             <button
               key={s.id}
               disabled={full || busy}
-              onClick={() => setConfirm(s)}
+              onClick={() => {
+                if (mine && data.myReservation?.checkedInAt) return;
+                setConfirm(s);
+              }}
               style={{
                 padding: '16px 12px', borderRadius: 16, cursor: full ? 'default' : 'pointer',
                 border: `2px solid ${mine ? P.gold : full ? 'transparent' : P.line}`,
@@ -253,7 +317,37 @@ export function CardShowScreen() {
           onClose={() => setConfirm(null)}
         />
       ) : null}
+
+      {showCheckInConfirm ? (
+        <CheckInConfirmModal
+          busy={busy}
+          onConfirm={checkIn}
+          onClose={() => setShowCheckInConfirm(false)}
+        />
+      ) : null}
     </>,
+  );
+}
+
+function CheckInConfirmModal({ busy, onConfirm, onClose }: { busy: boolean; onConfirm: () => void; onClose: () => void }) {
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'rgba(0,0,0,0.68)', backdropFilter: 'blur(3px)' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 380, borderRadius: 20, padding: '26px 22px 20px', background: '#12233F', border: `1px solid ${P.line}`, boxShadow: '0 18px 50px rgba(0,0,0,0.5)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 42 }}>🧑‍💼</div>
+          <h3 style={{ margin: '10px 0 8px', fontSize: 19, fontWeight: 900 }}>현장 담당자 확인</h3>
+          <p style={{ margin: '0 0 20px', color: P.sub, fontSize: 13.5, lineHeight: 1.65 }}>
+            예약자와 방문 시간을 확인하셨나요?<br />확인하면 입장 완료 처리되며 예약을 변경하거나 취소할 수 없습니다.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onClose} disabled={busy} style={{ flex: 1, padding: '13px 0', borderRadius: 12, border: `1px solid ${P.line}`, background: 'transparent', color: P.sub, fontSize: 14.5, fontWeight: 800, cursor: 'pointer' }}>돌아가기</button>
+          <button onClick={onConfirm} disabled={busy} style={{ flex: 1.4, padding: '13px 0', borderRadius: 12, border: 'none', background: P.teal, color: '#043', fontSize: 14.5, fontWeight: 900, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+            {busy ? '처리 중…' : '입장 완료 확인'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

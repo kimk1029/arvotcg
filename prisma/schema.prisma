@@ -169,6 +169,8 @@ model CardShowReservation {
   userId    String
   user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime     @default(now())
+  /// 현장 담당자가 사용자 예약 화면에서 입장을 확정한 시각
+  checkedInAt DateTime?
 
   @@unique([userId])
   @@index([slotId])

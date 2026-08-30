@@ -20,11 +20,27 @@ router.get('/slots', optionalAuth, async (req: Request, res: Response) => {
     });
     const userId = req.user?.userId ?? null;
     const mine = userId
-      ? await prisma.cardShowReservation.findUnique({ where: { userId }, select: { slotId: true } })
+      ? await prisma.cardShowReservation.findUnique({
+          where: { userId },
+          select: {
+            slotId: true,
+            createdAt: true,
+            checkedInAt: true,
+            slot: { select: { id: true, date: true, time: true, capacity: true } },
+          },
+        })
       : null;
     res.json({
       loggedIn: Boolean(userId),
       mySlotId: mine?.slotId ?? null,
+      myReservation: mine
+        ? {
+            slotId: mine.slotId,
+            reservedAt: mine.createdAt.toISOString(),
+            checkedInAt: mine.checkedInAt?.toISOString() ?? null,
+            slot: mine.slot,
+          }
+        : null,
       slots: slots.map((s) => ({
         id: s.id,
         date: s.date,
@@ -60,6 +76,9 @@ router.post('/reserve', requireAuth, async (req: Request, res: Response) => {
       });
       if (!slot || !slot.active) return { status: 404 as const, error: '존재하지 않는 시간대예요' };
       const existing = await tx.cardShowReservation.findUnique({ where: { userId } });
+      if (existing?.checkedInAt) {
+        return { status: 409 as const, error: '이미 입장 완료된 예약은 변경할 수 없어요' };
+      }
       if (existing?.slotId === slotId) return { status: 200 as const, slotId };
       // 정원 체크 (내 기존 예약이 같은 슬롯이 아닐 때만 잔여 필요)
       if (slot._count.reservations >= slot.capacity) {
@@ -83,10 +102,35 @@ router.post('/reserve', requireAuth, async (req: Request, res: Response) => {
 /** DELETE /api/cardshow/reserve — 내 예약 취소. */
 router.delete('/reserve', requireAuth, async (req: Request, res: Response) => {
   try {
+    const existing = await prisma.cardShowReservation.findUnique({ where: { userId: req.user!.userId } });
+    if (existing?.checkedInAt) {
+      return res.status(409).json({ error: '이미 입장 완료된 예약은 취소할 수 없어요' });
+    }
     await prisma.cardShowReservation.deleteMany({ where: { userId: req.user!.userId } });
     res.json({ ok: true });
   } catch (err) {
     console.error('[cardshow.cancel]', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+/** POST /api/cardshow/check-in — 현장에서 내 예약 화면을 담당자가 확인한 뒤 입장 완료 처리. */
+router.post('/check-in', requireAuth, async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  try {
+    const reservation = await prisma.cardShowReservation.findUnique({ where: { userId } });
+    if (!reservation) return res.status(404).json({ error: '예약 내역이 없어요' });
+    if (reservation.checkedInAt) {
+      return res.json({ ok: true, checkedInAt: reservation.checkedInAt.toISOString(), alreadyCheckedIn: true });
+    }
+    const updated = await prisma.cardShowReservation.update({
+      where: { userId },
+      data: { checkedInAt: new Date() },
+      select: { checkedInAt: true },
+    });
+    res.json({ ok: true, checkedInAt: updated.checkedInAt!.toISOString() });
+  } catch (err) {
+    console.error('[cardshow.check-in]', userId, err);
     res.status(500).json({ error: 'internal' });
   }
 });
