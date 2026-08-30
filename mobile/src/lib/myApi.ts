@@ -266,6 +266,11 @@ export function blockUser(userId: string): Promise<{ ok?: boolean; error?: strin
   });
 }
 
+/** 본인 피드 게시물 즉시 삭제 — DELETE /api/feeds/:id. */
+export function deleteFeed(feedId: number): Promise<void> {
+  return api(`/api/feeds/${feedId}`, { method: 'DELETE' }).then(() => undefined);
+}
+
 /** 차단 해제 — DELETE /api/me/blocks/:userId. */
 export function unblockUser(userId: string): Promise<{ ok?: boolean; error?: string }> {
   return api<{ ok?: boolean; error?: string }>(`/api/me/blocks/${encodeURIComponent(userId)}`, {
@@ -593,10 +598,13 @@ export async function fetchPackHits(code: string, limit = 30): Promise<PackWithH
   try {
     const r = await api<{ data: PackWithHits }>(
       `/api/card-packs/${encodeURIComponent(code)}?limit=${limit}`,
-      { auth: false },
+      // 신규 팩의 첫 DB 적재만 외부 그룹 조회가 필요할 수 있다. GET 1회 재시도와
+      // 넉넉한 상한을 주되, 서버의 stale 캐시 경로는 보통 즉시 반환된다.
+      { auth: false, timeoutMs: 45_000 },
     );
     const data = r.data ?? null;
-    if (data) packHitsCache.set(key, { data, at: Date.now() });
+    // 일시적인 upstream 빈 결과를 15분간 고정하지 않는다.
+    if (data && data.hits.length > 0) packHitsCache.set(key, { data, at: Date.now() });
     return data;
   } catch (err) {
     // 웹 loadPack 과 동일 — 없는 팩 코드는 null (화면이 '팩을 찾지 못했어요' 표시).

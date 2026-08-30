@@ -987,14 +987,21 @@ router.delete('/blocks/:userId', async (req: Request, res: Response) => {
 
 /**
  * DELETE /api/me — 회원 탈퇴 (App Store 5.1.1(v) 계정 삭제 요건).
- * User 행 삭제 → 개인 데이터(컬렉션·관심·알림·쪽지 등)는 스키마 onDelete: Cascade 로
- * 함께 삭제되고, 게시물(거래글·피드·댓글)은 SetNull 로 작성자만 익명 처리 —
- * 약관 제5조·개인정보처리방침(탈퇴 시 게시물 익명 유지)과 일치.
+ * 익명 UGC를 허용하지 않으므로 작성한 피드·댓글·거래글·이벤트 글도 함께 삭제한다.
+ * 나머지 개인 데이터는 User 삭제 시 스키마의 Cascade 정책으로 삭제된다.
  */
 router.delete('/', async (req: Request, res: Response) => {
   const userId = req.user!.userId;
   try {
-    await prisma.user.delete({ where: { id: userId } });
+    await prisma.$transaction(async (tx) => {
+      // 부모 글 삭제 전에 다른 사용자의 글에 남긴 댓글부터 제거한다.
+      await tx.feedComment.deleteMany({ where: { authorId: userId } });
+      await tx.eventPostComment.deleteMany({ where: { authorId: userId } });
+      await tx.feed.deleteMany({ where: { authorId: userId } });
+      await tx.trade.deleteMany({ where: { authorId: userId } });
+      await tx.eventPost.deleteMany({ where: { authorId: userId } });
+      await tx.user.delete({ where: { id: userId } });
+    });
     res.json({ ok: true });
   } catch (err) {
     const e = err as { code?: string };

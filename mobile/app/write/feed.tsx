@@ -176,6 +176,9 @@ export default function WriteFeed() {
     <View style={{ flex: 1, backgroundColor: tc.paper }}>
       <AppBar title="커뮤니티 글 작성" onBack={() => router.back()} />
       <ScrollView contentContainerStyle={{ padding: space.gap, gap: 10, paddingBottom: 110 }}>
+        <PixelText variant="ko" size={10} color={tc.ink3} style={{ lineHeight: 17 }}>
+          🔒 익명 게시가 아닙니다. 게시물에 계정 닉네임이 공개됩니다.
+        </PixelText>
         {/* 카테고리 — 웹 WriteScreen 동일 */}
         <PixelText variant="ko" size={11} weight="bold">
           🏷 카테고리

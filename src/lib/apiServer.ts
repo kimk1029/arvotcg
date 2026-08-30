@@ -33,7 +33,13 @@ interface ServerFetchOpts {
    * 인증 호출(auth)에는 쓰지 말 것 (사용자 간 응답이 섞인다).
    */
   revalidate?: number;
+  /** 헤더+본문 전체 응답 제한. 공용 조회 기본 30초. */
+  timeoutMs?: number;
+  /** GET 일시 장애 재시도 횟수. 기본 1회. */
+  retries?: number;
 }
+
+const RETRYABLE_STATUSES = new Set([502, 503, 504]);
 
 export async function serverFetch<T>(
   path: string,
@@ -47,27 +53,50 @@ export async function serverFetch<T>(
     if (session) headers['Cookie'] = `${session.name}=${session.value}`;
   }
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: opts.method ?? 'GET',
-      headers,
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-      ...(typeof opts.revalidate === 'number'
-        ? { next: { revalidate: opts.revalidate } }
-        : { cache: opts.cache ?? 'no-store' }),
-    });
-  } catch (err) {
-    console.error('[serverFetch] network', path, err);
-    return { ok: false, status: 0, data: null };
+  const method = opts.method ?? 'GET';
+  const retries = method === 'GET' ? Math.max(0, opts.retries ?? 1) : 0;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 30_000);
+    try {
+      const res = await fetch(url, {
+        method,
+        headers,
+        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        signal: controller.signal,
+        ...(typeof opts.revalidate === 'number'
+          ? { next: { revalidate: opts.revalidate } }
+          : { cache: opts.cache ?? 'no-store' }),
+      });
+      if (attempt < retries && RETRYABLE_STATUSES.has(res.status)) {
+        await res.arrayBuffer().catch(() => undefined);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        continue;
+      }
+      if (res.status === 204) return { ok: true, status: 204, data: null };
+      try {
+        const data = (await res.json()) as T;
+        return { ok: res.ok, status: res.status, data };
+      } catch {
+        return { ok: res.ok, status: res.status, data: null };
+      }
+    } catch (err) {
+      // Next가 정적 렌더 중 동적 사용을 감지하기 위해 던지는 제어 신호는
+      // 네트워크 오류가 아니다. 삼키거나 재시도하지 말고 프레임워크로 돌려보낸다.
+      if (err && typeof err === 'object' && 'digest' in err && err.digest === 'DYNAMIC_SERVER_USAGE') {
+        throw err;
+      }
+      console.error('[serverFetch] network', path, `attempt=${attempt + 1}`, err);
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        continue;
+      }
+      return { ok: false, status: 0, data: null };
+    } finally {
+      clearTimeout(timer);
+    }
   }
-  if (res.status === 204) return { ok: true, status: 204, data: null };
-  try {
-    const data = (await res.json()) as T;
-    return { ok: res.ok, status: res.status, data };
-  } catch {
-    return { ok: res.ok, status: res.status, data: null };
-  }
+  return { ok: false, status: 0, data: null };
 }
 
 export interface ServerSessionUser {

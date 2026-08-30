@@ -117,7 +117,7 @@ export function MyScreen({ user, level, points = 0, cardCount, tradeCount, saved
   // 회원 탈퇴 — App Store 5.1.1(v) 계정 삭제 요건. 확인 후 DELETE /api/me. 앱 my.tsx 와 페어.
   const handleDeleteAccount = async () => {
     const ok = window.confirm(
-      '계정과 컬렉션·관심카드·알림·쪽지가 모두 삭제됩니다.\n작성한 게시물은 익명으로 남습니다.\n이 작업은 되돌릴 수 없습니다.\n\n정말 탈퇴할까요?',
+      '계정과 컬렉션·관심카드·알림·쪽지 및 작성한 게시물·댓글이 모두 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.\n\n정말 탈퇴할까요?',
     );
     if (!ok) return;
     try {

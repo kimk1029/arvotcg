@@ -125,7 +125,7 @@ interface FeedPost {
   createdAt: string;
   user: string; // authorEmoji (아바타 id or 이모지)
   authorName?: string | null;
-  /** 작성자 id — 차단(신고) 기능용. null = 탈퇴/익명. */
+  /** 작성자 id — 차단(신고) 기능용. 회원 게시물은 항상 존재한다. */
   authorId?: string | null;
   authorBgId?: string;
   authorFrameId?: string;
@@ -283,7 +283,23 @@ export default function CommunityScreen() {
   const [feed, setFeed] = useState<FeedPost[]>(() => swrPeek<FeedPost[]>('feed:posts') ?? []);
   const [trades, setTrades] = useState<Trade[]>(() => swrPeek<Trade[]>('feed:trades') ?? []);
   const [loading, setLoading] = useState(() => swrPeek<FeedPost[]>('feed:posts') === null);
+  const [loadError, setLoadError] = useState(false);
+  const removeBlockedUser = useCallback((blockedUserId: string) => {
+    setFeed((current) => {
+      const next = current.filter((post) => post.authorId !== blockedUserId);
+      swrSet('feed:posts', next);
+      return next;
+    });
+  }, []);
+  const removePost = useCallback((targetId: number) => {
+    setFeed((current) => {
+      const next = current.filter((post) => post.id !== targetId);
+      swrSet('feed:posts', next);
+      return next;
+    });
+  }, []);
   const load = useCallback(async () => {
+    setLoadError(false);
     // 로그인 상태면 Bearer 첨부 → 서버가 차단한 작성자 글을 걸러서 내려준다.
     const [f, t] = await Promise.all([
       api<{ items: FeedPost[] }>('/api/feeds?limit=20').catch(() => ({ items: null as FeedPost[] | null })),
@@ -298,6 +314,7 @@ export default function CommunityScreen() {
       setTrades(t.data);
       swrSet('feed:trades', t.data);
     }
+    if (!f.items || !t.data) setLoadError(true);
     setLoading(false);
   }, []);
   useEffect(() => {
@@ -501,6 +518,15 @@ export default function CommunityScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={false} onRefresh={load} />}
       >
+        {loadError ? (
+          <Pressable
+            onPress={load}
+            style={{ marginHorizontal: 16, marginTop: 12, paddingVertical: 11, paddingHorizontal: 14, borderRadius: 12, backgroundColor: P.redSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+          >
+            <Text style={ts(12.5, '700', P.red)}>네트워크가 불안정해 일부 내용을 불러오지 못했어요.</Text>
+            <Text style={ts(12.5, '800', P.red)}>다시 시도</Text>
+          </Pressable>
+        ) : null}
         {/* 전체 탭에서만 인기글 + HOT 키워드 노출. 그 외 카테고리는 목록만. */}
         {cat === '전체' ? (
           <>
@@ -646,7 +672,7 @@ export default function CommunityScreen() {
                           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
                             <Text style={ts(14.5, '900', isClean ? '#0A7A56' : tc.grn)}>{t.price}</Text>
                             <Text style={ts(11.5, '600', P.ink3)}>
-                              {typeof t.bumpCount === 'number' && t.bumpCount > 0 ? `↑ ${t.bumpCount} · ` : ''}{t.authorName ?? '익명'}
+                              {typeof t.bumpCount === 'number' && t.bumpCount > 0 ? `↑ ${t.bumpCount} · ` : ''}{t.authorName ?? '회원'}
                             </Text>
                           </View>
                         </View>
@@ -664,7 +690,7 @@ export default function CommunityScreen() {
                 />
               ) : (
                 visiblePosts.map((p) => (
-                  <PostRow key={p.id} post={p} P={P} ts={ts} tagStyle={tagStyle} onReload={load} />
+                  <PostRow key={p.id} post={p} P={P} ts={ts} tagStyle={tagStyle} onBlocked={removeBlockedUser} onDeleted={removePost} />
                 ))
               )}
             </View>
@@ -700,7 +726,7 @@ function EmptyRow({ label, cta, onPress, P, ts }: { label: string; cta: string; 
 
 /* ---------------- 글 행 (펼침: 사진 + 댓글) — 웹 PostRow 동일 로직 ---------------- */
 
-function PostRow({ post, P, ts, tagStyle, onReload }: { post: FeedPost; P: Palette; ts: TsFn; tagStyle: (label: string) => { fg: string; bg: string }; onReload?: () => void }) {
+function PostRow({ post, P, ts, tagStyle, onBlocked, onDeleted }: { post: FeedPost; P: Palette; ts: TsFn; tagStyle: (label: string) => { fg: string; bg: string }; onBlocked?: (userId: string) => void; onDeleted?: (targetId: number) => void }) {
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null);
@@ -727,7 +753,7 @@ function PostRow({ post, P, ts, tagStyle, onReload }: { post: FeedPost; P: Palet
           <View style={{ backgroundColor: tgs.bg, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 6 }}>
             <Text style={ts(11, '800', tgs.fg)}>{cat}</Text>
           </View>
-          <Text numberOfLines={1} style={[ts(12, '700', P.ink), { flexShrink: 1 }]}>{post.authorName ?? '익명'}</Text>
+          <Text numberOfLines={1} style={[ts(12, '700', P.ink), { flexShrink: 1 }]}>{post.authorName ?? '회원'}</Text>
           <Text style={ts(12, '500', P.ink3)}>{post.time}</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 11, marginTop: 9 }}>
@@ -751,7 +777,7 @@ function PostRow({ post, P, ts, tagStyle, onReload }: { post: FeedPost; P: Palet
                 ))}
               </View>
             ) : null}
-            <FeedComments feedId={post.id} dateLabel={formatAbs(post.createdAt)} P={P} ts={ts} />
+            <FeedComments feedId={post.id} dateLabel={formatAbs(post.createdAt)} P={P} ts={ts} onBlocked={onBlocked} />
           </View>
         ) : null}
 
@@ -766,7 +792,7 @@ function PostRow({ post, P, ts, tagStyle, onReload }: { post: FeedPost; P: Palet
           </View>
           {hasThumb ? <Text style={ts(12.5, '700', P.ink3)}>📷 {images.length}</Text> : null}
           <View style={{ marginLeft: 'auto' }}>
-            <ReportMenu targetType="feed" targetId={post.id} authorId={post.authorId} authorName={post.authorName} onBlocked={onReload} />
+            <ReportMenu targetType="feed" targetId={post.id} authorId={post.authorId} authorName={post.authorName} onBlocked={onBlocked} onDeleted={onDeleted} />
           </View>
         </View>
       </View>
@@ -816,11 +842,15 @@ interface FeedComment {
   createdAt: string;
 }
 
-function FeedComments({ feedId, dateLabel, P, ts }: { feedId: number; dateLabel: string; P: Palette; ts: TsFn }) {
+function FeedComments({ feedId, dateLabel, P, ts, onBlocked }: { feedId: number; dateLabel: string; P: Palette; ts: TsFn; onBlocked?: (userId: string) => void }) {
   const [comments, setComments] = useState<FeedComment[] | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
+  const hideBlockedAuthor = (blockedUserId: string) => {
+    setComments((current) => (current ?? []).filter((comment) => comment.authorId !== blockedUserId));
+    onBlocked?.(blockedUserId);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -859,7 +889,7 @@ function FeedComments({ feedId, dateLabel, P, ts }: { feedId: number; dateLabel:
         <View key={c.id} style={{ flexDirection: 'row', gap: 7, marginTop: 9, alignItems: 'flex-start' }}>
           <Text style={[ts(12, '800', P.ink), { flexShrink: 0 }]}>{c.authorName}</Text>
           <Text style={[ts(12.5, '400', P.ink2), { flex: 1 }]}>{c.text}</Text>
-          <ReportMenu targetType="feedComment" targetId={c.id} authorId={c.authorId} authorName={c.authorName} size={13} />
+          <ReportMenu targetType="feedComment" targetId={c.id} authorId={c.authorId} authorName={c.authorName} onBlocked={hideBlockedAuthor} size={13} />
         </View>
       ))}
       {hint ? <Text style={[ts(11.5, '600', P.red), { marginTop: 8 }]}>{hint}</Text> : null}

@@ -25,21 +25,23 @@ interface PackWithBoxResp {
   boxPrice: number;
 }
 
+interface PacksResponse {
+  data?: PackWithBoxResp[];
+  warming?: boolean;
+}
+
 export const metadata = {
   title: '시세확인 · ARVOTCG',
   description: '포켓몬·원피스·유희왕·스포츠 카드 박스를 선택하고 박스별 싱글카드 시세를 확인하세요.',
 };
 
 // ISR — 인증 없는 공용 데이터라 캐시해 즉시 서빙 + 백그라운드 재생성.
-export const revalidate = 600;
-
-/** 박스 시세 TTL — 페이지 revalidate 와 정렬. */
-const BOX_TTL = 600;
+export const dynamic = 'force-dynamic';
 
 export default async function PackExplorerPage() {
-  const r = await serverFetch<{ data?: PackWithBoxResp[] }>(
+  const r = await serverFetch<PacksResponse>(
     '/api/card-packs?withBox=1',
-    { auth: false, revalidate: BOX_TTL },
+    { auth: false, cache: 'no-store', timeoutMs: 30_000 },
   );
   // withBox 미지원 구서버가 meta 목록만 돌려주는 과도기 대비 — 박스 필드 유무로 검증.
   const fromServer =
@@ -81,7 +83,7 @@ export default async function PackExplorerPage() {
     <>
       <StatusBar />
       <AppBar title="시세확인" showBack backHref="/" />
-      <PacksExplorer packs={packs} />
+      <PacksExplorer packs={packs} warming={r.data?.warming === true} />
       <div className="bggap" />
     </>
   );

@@ -33,7 +33,9 @@ function toDto(p: PostRow) {
 router.get('/', async (_req: Request, res: Response) => {
   try {
     const items = await prisma.eventPost.findMany({
-      where: { published: true },
+      // authorId=null + category=null 은 운영자 공지다. 회원 글은 작성자 계정이
+      // 존재하는 동안에만 공개해 익명 UGC가 남지 않도록 한다.
+      where: { published: true, OR: [{ authorId: { not: null } }, { category: null }] },
       orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
       take: 100,
       include: POST_INCLUDE,
@@ -54,7 +56,7 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
   try {
     const post = await prisma.eventPost.findFirst({
-      where: { id, published: true },
+      where: { id, published: true, OR: [{ authorId: { not: null } }, { category: null }] },
       include: POST_INCLUDE,
     });
     if (!post) {
@@ -80,6 +82,7 @@ router.get('/:id/comments', optionalAuth, async (req: Request, res: Response) =>
     const rows = await prisma.eventPostComment.findMany({
       where: {
         postId: id,
+        authorId: { not: null },
         ...(blocked.length ? { NOT: { authorId: { in: blocked } } } : {}),
       },
       orderBy: { createdAt: 'asc' },
@@ -132,6 +135,7 @@ router.post('/:id/comments', requireAuth, async (req: Request, res: Response) =>
       data: {
         id: c.id,
         text: c.text,
+        authorId: c.authorId,
         authorName: c.author?.name ?? '트레이너',
         createdAt: c.createdAt.toISOString(),
       },

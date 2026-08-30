@@ -3,7 +3,7 @@
  * 웹 src/components/{FeedRow, TradeCard} 와 동일한 정보 밀도.
  * 픽셀 테마는 잉크 테두리 사각, 클린·다크(플랫)는 무테 라운드.
  */
-import { View, Image } from 'react-native';
+import { View, Image, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { PixelText } from '@/components/PixelText';
 import { PixelPress } from '@/components/cv/PixelPress';
@@ -15,9 +15,10 @@ import { shotSource } from '@/lib/shotMode';
 interface FeedRowProps {
   post: MyFeedPost;
   onPress?: () => void;
+  onDelete?: () => void;
 }
 
-export function MyFeedRow({ post, onPress }: FeedRowProps) {
+export function MyFeedRow({ post, onPress, onDelete }: FeedRowProps) {
   const tc = useThemeColors();
   const flat = isFlatTheme(useTheme().theme);
   return (
@@ -53,6 +54,11 @@ export function MyFeedRow({ post, onPress }: FeedRowProps) {
                 <Image key={i} source={shotSource(src)} style={{ width: 56, height: 56, borderWidth: flat ? 0 : 1, borderColor: tc.ink, borderRadius: flat ? 8 : 0 }} />
               ))}
             </View>
+          ) : null}
+          {onDelete ? (
+            <Pressable onPress={onDelete} hitSlop={8} style={{ alignSelf: 'flex-end', marginTop: 10, paddingVertical: 5, paddingHorizontal: 8 }}>
+              <PixelText variant="ko" size={11} color={tc.red} weight="bold">게시물 삭제</PixelText>
+            </Pressable>
           ) : null}
         </View>
       </View>

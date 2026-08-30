@@ -62,6 +62,9 @@ export default function EventWrite() {
     <View style={{ flex: 1, backgroundColor: tc.paper }}>
       <AppBar title="이벤트 글 작성" onBack={() => router.back()} />
       <ScrollView contentContainerStyle={{ padding: space.gap, gap: 10, paddingBottom: 110 }}>
+        <PixelText variant="ko" size={10} color={tc.ink3} style={{ lineHeight: 17 }}>
+          🔒 익명 게시가 아닙니다. 게시물에 계정 닉네임이 공개됩니다.
+        </PixelText>
         <PixelText variant="ko" size={11} weight="bold">🏷 말머리</PixelText>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {EVENT_CATEGORIES.map((c) => {

@@ -15,7 +15,7 @@ interface Params {
 async function loadPack(code: string): Promise<PackWithHits | null> {
   const r = await serverFetch<{ data: PackWithHits }>(
     `/api/card-packs/${encodeURIComponent(code)}?limit=600`,
-    { auth: false },
+    { auth: false, revalidate: 900, timeoutMs: 45_000 },
   );
   return r.data?.data ?? null;
 }

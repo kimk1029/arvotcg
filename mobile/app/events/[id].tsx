@@ -97,6 +97,15 @@ export default function EventDetail() {
           ) : null}
           <View style={{ flex: 1 }} />
           <PixelText variant={txt} size={9} color={tc.ink3}>{post.authorName ? `✍ ${post.authorName}` : '공지'}</PixelText>
+          {post.authorId ? (
+            <ReportMenu
+              targetType="eventPost"
+              targetId={post.id}
+              authorId={post.authorId}
+              authorName={post.authorName}
+              onBlocked={() => router.back()}
+            />
+          ) : null}
         </View>
 
         <PixelText variant="ko" size={16} weight="bold" color={tc.ink} style={{ lineHeight: 23 }}>
@@ -131,6 +140,9 @@ function EventComments({ postId, tc, txt }: { postId: number; tc: ReturnType<typ
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
+  const hideBlockedAuthor = (blockedUserId: string) => {
+    setComments((current) => (current ?? []).filter((comment) => comment.authorId !== blockedUserId));
+  };
 
   useEffect(() => {
     let alive = true;
@@ -169,7 +181,7 @@ function EventComments({ postId, tc, txt }: { postId: number; tc: ReturnType<typ
         <View key={c.id} style={{ flexDirection: 'row', gap: 7, marginTop: 9, alignItems: 'flex-start' }}>
           <PixelText variant="ko" size={11} weight="bold" color={tc.ink}>{c.authorName}</PixelText>
           <PixelText variant="ko" size={11} color={tc.ink2} style={{ flex: 1, lineHeight: 16 }}>{c.text}</PixelText>
-          <ReportMenu targetType="eventPostComment" targetId={c.id} authorId={c.authorId} authorName={c.authorName} size={13} />
+          <ReportMenu targetType="eventPostComment" targetId={c.id} authorId={c.authorId} authorName={c.authorName} onBlocked={hideBlockedAuthor} size={13} />
         </View>
       ))}
       {hint ? (

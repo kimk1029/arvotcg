@@ -119,11 +119,10 @@ export default function PrivacyEnPage() {
               immediately upon account deletion
             </Li>
             <Li>
-              User-generated posts (trade listings, feed posts, messages) —
-              anonymized upon account deletion by unlinking the author
-              (retained for the statutory period where laws such as the
-              Protection of Communications Secrets Act or the E-Commerce Act
-              require)
+              User-generated posts (trade listings, feed posts, comments, and
+              event posts) — deleted with the account. Records that must be
+              retained by law are stored separately from public posts for the
+              applicable statutory period.
             </Li>
             <Li>
               Access logs and IP addresses — retained for 3 months under the

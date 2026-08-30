@@ -55,9 +55,11 @@ See how your watchlist moved today. Scan cards into your collection, track portf
 • Cleaner typography, clearer loading states, and a much faster message inbox.
 ```
 
-## 이 버전의 새로운 기능 — 1.1.1 (iOS build 21 · Android vc13, 2026-08-29)
+## 이 버전의 새로운 기능 — 1.1.1 (iOS build 22 · Android vc13, 2026-08-30)
 
-Guideline 1.2(UGC) 반려 후 재심사 빌드. Play 용 3개 언어 원문은 `store-assets/release-notes-v1.1.1.txt`.
+Guideline 1.2(UGC) 반려 후 재심사 빌드. build 22는 사용자 차단 즉시 해당 작성자의
+게시물을 현재 피드에서 제거하며, 본인 게시물의 즉시 삭제 메뉴를 추가했다. Play 용 3개
+언어 원문은 `store-assets/release-notes-v1.1.1.txt`.
 
 ### 한국어
 
@@ -97,11 +99,36 @@ English (166자):
 Is your collection beating the market? New per-game market indices and an infographic dashboard show where your assets stand. Scan, compare prices, trade, and talk shop.
 ```
 
+### 재제출 전 App Store Connect 연령 등급 설정
+
+build 22부터 익명 게시를 완전히 제거했다. 모든 회원 UGC에 계정 닉네임이 표시되며,
+계정 탈퇴 시 작성 콘텐츠도 함께 삭제된다. 따라서 18+로 임의 상향하지 말고 정확한 기능
+설문을 제출한 뒤, Resolution Center에서 기존 18+ 요구의 재검토를 요청한다.
+
+1. **Apps → 아르보TCG → General → App Information → Age Ratings → Edit**
+2. 기능 질문에서 **User-Generated Content**와 **Messaging and Chat**을 실제 기능대로 체크
+3. 콘텐츠 빈도 질문은 앱의 실제 콘텐츠 수준대로 정확하게 답변
+4. **Override to Higher Age Rating**은 선택하지 않고 계산된 등급을 저장
+5. 아래 심사 메모로 익명 게시 제거 사실과 초중고 이용 대상임을 설명하고 등급 재검토 요청
+
+심사자가 확인할 수 있는 앱 내 경로:
+
+- 타인 게시물 차단: **커뮤니티 → 게시물 하단 ⋯ → 사용자 차단하기**
+- 차단 직후: 같은 작성자의 게시물이 현재 목록에서 즉시 사라짐
+- 차단 해제: **마이페이지 → 차단 관리**
+- 본인 게시물 삭제: **커뮤니티 → 본인 게시물 하단 ⋯ → 삭제**, 또는
+  **마이페이지 → 내 피드 → 게시물 삭제**
+
 ### 심사 메모 (Resolution Center 답변용, 1.2 UGC)
 
 ```
-We have addressed Guideline 1.2 in build 21:
+We have addressed all three Guideline 1.2 items in build 22:
+- Anonymous posting has been completely removed. Posting requires a signed-in account, and the account nickname is displayed on every community post, comment, trade listing, and member event post. When an account is deleted, all content authored by that account is deleted as well; it is not retained anonymously.
+- Every other user's community post has a visible ellipsis menu at the bottom. Tap it and choose “사용자 차단하기” (Block User). Once confirmed, all posts by that user are removed from the current feed immediately. Blocked users can be reviewed or unblocked under My Page > “차단 관리” (Blocked Users).
+- Users can immediately delete their own posts from the feed. Tap the ellipsis on their own post and choose “삭제” (Delete), or go to My Page > “내 피드” (My Posts) > “게시물 삭제” (Delete Post).
 - Users must explicitly agree to the Community Guidelines (zero-tolerance for objectionable content and abusive users) via a checkbox dialog before posting, commenting, or listing. Agreement is recorded server-side and re-requested when the guidelines change.
 - Terms of Service updated (Article 7-2) with the zero-tolerance policy and our commitment to act on reports within 24 hours by removing content and ejecting the offending user.
-- Existing report and block features remain available on every post, comment and user profile.
+- A report option remains available in the same ellipsis menu on posts and comments.
+
+Because the app no longer enables anonymous posting and is intended for users age 14 and older, including teenage trading card collectors, we respectfully request that the previous 18+ requirement be reconsidered and that the age rating calculated from the accurate App Store Connect questionnaire be accepted.
 ```

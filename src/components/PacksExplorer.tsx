@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Price } from '@/components/Price';
 import { ListAdRow } from '@/components/ListAdRow';
 import { useGamePrefs } from '@/components/GamePrefsProvider';
@@ -30,7 +31,8 @@ const GAME_TABS: Array<{ key: CardPackGame; label: string }> = [
   { key: 'sports', label: '스포츠' },
 ];
 
-export function PacksExplorer({ packs }: { packs: PackListRow[] }) {
+export function PacksExplorer({ packs, warming = false }: { packs: PackListRow[]; warming?: boolean }) {
+  const router = useRouter();
   // 게임 탭 — 단일 선택(라디오, 복수 불가). 포켓몬·원피스는 항상 노출, 그 외는
   // 설정에서 켠 게임만 추가. 기본 포켓몬 (홈 게임 칩과 동일 규칙).
   const { enabledGames } = useGamePrefs();
@@ -43,6 +45,13 @@ export function PacksExplorer({ packs }: { packs: PackListRow[] }) {
     const g = new URLSearchParams(window.location.search).get('game');
     if (g === 'pokemon' || g === 'onepiece' || g === 'yugioh' || g === 'sports') setGame(g);
   }, []);
+  // 서버 콜드 스타트에서 DB 카탈로그를 먼저 받은 경우, 외부 박스 이미지 보강이
+  // 끝날 때까지 현재 화면을 유지하며 Server Component 데이터만 새로 받는다.
+  useEffect(() => {
+    if (!warming) return;
+    const timer = setTimeout(() => router.refresh(), 4_000);
+    return () => clearTimeout(timer);
+  }, [warming, packs, router]);
   // 박스 검색 — 이미 받아둔 목록의 클라이언트 필터라 입력 즉시(깜빡임 없이) 반영.
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();

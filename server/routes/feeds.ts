@@ -34,6 +34,7 @@ router.get('/:id/comments', optionalAuth, async (req: Request, res: Response) =>
     const rows = await prisma.feedComment.findMany({
       where: {
         feedId,
+        authorId: { not: null },
         ...(blocked.length ? { NOT: { authorId: { in: blocked } } } : {}),
       },
       orderBy: { createdAt: 'asc' },
@@ -79,6 +80,7 @@ router.post('/:id/comments', requireAuth, async (req: Request, res: Response) =>
       data: {
         id: created.id,
         text: created.text,
+        authorId: created.authorId,
         authorName: created.author?.name ?? '트레이너',
         createdAt: created.createdAt.toISOString(),
       },

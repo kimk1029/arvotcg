@@ -4,7 +4,7 @@
  * "불쾌한 콘텐츠·악성 이용자 무관용" 약관에 명시적으로 동의해야 한다.
  * 규칙을 바꾸면 UGC_TERMS_VERSION 을 올려 전 이용자에게 재동의를 받는다.
  */
-export const UGC_TERMS_VERSION = 1;
+export const UGC_TERMS_VERSION = 2;
 
 export const UGC_TERMS_TITLE = '커뮤니티 이용규칙 동의';
 
@@ -13,6 +13,7 @@ export const UGC_TERMS_INTRO =
   '불쾌한 콘텐츠와 악성 이용자에 대해서는 무관용 원칙(Zero Tolerance)을 적용합니다.';
 
 export const UGC_RULES: readonly string[] = [
+  '익명 게시를 지원하지 않습니다. 모든 게시물과 댓글에는 계정 닉네임이 공개되며, 계정 탈퇴 시 작성 콘텐츠도 함께 삭제됩니다.',
   '음란·폭력·혐오·차별·괴롭힘·협박 등 타인에게 불쾌감을 주는 콘텐츠는 어떤 경우에도 허용되지 않습니다.',
   '스팸·광고·사기·허위 거래·개인정보 노출·타인 사칭 게시물은 금지됩니다.',
   '규칙을 위반한 게시물은 신고 접수 후 24시간 이내에 삭제되며, 작성자는 사전 통지 없이 이용이 영구 제한될 수 있습니다.',

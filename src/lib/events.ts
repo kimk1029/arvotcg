@@ -24,6 +24,8 @@ export interface EventPost {
   category: string | null;
   /** 작성자 이름 — null = 어드민 작성 공지. */
   authorName: string | null;
+  /** 회원 작성자 id — null = 어드민 공지. 신고·차단용. */
+  authorId: string | null;
   /** 댓글 수. */
   commentCount: number;
   createdAt: string;

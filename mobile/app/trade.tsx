@@ -210,7 +210,7 @@ function TradeRow({ t, tc, txt }: { t: Trade; tc: ReturnType<typeof useThemeColo
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
               <PixelText variant={txt} size={11} weight="bold" color={tc.grnDk}>{formatPrice(t.price) || '협의'}</PixelText>
               <PixelText variant={txt} size={8} color={tc.ink3}>
-                {typeof t.bumpCount === 'number' && t.bumpCount > 0 ? `↑ ${t.bumpCount} · ` : ''}{t.authorName ?? '익명'}
+                {typeof t.bumpCount === 'number' && t.bumpCount > 0 ? `↑ ${t.bumpCount} · ` : ''}{t.authorName ?? '회원'}
               </PixelText>
             </View>
           </View>

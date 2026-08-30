@@ -71,21 +71,32 @@ async function memoized<T>(key: string, live: () => Promise<T | null>): Promise<
 function fetchJson<T>(path: string): Promise<T | null> {
   return memoized<T>(path, async () => {
     const url = `${SNKRDUNK_ORIGIN}${path}`;
-    try {
-      const res = await fetch(url, {
-        headers: COMMON_HEADERS,
-        next: { revalidate: REVALIDATE_SEC },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!res.ok) {
-        console.error('[snkrdunk] non-OK', res.status, path);
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const res = await fetch(url, {
+          headers: COMMON_HEADERS,
+          next: { revalidate: REVALIDATE_SEC },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!res.ok) {
+          console.error('[snkrdunk] non-OK', res.status, path, `attempt=${attempt}`);
+          if (attempt < 2 && (res.status === 429 || res.status >= 500)) {
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            continue;
+          }
+          return null;
+        }
+        return (await res.json()) as T;
+      } catch (err) {
+        console.error('[snkrdunk] fetch failed', path, `attempt=${attempt}`, err);
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          continue;
+        }
         return null;
       }
-      return (await res.json()) as T;
-    } catch (err) {
-      console.error('[snkrdunk] fetch failed', path, err);
-      return null;
     }
+    return null;
   });
 }
 
@@ -174,24 +185,30 @@ export async function fetchSnkrdunkSearch(
   const url = `${SNKRDUNK_ORIGIN}/search?keywords=${encodeURIComponent(q)}${p}`;
   // 검색도 메모리 캐시 — 실패/빈 결과는 null 로 넘겨 캐시하지 않는다(다음 호출 재시도).
   const results = await memoized<SnkrdunkSearchResult[]>(`search:${url}`, async () => {
-    try {
-      const res = await fetch(url, {
-        headers: {
-          Accept: 'text/html',
-          'Accept-Language': 'ja,en-US;q=0.8,ko;q=0.7',
-          'User-Agent': SNKRDUNK_USER_AGENT,
-        },
-        next: { revalidate: 300 },
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!res.ok) return null;
-      const html = await res.text();
-      const parsed = parseSnkrdunkSearchHtml(html);
-      return parsed.length > 0 ? parsed : null;
-    } catch (err) {
-      console.error('[snkrdunk] search failed', err);
-      return null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const res = await fetch(url, {
+          headers: {
+            Accept: 'text/html',
+            'Accept-Language': 'ja,en-US;q=0.8,ko;q=0.7',
+            'User-Agent': SNKRDUNK_USER_AGENT,
+          },
+          next: { revalidate: 300 },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!res.ok) {
+          if (attempt < 2 && (res.status === 429 || res.status >= 500)) continue;
+          return null;
+        }
+        const html = await res.text();
+        const parsed = parseSnkrdunkSearchHtml(html);
+        if (parsed.length > 0) return parsed;
+      } catch (err) {
+        console.error('[snkrdunk] search failed', `attempt=${attempt}`, err);
+      }
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 300));
     }
+    return null;
   });
   return results ?? [];
 }

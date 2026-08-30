@@ -516,7 +516,7 @@ function PostRow({ post, P, clean }: { post: FeedPost; P: Palette; clean: boolea
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span style={{ fontSize: 11, fontWeight: 800, color: ts.fg, background: ts.bg, padding: '2px 8px', borderRadius: 6, flex: 'none' }}>{cat}</span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: P.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.authorName ?? '익명'}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: P.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.authorName ?? '회원'}</span>
           <span style={{ fontSize: 12, fontWeight: 500, color: P.ink3, flex: 'none' }}>{post.time}</span>
         </div>
         <div style={{ display: 'flex', gap: 11, marginTop: 9 }}>
@@ -610,7 +610,7 @@ function MarketList({ list, P, clean }: { list: Trade[]; P: Palette; clean: bool
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
                 <span style={{ fontSize: 14.5, fontWeight: 900, color: clean ? '#0A7A56' : 'var(--grn-dk)', letterSpacing: '-.2px' }}>{t.price}</span>
-                <span style={{ fontSize: 11.5, color: P.ink3, fontWeight: 600 }}>{typeof t.bumpCount === 'number' && t.bumpCount > 0 ? `↑ ${t.bumpCount} · ` : ''}{t.authorName ?? '익명'}</span>
+                <span style={{ fontSize: 11.5, color: P.ink3, fontWeight: 600 }}>{typeof t.bumpCount === 'number' && t.bumpCount > 0 ? `↑ ${t.bumpCount} · ` : ''}{t.authorName ?? '회원'}</span>
               </div>
             </div>
           </Link>

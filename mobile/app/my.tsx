@@ -252,7 +252,7 @@ export default function MyScreen() {
   const confirmDeleteAccount = () => {
     Alert.alert(
       '회원 탈퇴',
-      '계정과 컬렉션·관심카드·알림·쪽지가 모두 삭제됩니다.\n작성한 게시물은 익명으로 남습니다.\n이 작업은 되돌릴 수 없습니다.',
+      '계정과 컬렉션·관심카드·알림·쪽지 및 작성한 게시물·댓글이 모두 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.',
       [
         { text: '취소', style: 'cancel' },
         {

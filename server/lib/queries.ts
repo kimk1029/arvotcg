@@ -176,9 +176,10 @@ export async function getFeedPage(opts: {
     const blocked = await getBlockedIds(opts.viewerId);
     const rows = await prisma.feed.findMany({
       where: {
+        // 작성자 계정이 존재하는 글만 공개한다. 탈퇴 후 익명 게시물은 노출하지 않는다.
+        authorId: { not: null },
         ...(opts.authorId ? { authorId: opts.authorId } : {}),
         ...(opts.cursor ? { createdAt: { lt: new Date(opts.cursor) } } : {}),
-        // NOT-in 필터는 authorId=null(탈퇴/익명) 글을 유지한다.
         ...(blocked.length ? { NOT: { authorId: { in: blocked } } } : {}),
       },
       orderBy: { createdAt: 'desc' },
@@ -230,6 +231,7 @@ export async function getTrades(
     const blocked = await getBlockedIds(viewerId);
     const rows = await prisma.trade.findMany({
       where: {
+        authorId: { not: null },
         ...(filter === 'all' ? {} : { type: filter }),
         ...(blocked.length ? { NOT: { authorId: { in: blocked } } } : {}),
       },
@@ -290,8 +292,8 @@ export async function getTrades(
 
 export async function getTradeById(id: number): Promise<TradeDetail | null> {
   try {
-    const r = await prisma.trade.findUnique({
-      where: { id },
+    const r = await prisma.trade.findFirst({
+      where: { id, authorId: { not: null } },
       include: {
         place: { select: { name: true } },
         author: { select: { name: true } },

@@ -274,7 +274,7 @@ function selectHits(hits: PackHitCard[], limit: number): PackHitCard[] {
  *   → 시세 없는 카드만 있는 신규 박스도 정상 판정(스냅샷 유무에 의존 안 함).
  * 현재가는 apparelId 별 최신 스냅샷에서 가져온다. DB 오류 시 null(=라이브 폴백).
  */
-async function loadFreshPackHits(packCode: string, limit: number): Promise<PackHitCard[] | null> {
+async function loadPackHitsFromDb(packCode: string, limit: number): Promise<{ hits: PackHitCard[]; fresh: boolean } | null> {
   try {
     const cards = await prisma.snkrdunkCard.findMany({ where: { packCode } });
     if (cards.length === 0) return null;
@@ -283,14 +283,44 @@ async function loadFreshPackHits(packCode: string, limit: number): Promise<PackH
       const t = c.updatedAt.getTime();
       if (t > maxTs) maxTs = t;
     }
-    if (Date.now() - maxTs >= PRICE_STALE_MS) return null;
     const prices = await latestPrices(cards.map((c) => c.apparelId));
     const hits = cards.map((c) => toHitCardFromDb(c, prices.get(c.apparelId)));
-    return selectHits(hits, limit);
+    return {
+      hits: selectHits(hits, limit),
+      fresh: Date.now() - maxTs < PRICE_STALE_MS,
+    };
   } catch (err) {
     console.error('[cardPackHits.loadFresh]', err);
     return null;
   }
+}
+
+const packRefreshes = new Map<string, Promise<PackHitCard[]>>();
+
+/** 동일 팩 콜드 요청·웹 metadata/page 중복 요청을 하나의 외부 조회로 병합한다. */
+function refreshPack(pack: CardPackMeta): Promise<PackHitCard[]> {
+  const running = packRefreshes.get(pack.code);
+  if (running) return running;
+  const task = (async () => {
+    const groupedSingles = await resolveGroupSingles(pack, FETCH_LIMIT);
+    const groupedBoxes = await resolveGroupBoxes(pack);
+    const grouped = [...groupedSingles, ...groupedBoxes];
+    const allHits = grouped.length > 0
+      ? grouped
+      : await (async () => {
+        const curated = await resolveCurated(pack);
+        const seen = new Set<number>(curated.map((c) => c.apparelId));
+        const need = Math.max(0, FETCH_LIMIT - curated.length);
+        const filled = need > 0 ? await resolveSearchFill(pack, seen, need) : [];
+        return [...curated, ...filled];
+      })();
+    if (allHits.length === 0) throw new Error(`empty upstream pack: ${pack.code}`);
+    // 응답을 DB upsert 완료까지 붙잡지 않는다. 다음 요청용 캐시는 백그라운드 적재.
+    persistPackCards(pack, allHits).catch((err) => console.error('[cardPackHits.persist.bg]', err));
+    return allHits;
+  })().finally(() => packRefreshes.delete(pack.code));
+  packRefreshes.set(pack.code, task);
+  return task;
 }
 
 /**
@@ -355,27 +385,18 @@ export async function getPackWithHits(
   const pack = getCardPack(code);
   if (!pack) return null;
 
-  // 1) DB 우선 — 박스 시세가 24h 이내면 스니덩 호출 없이 즉시 응답.
-  //    (sales 포함 요청은 라이브 데이터가 필요하므로 캐시를 건너뛴다.)
+  // 1) DB 우선 — 오래됐어도 즉시 서빙하고 stale-while-revalidate 한다.
+  //    첫 화면을 외부 API 상태에 종속시키지 않는 것이 핵심이다.
   if (!opts.includeSales) {
-    const cached = await loadFreshPackHits(pack.code, limit);
-    if (cached) return buildPack(pack, cached);
+    const cached = await loadPackHitsFromDb(pack.code, limit);
+    if (cached) {
+      if (!cached.fresh) refreshPack(pack).catch((err) => console.error('[cardPackHits.refresh.bg]', pack.code, err));
+      return buildPack(pack, cached.hits);
+    }
   }
 
-  // 2) 라이브 fetch — 적재는 항상 넓게(FETCH_LIMIT) 가져와, 호출 limit 과 무관하게 박스
-  //    전체를 DB 에 채운다. (작은 limit 호출이 먼저 DB 를 얇게 채워 박스 상세를 굶기지 않도록.)
-  const groupedSingles = await resolveGroupSingles(pack, FETCH_LIMIT);
-  const groupedBoxes = await resolveGroupBoxes(pack);
-  const grouped = [...groupedSingles, ...groupedBoxes];
-  const allHits = grouped.length > 0
-    ? grouped
-    : await (async () => {
-      const curated = await resolveCurated(pack);
-      const seen = new Set<number>(curated.map((c) => c.apparelId));
-      const need = Math.max(0, FETCH_LIMIT - curated.length);
-      const filled = need > 0 ? await resolveSearchFill(pack, seen, need) : [];
-      return [...curated, ...filled];
-    })();
+  // 2) DB가 한 번도 채워지지 않은 신규 팩만 라이브 조회를 기다린다.
+  const allHits = await refreshPack(pack);
 
   // includeSales 는 캐시 대상이 아니므로 limit 만큼만 추려 sales 를 붙인다(불필요한 호출 방지).
   if (opts.includeSales) {
@@ -383,8 +404,6 @@ export async function getPackWithHits(
     return buildPack(pack, enriched);
   }
 
-  // 3) DB 적재(전체) 후 limit 만큼 서빙. 적재 실패는 응답에 영향 없음.
-  await persistPackCards(pack, allHits);
   return buildPack(pack, selectHits(allHits, limit));
 }
 

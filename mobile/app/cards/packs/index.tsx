@@ -43,38 +43,39 @@ interface PackWithBox extends CardPackMeta {
 // 10분 동안 캐시 신선함으로 간주 — 웹 packs/page.tsx 의 ISR revalidate=600 과 동일 주기.
 const PACKS_TTL_MS = 10 * 60 * 1000;
 let packsCache: { data: PackWithBox[]; at: number } | null = null;
-let packsInFlight: Promise<PackWithBox[]> | null = null;
+let packsInFlight: Promise<{ data: PackWithBox[]; warming: boolean }> | null = null;
 
-async function loadAllPacksWithBox(): Promise<PackWithBox[]> {
-  // 서버 단일 카탈로그 — 웹 packs/page.tsx 와 동일 엔드포인트. 12초 타임아웃으로
-  // 무한 대기 방지(첫 캐시 웜업은 서버가 60여 팩을 훑느라 수 초 걸릴 수 있음).
+async function loadAllPacksWithBox(): Promise<{ data: PackWithBox[]; warming: boolean }> {
+  // 서버는 콜드 스타트에도 DB/정적 카탈로그를 즉시 반환하고 라이브 이미지를 보강한다.
+  // 예전 Promise.race(12초)는 실제 요청을 중간에 버리고 빈 폴백을 캐시하던 원인이었다.
   try {
-    const timer = new Promise<null>((resolve) => setTimeout(() => resolve(null), 12000));
-    const r = await Promise.race([
-      api<{ data?: PackWithBox[] }>('/api/card-packs?withBox=1', { auth: false }),
-      timer,
-    ]);
+    const r = await api<{ data?: PackWithBox[]; warming?: boolean }>(
+      '/api/card-packs?withBox=1',
+      { auth: false, timeoutMs: 30_000 },
+    );
     // withBox 미지원 구서버가 meta 목록만 돌려주는 과도기 대비 — 박스 필드 유무로 검증.
-    if (r?.data && r.data.length > 0 && typeof r.data[0].boxName === 'string') return r.data;
+    if (r.data && r.data.length > 0 && typeof r.data[0].boxName === 'string') {
+      return { data: r.data, warming: r.warming === true };
+    }
   } catch {
     // fall through — 번들 폴백
   }
   // 서버 미응답 폴백 — 번들 카탈로그로 박스 이미지/시세 없이 표시.
-  return CARD_PACKS.map((pack) => ({
+  return { data: CARD_PACKS.map((pack) => ({
     ...pack,
     boxName: pack.searchQuery,
     boxKoName: pack.name,
     boxImageUrl: null,
     boxPrice: 0,
-  }));
+  })), warming: false };
 }
 
-function fetchPacksOnce(): Promise<PackWithBox[]> {
+function fetchPacksOnce(): Promise<{ data: PackWithBox[]; warming: boolean }> {
   if (packsInFlight) return packsInFlight;
   packsInFlight = loadAllPacksWithBox()
-    .then((rows) => {
-      packsCache = { data: rows, at: Date.now() };
-      return rows;
+    .then((result) => {
+      packsCache = { data: result.data, at: Date.now() };
+      return result;
     })
     .finally(() => {
       packsInFlight = null;
@@ -94,6 +95,7 @@ export default function PackExplorerScreen() {
   const [data, setData] = useState<PackWithBox[] | null>(packsCache?.data ?? null);
   const [loading, setLoading] = useState<boolean>(!packsCache);
   const [error, setError] = useState<Error | null>(null);
+  const [warming, setWarming] = useState(false);
   // 게임 탭 — 단일 선택(라디오, 복수 불가). 포켓몬·원피스는 항상 노출, 그 외는
   // 설정에서 켠 게임만 추가. 기본 포켓몬 (웹 PacksExplorer·홈 칩과 동일 규칙).
   const { enabledGames } = useGamePrefs();
@@ -128,9 +130,10 @@ export default function PackExplorerScreen() {
     if (!packsCache) setLoading(true);
     setError(null);
     fetchPacksOnce()
-      .then((rows) => {
+      .then((result) => {
         if (myTick !== tick.current) return;
-        setData(rows);
+        setData(result.data);
+        setWarming(result.warming);
         setError(null);
       })
       .catch((err: unknown) => {
@@ -154,6 +157,13 @@ export default function PackExplorerScreen() {
       tick.current++;
     };
   }, [refresh]);
+
+  // 서버 콜드 스타트 보강 중이면 화면을 유지한 채 잠시 후 새 이미지/가격을 다시 받는다.
+  useEffect(() => {
+    if (!warming) return;
+    const timer = setTimeout(refresh, 4_000);
+    return () => clearTimeout(timer);
+  }, [warming, data, refresh]);
 
   // 포커스 재진입 시에는 캐시가 stale 할 때만 백그라운드 갱신 (로딩 화면 X).
   useFocusEffect(
