@@ -93,7 +93,6 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
   const txt = useThemeTextVariant();
   // 웹 홈과 동일: 모든 테마에서 컨테이너 보더 없이 좌우 풀블리드 + 세로로 큰 배너
   // (색/폰트만 테마별로 다르게). 픽셀 프레임/작은 높이는 제거.
-  const TEXT_SLIDE_H = 176;
   const router = useRouter();
   const scrollRef = useRef<ScrollView | null>(null);
   const [idx, setIdx] = useState(0);
@@ -103,24 +102,10 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
   // DB 배너 없으면 폴백 슬라이드 (웹과 동일하게 항상 영역 노출).
   const data = slides.length > 0 ? slides : FALLBACK_SLIDES;
 
-  // 이미지 슬라이드는 가로 100% · 높이 = 폭 ÷ 이미지 비율 (좌우·상하 잘림 없음, 웹 .hero-bg 와 동일).
-  const [aspect, setAspect] = useState<Record<string, number>>({});
-  useEffect(() => {
-    for (const s of data) {
-      if (s.visualType !== 'image') continue;
-      const uri = imageUri(s.visualValue);
-      if (aspect[uri]) continue;
-      Image.getSize(uri, (w, h) => { if (w > 0 && h > 0) setAspect((m) => ({ ...m, [uri]: w / h })); }, () => {});
-    }
-  }, [data, aspect]);
-  // 슬라이드별 높이: 이미지 = 폭 ÷ 비율(어드민 이미지 그대로, 여백 없음), 텍스트 = 176.
-  // 컨테이너 높이는 "현재 슬라이드" 높이를 따른다(웹 HeroSlider wrapH 와 동일).
-  const heightOf = (s: HeroSlideData): number => {
-    if (s.visualType !== 'image') return TEXT_SLIDE_H;
-    const a = aspect[imageUri(s.visualValue)];
-    return a ? Math.round(width / a) : TEXT_SLIDE_H;
-  };
-  const slideHeight = heightOf(data[Math.min(idx, data.length - 1)] ?? data[0]);
+  // 높이 고정: 가로 100% ÷ HERO_RATIO(2.4:1, 웹 .hero-wrap 과 동일) — 슬라이드 전환 시
+  // 아래 콘텐츠가 움직이지 않는다. 어드민 배너를 2.4:1 로 올리면 잘림 없이 꽉 찬다.
+  const HERO_RATIO = 2.4;
+  const slideHeight = Math.round(width / HERO_RATIO);
 
   // 자동 회전 (4초). 슬라이드 1개면 미적용.
   useEffect(() => {
@@ -174,7 +159,7 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
               onPress={() => go(s)}
               style={({ pressed }) => ({
                 width,
-                height: heightOf(s),
+                height: slideHeight,
                 backgroundColor: bg,
                 paddingVertical: 20,
                 paddingHorizontal: 20,
@@ -187,8 +172,8 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
                 // 이미지 슬라이드 — 어드민 업로드 이미지가 배너 전체를 꽉 채운다(웹 .hero-slide--image 와 동일).
                 <Image
                   source={shotSource(imageUri(s.visualValue))}
-                  style={{ position: 'absolute', left: 0, top: 0, width, height: heightOf(s) }}
-                  resizeMode="contain"
+                  style={{ position: 'absolute', left: 0, top: 0, width, height: slideHeight }}
+                  resizeMode="cover"
                 />
               ) : (
               <>
