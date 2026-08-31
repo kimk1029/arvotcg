@@ -183,10 +183,12 @@ a{color:inherit;text-decoration:none;}
 
 /* ── HERO SLIDER ── */
 /* 좌우 풀블리드(패딩 없이 화면 끝까지) — 앱 HeroBanner 와 동일하게 컨테이너 장식(보더·
-   그림자·라운드) 없이 이미지/슬라이드만 노출한다. */
-.hero-wrap{margin:var(--gap) 0 var(--cg);position:relative;overflow:hidden;height:176px;}
-.hero-track{display:flex;align-items:stretch;height:100%;transition:transform .35s steps(8);}
-.hero-slide{min-width:100%;height:176px;padding:14px 16px 28px;color:var(--white);position:relative;overflow:hidden;}
+   그림자·라운드) 없이 이미지/슬라이드만 노출한다.
+   래퍼 높이는 HeroSlider 가 현재 슬라이드 높이로 지정(인라인) — 이미지 슬라이드는
+   업로드 이미지 비율 그대로(좌우·상하 잘림 없음), 텍스트 슬라이드는 176px. */
+.hero-wrap{margin:var(--gap) 0 var(--cg);position:relative;overflow:hidden;transition:height .3s ease;}
+.hero-track{display:flex;align-items:flex-start;transition:transform .35s steps(8);}
+.hero-slide{min-width:100%;padding:14px 16px 28px;color:var(--white);position:relative;overflow:hidden;}
 .hero-slide::before{content:'';position:absolute;inset:0;
   background-image:
     linear-gradient(rgba(255,255,255,.07) 2px,transparent 2px),
@@ -201,9 +203,9 @@ a{color:inherit;text-decoration:none;}
 /* 특이도 2클래스 — 뒤에 오는 .slide-b/c/d 그라데이션·인셋섀도우를 항상 이긴다(이미지만 노출). */
 .hero-slide.hero-slide--image{padding:0;display:flex;align-items:center;background:var(--ink);box-shadow:none;}
 .hero-slide--image::before{display:none;}
-/* 모든 배너를 100% × 176px 로 고정한다. 원본 비율은 보존하고 넘치는 가장자리만 잘라낸다. */
-.hero-bg{position:static;width:100%;height:176px;object-fit:cover;display:block;user-select:none;}
-.hero-slide:not(.hero-slide--image){display:flex;flex-direction:column;justify-content:center;}
+/* 가로 100% · 높이는 이미지 비율대로 — 사진의 좌우·상하가 절대 잘리지 않는다. */
+.hero-bg{position:static;width:100%;height:auto;display:block;user-select:none;}
+.hero-slide:not(.hero-slide--image){display:flex;flex-direction:column;justify-content:center;min-height:176px;}
 .hero-wrap--compact .hero-slide--image{padding:0;}
 .hero-slide.clickable{cursor:pointer;}
 .hero-slide.clickable:active{transform:translate(1px,1px);}
