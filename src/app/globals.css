@@ -182,12 +182,9 @@ a{color:inherit;text-decoration:none;}
     2px 2px 0 var(--ink);}
 
 /* ── HERO SLIDER ── */
-/* 좌우 풀블리드(패딩 없이 화면 끝까지) — 좌우 마진 0, 측면 보더·대각 그림자는
-   풀블리드에서 잘려 보이므로 제거하고 상하 픽셀 보더만 유지. */
-.hero-wrap{margin:var(--gap) 0 var(--cg);position:relative;overflow:hidden;height:176px;
-  box-shadow:
-    0 -4px 0 var(--ink),0 4px 0 var(--ink),
-    inset 0 4px 0 rgba(255,255,255,.2),inset 0 -4px 0 rgba(0,0,0,.3);}
+/* 좌우 풀블리드(패딩 없이 화면 끝까지) — 앱 HeroBanner 와 동일하게 컨테이너 장식(보더·
+   그림자·라운드) 없이 이미지/슬라이드만 노출한다. */
+.hero-wrap{margin:var(--gap) 0 var(--cg);position:relative;overflow:hidden;height:176px;}
 .hero-track{display:flex;align-items:stretch;height:100%;transition:transform .35s steps(8);}
 .hero-slide{min-width:100%;height:176px;padding:14px 16px 28px;color:var(--white);position:relative;overflow:hidden;}
 .hero-slide::before{content:'';position:absolute;inset:0;
@@ -3261,7 +3258,7 @@ a{color:inherit;text-decoration:none;}
   box-shadow:0 0 0 3px rgba(14,124,102,.16);}
 
 /* ── 히어로 슬라이더 — 라운드 + 소프트, 픽셀 텍스트 섀도우 완화 ── */
-:is([data-theme="clean"],[data-theme="dark"],[data-theme="yugioh"],[data-theme="onepiece"]) .hero-wrap,
+/* .hero-wrap 는 앱과 동일한 무장식 풀블리드 — 라운드/그림자는 oripa-hero 만 유지. */
 :is([data-theme="clean"],[data-theme="dark"],[data-theme="yugioh"],[data-theme="onepiece"]) .oripa-hero{
   border-radius:var(--r);box-shadow:0 12px 28px rgba(24,34,58,.14);}
 :is([data-theme="clean"],[data-theme="dark"],[data-theme="yugioh"],[data-theme="onepiece"]) .hero-slide::before{display:none;}
@@ -3867,7 +3864,6 @@ a{color:inherit;text-decoration:none;}
   border-color:var(--blu);box-shadow:0 0 0 2px rgba(56,214,255,.35),0 0 12px rgba(56,214,255,.25);outline:none;}
 
 /* ── 히어로: 다크 베이스 위 네온, 흰 텍스트 유지 ── */
-[data-theme="dark"] .hero-wrap{box-shadow:0 10px 30px rgba(0,0,0,.55),0 0 22px rgba(56,214,255,.12);}
 [data-theme="dark"] .hero-slide{color:#EAF2FF;}
 
 /* ── FAB(가운데 볼) — 네온 코어 글로우 ── */
@@ -4072,7 +4068,6 @@ a{color:inherit;text-decoration:none;}
   box-shadow:inset 0 0 0 2px #E8CC7A,inset 0 0 0 3px #B08F3C,0 2px 6px rgba(20,10,40,.18);}
 
 /* 히어로 — 딥 퍼플 면 + 금테 */
-[data-theme="yugioh"] .hero-wrap,
 [data-theme="yugioh"] .oripa-hero{
   border:1px solid #6E5320;border-radius:var(--r);
   box-shadow:inset 0 0 0 2px #E8CC7A,inset 0 0 0 3px #B08F3C,0 6px 18px rgba(20,10,40,.35);}
@@ -4288,7 +4283,6 @@ a{color:inherit;text-decoration:none;}
   box-shadow:0 2px 6px rgba(8,18,32,.16);}
 
 /* 히어로 — 네이비 면 + 로프 프레임 */
-[data-theme="onepiece"] .hero-wrap,
 [data-theme="onepiece"] .oripa-hero{
   border:2px solid #5A3E1B;border-radius:var(--r);
   box-shadow:0 0 0 2px rgba(217,164,54,.5) inset,0 6px 18px rgba(8,18,32,.35);}
