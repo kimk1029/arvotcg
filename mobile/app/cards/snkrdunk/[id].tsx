@@ -29,10 +29,12 @@ import { jaToKoCached, jaToKoServer } from '@/lib/cardLang';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { parseKreamHints } from '../../../../shared/util/kreamMatch';
 import {
+  boxHeadlineFromHistory,
   defaultGradeKey,
   gradeAggsFromHistory,
   gradeDisplayJpy,
   gradeUplift,
+  priceChangeFromPoints,
   type SnkrGradeAgg,
 } from '../../../../shared/snkrdunkPrice';
 import { isGradedSnkrdunkBadge } from '../../../../shared/snkrdunk';
@@ -134,6 +136,9 @@ export default function SnkrdunkDetail() {
     [originalJp, displayNameKo, apparel?.productNumber],
   );
   const allPoints = chart?.points ?? [];
+  // 박스(미개봉 상품) — 등급(RAW/PSA)·PSA 팝·지역 비교 없이 BOX 라벨 + 세트코드 (웹 CardDetailView 동일).
+  const isBox = apparel?.itemKind === 'box';
+  const boxSetCode = apparel?.setCode ?? null;
 
   const historyList = history?.history ?? [];
   const grades = useMemo<GradeAgg[]>(() => gradeAggsFromHistory(historyList), [historyList]);
@@ -144,7 +149,8 @@ export default function SnkrdunkDetail() {
   const effectiveGrade = gradeKey ?? defaultGrade;
   const sel = grades.find((g) => g.key === effectiveGrade) ?? grades[grades.length - 1];
   // 정본 gradeDisplayJpy — 홈 HOT·내 컬렉션 목록가와 같은 통계(최근 체결 중앙값).
-  const headlinePrice = gradeDisplayJpy(sel, apparel?.minPrice ?? 0);
+  // 박스는 등급 집계 대신 전체 체결 중앙값(정본 boxHeadlineFromHistory).
+  const headlinePrice = isBox ? boxHeadlineFromHistory(historyList, apparel?.minPrice ?? 0) : gradeDisplayJpy(sel, apparel?.minPrice ?? 0);
   const rawGrade = grades.find((g) => g.key === 'RAW');
   const rawRecent = gradeDisplayJpy(rawGrade, apparel?.minPrice ?? 0);
   // 등급별 투자 수익률 — RAW 평균가 → PSA10 평균가 상승폭 (웹 동일, 정본 shared).
@@ -160,24 +166,8 @@ export default function SnkrdunkDetail() {
     return { single: rawRecent, psa10: pick('PSA 10'), psa9: pick('PSA 9'), psa8 };
   }, [grades, historyList, rawRecent]);
 
-  // 전일/주간 변동 — 전체 차트 기준 (웹과 동일).
-  const change = useMemo(() => {
-    const pts = [...allPoints].sort((a, b) => a[0] - b[0]);
-    if (pts.length < 2) return { prevDiff: 0, prevPct: null as number | null, wkDiff: 0, wkPct: null as number | null };
-    const last = pts[pts.length - 1];
-    const prev = pts[pts.length - 2];
-    const prevDiff = last[1] - prev[1];
-    const prevPct = prev[1] > 0 ? (prevDiff / prev[1]) * 100 : null;
-    const weekAgoTs = last[0] - 7 * 86_400_000;
-    let base = pts[0];
-    for (const p of pts) {
-      if (p[0] <= weekAgoTs) base = p;
-      else break;
-    }
-    const wkDiff = last[1] - base[1];
-    const wkPct = base[1] > 0 ? (wkDiff / base[1]) * 100 : null;
-    return { prevDiff, prevPct, wkDiff, wkPct };
-  }, [allPoints]);
+  // 전일/주간 변동 — 전체 차트 기준 (정본 shared priceChangeFromPoints, 웹 동일).
+  const change = useMemo(() => priceChangeFromPoints(allPoints), [allPoints]);
 
   // 차트 — 기간 필터 후 다운샘플.
   const chartData = useMemo(() => {
@@ -194,10 +184,11 @@ export default function SnkrdunkDetail() {
 
   // 최근 거래내역 — 선택 등급으로 필터(빈 등급이면 전체).
   const filteredTrades = useMemo(() => {
+    if (isBox) return historyList.slice(0, 20);
     const pred = gradePredicate(effectiveGrade);
     const matched = historyList.filter((h) => pred((h.condition || h.label || '').trim()));
     return (matched.length > 0 ? matched : historyList).slice(0, 20);
-  }, [historyList, effectiveGrade]);
+  }, [historyList, effectiveGrade, isBox]);
 
   // 거래가 있는 등급만 — 거래내역 등급 토글 노출용(PSA10·RAW 등 전환, 웹 동일).
   const tradeGrades = useMemo(() => grades.filter((g) => g.count > 0), [grades]);
@@ -249,12 +240,19 @@ export default function SnkrdunkDetail() {
                   <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: tc.red }} />
                   <PixelText variant={txt} size={10} weight="bold" color={tc.ink}>일본판</PixelText>
                 </Chip>
-                {seed?.category ? (
+                {isBox || seed?.category ? (
                   <View style={{ backgroundColor: tc.pur, paddingHorizontal: 10, paddingVertical: 5 }}>
-                    <PixelText variant={txt} size={10} weight="bold" color={tc.white}>{seed.category}</PixelText>
+                    <PixelText variant={txt} size={10} weight="bold" color={tc.white}>{isBox ? 'BOX' : seed?.category}</PixelText>
                   </View>
                 ) : null}
-                {apparel.productNumber ? (
+                {/* 박스: 상품번호 대신 소속 세트코드 라벨 */}
+                {isBox ? (
+                  boxSetCode ? (
+                    <Chip tc={tc} txt={txt} muted>
+                      <PixelText variant={txt} size={10} color={tc.ink3}>{boxSetCode.toUpperCase()}</PixelText>
+                    </Chip>
+                  ) : null
+                ) : apparel.productNumber ? (
                   <Chip tc={tc} txt={txt} muted>
                     <PixelText variant={txt} size={10} color={tc.ink3}>{shotSetCode(apparel.productNumber)}</PixelText>
                   </Chip>
@@ -270,9 +268,9 @@ export default function SnkrdunkDetail() {
                         체결이 있는 등급만 노출한다. */}
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                       <PixelText variant={txt} size={11} weight="bold" color={tc.ink3}>
-                        최근 체결가{tradeGrades.length > 1 ? '' : ` (${shotText(effectiveGrade)})`}
+                        최근 체결가{isBox || tradeGrades.length > 1 ? '' : ` (${shotText(effectiveGrade)})`}
                       </PixelText>
-                      {tradeGrades.length > 1 ? (
+                      {!isBox && tradeGrades.length > 1 ? (
                         <View style={{ flexDirection: 'row', gap: 3, backgroundColor: tc.pap2, borderRadius: 999, padding: 3 }}>
                           {tradeGrades.map((g) => {
                             const on = g.key === effectiveGrade;
@@ -319,10 +317,13 @@ export default function SnkrdunkDetail() {
               apparelId={apparelId}
               cardName={displayNameKo || undefined}
               imageUrl={apparel.imageUrl ?? null}
-              currentPriceJpy={rawRecent || apparel.minPrice || null}
-              gradePrices={gradePrices}
+              currentPriceJpy={(isBox ? headlinePrice : rawRecent) || apparel.minPrice || null}
+              gradePrices={isBox ? null : gradePrices}
             />
 
+            {/* 박스는 지역 탭·한국판 비교 없음(등급/카드번호 매칭 기반) */}
+            {!isBox ? (
+            <>
             {/* ── 지역 탭 (일본판 스니덩크 / 한국판 멀티소스) ── */}
             <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 14, marginTop: 6, borderBottomWidth: 1, borderBottomColor: tc.pap3 }}>
               {['일본판', '한국판'].map((r) => {
@@ -351,7 +352,12 @@ export default function SnkrdunkDetail() {
               />
             ) : null}
 
+            </>
+            ) : null}
+
             {region === '일본판' ? (
+            <>
+            {!isBox ? (
             <>
             {/* ── 등급 카드 (가로 스크롤, 웹 동일 카드폭 176) —
                 RN 0.81 Fabric 은 이 화면의 가로 SV 콘텐츠 높이를 NaN 으로 측정해
@@ -401,6 +407,9 @@ export default function SnkrdunkDetail() {
               rarity={kreamHints.rarity}
             />
 
+            </>
+            ) : null}
+
             {/* ── 가격 추이 (기간 탭) ── */}
             <View style={{ marginHorizontal: 14 }}>
               <SectHd title="가격 추이" more={chartMore} />
@@ -428,7 +437,7 @@ export default function SnkrdunkDetail() {
               <SectHd title="최근 거래 내역" more={`${filteredTrades.length}건`} />
             </View>
             {/* 등급 토글 — 거래가 있는 등급(PSA10/RAW 등)만 노출, 바꿔서 볼 수 있게 (웹 동일). */}
-            {tradeGrades.length > 1 ? (
+            {!isBox && tradeGrades.length > 1 ? (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 14, gap: 6, marginBottom: 10 }}>
                 {tradeGrades.map((g) => {
                   const active = g.key === effectiveGrade;
@@ -487,6 +496,8 @@ export default function SnkrdunkDetail() {
               </PixelFrame>
             </View>
 
+            {!isBox ? (
+            <>
             {/* ── 등급별 투자 수익률 — RAW 평균가 → PSA10 평균가 상승폭 (웹 동일, 정본 shared gradeUplift) ── */}
             <View style={{ marginHorizontal: 14 }}>
               <SectHd title="등급별 투자 수익률" more="RAW → PSA 10" />
@@ -525,6 +536,9 @@ export default function SnkrdunkDetail() {
                 </View>
               </PixelFrame>
             </View>
+
+            </>
+            ) : null}
 
             <View style={{ alignItems: 'center', paddingVertical: 12 }}>
               <PixelText variant={txt} size={8} color={tc.ink3}>데이터 출처: snkrdunk.com (10분 캐시)</PixelText>

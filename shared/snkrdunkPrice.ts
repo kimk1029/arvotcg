@@ -269,3 +269,45 @@ export function trendChangePct(points: Array<[number, number]>): number | undefi
   if (prev <= 0) return undefined;
   return ((last - prev) / prev) * 100;
 }
+
+/* ── 박스(미개봉 상품) 시세 — 등급 개념이 없으므로 전체 체결에서 바로 집계 ── */
+
+/**
+ * 박스 대표 시세 — 최근 체결(최신순) 7건 중앙값 → 없으면 최저매물.
+ * 박스 거래 배지(未開封/シュリンク付き/中古)는 isGradedSnkrdunkBadge 로 걸러지지 않아
+ * 등급 집계(gradeAggsFromHistory)를 쓰면 RAW 가 오염된다 → 박스는 이 함수만 쓴다.
+ */
+export function boxHeadlineFromHistory(
+  history: ReadonlyArray<{ price: number }>,
+  minPrice: number,
+): number {
+  const prices = history.filter((h) => typeof h.price === 'number' && h.price > 0).map((h) => h.price);
+  if (prices.length === 0) return minPrice || 0;
+  return median(prices.slice(0, 7)) || minPrice || 0;
+}
+
+/** 시세상세 '전일 대비 / 7일 변동률' — 판매 차트 포인트([ts, price]) 기준. 웹·앱 공통. */
+export interface PriceChange {
+  prevDiff: number;
+  prevPct: number | null;
+  wkDiff: number;
+  wkPct: number | null;
+}
+
+export function priceChangeFromPoints(points: ReadonlyArray<[number, number]>): PriceChange {
+  const pts = [...points].sort((a, b) => a[0] - b[0]);
+  if (pts.length < 2) return { prevDiff: 0, prevPct: null, wkDiff: 0, wkPct: null };
+  const last = pts[pts.length - 1];
+  const prev = pts[pts.length - 2];
+  const prevDiff = last[1] - prev[1];
+  const prevPct = prev[1] > 0 ? (prevDiff / prev[1]) * 100 : null;
+  const weekAgoTs = last[0] - 7 * 86_400_000;
+  let base = pts[0];
+  for (const p of pts) {
+    if (p[0] <= weekAgoTs) base = p;
+    else break;
+  }
+  const wkDiff = last[1] - base[1];
+  const wkPct = base[1] > 0 ? (wkDiff / base[1]) * 100 : null;
+  return { prevDiff, prevPct, wkDiff, wkPct };
+}

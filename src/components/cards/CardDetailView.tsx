@@ -10,7 +10,7 @@ import { KreamCompare } from '@/components/cards/KreamCompare';
 import { MultiSourceKoPrice } from '@/components/cards/MultiSourceKoPrice';
 import { PsaPopPanel } from '@/components/cards/PsaPopPanel';
 import { downsamplePricePoints, isGradedSnkrdunkBadge } from '@/lib/snkrdunk';
-import { defaultGradeKey, gradeDisplayJpy, gradeUplift, type SnkrGradeAgg } from '@/lib/snkrdunkPrice';
+import { boxHeadlineFromHistory, defaultGradeKey, gradeDisplayJpy, gradeUplift, priceChangeFromPoints, type SnkrGradeAgg } from '@/lib/snkrdunkPrice';
 
 /**
  * 카드 시세 상세 — ARVOTCG '카드상세' 디자인 레이아웃.
@@ -28,6 +28,10 @@ export interface TradeRow {
 
 interface Props {
   apparelId: number;
+  /** 'box' 면 박스(미개봉 상품) 시세상세 — 등급(RAW/PSA)·PSA 팝·지역 비교 없이 BOX 라벨 + 세트코드. */
+  kind?: 'single' | 'box';
+  /** 박스 세트코드 라벨 (서버 카탈로그 보강값). */
+  setCode?: string | null;
   koName: string;
   jpName: string;
   category: string | null;
@@ -91,6 +95,8 @@ function Delta({ diff, pct }: { diff: number; pct: number | null }) {
 
 export function CardDetailView({
   apparelId,
+  kind = 'single',
+  setCode = null,
   koName,
   jpName,
   category,
@@ -106,6 +112,7 @@ export function CardDetailView({
   kreamSetCode,
   kreamRarity,
 }: Props) {
+  const isBox = kind === 'box';
   // 목록에서 넘어온 등급이 있으면 그 탭으로 연다(목록 가격 == 첫 화면 가격).
   // 없거나 그 등급에 체결이 없으면 데이터가 가장 많은 등급(기본 규칙).
   const requested = grades.find((g) => g.key === initialGrade && g.count > 0)?.key;
@@ -116,7 +123,8 @@ export function CardDetailView({
 
   const sel = grades.find((g) => g.key === gradeKey) ?? grades[0];
   // 정본 gradeDisplayJpy — 홈 HOT·내 컬렉션 목록가와 같은 통계(최근 체결 중앙값).
-  const headlinePrice = gradeDisplayJpy(sel, minPrice);
+  // 박스는 등급 집계 대신 전체 체결 중앙값(정본 boxHeadlineFromHistory).
+  const headlinePrice = isBox ? boxHeadlineFromHistory(trades, minPrice) : gradeDisplayJpy(sel, minPrice);
   // KREAM 비교 기준 = RAW(비등급) 최근 거래가. 없으면 최저매물.
   const rawGrade = grades.find((g) => g.key === 'RAW');
   // 등급별 투자 수익률 — RAW 평균가 → PSA10 평균가 상승폭 (정본 shared gradeUplift).
@@ -133,24 +141,8 @@ export function CardDetailView({
     return { single: rawRecent, psa10: pick('PSA 10'), psa9: pick('PSA 9'), psa8 };
   }, [grades, trades, rawRecent]);
 
-  // 전일/주간 변동 — 전체 차트 기준.
-  const change = useMemo(() => {
-    const pts = [...chartPoints].sort((a, b) => a[0] - b[0]);
-    if (pts.length < 2) return { prevDiff: 0, prevPct: null as number | null, wkDiff: 0, wkPct: null as number | null };
-    const last = pts[pts.length - 1];
-    const prev = pts[pts.length - 2];
-    const prevDiff = last[1] - prev[1];
-    const prevPct = prev[1] > 0 ? (prevDiff / prev[1]) * 100 : null;
-    const weekAgoTs = last[0] - 7 * 86_400_000;
-    let base = pts[0];
-    for (const p of pts) {
-      if (p[0] <= weekAgoTs) base = p;
-      else break;
-    }
-    const wkDiff = last[1] - base[1];
-    const wkPct = base[1] > 0 ? (wkDiff / base[1]) * 100 : null;
-    return { prevDiff, prevPct, wkDiff, wkPct };
-  }, [chartPoints]);
+  // 전일/주간 변동 — 전체 차트 기준 (정본 shared priceChangeFromPoints, 앱 동일).
+  const change = useMemo(() => priceChangeFromPoints(chartPoints), [chartPoints]);
 
   // 차트 — 기간 필터 후 다운샘플.
   const chartData = useMemo(() => {
@@ -165,10 +157,11 @@ export function CardDetailView({
 
   // 최근 거래내역 — 선택 등급으로 필터(빈 등급이면 전체 표시).
   const filteredTrades = useMemo(() => {
+    if (isBox) return trades.slice(0, 20);
     const pred = gradePredicate(gradeKey);
     const m = trades.filter((t) => pred(t.badge));
     return (m.length > 0 ? m : trades).slice(0, 20);
-  }, [trades, gradeKey]);
+  }, [trades, gradeKey, isBox]);
 
   // 거래가 있는 등급만 — 거래내역 등급 토글 노출용(PSA10·RAW 등 전환).
   const tradeGrades = useMemo(() => grades.filter((g) => g.count > 0), [grades]);
@@ -199,17 +192,18 @@ export function CardDetailView({
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--red)', flex: 'none' }} />
             일본판
           </Chip>
-          {category && (
+          {(isBox || category) && (
             <span
               style={{
                 fontFamily: 'var(--f1)', fontSize: 11, fontWeight: 800, color: 'var(--white)',
                 background: 'var(--pur)', padding: '6px 12px', borderRadius: 'var(--r-pill)', whiteSpace: 'nowrap',
               }}
             >
-              {category}
+              {isBox ? 'BOX' : category}
             </span>
           )}
-          {productNumber && <Chip muted>{productNumber}</Chip>}
+          {/* 박스: 상품번호 대신 소속 세트코드 라벨 */}
+          {isBox ? (setCode && <Chip muted>{setCode.toUpperCase()}</Chip>) : (productNumber && <Chip muted>{productNumber}</Chip>)}
         </div>
 
         {/* 가격 박스 */}
@@ -218,9 +212,9 @@ export function CardDetailView({
               을 전환할 수 있어야 한다는 요구. 체결이 있는 등급만 노출(빈 탭 방지). */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <div style={{ fontFamily: 'var(--f1)', fontSize: 12, fontWeight: 700, color: 'var(--ink3)', flex: 'none' }}>
-              최근 체결가{headlineTabs.length > 1 ? '' : ` (${gradeKey})`}
+              최근 체결가{isBox || headlineTabs.length > 1 ? '' : ` (${gradeKey})`}
             </div>
-            {headlineTabs.length > 1 && (
+            {!isBox && headlineTabs.length > 1 && (
               <div style={{ display: 'flex', gap: 3, background: 'var(--pap2)', borderRadius: 'var(--r-pill)', padding: 3, overflowX: 'auto' }}>
                 {headlineTabs.map((g) => {
                   const on = g.key === gradeKey;
@@ -274,10 +268,13 @@ export function CardDetailView({
         apparelId={apparelId}
         cardName={koName}
         imageUrl={imageUrl}
-        currentPriceJpy={rawRecent || minPrice || null}
-        gradePrices={gradePrices}
+        currentPriceJpy={(isBox ? headlinePrice : rawRecent) || minPrice || null}
+        gradePrices={isBox ? null : gradePrices}
       />
 
+      {/* 박스는 지역 탭·한국판 비교 없음(등급/카드번호 매칭 기반) */}
+      {!isBox && (
+      <>
       {/* ── 지역 탭 (일본판 스니덩크 / 한국판 멀티소스) ───────────── */}
       <div style={{ display: 'flex', gap: 8, padding: '6px var(--gap) 0', borderBottom: '1px solid var(--pap3)' }}>
         {['일본판', '한국판'].map((r) => {
@@ -314,8 +311,13 @@ export function CardDetailView({
       )}
 
       {/* 일본판 — SNKRDUNK 등급·차트·거래내역 */}
+      </>
+      )}
+
       {region === '일본판' && (
         <>
+      {!isBox && (
+      <>
       {/* ── 등급 카드 (가로 스크롤) ─────────────────────────── */}
       <div className="hrow" style={{ display: 'flex', gap: 12, overflowX: 'auto', padding: '14px var(--gap) 6px' }}>
         {grades.map((g) => {
@@ -365,6 +367,9 @@ export function CardDetailView({
         rarity={kreamRarity}
       />
 
+      </>
+      )}
+
       {/* ── 가격 추이 (실데이터 + 기간 탭) ───────────────────── */}
       <div className="sect">
         <div className="sect-hd">
@@ -402,7 +407,7 @@ export function CardDetailView({
           <span className="more">{filteredTrades.length}건</span>
         </div>
         {/* 등급 토글 — 거래가 있는 등급(PSA10/RAW 등)만 노출, 바꿔서 볼 수 있게. */}
-        {tradeGrades.length > 1 && (
+        {!isBox && tradeGrades.length > 1 && (
           <div className="hrow" style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 10 }}>
             {tradeGrades.map((g) => {
               const active = g.key === gradeKey;
@@ -464,6 +469,8 @@ export function CardDetailView({
         </Panel>
       </div>
 
+      {!isBox && (
+      <>
       {/* ── 등급별 투자 수익률 — RAW 평균가 → PSA10 평균가 상승폭 (정본 shared gradeUplift) ── */}
       <div className="sect">
         <div className="sect-hd">
@@ -505,6 +512,8 @@ export function CardDetailView({
           )}
         </Panel>
       </div>
+      </>
+      )}
         </>
       )}
 

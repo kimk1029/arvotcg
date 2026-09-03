@@ -36,6 +36,10 @@ export interface SnkrdunkApparel {
   listingCountText: string;
   releasedAt: string | null;
   productNumber: string;
+  /** DB 카탈로그 보강(서버 /apparels/:id) — 파싱된 세트코드. 박스는 소속 팩의 세트코드. 없으면 null. */
+  setCode?: string | null;
+  /** DB 카탈로그 보강 — 소속 팩 코드(CARD_PACKS.code). 없으면 null. */
+  packCode?: string | null;
 }
 
 export interface SnkrdunkSaleEntry {

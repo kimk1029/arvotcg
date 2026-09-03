@@ -38,7 +38,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const jpName = apparel.localizedName ?? '';
   const koName = seed?.shortName ?? translateKnownCardNameToKo(jpName) ?? jpName;
   const title = `${koName} 시세`;
-  const description = `${koName} 포켓몬 카드 실시간 시세 — PSA 등급별 최근가·평균가·시세 추이를 snkrdunk 데이터로 확인하세요.`;
+  const description = apparel.itemKind === 'box'
+    ? `${koName} 박스 실시간 시세 — 최근 체결가·시세 추이를 snkrdunk 데이터로 확인하세요.`
+    : `${koName} 포켓몬 카드 실시간 시세 — PSA 등급별 최근가·평균가·시세 추이를 snkrdunk 데이터로 확인하세요.`;
   const ogImage = apparel.imageUrl ?? '/meta.png';
   const canonical = `/cards/snkrdunk/${apparelId}`;
   return {
@@ -95,7 +97,7 @@ export default async function Page({ params, searchParams }: PageProps) {
         data={{
           '@context': 'https://schema.org',
           '@type': 'Product',
-          name: `${koName} 포켓몬 카드`,
+          name: apparel.itemKind === 'box' ? `${koName} 박스` : `${koName} 포켓몬 카드`,
           ...(jpName ? { alternateName: jpName } : {}),
           ...(apparel.imageUrl ? { image: [absUrl(apparel.imageUrl)] } : {}),
           ...(minPrice > 0
@@ -119,6 +121,8 @@ export default async function Page({ params, searchParams }: PageProps) {
 
       <CardDetailView
         apparelId={apparelId}
+        kind={apparel.itemKind === 'box' ? 'box' : 'single'}
+        setCode={apparel.setCode ?? null}
         koName={koName}
         jpName={jpName}
         category={seed?.category ?? null}
