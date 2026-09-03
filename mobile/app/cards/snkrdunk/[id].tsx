@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, View, Text } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import Svg, { Path } from 'react-native-svg';
 import { AppBar } from '@/components/AppBar';
 import { CardActions } from '@/components/CardActions';
 import { KreamCompare } from '@/components/cards/KreamCompare';
@@ -260,8 +261,16 @@ export default function SnkrdunkDetail() {
                 ) : null}
                 {/* 박스 → 수록 카드(힛카드) 목록 = 시세확인의 해당 박스 페이지(/cards/packs/{code}). 웹 동일. */}
                 {isBox && boxPackCode ? (
-                  <Pressable onPress={() => router.push(`/cards/packs/${boxPackCode}` as never)} hitSlop={6} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: tc.pap2, paddingHorizontal: 11, paddingVertical: 6, opacity: pressed ? 0.7 : 1 })}>
-                    <PixelText variant={txt} size={10} weight="bold" color={tc.pur}>{`${boxSetCode ? `${boxSetCode.toUpperCase()} ` : ''}힛카드 →`}</PixelText>
+                  <Pressable
+                    onPress={() => router.push(`/cards/packs/${boxPackCode}` as never)}
+                    hitSlop={6}
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: tc.pur, paddingHorizontal: 12, paddingVertical: 6, borderRadius: flat ? 999 : 0, opacity: pressed ? 0.75 : 1, elevation: 2, shadowColor: tc.pur, shadowOpacity: 0.28, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } })}
+                  >
+                    <PixelText variant={txt} size={10} weight="bold" color={tc.white}>{`${boxSetCode ? `${boxSetCode.toUpperCase()} ` : ''}힛카드`}</PixelText>
+                    {/* 외부 이동 아이콘 — 오른쪽 위 화살표 (웹 동일) */}
+                    <Svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke={tc.white} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
+                      <Path d="M7 17 17 7M9 7h8v8" />
+                    </Svg>
                   </Pressable>
                 ) : null}
               </View>

@@ -213,12 +213,16 @@ export function CardDetailView({
             <Link
               href={`/cards/packs/${packCode}`}
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--f1)', fontSize: 11, fontWeight: 800,
-                color: 'var(--pur)', background: 'var(--pap2)', padding: '6px 11px', borderRadius: 'var(--r-pill)',
-                textDecoration: 'none', whiteSpace: 'nowrap',
+                display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--f1)', fontSize: 11, fontWeight: 800,
+                color: 'var(--white)', background: 'var(--pur)', padding: '6px 12px', borderRadius: 'var(--r-pill)',
+                boxShadow: '0 2px 6px rgba(106,58,255,.28)', textDecoration: 'none', whiteSpace: 'nowrap',
               }}
             >
-              {setCode ? `${setCode.toUpperCase()} ` : ''}힛카드 →
+              {setCode ? `${setCode.toUpperCase()} ` : ''}힛카드
+              {/* 외부 이동 아이콘 — 오른쪽 위 화살표 */}
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M7 17 17 7M9 7h8v8" />
+              </svg>
             </Link>
           )}
         </div>
