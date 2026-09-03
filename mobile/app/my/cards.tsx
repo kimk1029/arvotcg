@@ -105,6 +105,8 @@ export default function MyCardsScreen() {
 
   const [view, setView] = useState<ViewMode>('grid');
   const [sort, setSort] = useState<SortKey>('value');
+  // 박스 제외 — 목록·손익 합계에서 박스(미개봉 상품)를 뺀다 (웹 CollectionScreen 동일).
+  const [excludeBox, setExcludeBox] = useState(false);
 
   // SWR — 카드 정적 데이터는 디스크까지 캐싱, 재진입 시 즉시 그리고 "오늘의 금액"만
   // /api/me/cards/prices 로 받아 merge (fetchMyCardsSmart). 등록/삭제 시 자동 무효화.
@@ -154,9 +156,14 @@ export default function MyCardsScreen() {
       return { c, curJpy, qty, basisJpy, profitPct, dayPct, changePct: profitPct ?? dayPct, value: curJpy * qty };
     });
   }, [data, rate]);
+  const boxCount = useMemo(() => allRows.filter((r) => r.c.itemKind === 'box').length, [allRows]);
+  const visibleRows = useMemo(
+    () => (excludeBox ? allRows.filter((r) => r.c.itemKind !== 'box') : allRows),
+    [allRows, excludeBox],
+  );
 
   const rows = useMemo(() => {
-    const arr = [...allRows];
+    const arr = [...visibleRows];
     if (sort === 'value') arr.sort((a, b) => b.value - a.value);
     else if (sort === 'change') arr.sort((a, b) => (b.changePct ?? -Infinity) - (a.changePct ?? -Infinity));
     else if (sort === 'name') arr.sort((a, b) => cardName(a.c).localeCompare(cardName(b.c), 'ko'));
@@ -164,20 +171,20 @@ export default function MyCardsScreen() {
     // 테마순 — 게임(포켓몬→원피스→…)별로 묶고 그룹 안은 가격 내림차순 (웹 동일).
     else if (sort === 'game') arr.sort((a, b) => gameRank(a.c) - gameRank(b.c) || b.value - a.value);
     return arr;
-  }, [allRows, sort]);
+  }, [visibleRows, sort]);
 
   // 히어로 구매금액/평가손익 — 웹 CollectionScreen totals 동일(allRows 기준 합산).
   const heroTotals = useMemo(() => {
     let invested = 0;
     let current = 0;
-    for (const r of allRows) {
+    for (const r of visibleRows) {
       if (r.basisJpy && r.curJpy > 0) {
         invested += r.basisJpy * r.qty;
         current += r.curJpy * r.qty;
       }
     }
     return { invested, profit: current - invested };
-  }, [allRows]);
+  }, [visibleRows]);
 
   const handleRemove = useCallback(
     (id: number) => {
@@ -278,8 +285,9 @@ export default function MyCardsScreen() {
                 </View>
               </View>
 
-              {/* 정렬 — 미니멀 세그먼트 (웹 동일) */}
-              <View style={{ alignSelf: 'flex-start', flexDirection: 'row', gap: 2, backgroundColor: tc.pap2, borderRadius: 8, padding: 2, marginBottom: 14 }}>
+              {/* 정렬 — 미니멀 세그먼트 (웹 동일) + 박스 제외 체크박스 */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+              <View style={{ alignSelf: 'flex-start', flexDirection: 'row', gap: 2, backgroundColor: tc.pap2, borderRadius: 8, padding: 2 }}>
                 {(
                   [
                     { k: 'value', label: '가격순' },
@@ -296,6 +304,15 @@ export default function MyCardsScreen() {
                     </Pressable>
                   );
                 })}
+              </View>
+              {boxCount > 0 ? (
+                <Pressable onPress={() => setExcludeBox((v) => !v)} hitSlop={6} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 16, height: 16, borderRadius: 4, borderWidth: 1.5, borderColor: excludeBox ? tc.ink : tc.ink3, backgroundColor: excludeBox ? tc.ink : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                    {excludeBox ? <PixelText variant="ko" size={10} weight="bold" color={tc.white}>✓</PixelText> : null}
+                  </View>
+                  <PixelText variant="ko" size={10} weight="bold" color={excludeBox ? tc.ink : tc.ink3}>{`박스 제외 (${boxCount})`}</PixelText>
+                </Pressable>
+              ) : null}
               </View>
 
               {rows.length === 0 ? (

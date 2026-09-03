@@ -54,6 +54,8 @@ interface CardRow {
   series: string | null;
   /** 카드 게임 종류 ('pokemon'|'onepiece'|'yugioh'|'other') — 테마순 정렬용. */
   game?: string | null;
+  /** 'single' | 'box' — 박스(미개봉 상품) 여부. '박스 제외' 필터용. */
+  itemKind?: 'single' | 'box' | null;
   selfPulled: boolean;
   graded: boolean;
   gradeCompany: string | null;
@@ -169,6 +171,8 @@ export function CollectionScreen() {
   const [reload, setReload] = useState(0);
   const [sort, setSort] = useState<SortKey>('value');
   const [view, setView] = useState<View>('grid');
+  // 박스 제외 — 목록·손익 합계·비중 도넛에서 박스(미개봉 상품)를 뺀다 (앱 my/cards 동일).
+  const [excludeBox, setExcludeBox] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -276,9 +280,14 @@ export function CollectionScreen() {
       return { c, curJpy, qty, basisJpy, profitPct, dayPct, changePct: profitPct ?? dayPct, value: curJpy * qty };
     });
   }, [cards, rate]);
+  const boxCount = useMemo(() => allRows.filter((r) => r.c.itemKind === 'box').length, [allRows]);
+  const visibleRows = useMemo(
+    () => (excludeBox ? allRows.filter((r) => r.c.itemKind !== 'box') : allRows),
+    [allRows, excludeBox],
+  );
 
   const rows = useMemo(() => {
-    const arr = [...allRows];
+    const arr = [...visibleRows];
     if (sort === 'value') arr.sort((a, b) => b.value - a.value);
     else if (sort === 'change') arr.sort((a, b) => (b.changePct ?? -Infinity) - (a.changePct ?? -Infinity));
     else if (sort === 'name') arr.sort((a, b) => cardName(a.c).localeCompare(cardName(b.c), 'ko'));
@@ -286,12 +295,12 @@ export function CollectionScreen() {
     // 테마순 — 게임(포켓몬→원피스→…)별로 묶고 그룹 안은 가격 내림차순.
     else if (sort === 'game') arr.sort((a, b) => gameRank(a.c) - gameRank(b.c) || b.value - a.value);
     return arr;
-  }, [allRows, sort]);
+  }, [visibleRows, sort]);
 
   const totals = useMemo(() => {
     let invested = 0;
     let current = 0;
-    for (const r of allRows) {
+    for (const r of visibleRows) {
       if (r.basisJpy && r.curJpy > 0) {
         invested += r.basisJpy * r.qty;
         current += r.curJpy * r.qty;
@@ -300,7 +309,7 @@ export function CollectionScreen() {
     const profit = current - invested;
     const pct = invested > 0 ? (profit / invested) * 100 : null;
     return { invested, current, profit, pct };
-  }, [allRows]);
+  }, [visibleRows]);
 
   const summary = useMemo(() => {
     const h = port?.history ?? [];
@@ -316,7 +325,7 @@ export function CollectionScreen() {
 
   // 가격 비중(카드별) — 총 평가액에서 각 카드(평가액=현재가×수량)가 차지하는 비중.
   const cardWeights = useMemo(() => {
-    const priced = allRows.filter((r) => r.curJpy > 0 && r.value > 0);
+    const priced = visibleRows.filter((r) => r.curJpy > 0 && r.value > 0);
     const total = priced.reduce((s, r) => s + r.value, 0);
     if (total <= 0) return { items: [] as Array<{ row: Row; pct: number }>, restVal: 0, restCount: 0, restPct: 0 };
     const sorted = [...priced].sort((a, b) => b.value - a.value);
@@ -325,7 +334,7 @@ export function CollectionScreen() {
     const rest = sorted.slice(TOP);
     const restVal = rest.reduce((s, r) => s + r.value, 0);
     return { items, restVal, restCount: rest.length, restPct: (restVal / total) * 100 };
-  }, [allRows]);
+  }, [visibleRows]);
 
   // 카드별 비중 도넛 세그먼트 (합계 100% — 상위 카드 + 기타).
   const donutSegments = useMemo(() => {
@@ -586,8 +595,9 @@ export function CollectionScreen() {
           </div>
         </div>
 
-        {/* 정렬 — 미니멀 세그먼트 (작게) */}
-        <div style={{ display: 'inline-flex', gap: 2, background: 'var(--pap2)', borderRadius: 'var(--r-sm)', padding: 2, marginBottom: 14 }}>
+        {/* 정렬 — 미니멀 세그먼트 (작게) + 박스 제외 체크박스 */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div style={{ display: 'inline-flex', gap: 2, background: 'var(--pap2)', borderRadius: 'var(--r-sm)', padding: 2 }}>
           {([
             { k: 'value', label: '가격순' },
             { k: 'change', label: '등락순' },
@@ -612,6 +622,13 @@ export function CollectionScreen() {
               </button>
             );
           })}
+        </div>
+        {boxCount > 0 && (
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontFamily: 'var(--f1)', fontSize: 11, fontWeight: 700, color: excludeBox ? 'var(--ink)' : 'var(--ink3)', whiteSpace: 'nowrap' }}>
+            <input type="checkbox" checked={excludeBox} onChange={(e) => setExcludeBox(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--ink)', margin: 0 }} />
+            박스 제외 ({boxCount})
+          </label>
+        )}
         </div>
 
         {rows.length === 0 ? (

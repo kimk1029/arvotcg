@@ -95,6 +95,8 @@ export interface MyCardRow {
   series?: string | null;
   /** 카드 게임 종류 ('pokemon'|'onepiece'|'yugioh'|'other') — 테마순 정렬용. */
   game?: string | null;
+  /** 'single' | 'box' — 박스(미개봉 상품) 여부. '박스 제외' 필터용. */
+  itemKind?: 'single' | 'box' | null;
 }
 
 export interface MyFavoriteRow {

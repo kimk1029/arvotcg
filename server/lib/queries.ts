@@ -431,6 +431,8 @@ export interface MyCardWithPrice extends MyCardRow {
   series: string | null;
   /** 카드 게임 종류 ('pokemon'|'onepiece'|'yugioh'|'other') — 카탈로그 game. 없으면 null. */
   game: string | null;
+  /** 'single' | 'box' — 박스(미개봉 상품) 여부(카탈로그 itemKind). 컬렉션 '박스 제외' 필터용. */
+  itemKind: 'single' | 'box';
 }
 
 export async function getMyCardsWithPrices(
@@ -467,6 +469,8 @@ export async function getMyCardsWithPrices(
   const seriesById = new Map<number, string | null>();
   // apparelId → 카드 게임 종류. 테마순 정렬용.
   const gameById = new Map<number, string | null>();
+  // apparelId → 박스 여부.
+  const kindById = new Map<number, 'single' | 'box'>();
   if (apparelIds.length > 0) {
     // 1) 우리 DB(마스터 카탈로그 + 최신 시세 스냅샷) 우선 — 신선하면 스니덩 호출 생략.
     const catalog = await loadCatalogEntries(apparelIds);
@@ -476,6 +480,7 @@ export async function getMyCardsWithPrices(
       const fromSet = e.setCode ? getCardPackMeta(e.setCode.toLowerCase())?.shortName ?? e.setCode : null;
       seriesById.set(id, fromPack ?? fromSet ?? null);
       gameById.set(id, e.game ?? null);
+      kindById.set(id, e.itemKind);
     }
     const staleIds = apparelIds.filter((id) => !isFreshEntry(catalog.get(id)));
     // stale-while-revalidate — 스냅샷이 하나라도 있는 카드(오래됐어도)는 그 값으로
@@ -535,6 +540,7 @@ export async function getMyCardsWithPrices(
         priceBasis: 'RAW',
         series: null,
         game: null,
+        itemKind: 'single' as const,
       };
     }
     const info = apparelInfo.get(c.snkrdunkApparelId);
@@ -566,6 +572,7 @@ export async function getMyCardsWithPrices(
       priceBasis: basis.basis,
       series: seriesById.get(c.snkrdunkApparelId) ?? null,
       game: gameById.get(c.snkrdunkApparelId) ?? null,
+      itemKind: kindById.get(c.snkrdunkApparelId) ?? ('single' as const),
     };
   };
 

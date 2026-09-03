@@ -10,6 +10,7 @@
  *
  * 모든 DB 쓰기는 응답에 영향 주지 않게 삼키고 로깅만 한다.
  */
+import { classifySnkrdunkName } from '../../shared/snkrdunk';
 import { Prisma } from '@prisma/client';
 import { prisma } from './prisma.js';
 import { ensureCardImage } from './cardImageCache.js';
@@ -195,6 +196,8 @@ export interface CatalogEntry {
   setCode: string | null;
   /** 카드 게임 종류 ('pokemon'|'onepiece'|'yugioh'|'other'). 미분류면 null. */
   game: string | null;
+  /** 'single' | 'box' — 박스(미개봉 상품) 여부. 컬렉션 '박스 제외' 필터용. */
+  itemKind: 'single' | 'box';
   /** 최신 스냅샷 — 없으면 null. */
   snapshot: {
     minPrice: number;
@@ -253,6 +256,8 @@ export async function loadCatalogEntries(ids: number[]): Promise<Map<number, Cat
         packCode: c.packCode ?? null,
         setCode: c.setCode ?? null,
         game: c.game || null,
+        // 검색결과 경유로만 적재된 행은 itemKind 기본값('single')이라 이름 분류로 보강.
+        itemKind: c.itemKind === 'box' || classifySnkrdunkName(c.localizedName || c.name) === 'box' ? 'box' : 'single',
         snapshot: s
           ? {
               minPrice: Number(s.minPrice),
