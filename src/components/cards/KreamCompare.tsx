@@ -184,7 +184,6 @@ export function KreamCompare({ query, snkrPriceJpy, cardNumber, setCode, rarity 
           </a>
         </div>
         <div style={{ marginTop: 8, fontFamily: 'var(--f1)', fontSize: 8.5, color: 'var(--ink3)', letterSpacing: 0.2, lineHeight: 1.5 }}>
-          · 이베이·메루카리·야후옥션 비교는 준비 중이에요.
         </div>
       </Panel>
     </div>

@@ -161,7 +161,6 @@ export function KreamCompare({
               </Pressable>
             </View>
             <PixelText variant={txt} size={8} color={tc.ink3} style={{ marginTop: 8, lineHeight: 13 }}>
-              · 이베이·메루카리·야후옥션 비교는 준비 중이에요.
             </PixelText>
           </View>
         </PixelFrame>

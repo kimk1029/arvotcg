@@ -290,7 +290,7 @@ export default function MyScreen() {
     { emoji: '📜', iconBg: '#F0F0F2', label: '이용약관', onPress: () => router.push('/legal?doc=terms' as never) },
     { emoji: '🔒', iconBg: '#E3F6EC', label: '개인정보처리방침', onPress: () => router.push('/legal?doc=privacy' as never) },
     { emoji: '🚫', iconBg: '#FFECEC', label: '차단 관리', sub: '차단한 사용자 보기·해제', onPress: () => router.push('/my/blocks' as never) },
-    { emoji: '🔔', iconBg: '#F0F0F2', label: '알림 설정', sub: '준비중', disabled: true },
+    { emoji: '🔔', iconBg: '#F0F0F2', label: '알림', sub: '받은 알림 확인', onPress: () => router.push('/my/notifications' as never) },
   ];
 
   return (

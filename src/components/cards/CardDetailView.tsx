@@ -15,7 +15,6 @@ import { defaultGradeKey, gradeDisplayJpy, gradeUplift, type SnkrGradeAgg } from
 /**
  * 카드 시세 상세 — ARVOTCG '카드상세' 디자인 레이아웃.
  * 모든 테마 공통(색/라운드는 CSS 변수, 박스는 Panel). 데이터가 연결된 섹션은 실데이터,
- * 미연결 섹션(지역/플랫폼 비교/ROI)은 '준비 중' 으로 레이아웃만 유지.
  */
 
 /** 정본 집계 타입 재수출 — 등급 집계는 shared gradeAgg 하나만 쓴다. */
@@ -76,25 +75,6 @@ const RANGES: Array<{ label: string; days: number }> = [
   { label: '1년', days: 365 },
   { label: '전체', days: 0 },
 ];
-
-function ComingSoon({ height = 88 }: { height?: number }) {
-  return (
-    <div
-      style={{
-        height,
-        display: 'grid',
-        placeItems: 'center',
-        gap: 4,
-        fontFamily: 'var(--f1)',
-        color: 'var(--ink3)',
-        letterSpacing: 0.3,
-      }}
-    >
-      <div style={{ fontSize: 18, opacity: 0.5 }}>🚧</div>
-      <div style={{ fontSize: 11, fontWeight: 700 }}>준비 중</div>
-    </div>
-  );
-}
 
 /** 등락 표시 (전일/주간). */
 function Delta({ diff, pct }: { diff: number; pct: number | null }) {
@@ -298,10 +278,10 @@ export function CardDetailView({
         gradePrices={gradePrices}
       />
 
-      {/* ── 지역 탭 (일본판 실데이터 / 그 외 준비 중) ───────────── */}
+      {/* ── 지역 탭 (일본판 스니덩크 / 한국판 멀티소스) ───────────── */}
       <div style={{ display: 'flex', gap: 8, padding: '6px var(--gap) 0', borderBottom: '1px solid var(--pap3)' }}>
-        {['일본판', '한국판', '북미판'].map((r) => {
-          const ready = r === '일본판' || r === '한국판';
+        {['일본판', '한국판'].map((r) => {
+          const ready = true;
           const active = region === r;
           return (
             <button
@@ -318,7 +298,6 @@ export function CardDetailView({
               }}
             >
               {r}
-              {!ready && <span style={{ fontSize: 8, marginLeft: 3 }}>준비중</span>}
             </button>
           );
         })}
@@ -529,14 +508,6 @@ export function CardDetailView({
         </>
       )}
 
-      {/* 북미판 — eBay/Scrydex 준비 중 */}
-      {region === '북미판' && (
-        <div className="sect">
-          <Panel style={{ padding: 14 }}>
-            <ComingSoon height={72} />
-          </Panel>
-        </div>
-      )}
 
     </>
   );

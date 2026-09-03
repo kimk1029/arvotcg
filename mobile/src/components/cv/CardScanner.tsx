@@ -126,7 +126,7 @@ export function CardScanner({ onCancel, onCaptured, maxNumDocuments = 24 }: Prop
     <View style={styles.full}>
       <ActivityIndicator color={colors.gold} size="large" />
       <PixelText variant="ko" size={11} color="rgba(255,255,255,0.7)" style={{ marginTop: 12 }}>
-        스캐너 준비 중...
+        카메라 켜는 중...
       </PixelText>
     </View>
   );

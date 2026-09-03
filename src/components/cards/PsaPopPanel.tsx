@@ -147,7 +147,7 @@ export function PsaPopPanel({
           </div>
         ) : rows.length === 0 ? (
           <div style={ph}>
-            등급별 데이터 준비 중 — 총 {pop?.total ? pop.total.toLocaleString('ko-KR') : '—'}장 그레이딩
+            등급별 데이터 없음 — 총 {pop?.total ? pop.total.toLocaleString('ko-KR') : '—'}장 그레이딩
           </div>
         ) : (
           <>

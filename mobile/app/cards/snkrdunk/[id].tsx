@@ -323,10 +323,10 @@ export default function SnkrdunkDetail() {
               gradePrices={gradePrices}
             />
 
-            {/* ── 지역 탭 (일본판 실데이터 / 그 외 준비중) ── */}
+            {/* ── 지역 탭 (일본판 스니덩크 / 한국판 멀티소스) ── */}
             <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 14, marginTop: 6, borderBottomWidth: 1, borderBottomColor: tc.pap3 }}>
-              {['일본판', '한국판', '북미판'].map((r) => {
-                const ready = r === '일본판' || r === '한국판';
+              {['일본판', '한국판'].map((r) => {
+                const ready = true;
                 const active = region === r;
                 return (
                   <Pressable
@@ -336,7 +336,6 @@ export default function SnkrdunkDetail() {
                     style={{ paddingVertical: 9, paddingHorizontal: 8, marginBottom: -1, borderBottomWidth: 2.5, borderBottomColor: active ? tc.ink : 'transparent', opacity: ready ? 1 : 0.5, flexDirection: 'row', alignItems: 'center', gap: 3 }}
                   >
                     <PixelText variant={txt} size={13} weight={active ? 'bold' : 'normal'} color={active ? tc.ink : tc.ink3}>{r}</PixelText>
-                    {!ready ? <PixelText variant={txt} size={8} color={tc.ink3}>준비중</PixelText> : null}
                   </Pressable>
                 );
               })}

@@ -144,7 +144,7 @@ export function PsaPopPanel({
               </View>
             ) : rows.length === 0 ? (
               <PixelText variant={txt} size={10} color={tc.ink3} style={{ textAlign: 'center', paddingVertical: 24 }}>
-                등급별 데이터 준비 중 — 총 {pop?.total ? pop.total.toLocaleString('ko-KR') : '—'}장 그레이딩
+                등급별 데이터 없음 — 총 {pop?.total ? pop.total.toLocaleString('ko-KR') : '—'}장 그레이딩
               </PixelText>
             ) : (
               rows.map((r, i) => {

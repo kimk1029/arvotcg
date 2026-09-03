@@ -203,7 +203,7 @@ const DRAWER_SECTIONS: { label: string | null; items: DrawerItem[] }[] = [
     label: '소셜',
     items: [
       { emoji: '💬', label: '커뮤니티', href: '/feed' },
-      { emoji: '🔨', label: 'MVC 경매', href: '/cards/mvc-auction', badge: '베타', badgeBg: ACCENT30 },
+      { emoji: '🔨', label: 'MVC 경매', href: '/cards/mvc-auction' },
       // 카드샵 = 커뮤니티의 Shop 탭 화면 (딥링크 ?tab=shop).
       { emoji: '🏪', label: '카드샵', href: '/feed?tab=shop' },
     ],

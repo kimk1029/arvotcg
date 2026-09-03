@@ -398,7 +398,7 @@ export default function MvcAuctionScreen() {
           <View style={{ paddingVertical: 40, alignItems: 'center' }}><ActivityIndicator color={P.accent} /></View>
         ) : tab === 'soon' || tab === 'ended' ? (
           <View style={{ paddingVertical: 50, paddingHorizontal: 24, alignItems: 'center' }}>
-            <Text style={ts(14, '600', P.ink3)}>{tab === 'soon' ? '예정된 경매는 곧 공개됩니다.' : '종료된 경매 내역은 준비 중이에요.'}</Text>
+            <Text style={ts(14, '600', P.ink3)}>{tab === 'soon' ? '예정된 경매는 곧 공개됩니다.' : '종료된 경매가 아직 없어요.'}</Text>
           </View>
         ) : (
           <>

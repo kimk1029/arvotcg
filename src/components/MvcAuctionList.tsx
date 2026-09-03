@@ -490,7 +490,7 @@ export function MvcAuctionList({ initial }: Props) {
         />
       ) : (
         <div style={{ padding: '40px 24px 60px', textAlign: 'center', color: P.ink3, fontSize: 14, fontWeight: 600 }}>
-          {tab === 'soon' ? '예정된 경매는 곧 공개됩니다.' : '종료된 경매 내역은 준비 중이에요.'}
+          {tab === 'soon' ? '예정된 경매는 곧 공개됩니다.' : '종료된 경매가 아직 없어요.'}
         </div>
       )}
 
