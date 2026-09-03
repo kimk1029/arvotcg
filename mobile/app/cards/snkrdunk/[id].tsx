@@ -139,6 +139,7 @@ export default function SnkrdunkDetail() {
   // 박스(미개봉 상품) — 등급(RAW/PSA)·PSA 팝·지역 비교 없이 BOX 라벨 + 세트코드 (웹 CardDetailView 동일).
   const isBox = apparel?.itemKind === 'box';
   const boxSetCode = apparel?.setCode ?? null;
+  const boxPackCode = apparel?.packCode ?? null;
 
   const historyList = history?.history ?? [];
   const grades = useMemo<GradeAgg[]>(() => gradeAggsFromHistory(historyList), [historyList]);
@@ -320,6 +321,20 @@ export default function SnkrdunkDetail() {
               currentPriceJpy={(isBox ? headlinePrice : rawRecent) || apparel.minPrice || null}
               gradePrices={isBox ? null : gradePrices}
             />
+
+            {/* 박스 → 수록 카드(힛카드) 목록 = 시세확인의 해당 박스 페이지(/cards/packs/{code}). 웹 동일. */}
+            {isBox && boxPackCode ? (
+              <View style={{ paddingHorizontal: 14, paddingTop: 12 }}>
+                <Pressable
+                  onPress={() => router.push(`/cards/packs/${boxPackCode}` as never)}
+                  style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, paddingHorizontal: 16, borderRadius: flat ? 12 : 0, backgroundColor: tc.pur, opacity: pressed ? 0.8 : 1 })}
+                >
+                  <PixelText variant={txt} size={13} weight="bold" color={tc.white}>
+                    {`📦 박스 힛카드 보러가기${boxSetCode ? ` · ${boxSetCode.toUpperCase()}` : ''} →`}
+                  </PixelText>
+                </Pressable>
+              </View>
+            ) : null}
 
             {/* 박스는 지역 탭·한국판 비교 없음(등급/카드번호 매칭 기반) */}
             {!isBox ? (

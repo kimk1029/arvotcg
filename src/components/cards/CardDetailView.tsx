@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
 import { Panel } from '@/components/ui/Panel';
@@ -32,6 +33,8 @@ interface Props {
   kind?: 'single' | 'box';
   /** 박스 세트코드 라벨 (서버 카탈로그 보강값). */
   setCode?: string | null;
+  /** 박스 소속 팩 코드 — '박스 힛카드 보러가기'(/cards/packs/{code}) 링크용. */
+  packCode?: string | null;
   koName: string;
   jpName: string;
   category: string | null;
@@ -97,6 +100,7 @@ export function CardDetailView({
   apparelId,
   kind = 'single',
   setCode = null,
+  packCode = null,
   koName,
   jpName,
   category,
@@ -271,6 +275,22 @@ export function CardDetailView({
         currentPriceJpy={(isBox ? headlinePrice : rawRecent) || minPrice || null}
         gradePrices={isBox ? null : gradePrices}
       />
+
+      {/* 박스 → 수록 카드(힛카드) 목록 = 시세확인의 해당 박스 페이지(/cards/packs/{code}). 앱 동일. */}
+      {isBox && packCode && (
+        <div style={{ padding: '12px var(--gap) 0' }}>
+          <Link
+            href={`/cards/packs/${packCode}`}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              padding: '13px 16px', borderRadius: 'var(--r)', background: 'var(--pur)', color: 'var(--white)',
+              fontFamily: 'var(--f1)', fontSize: 13, fontWeight: 800, textDecoration: 'none', letterSpacing: 0.2,
+            }}
+          >
+            📦 박스 힛카드 보러가기 {setCode ? `· ${setCode.toUpperCase()}` : ''} →
+          </Link>
+        </div>
+      )}
 
       {/* 박스는 지역 탭·한국판 비교 없음(등급/카드번호 매칭 기반) */}
       {!isBox && (

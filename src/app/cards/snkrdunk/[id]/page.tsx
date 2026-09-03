@@ -123,6 +123,7 @@ export default async function Page({ params, searchParams }: PageProps) {
         apparelId={apparelId}
         kind={apparel.itemKind === 'box' ? 'box' : 'single'}
         setCode={apparel.setCode ?? null}
+        packCode={apparel.packCode ?? null}
         koName={koName}
         jpName={jpName}
         category={seed?.category ?? null}
