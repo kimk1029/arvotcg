@@ -341,11 +341,19 @@ export default function CommunityScreen() {
   const rowRefs = useRef<Record<number, View | null>>({});
   const sortRowRef = useRef<View>(null);
   const [focusId, setFocusId] = useState<number | null>(null);
+  // 현재 스크롤 오프셋 + (행의 화면 y − 스크롤뷰의 화면 y) = 콘텐츠 좌표. measureLayout 은
+  // Fabric 에서 inner 노드 기준이 불안정해 measureInWindow 로 계산한다.
+  const scrollYRef = useRef(0);
+  const scrollBoxRef = useRef<View>(null);
   const scrollToView = (v: View | null | undefined) => {
     const sv = scrollRef.current;
-    const inner = sv?.getInnerViewNode?.();
-    if (!v || !sv || !inner) return;
-    v.measureLayout(inner as never, (_x, y) => sv.scrollTo({ y: Math.max(0, y - 8), animated: true }), () => {});
+    const box = scrollBoxRef.current;
+    if (!v || !sv || !box) return;
+    box.measureInWindow((_sx, sy) => {
+      v.measureInWindow((_x, y) => {
+        sv.scrollTo({ y: Math.max(0, scrollYRef.current + (y - sy) - 8), animated: true });
+      });
+    });
   };
   const focusPost = (id: number) => {
     setCat('전체');
@@ -549,8 +557,11 @@ export default function CommunityScreen() {
       {isShop ? (
         <ShopSection P={P} ts={ts} region={region} />
       ) : (
+      <View ref={scrollBoxRef} collapsable={false} style={{ flex: 1 }}>
       <ScrollView
         ref={scrollRef}
+        onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={64}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
@@ -636,7 +647,7 @@ export default function CommunityScreen() {
         ) : null}
 
         {/* sort row */}
-        <View ref={sortRowRef} style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 10 }}>
+        <View ref={sortRowRef} collapsable={false} style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 10 }}>
           {SORTS.map((s, i) => {
             const on = sort === s;
             return (
@@ -742,6 +753,7 @@ export default function CommunityScreen() {
           </Card>
         </View>
       </ScrollView>
+      </View>
       )}
     </View>
   );

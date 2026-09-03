@@ -261,8 +261,8 @@ export function ShopSection({ P, region = '전체' }: { P: ShopPalette; region?:
         </div>
       </div>
 
-      {/* selected shop compact card */}
-      <div style={{ padding: '8px 16px 6px' }}>
+      {/* selected shop compact card — 지역에 샵이 없으면 숨김 */}
+      <div style={{ padding: '8px 16px 6px', display: regionShops.length === 0 ? 'none' : undefined }}>
         <div style={{ ...cardSt, padding: '12px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
             <svg width="52" height="52" viewBox="0 0 52 52" style={{ flex: 'none' }}>
