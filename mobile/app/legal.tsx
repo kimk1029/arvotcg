@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, StatusBar, View } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { EMBED_QUERY_KEY, EMBED_UA_TOKEN } from '@/lib/embed';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
@@ -32,7 +33,9 @@ export default function LegalScreen() {
       <AppBar onBack={() => router.back()} title={meta.title} />
       <View style={{ flex: 1 }}>
         <WebView
-          source={{ uri: `${WEB_OAUTH_ORIGIN}${meta.path}` }}
+          source={{ uri: `${WEB_OAUTH_ORIGIN}${meta.path}?${EMBED_QUERY_KEY}=1` }}
+          // 웹이 앱 임베드로 인식해 하단 탭바를 숨기도록 UA 토큰 부착(정본 shared/embed.ts).
+          applicationNameForUserAgent={EMBED_UA_TOKEN}
           onLoadEnd={() => setLoading(false)}
           startInLoadingState
         />

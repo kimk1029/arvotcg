@@ -97,6 +97,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"
           rel="stylesheet"
         />
+        {/* 앱 인앱 WebView(임베드) 부트스트랩 — hydration 전에 <html data-embed="1"> 을
+            찍어 웹 하단 탭바가 첫 페인트부터 안 그려지게 한다(앱 탭바와 이중 표시 방지).
+            판정 규칙은 shared/embed.ts 와 동일: ?embed=1 쿼리(→ sessionStorage 유지) 또는
+            UA 의 ARVOTCG-App 토큰. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var k='pf30:embed';var q=new URLSearchParams(location.search).get('embed')==='1';if(q)sessionStorage.setItem(k,'1');if(q||sessionStorage.getItem(k)==='1'||navigator.userAgent.indexOf('ARVOTCG-App')>=0)document.documentElement.setAttribute('data-embed','1');}catch(e){}})();`,
+          }}
+        />
         {/* 테마 부트스트랩 — hydration 전에 동기 실행, FOUC 방지 */}
         <script
           dangerouslySetInnerHTML={{

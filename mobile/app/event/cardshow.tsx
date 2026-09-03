@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StatusBar, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { EMBED_QUERY_KEY, EMBED_UA_TOKEN } from '@/lib/embed';
 import { router } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { useThemeColors } from '@/components/ThemeProvider';
@@ -40,7 +41,7 @@ export default function CardShowScreen() {
     );
   }
 
-  const url = `${WEB_OAUTH_ORIGIN}/event/cardshow?token=${encodeURIComponent(token)}&embed=1`;
+  const url = `${WEB_OAUTH_ORIGIN}/event/cardshow?token=${encodeURIComponent(token)}&${EMBED_QUERY_KEY}=1`;
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0F172A' }}>
@@ -48,6 +49,8 @@ export default function CardShowScreen() {
       <AppBar title="카드쇼 사전예약" onBack={() => router.back()} />
       <WebView
         source={{ uri: url }}
+        // 웹이 앱 임베드로 인식해 하단 탭바를 숨기도록 UA 토큰 부착(정본 shared/embed.ts).
+        applicationNameForUserAgent={EMBED_UA_TOKEN}
         onLoadEnd={() => setLoading(false)}
         style={{ flex: 1, backgroundColor: '#0F172A' }}
         // 예약 페이지 외부 링크는 웹뷰 안에서 열지 않는다.

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { View, Pressable, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Pressable, StyleSheet, Animated, Easing, Platform } from 'react-native';
 import { router, usePathname } from 'expo-router';
 import { colors } from '@/theme/tokens';
 import { PixelText } from './PixelText';
@@ -384,7 +384,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.24,
     shadowRadius: 14,
-    elevation: 12,
+    // Android: 반투명 배경(#16161acc) + elevation 조합은 그림자가 배경을 뚫고 비쳐
+    // 바 안쪽 아래에 반투명 네모 블락처럼 보이는 플랫폼 아티팩트가 생긴다 → elevation 0,
+    // 대신 헤어라인 테두리로 윤곽만 준다. iOS 는 shadow* 로 정상 렌더.
+    ...(Platform.OS === 'android'
+      ? { elevation: 0, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.10)' }
+      : { elevation: 12 }),
   },
   tabFloat: {
     flex: 1,

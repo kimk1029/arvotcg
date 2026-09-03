@@ -10,6 +10,7 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, StatusBar, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { EMBED_QUERY_KEY, EMBED_UA_TOKEN } from '@/lib/embed';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { useThemeColors } from '@/components/ThemeProvider';
@@ -35,7 +36,7 @@ export default function InAppWebScreen() {
       if (TRUSTED_HOSTS.has(u.hostname)) {
         const token = getSession()?.token;
         if (token && !u.searchParams.has('token')) u.searchParams.set('token', token);
-        u.searchParams.set('embed', '1');
+        u.searchParams.set(EMBED_QUERY_KEY, '1');
       }
       return u.toString();
     } catch {
@@ -60,6 +61,8 @@ export default function InAppWebScreen() {
       <AppBar title={typeof title === 'string' && title ? title : '이벤트'} onBack={() => router.back()} />
       <WebView
         source={{ uri: finalUrl }}
+        // 웹이 앱 임베드로 인식해 하단 탭바를 숨기도록 UA 토큰 부착(정본 shared/embed.ts).
+        applicationNameForUserAgent={EMBED_UA_TOKEN}
         onLoadEnd={() => setLoading(false)}
         style={{ flex: 1 }}
         originWhitelist={['https://*', 'http://*']}
