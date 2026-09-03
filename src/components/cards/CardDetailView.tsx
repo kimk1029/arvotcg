@@ -208,6 +208,19 @@ export function CardDetailView({
           )}
           {/* 박스: 상품번호 대신 소속 세트코드 라벨 */}
           {isBox ? (setCode && <Chip muted>{setCode.toUpperCase()}</Chip>) : (productNumber && <Chip muted>{productNumber}</Chip>)}
+          {/* 박스 → 수록 카드(힛카드) 목록 = 시세확인의 해당 박스 페이지(/cards/packs/{code}). 앱 동일. */}
+          {isBox && packCode && (
+            <Link
+              href={`/cards/packs/${packCode}`}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--f1)', fontSize: 11, fontWeight: 800,
+                color: 'var(--pur)', background: 'var(--pap2)', padding: '6px 11px', borderRadius: 'var(--r-pill)',
+                textDecoration: 'none', whiteSpace: 'nowrap',
+              }}
+            >
+              {setCode ? `${setCode.toUpperCase()} ` : ''}힛카드 →
+            </Link>
+          )}
         </div>
 
         {/* 가격 박스 */}
@@ -276,21 +289,6 @@ export function CardDetailView({
         gradePrices={isBox ? null : gradePrices}
       />
 
-      {/* 박스 → 수록 카드(힛카드) 목록 = 시세확인의 해당 박스 페이지(/cards/packs/{code}). 앱 동일. */}
-      {isBox && packCode && (
-        <div style={{ padding: '12px var(--gap) 0' }}>
-          <Link
-            href={`/cards/packs/${packCode}`}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              padding: '13px 16px', borderRadius: 'var(--r)', background: 'var(--pur)', color: 'var(--white)',
-              fontFamily: 'var(--f1)', fontSize: 13, fontWeight: 800, textDecoration: 'none', letterSpacing: 0.2,
-            }}
-          >
-            📦 박스 힛카드 보러가기 {setCode ? `· ${setCode.toUpperCase()}` : ''} →
-          </Link>
-        </div>
-      )}
 
       {/* 박스는 지역 탭·한국판 비교 없음(등급/카드번호 매칭 기반) */}
       {!isBox && (
