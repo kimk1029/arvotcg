@@ -303,15 +303,16 @@ export function MyScreen({ user, level, points = 0, cardCount, tradeCount, saved
 
       {/* stats */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 9, padding: '0 16px 20px' }}>
+        {/* 숫자 타일도 각 목록으로 이동 — 내 카드=내 컬렉션(/my/cards), 내 거래, 찜한 글. 앱 my.tsx 동일. */}
         {([
-          [cardCount, '내 카드'],
-          [tradeCount, '내 거래'],
-          [savedCount, '찜한 글'],
-        ] as const).map(([n, label]) => (
-          <div key={label} style={{ background: P.card, borderRadius: 16, padding: '15px 12px', textAlign: 'center', boxShadow: CARD_SHADOW_SOFT }}>
+          [cardCount, '내 카드', '/my/cards'],
+          [tradeCount, '내 거래', '/my/trades'],
+          [savedCount, '찜한 글', '/my/bookmarks'],
+        ] as const).map(([n, label, href]) => (
+          <Link key={label} href={href} style={{ background: P.card, borderRadius: 16, padding: '15px 12px', textAlign: 'center', boxShadow: CARD_SHADOW_SOFT, textDecoration: 'none', display: 'block' }}>
             <div style={{ fontSize: 22, fontWeight: 900, color: P.ink }}>{n}</div>
             <div style={{ fontSize: 11.5, color: P.sub2, fontWeight: 600, marginTop: 3 }}>{label}</div>
-          </div>
+          </Link>
         ))}
       </div>
 

@@ -69,35 +69,108 @@ function pinHtml(pin: ShopMapPin, selected: boolean): string {
   `;
 }
 
+/** 지역 탭 포커스 — 핀이 없을 때 지도를 옮길 중심/줌 (정본 shared/shopRegions.REGION_FOCUS). */
+export interface MapFocus {
+  lat: number;
+  lng: number;
+  zoom: number;
+}
+
 interface Props {
   pins: ShopMapPin[];
+  /** 지역 탭 중심. null 이면 핀 전체 프레이밍. */
+  focus?: MapFocus | null;
   selId: string;
   onSelect: (id: string) => void;
 }
 
-export function ShopNaverMap({ pins, selId, onSelect }: Props) {
+// 핀 1개일 때 fitBounds 가 최대 줌까지 들어가는 것을 막는 상한.
+const FIT_MAX_ZOOM = 16;
+
+export function ShopNaverMap({ pins, focus = null, selId, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<NMaps | null>(null);
   const markersRef = useRef<Map<string, NMaps>>(new Map());
+  // Geocoder 로 보정한 좌표 캐시 — 지역 탭 전환으로 핀을 다시 만들 때 재조회하지 않는다.
+  const geoRef = useRef<Map<string, { lat: number; lng: number }>>(new Map());
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
   const pinsRef = useRef(pins);
   pinsRef.current = pins;
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
   const selIdRef = useRef(selId);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errDetail, setErrDetail] = useState('');
 
-  const fitAll = () => {
-    if (!mapRef.current || !window.naver?.maps) return;
+  /** 현재 핀 전체 프레이밍. 핀이 없으면 지역 포커스(없으면 유지). */
+  const frame = () => {
+    const map = mapRef.current;
+    if (!map || !window.naver?.maps) return;
     const naver = window.naver.maps;
-    const b = new naver.LatLngBounds();
-    markersRef.current.forEach((m) => b.extend(m.getPosition()));
-    mapRef.current.fitBounds(b, { top: 46, right: 50, bottom: 30, left: 50 });
+    if (markersRef.current.size > 0) {
+      const b = new naver.LatLngBounds();
+      markersRef.current.forEach((m) => b.extend(m.getPosition()));
+      map.fitBounds(b, { top: 46, right: 50, bottom: 30, left: 50 });
+      if (map.getZoom() > FIT_MAX_ZOOM) map.setZoom(FIT_MAX_ZOOM);
+    } else if (focusRef.current) {
+      map.setCenter(new naver.LatLng(focusRef.current.lat, focusRef.current.lng));
+      map.setZoom(focusRef.current.zoom);
+    }
+  };
+  const fitAll = frame;
+
+  /** 핀 목록을 지도 마커와 동기화(전부 교체) → Geocoder 보정(캐시) → 프레이밍. */
+  const syncMarkers = (list: ShopMapPin[], cancelledRef: { current: boolean }) => {
+    const map = mapRef.current;
+    if (!map || !window.naver?.maps) return;
+    const naver = window.naver.maps;
+    const markers = markersRef.current;
+    markers.forEach((m) => m.setMap(null));
+    markers.clear();
+    list.forEach((pin) => {
+      const cached = geoRef.current.get(pin.id);
+      const marker = new naver.Marker({
+        position: new naver.LatLng(cached?.lat ?? pin.lat, cached?.lng ?? pin.lng),
+        map,
+        icon: { content: pinHtml(pin, pin.id === selIdRef.current), size: new naver.Size(0, 0), anchor: new naver.Point(0, 0) },
+        zIndex: pin.id === selIdRef.current ? 6 : 5,
+      });
+      naver.Event.addListener(marker, 'click', () => onSelectRef.current(pin.id));
+      markers.set(pin.id, marker);
+    });
+    frame();
+
+    const todo = list.filter((pin) => !geoRef.current.has(pin.id));
+    if (todo.length === 0 || !naver.Service?.geocode) return;
+    Promise.all(
+      todo.map(
+        (pin) =>
+          new Promise<void>((resolve) => {
+            naver.Service.geocode(
+              { query: pin.addr },
+              (st: number, res: { v2?: { addresses?: Array<{ x: string; y: string }> } }) => {
+                if (st === naver.Service.Status.OK) {
+                  const a = res?.v2?.addresses?.[0];
+                  const lat = a ? Number(a.y) : NaN;
+                  const lng = a ? Number(a.x) : NaN;
+                  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                    geoRef.current.set(pin.id, { lat, lng });
+                    markers.get(pin.id)?.setPosition(new naver.LatLng(lat, lng));
+                  }
+                }
+                resolve();
+              },
+            );
+          }),
+      ),
+    ).then(() => { if (!cancelledRef.current) frame(); }).catch(() => {});
   };
 
   useEffect(() => {
     if (!CLIENT_ID) return;
     let cancelled = false;
+    const cancelledRef = { current: false };
     const markers = markersRef.current;
 
     loadSdk()
@@ -105,12 +178,13 @@ export function ShopNaverMap({ pins, selId, onSelect }: Props) {
         if (cancelled || !containerRef.current || !window.naver?.maps) return;
         const naver = window.naver.maps;
         const list = pinsRef.current;
-
         const bounds = new naver.LatLngBounds();
         list.forEach((p) => bounds.extend(new naver.LatLng(p.lat, p.lng)));
-
+        const f = focusRef.current;
         const map = new naver.Map(containerRef.current, {
-          bounds,
+          ...(list.length > 0
+            ? { bounds }
+            : { center: new naver.LatLng(f?.lat ?? 37.5665, f?.lng ?? 126.978), zoom: f?.zoom ?? 12 }),
           minZoom: 9,
           maxZoom: 19,
           mapTypeControl: false,
@@ -120,45 +194,7 @@ export function ShopNaverMap({ pins, selId, onSelect }: Props) {
           zoomControl: false,
         });
         mapRef.current = map;
-
-        list.forEach((pin) => {
-          const marker = new naver.Marker({
-            position: new naver.LatLng(pin.lat, pin.lng),
-            map,
-            icon: { content: pinHtml(pin, pin.id === selIdRef.current), size: new naver.Size(0, 0), anchor: new naver.Point(0, 0) },
-            zIndex: pin.id === selIdRef.current ? 6 : 5,
-          });
-          naver.Event.addListener(marker, 'click', () => onSelectRef.current(pin.id));
-          markers.set(pin.id, marker);
-        });
-
-        // Geocoder 로 주소 기준 좌표 보정 후 재프레이밍
-        const refineAll = async () => {
-          if (!naver.Service?.geocode) return;
-          await Promise.all(
-            list.map(
-              (pin) =>
-                new Promise<void>((resolve) => {
-                  naver.Service.geocode(
-                    { query: pin.addr },
-                    (s: number, res: { v2?: { addresses?: Array<{ x: string; y: string }> } }) => {
-                      if (s === naver.Service.Status.OK) {
-                        const a = res?.v2?.addresses?.[0];
-                        const lat = a ? Number(a.y) : NaN;
-                        const lng = a ? Number(a.x) : NaN;
-                        if (Number.isFinite(lat) && Number.isFinite(lng)) {
-                          markers.get(pin.id)?.setPosition(new naver.LatLng(lat, lng));
-                        }
-                      }
-                      resolve();
-                    },
-                  );
-                }),
-            ),
-          );
-          if (!cancelled) fitAll();
-        };
-        refineAll().catch(() => {});
+        syncMarkers(list, cancelledRef);
 
         setStatus('ready');
       })
@@ -170,12 +206,23 @@ export function ShopNaverMap({ pins, selId, onSelect }: Props) {
 
     return () => {
       cancelled = true;
+      cancelledRef.current = true;
       markers.forEach((m) => m.setMap(null));
       markers.clear();
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 지역 탭 전환(핀 목록/포커스 변경) → 마커 교체 + 프레이밍 (지도 재생성 없음)
+  const pinsKey = pins.map((p) => p.id).join(',');
+  useEffect(() => {
+    if (status !== 'ready') return;
+    const cancelledRef = { current: false };
+    syncMarkers(pinsRef.current, cancelledRef);
+    return () => { cancelledRef.current = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinsKey, focus?.lat, focus?.lng, focus?.zoom, status]);
 
   // 선택 변경 → 핀 아이콘만 갱신 (지도 재생성 없음)
   useEffect(() => {

@@ -4,6 +4,7 @@ import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 
 import { HAS_NAVER_MAP_KEY, ShopNaverMap } from '@/components/ShopNaverMap';
 import { api } from '@/lib/apiClient';
+import { SHOP_REGIONS as SHARED_SHOP_REGIONS, filterShopsByRegion, regionFocusOf } from '@/lib/shopRegions';
 
 /**
  * 커뮤니티 Shop 모드 — Claude Design 'ARVOTCG 커뮤니티' 프로토타입의 샵 화면 (네이티브).
@@ -32,7 +33,8 @@ const ORANGE = '#FF7A00';
 const ORANGE_SOFT = '#FFF1E6';
 const STAR = '#FFC53D';
 
-export const SHOP_REGIONS = ['전체', '성수', '홍대', '강남', '왕십리'];
+/** 지역 탭 — 정본 shared/shopRegions.ts (판정 규칙도 거기). */
+export const SHOP_REGIONS: string[] = [...SHARED_SHOP_REGIONS];
 
 interface ShopInfo {
   id: string;
@@ -152,7 +154,7 @@ const MAP_H = 230;
 const PIN_W = 110;
 const PIN_H = 35;
 
-export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
+export function ShopSection({ P, ts, region = '전체' }: { P: ShopPalette; ts: TsFn; region?: string }) {
   const [shopId, setShopId] = useState('s1');
   const [reviewOpen, setReviewOpen] = useState(false);
   const [myStars, setMyStars] = useState(0);
@@ -179,6 +181,18 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
     return () => { cancelled = true; };
   }, []);
   const list = shops ?? FALLBACK_SHOPS;
+  // 지역 탭 — 해당 지역 샵만 목록·지도에 (정본 shared/shopRegions, 웹 동일). 지도는 지역 중심으로 이동.
+  const regionShops = filterShopsByRegion(list, region);
+  const focus = regionFocusOf(region);
+  useEffect(() => {
+    if (regionShops.length > 0 && !regionShops.some((s) => s.id === shopId)) {
+      setShopId(regionShops[0].id);
+      setReviewOpen(false);
+      setReviewFilter(regionShops[0].id);
+      setReviewCount(5);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [region, shops]);
 
   const shopName = (id: string) => list.find((s) => s.id === id)?.name ?? '';
   const shop = list.find((s) => s.id === shopId) ?? list[0];
@@ -228,7 +242,7 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
         >
           {HAS_NAVER_MAP_KEY ? (
             // 핀은 WebView HTML 생성 시 1회 — 샵 목록 로딩 완료 후에만 지도 마운트.
-            shops !== null && <ShopNaverMap pins={shops} selId={shopId} onSelect={selectShop} />
+            shops !== null && <ShopNaverMap pins={regionShops} focus={focus} selId={shopId} onSelect={selectShop} />
           ) : (
             <>
           <View style={{ position: 'absolute', left: 0, right: 0, top: 74, height: 13, backgroundColor: '#fff' }} />
@@ -238,7 +252,7 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
           <View style={{ position: 'absolute', left: 14, top: 16, width: 64, height: 44, borderRadius: 8, backgroundColor: '#D3DFCE' }} />
           <View style={{ position: 'absolute', right: 20, top: 104, width: 78, height: 40, borderRadius: 8, backgroundColor: '#C9DBEF' }} />
           <View style={{ position: 'absolute', left: 30, bottom: 18, width: 90, height: 34, borderRadius: 8, backgroundColor: '#D3DFCE' }} />
-          {mapW > 0 && list.map((s) => {
+          {mapW > 0 && regionShops.map((s) => {
             const sel = s.id === shopId;
             return (
               <Pressable
@@ -352,7 +366,7 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
 
       {/* shop list */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 10 }}>
-        <Text style={ts(16, '800', P.ink)}>주변 카드샵 <Text style={{ color: P.ink3 }}>{list.length}</Text></Text>
+        <Text style={ts(16, '800', P.ink)}>{region === '전체' ? '주변' : region} 카드샵 <Text style={{ color: P.ink3 }}>{regionShops.length}</Text></Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Text style={ts(12.5, '700', P.ink)}>평점순</Text>
           <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><Path d="m6 9 6 6 6-6" /></Svg>
@@ -360,7 +374,12 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
       </View>
       <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>
         <View style={[card, { overflow: 'hidden' }]}>
-          {list.map((s, i) => {
+          {regionShops.length === 0 ? (
+            <View style={{ paddingVertical: 26, paddingHorizontal: 16, alignItems: 'center' }}>
+              <Text style={[ts(13, '600', P.ink3), { textAlign: 'center' }]}>{region} 지역에 등록된 카드샵이 아직 없어요.{'\n'}어드민 › 카드샵 관리에서 추가하면 바로 표시돼요.</Text>
+            </View>
+          ) : null}
+          {regionShops.map((s, i) => {
             const sel = s.id === shopId;
             return (
               <Pressable key={s.id} onPress={() => selectShop(s.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 15, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: P.line, backgroundColor: sel ? '#FFF9F4' : P.cardBg }}>

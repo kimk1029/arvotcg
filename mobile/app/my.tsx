@@ -400,15 +400,16 @@ export default function MyScreen() {
 
         {/* stats */}
         <View style={{ flexDirection: 'row', gap: 9, paddingHorizontal: 16, paddingBottom: 20 }}>
+          {/* 숫자 타일도 각 목록으로 이동 — 내 카드=내 컬렉션(/my/cards), 내 거래, 찜한 글. 웹 MyScreen 동일. */}
           {([
-            [cardCount, '내 카드'],
-            [tradeCount, '내 거래'],
-            [savedCount, '찜한 글'],
-          ] as const).map(([n, label]) => (
-            <View key={label} style={[{ flex: 1, backgroundColor: P.card, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 12, alignItems: 'center' }, CARD_SHADOW, { shadowOpacity: 0.04 }]}>
+            [cardCount, '내 카드', '/my/cards'],
+            [tradeCount, '내 거래', '/my/trades'],
+            [savedCount, '찜한 글', '/my/bookmarks'],
+          ] as const).map(([n, label, href]) => (
+            <Pressable key={label} onPress={() => router.push(href as never)} style={({ pressed }) => [{ flex: 1, backgroundColor: P.card, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 12, alignItems: 'center', opacity: pressed ? 0.7 : 1 }, CARD_SHADOW, { shadowOpacity: 0.04 }]}>
               <Text style={{ fontSize: 22, fontWeight: '900', color: P.ink }}>{n}</Text>
               <Text style={{ fontSize: 11.5, color: P.sub2, fontWeight: '600', marginTop: 3 }}>{label}</Text>
-            </View>
+            </Pressable>
           ))}
         </View>
 

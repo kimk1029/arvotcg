@@ -7,6 +7,7 @@ import { isFlatTheme } from '@/lib/theme';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { ShopSection, SHOP_REGIONS } from '@/components/CommunityShop';
 import { isFeedCategory } from '@/lib/feedCategories';
+import { feedHotScore, feedPostTitle, formatCount, rankBestPosts, rankHotPosts } from '@/lib/feedRanking';
 import { fonts } from '@/theme/tokens';
 import { api } from '@/lib/apiClient';
 import { swrPeek, swrSet } from '@/lib/swr';
@@ -68,8 +69,8 @@ const CLEAN_P: Palette = {
 type CatId = '전체' | '자유' | '시세/정보' | '자랑' | '거래/나눔';
 const CATS: CatId[] = ['전체', '자유', '시세/정보', '자랑', '거래/나눔'];
 
-type SortId = '최신순' | '추천순' | '댓글순';
-const SORTS: SortId[] = ['최신순', '추천순', '댓글순'];
+type SortId = '최신순' | '인기순' | '추천순' | '댓글순';
+const SORTS: SortId[] = ['최신순', '인기순', '추천순', '댓글순'];
 
 const TAG_COLOR: Record<string, { fg: string; bg: string }> = {
   '자유': { fg: '#5a3ad6', bg: '#EFEBFF' },
@@ -81,24 +82,19 @@ const TAG_COLOR: Record<string, { fg: string; bg: string }> = {
 /* ---------------- 정적 편집 데이터 ---------------- */
 
 interface FeatureItem {
+  postId: number;
   rank: number;
   title: string;
   comments: number;
   likes: string;
   bg: string;
   emoji: string;
+  thumb?: string;
   heat?: string;
 }
-const FEATURE_HOT: FeatureItem[] = [
-  { rank: 1, title: '등급 카드 시세 미쳤네요...🔥', comments: 123, likes: '1,234', bg: '#ff5a2b', emoji: '🔥', heat: '999+' },
-  { rank: 2, title: '카드 재테크 현실 수익률', comments: 89, likes: '987', bg: '#5a3aa0', emoji: '👻', heat: '999+' },
-  { rank: 3, title: '이거 진짜 사야 하나요? 의견 부탁드려요', comments: 67, likes: '523', bg: '#c98ce0', emoji: '✨', heat: '999+' },
-];
-const FEATURE_BEST: FeatureItem[] = [
-  { rank: 1, title: '초보자를 위한 카드 등급 가이드', comments: 45, likes: '1,234', bg: '#ff7a2f', emoji: '🦎' },
-  { rank: 2, title: '그레이딩 제출 전 꼭 알아야 할 10가지', comments: 32, likes: '987', bg: '#2a2a34', emoji: '📋' },
-  { rank: 3, title: '2024년 상반기 카드 시세 총정리', comments: 25, likes: '523', bg: '#6a5ad0', emoji: '📊' },
-];
+// 인기글 타일 배경 — 순위별 순환 (웹 GRAD_CYCLE 대응).
+const BG_CYCLE = ['#ff5a2b', '#5a3aa0', '#c98ce0', '#ff7a2f', '#2a2a34', '#6a5ad0', '#36a0c8'];
+const CAT_EMOJI: Record<string, string> = { '자유': '💬', '시세/정보': '📈', '자랑': '✨', '거래/나눔': '🤝' };
 
 const KEYWORDS = ['# 신규발매', '# 그레이딩', '# 일본판', '# 시세폭등', '# 직거래', '# 컬렉션'];
 
@@ -152,6 +148,22 @@ interface Trade {
 function postCat(p: FeedPost): CatId {
   if (isFeedCategory(p.category)) return p.category;
   return (p.images?.length ?? 0) > 0 ? '자랑' : '자유';
+}
+
+/** 실제 피드 → 인기글 행 (정본 shared/feedRanking, 웹 CommunityScreen 동일). */
+function toFeatureItems(posts: FeedPost[], kind: 'hot' | 'best'): FeatureItem[] {
+  const ranked = kind === 'hot' ? rankHotPosts(posts, 3) : rankBestPosts(posts, 3);
+  return ranked.map((p, i) => ({
+    postId: p.id,
+    rank: i + 1,
+    title: feedPostTitle(p.text),
+    comments: p.commentCount ?? 0,
+    likes: formatCount(p.likeCount ?? 0),
+    bg: BG_CYCLE[i % BG_CYCLE.length],
+    emoji: CAT_EMOJI[postCat(p)] ?? '💬',
+    thumb: p.images?.[0],
+    heat: kind === 'hot' && feedHotScore(p) > 0 ? formatCount(feedHotScore(p)) : undefined,
+  }));
 }
 
 function formatAbs(iso: string): string {
@@ -322,7 +334,31 @@ export default function CommunityScreen() {
   }, [load]);
 
   const isMarket = cat === '거래/나눔';
-  const featureItems = feature === 'hot' ? FEATURE_HOT : FEATURE_BEST;
+  const featureItems = useMemo(() => toFeatureItems(feed, feature), [feed, feature]);
+
+  // 인기글 행 탭 → 아래 목록에서 그 글을 펼친 채로 스크롤 이동 (글 상세 라우트 없음, 웹 동일).
+  const scrollRef = useRef<ScrollView>(null);
+  const rowRefs = useRef<Record<number, View | null>>({});
+  const sortRowRef = useRef<View>(null);
+  const [focusId, setFocusId] = useState<number | null>(null);
+  const scrollToView = (v: View | null | undefined) => {
+    const sv = scrollRef.current;
+    const inner = sv?.getInnerViewNode?.();
+    if (!v || !sv || !inner) return;
+    v.measureLayout(inner as never, (_x, y) => sv.scrollTo({ y: Math.max(0, y - 8), animated: true }), () => {});
+  };
+  const focusPost = (id: number) => {
+    setCat('전체');
+    setQuery('');
+    setFocusId(id);
+    setTimeout(() => scrollToView(rowRefs.current[id]), 120);
+  };
+  // 더보기 → 해당 기준 정렬로 바꾸고 목록으로 이동 (불타는 글=인기순, 개념글=추천순).
+  const showMoreFeature = () => {
+    setCat('전체');
+    setSort(feature === 'hot' ? '인기순' : '추천순');
+    setTimeout(() => scrollToView(sortRowRef.current), 80);
+  };
 
   // 검색 + 카테고리 필터 + 정렬을 실제 목록에 적용 (웹 CommunityScreen 동일).
   const visiblePosts = useMemo(() => {
@@ -336,7 +372,8 @@ export default function CommunityScreen() {
       : feed;
     if (cat !== '전체') list = list.filter((p) => postCat(p) === cat);
     const sorted = [...list];
-    if (sort === '추천순') sorted.sort((a, b) => (b.likeCount ?? 0) - (a.likeCount ?? 0));
+    if (sort === '인기순') sorted.sort((a, b) => feedHotScore(b) - feedHotScore(a) || b.createdAt.localeCompare(a.createdAt));
+    else if (sort === '추천순') sorted.sort((a, b) => (b.likeCount ?? 0) - (a.likeCount ?? 0));
     else if (sort === '댓글순') sorted.sort((a, b) => (b.commentCount ?? 0) - (a.commentCount ?? 0));
     else sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return sorted;
@@ -510,9 +547,10 @@ export default function CommunityScreen() {
       </View>
 
       {isShop ? (
-        <ShopSection P={P} ts={ts} />
+        <ShopSection P={P} ts={ts} region={region} />
       ) : (
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
@@ -545,16 +583,21 @@ export default function CommunityScreen() {
                     );
                   })}
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 1 }}>
+                <Pressable onPress={showMoreFeature} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 1 }}>
                   <Text style={ts(12, '700', P.ink3)}>더보기</Text>
                   <ChevR c={P.ink3} s={12} />
-                </View>
+                </Pressable>
               </View>
+              {featureItems.length === 0 ? (
+                <View style={{ paddingTop: 14, paddingBottom: 6, borderTopWidth: 1, borderTopColor: P.line }}>
+                  <Text style={ts(12.5, '600', P.ink3)}>아직 인기글이 없어요. 첫 글을 남겨보세요.</Text>
+                </View>
+              ) : null}
               {featureItems.map((f) => (
-                <View key={f.rank} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 11, borderTopWidth: 1, borderTopColor: P.line }}>
+                <Pressable key={f.postId} onPress={() => focusPost(f.postId)} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 11, borderTopWidth: 1, borderTopColor: P.line, opacity: pressed ? 0.6 : 1 })}>
                   <Text style={[ts(19, '900', f.heat ? P.red : P.ink), { width: 15, textAlign: 'center' }]}>{f.rank}</Text>
-                  <View style={{ width: 46, height: 62, borderRadius: 7, backgroundColor: f.bg, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ fontSize: 24 }}>{f.emoji}</Text>
+                  <View style={{ width: 46, height: 62, borderRadius: 7, backgroundColor: f.bg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    {f.thumb ? <Image source={shotSource(f.thumb)} style={{ width: '100%', height: '100%' }} resizeMode="cover" /> : <Text style={{ fontSize: 24 }}>{f.emoji}</Text>}
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text numberOfLines={2} style={ts(14, '700', P.ink)}>{f.title}</Text>
@@ -568,7 +611,7 @@ export default function CommunityScreen() {
                       <Text style={ts(12, '800', P.red)}>🔥 {f.heat}</Text>
                     </View>
                   ) : null}
-                </View>
+                </Pressable>
               ))}
             </View>
           </Card>
@@ -593,7 +636,7 @@ export default function CommunityScreen() {
         ) : null}
 
         {/* sort row */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 10 }}>
+        <View ref={sortRowRef} style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 10 }}>
           {SORTS.map((s, i) => {
             const on = sort === s;
             return (
@@ -615,7 +658,7 @@ export default function CommunityScreen() {
           <Card style={pixel ? undefined : { borderRadius: 0, borderWidth: 0, marginHorizontal: 0 }}>
             <View style={{ backgroundColor: pixel ? tc.white : P.cardBg }}>
               {cat === '전체' && NOTICES.map((n) => (
-                <View key={n.title} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: P.line }}>
+                <Pressable key={n.title} onPress={() => router.push('/my/notices' as never)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: P.line }}>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <View style={{ backgroundColor: n.red ? P.red : P.accent, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 7 }}>
@@ -632,7 +675,7 @@ export default function CommunityScreen() {
                     <Meta icon={<Chat c={P.chev} />} label={String(n.comments)} P={P} ts={ts} />
                     <Meta icon={<Like stroke={P.chev} fill="none" />} label={String(n.likes)} P={P} ts={ts} />
                   </View>
-                </View>
+                </Pressable>
               ))}
 
               {loading ? (
@@ -690,7 +733,9 @@ export default function CommunityScreen() {
                 />
               ) : (
                 visiblePosts.map((p) => (
-                  <PostRow key={p.id} post={p} P={P} ts={ts} tagStyle={tagStyle} onBlocked={removeBlockedUser} onDeleted={removePost} />
+                  <View key={p.id} ref={(v) => { rowRefs.current[p.id] = v; }} collapsable={false}>
+                    <PostRow post={p} P={P} ts={ts} tagStyle={tagStyle} onBlocked={removeBlockedUser} onDeleted={removePost} focused={focusId === p.id} />
+                  </View>
                 ))
               )}
             </View>
@@ -726,9 +771,13 @@ function EmptyRow({ label, cta, onPress, P, ts }: { label: string; cta: string; 
 
 /* ---------------- 글 행 (펼침: 사진 + 댓글) — 웹 PostRow 동일 로직 ---------------- */
 
-function PostRow({ post, P, ts, tagStyle, onBlocked, onDeleted }: { post: FeedPost; P: Palette; ts: TsFn; tagStyle: (label: string) => { fg: string; bg: string }; onBlocked?: (userId: string) => void; onDeleted?: (targetId: number) => void }) {
+function PostRow({ post, P, ts, tagStyle, onBlocked, onDeleted, focused }: { post: FeedPost; P: Palette; ts: TsFn; tagStyle: (label: string) => { fg: string; bg: string }; onBlocked?: (userId: string) => void; onDeleted?: (targetId: number) => void; focused?: boolean }) {
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(false);
+  // 인기글에서 넘어온 글 — 펼친 상태로 시작 (웹 동일).
+  useEffect(() => {
+    if (focused) { setOpen(true); setOpened(true); }
+  }, [focused]);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const images = post.images ?? [];
   const hasThumb = images.length > 0;

@@ -11,6 +11,7 @@ import { ReportMenu } from '@/components/ReportMenu';
 import { isAvatarId } from '@/lib/avatars';
 import { ShopSection, SHOP_REGIONS } from '@/components/screens/CommunityShop';
 import { isFeedCategory } from '@/lib/feedCategories';
+import { feedHotScore, feedPostTitle, formatCount, rankBestPosts, rankHotPosts } from '@/lib/feedRanking';
 import type { FeedPost, Trade } from '@/lib/types';
 import { SegmentedTabs, SegIcons } from '@/components/ui/SegmentedTabs';
 
@@ -91,8 +92,8 @@ const GRAD = {
 type CatId = '전체' | '자유' | '시세/정보' | '자랑' | '거래/나눔';
 const CATS: CatId[] = ['전체', '자유', '시세/정보', '자랑', '거래/나눔'];
 
-type SortId = '최신순' | '추천순' | '댓글순';
-const SORTS: SortId[] = ['최신순', '추천순', '댓글순'];
+type SortId = '최신순' | '인기순' | '추천순' | '댓글순';
+const SORTS: SortId[] = ['최신순', '인기순', '추천순', '댓글순'];
 
 // 게시글 카테고리별 태그 색(클린). VAR 테마는 accent 톤으로 대체.
 const TAG_COLOR: Record<string, { fg: string; bg: string }> = {
@@ -116,24 +117,34 @@ function postCat(p: FeedPost): CatId {
 /* ---------------- 정적 편집 데이터 (인기글 / 키워드 / 공지) ---------------- */
 
 interface FeatureItem {
+  postId: number;
   rank: number;
   title: string;
   comments: number;
   likes: string;
   grad: string;
   emoji: string;
+  thumb?: string;
   heat?: string;
 }
-const FEATURE_HOT: FeatureItem[] = [
-  { rank: 1, title: '등급 카드 시세 미쳤네요...🔥', comments: 123, likes: '1,234', grad: GRAD.zard, emoji: '🔥', heat: '999+' },
-  { rank: 2, title: '카드 재테크 현실 수익률', comments: 89, likes: '987', grad: GRAD.gengar, emoji: '👻', heat: '999+' },
-  { rank: 3, title: '이거 진짜 사야 하나요? 의견 부탁드려요', comments: 67, likes: '523', grad: GRAD.mew, emoji: '✨', heat: '999+' },
-];
-const FEATURE_BEST: FeatureItem[] = [
-  { rank: 1, title: '초보자를 위한 카드 등급 가이드', comments: 45, likes: '1,234', grad: GRAD.char, emoji: '🦎' },
-  { rank: 2, title: '그레이딩 제출 전 꼭 알아야 할 10가지', comments: 32, likes: '987', grad: GRAD.umb, emoji: '📋' },
-  { rank: 3, title: '2024년 상반기 카드 시세 총정리', comments: 25, likes: '523', grad: GRAD.gard, emoji: '📊' },
-];
+// 인기글 타일 배경 — 순위별 순환.
+const GRAD_CYCLE = [GRAD.zard, GRAD.gengar, GRAD.mew, GRAD.char, GRAD.umb, GRAD.gard, GRAD.koi];
+const CAT_EMOJI: Record<string, string> = { '자유': '💬', '시세/정보': '📈', '자랑': '✨', '거래/나눔': '🤝' };
+/** 실제 피드 → 인기글 행 (정본 shared/feedRanking). hot 은 점수 배지, best 는 배지 없음. */
+function toFeatureItems(posts: FeedPost[], kind: 'hot' | 'best'): FeatureItem[] {
+  const ranked = kind === 'hot' ? rankHotPosts(posts, 3) : rankBestPosts(posts, 3);
+  return ranked.map((p, i) => ({
+    postId: p.id,
+    rank: i + 1,
+    title: feedPostTitle(p.text),
+    comments: p.commentCount ?? 0,
+    likes: formatCount(p.likeCount ?? 0),
+    grad: GRAD_CYCLE[i % GRAD_CYCLE.length],
+    emoji: CAT_EMOJI[postCat(p)] ?? '💬',
+    thumb: p.images?.[0],
+    heat: kind === 'hot' && feedHotScore(p) > 0 ? formatCount(feedHotScore(p)) : undefined,
+  }));
+}
 
 const KEYWORDS = ['# 신규발매', '# 그레이딩', '# 일본판', '# 시세폭등', '# 직거래', '# 컬렉션'];
 
@@ -207,7 +218,22 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
 
   const isMarket = cat === '거래/나눔';
   const writeHref = isMarket ? '/write/trade' : '/write/feed';
-  const featureItems = feature === 'hot' ? FEATURE_HOT : FEATURE_BEST;
+  const featureItems = useMemo(() => toFeatureItems(initialFeed, feature), [initialFeed, feature]);
+
+  // 인기글 행 탭 → 아래 목록에서 그 글을 펼친 채로 스크롤 이동 (글 상세 라우트 없음, 앱 동일).
+  const [focusId, setFocusId] = useState<number | null>(null);
+  const focusPost = (id: number) => {
+    setCat('전체');
+    setQuery('');
+    setFocusId(id);
+    setTimeout(() => document.getElementById(`post-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+  };
+  // 더보기 → 해당 기준 정렬로 바꾸고 목록으로 이동 (불타는 글=인기순, 개념글=추천순).
+  const showMoreFeature = () => {
+    setCat('전체');
+    setSort(feature === 'hot' ? '인기순' : '추천순');
+    setTimeout(() => document.getElementById('feed-sort-row')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
 
   // 검색어 + 카테고리 필터 + 정렬을 실제 목록에 적용.
   // (전체=모두, 그 외 탭=해당 카테고리만 / 최신순=작성시각, 추천순=북마크수, 댓글순=댓글수)
@@ -222,7 +248,8 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
       : initialFeed;
     if (cat !== '전체') list = list.filter((p) => postCat(p) === cat);
     const sorted = [...list];
-    if (sort === '추천순') sorted.sort((a, b) => (b.likeCount ?? 0) - (a.likeCount ?? 0));
+    if (sort === '인기순') sorted.sort((a, b) => feedHotScore(b) - feedHotScore(a) || b.createdAt.localeCompare(a.createdAt));
+    else if (sort === '추천순') sorted.sort((a, b) => (b.likeCount ?? 0) - (a.likeCount ?? 0));
     else if (sort === '댓글순') sorted.sort((a, b) => (b.commentCount ?? 0) - (a.commentCount ?? 0));
     else sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return sorted;
@@ -346,7 +373,7 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
         </div>
 
         {isShop ? (
-          <ShopSection P={P} />
+          <ShopSection P={P} region={region} />
         ) : (
         <>
         {/* 전체 탭에서만 인기글 + HOT 키워드 노출. 그 외 카테고리는 목록만. */}
@@ -364,12 +391,18 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
                   );
                 })}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 12, fontWeight: 700, color: P.ink3 }}>더보기{Ic.chevR(P.ink3, 12)}</div>
+              <button type="button" onClick={showMoreFeature} style={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 12, fontWeight: 700, color: P.ink3, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>더보기{Ic.chevR(P.ink3, 12)}</button>
             </div>
+            {featureItems.length === 0 && (
+              <div style={{ padding: '14px 0 6px', fontSize: 12.5, color: P.ink3, fontWeight: 600, borderTop: `1px solid ${P.line}` }}>아직 인기글이 없어요. 첫 글을 남겨보세요.</div>
+            )}
             {featureItems.map((f) => (
-              <Link key={f.rank} href="/feed" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 13, padding: '11px 0', borderTop: `1px solid ${P.line}` }}>
+              <button type="button" key={f.postId} onClick={() => focusPost(f.postId)} style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', color: 'inherit', display: 'flex', alignItems: 'center', gap: 13, padding: '11px 0', borderTop: `1px solid ${P.line}`, cursor: 'pointer' }}>
                 <div style={{ fontSize: 19, fontWeight: 900, color: f.heat ? P.red : P.ink, width: 15, flex: 'none', textAlign: 'center' }}>{f.rank}</div>
-                <div style={{ width: 46, height: 62, borderRadius: 7, background: f.grad, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, boxShadow: '0 3px 7px rgba(0,0,0,.16)' }}>{f.emoji}</div>
+                <div style={{ width: 46, height: 62, borderRadius: 7, background: f.grad, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, boxShadow: '0 3px 7px rgba(0,0,0,.16)', overflow: 'hidden' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {f.thumb ? <img src={f.thumb} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : f.emoji}
+                </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: P.ink, lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{f.title}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 }}>
@@ -380,7 +413,7 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
                 {f.heat && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 12, fontWeight: 800, color: P.red, flex: 'none', background: P.redSoft, padding: '5px 9px', borderRadius: 14 }}>🔥 {f.heat}</div>
                 )}
-              </Link>
+              </button>
             ))}
           </div>
         </div>
@@ -408,7 +441,7 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
         )}
 
         {/* sort row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px 10px' }}>
+        <div id="feed-sort-row" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px 10px' }}>
           {SORTS.map((s, i) => {
             const on = sort === s;
             return (
@@ -427,7 +460,7 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
         {/* post list */}
         <div style={{ background: P.cardBg }}>
           {cat === '전체' && NOTICES.map((n) => (
-            <Link key={n.title} href="/feed" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 12, padding: '15px 18px', borderBottom: `1px solid ${P.line}` }}>
+            <Link key={n.title} href="/my/notices" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 12, padding: '15px 18px', borderBottom: `1px solid ${P.line}` }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 11, fontWeight: 800, color: '#fff', background: n.badgeRed ? P.red : P.accent, padding: '3px 8px', borderRadius: 7, flex: 'none' }}>{n.badge}</span>
@@ -445,7 +478,7 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
           {isMarket ? (
             <MarketList list={trades} P={P} clean={clean} />
           ) : (
-            <FeedList posts={visiblePosts} P={P} clean={clean} />
+            <FeedList posts={visiblePosts} P={P} clean={clean} focusId={focusId} />
           )}
 
           <div style={{ height: 20 }} />
@@ -467,7 +500,7 @@ function Meta({ icon, label, P }: { icon: ReactNode; label: string; P: Palette }
 
 /* ---------------- feed ---------------- */
 
-function FeedList({ posts, P, clean }: { posts: FeedPost[]; P: Palette; clean: boolean }) {
+function FeedList({ posts, P, clean, focusId }: { posts: FeedPost[]; P: Palette; clean: boolean; focusId?: number | null }) {
   if (posts.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '46px 20px', color: P.ink3, fontSize: 14 }}>
@@ -480,15 +513,19 @@ function FeedList({ posts, P, clean }: { posts: FeedPost[]; P: Palette; clean: b
   return (
     <>
       {posts.map((p) => (
-        <PostRow key={p.id} post={p} P={P} clean={clean} />
+        <PostRow key={p.id} post={p} P={P} clean={clean} focused={focusId === p.id} />
       ))}
     </>
   );
 }
 
-function PostRow({ post, P, clean }: { post: FeedPost; P: Palette; clean: boolean }) {
+function PostRow({ post, P, clean, focused }: { post: FeedPost; P: Palette; clean: boolean; focused?: boolean }) {
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(false);
+  // 인기글에서 넘어온 글 — 펼친 상태로 시작.
+  useEffect(() => {
+    if (focused) { setOpen(true); setOpened(true); }
+  }, [focused]);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const images = post.images ?? [];
   const hasThumb = images.length > 0;
@@ -500,6 +537,7 @@ function PostRow({ post, P, clean }: { post: FeedPost; P: Palette; clean: boolea
 
   return (
     <div
+      id={`post-${post.id}`}
       role="button"
       tabIndex={0}
       onClick={toggle}
