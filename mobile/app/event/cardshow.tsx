@@ -11,12 +11,15 @@ import { EMBED_QUERY_KEY, EMBED_UA_TOKEN } from '@/lib/embed';
 import { router } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { useThemeColors } from '@/components/ThemeProvider';
+import { useFloatNavInset } from '@/components/NavPrefsProvider';
 import { WEB_OAUTH_ORIGIN } from '@/lib/oauth';
 import { getSession, isAuthenticated } from '@/lib/session';
 
 export default function CardShowScreen() {
   const tc = useThemeColors();
   const [loading, setLoading] = useState(true);
+  // 플로팅 탭바가 WebView 위에 떠서 페이지 하단 버튼이 가려지지 않도록 바 높이만큼 비운다.
+  const floatNavInset = useFloatNavInset();
   const authed = isAuthenticated();
   const token = getSession()?.token ?? '';
 
@@ -52,7 +55,7 @@ export default function CardShowScreen() {
         // 웹이 앱 임베드로 인식해 하단 탭바를 숨기도록 UA 토큰 부착(정본 shared/embed.ts).
         applicationNameForUserAgent={EMBED_UA_TOKEN}
         onLoadEnd={() => setLoading(false)}
-        style={{ flex: 1, backgroundColor: '#0F172A' }}
+        style={{ flex: 1, backgroundColor: '#0F172A', marginBottom: floatNavInset }}
         // 예약 페이지 외부 링크는 웹뷰 안에서 열지 않는다.
         originWhitelist={['https://*', 'http://*']}
       />

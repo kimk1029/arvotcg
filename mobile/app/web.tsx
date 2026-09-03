@@ -14,6 +14,7 @@ import { EMBED_QUERY_KEY, EMBED_UA_TOKEN } from '@/lib/embed';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { useThemeColors } from '@/components/ThemeProvider';
+import { useFloatNavInset } from '@/components/NavPrefsProvider';
 import { getSession } from '@/lib/session';
 
 const TRUSTED_HOSTS = new Set([
@@ -27,6 +28,8 @@ export default function InAppWebScreen() {
   const tc = useThemeColors();
   const { url, title } = useLocalSearchParams<{ url?: string; title?: string }>();
   const [loading, setLoading] = useState(true);
+  // 플로팅 탭바가 WebView 위에 떠서 페이지 하단 버튼이 가려지지 않도록 바 높이만큼 비운다.
+  const floatNavInset = useFloatNavInset();
 
   const finalUrl = useMemo(() => {
     const raw = typeof url === 'string' ? url : '';
@@ -64,7 +67,7 @@ export default function InAppWebScreen() {
         // 웹이 앱 임베드로 인식해 하단 탭바를 숨기도록 UA 토큰 부착(정본 shared/embed.ts).
         applicationNameForUserAgent={EMBED_UA_TOKEN}
         onLoadEnd={() => setLoading(false)}
-        style={{ flex: 1 }}
+        style={{ flex: 1, marginBottom: floatNavInset }}
         originWhitelist={['https://*', 'http://*']}
       />
       {loading ? (

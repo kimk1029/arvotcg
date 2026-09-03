@@ -4441,3 +4441,9 @@ html[data-embed="1"] .tabbar{display:none !important;}
 html[data-embed="1"] .screen--floatnav{padding-bottom:0;}
 html[data-embed="1"] .screen--floatnav > .pagebg{min-height:100%;margin-bottom:0;padding-bottom:0;}
 html[data-embed="1"] .screen--floatnav .addbar-sticky{bottom:0;border-bottom:0;}
+/* 임베드(앱 WebView)는 폰 목업 프레임 없이 뷰포트 좌우·상하에 꽉 차게 — WebView CSS 폭이
+   390px 보다 넓은 기기(대부분의 안드로이드)에서 양옆 띠가 남던 문제. 테마별 .phone
+   (명시도 0,2,0)보다 높은 0,2,1 + 파일 끝 배치로 이긴다. */
+html[data-embed="1"] .page-wrap{padding:0;min-height:100dvh;background:var(--paper);background-image:none;}
+html[data-embed="1"] .phone{width:100vw;max-width:none;height:100dvh;border:0;border-radius:0;box-shadow:none;outline:none;}
+

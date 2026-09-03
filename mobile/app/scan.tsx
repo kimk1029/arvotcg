@@ -28,7 +28,7 @@ import { useAuthed } from '@/lib/useAuthed';
 import { searchSnkrdunkByQuery } from '@/services/snkrdunk';
 import { koToJaServer, jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
 import { api } from '@/lib/apiClient';
-import { useNavPrefs } from '@/components/NavPrefsProvider';
+import { useFloatNavInset, useNavPrefs } from '@/components/NavPrefsProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useScanToSearch } from '@/lib/useScanToSearch';
 import { CardRegisterForm, useManualPalette, type ManualPalette } from '@/components/CardRegisterForm';
@@ -121,6 +121,7 @@ function ScanScreenInner() {
   const { theme } = useTheme();
   const { navStyle } = useNavPrefs();
   const insets = useSafeAreaInsets();
+  const floatNavInset = useFloatNavInset();
   // 우상단 카메라 — 홈 검색 인풋 카메라와 동일한 촬영→OCR→검색 플로우.
   const { scanBusy: camSearchBusy, scanToSearch: camSearch } = useScanToSearch();
   // 직접입력 팔레트 — 정본은 CardRegisterForm.useManualPalette (등록 폼과 공유).
@@ -572,7 +573,7 @@ function ScanScreenInner() {
           }}
         />
       ) : mode === 'batchResult' ? (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 14, paddingBottom: navStyle === 'floating' ? insets.bottom + 82 + 40 : 40 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 14, paddingBottom: floatNavInset + 40 }}>
           <View style={{ marginHorizontal: 14, marginBottom: 12 }}>
             <PixelText variant={txt} size={12} color={tc.grnDk} weight="bold" style={{ letterSpacing: 1 }}>
               ✓ {batchFound.length}장 인식 완료
@@ -635,7 +636,7 @@ function ScanScreenInner() {
         contentContainerStyle={{
           paddingTop: 14,
           paddingBottom:
-            navStyle === 'floating' && !(mode === 'manual' && manSearched) ? insets.bottom + 82 + 40 : 40,
+            !(mode === 'manual' && manSearched) ? floatNavInset + 40 : 40,
         }}
       >
         {mode === 'choose' && (
@@ -1084,7 +1085,7 @@ function ScanScreenInner() {
             borderBottomWidth: navStyle === 'floating' ? 1 : 0,
             borderBottomColor: MP.line,
             // 플로팅 탭바(마진 12 + 바 ≈58 + 제스처 인셋)가 하단을 덮으므로 그 위로 띄운다.
-            marginBottom: navStyle === 'floating' ? insets.bottom + 82 : 0,
+            marginBottom: floatNavInset,
           }}
         >
           <View style={{ maxWidth: 120 }}>

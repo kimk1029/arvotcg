@@ -13,6 +13,7 @@ import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
 import { colors } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { useFloatNavInset } from '@/components/NavPrefsProvider';
 import { WEB_OAUTH_ORIGIN } from '@/lib/oauth';
 
 const DOCS = {
@@ -25,13 +26,15 @@ export default function LegalScreen() {
   const txt = useThemeTextVariant();
   const { doc } = useLocalSearchParams<{ doc?: string }>();
   const [loading, setLoading] = useState(true);
+  // 플로팅 탭바가 WebView 위에 떠서 페이지 하단 버튼이 가려지지 않도록 바 높이만큼 비운다.
+  const floatNavInset = useFloatNavInset();
   const meta = doc === 'privacy' ? DOCS.privacy : DOCS.terms;
 
   return (
     <View style={{ flex: 1, backgroundColor: tc.paper }}>
       <StatusBar barStyle="dark-content" />
       <AppBar onBack={() => router.back()} title={meta.title} />
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, marginBottom: floatNavInset }}>
         <WebView
           source={{ uri: `${WEB_OAUTH_ORIGIN}${meta.path}?${EMBED_QUERY_KEY}=1` }}
           // 웹이 앱 임베드로 인식해 하단 탭바를 숨기도록 UA 토큰 부착(정본 shared/embed.ts).
