@@ -9,9 +9,9 @@
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
     "splash": {
-      "image": "./assets/splash.png",
-      "backgroundColor": "#129782",
-      "resizeMode": "cover"
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a1121"
     },
     "ios": {
       "supportsTablet": false,
@@ -69,6 +69,15 @@
             "enableShrinkResourcesInReleaseBuilds": true,
             "extraProguardRules": "# ML Kit — 리플렉션으로 모델/옵션을 찾으므로 통째로 보존\n-keep class com.google.mlkit.** { *; }\n-keep class com.google.android.gms.internal.mlkit_** { *; }\n-keep class com.google.android.gms.vision.** { *; }\n-dontwarn com.google.mlkit.**\n\n# Expo / RN 네이티브 모듈 — 이름 기반 조회라 난독화되면 못 찾는다\n-keep class expo.modules.** { *; }\n-keep class com.rnmlkit.textrecognition.** { *; }\n-keep class com.websitebeaver.documentscanner.** { *; }\n\n# JS ↔ 네이티브 브릿지 진입점\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactProp <methods>; }\n-keepclassmembers class * { @com.facebook.react.bridge.ReactMethod <methods>; }\n"
           }
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0a1121"
         }
       ]
     ],
