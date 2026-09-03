@@ -144,6 +144,6 @@ export function isUsableCardCode(code: ScannedCardCode): boolean {
 }
 
 /** 스니덩 검색어 — 직접입력 검색과 같은 형식('SV10 125'). */
-export function cardCodeQuery(code: ScannedCardCode): string {
+export function cardCodeQuery(code: Pick<ScannedCardCode, 'setCode' | 'cardNumber'>): string {
   return [code.setCode, code.cardNumber].filter(Boolean).join(' ').trim();
 }

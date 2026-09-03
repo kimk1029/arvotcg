@@ -10,6 +10,7 @@ import { CardThumb } from '@/components/CardThumb';
 import { useTheme } from '@/components/ThemeProvider';
 import { translate, translateKnownCardNameToKo } from '@/lib/cardTranslate';
 import { parseCardStatics } from '../../shared/cardStatics';
+import { cardCodeQuery } from '../../shared/cardCode';
 
 /** snkrdunk 검색 결과 한 건. */
 interface SnkSearchRow {
@@ -327,11 +328,13 @@ export function ManualAddForm(_props: Props) {
   const runSearch = async () => {
     if (searching) return;
     setErr(null);
+    // 세트코드·카드번호·카드이름 중 하나만 있어도 검색 가능.
+    // 정확 매칭(lookup)은 코드+번호가 모두 있을 때만, 스니덩크 검색은 있는 것만 합쳐서.
     const hasCode = !!setCode.trim() && !!cardNumber.trim();
     const hasName = !!name.trim();
-    // 세트코드+번호 또는 카드 이름 중 하나만 있으면 검색 가능.
-    if (!hasCode && !hasName) {
-      setErr('세트코드+카드번호 또는 카드이름을 입력해 주세요');
+    const codeQuery = cardCodeQuery({ setCode: setCode.trim(), cardNumber: cardNumber.trim() });
+    if (!codeQuery && !hasName) {
+      setErr('세트코드, 카드번호, 카드이름 중 하나 이상 입력해 주세요');
       return;
     }
     setSearching(true);
@@ -358,9 +361,9 @@ export function ManualAddForm(_props: Props) {
         }
       }
 
-      // 2) snkrdunk 검색(1페이지) — 코드+번호로, 이름이 있으면 한→일 번역해서 검색.
+      // 2) snkrdunk 검색(1페이지) — 세트코드/번호(있는 것만)로, 이름이 있으면 한→일 번역해서 검색.
       const queries: string[] = [];
-      if (hasCode) queries.push(`${setCode.trim()} ${cardNumber.trim()}`.trim());
+      if (codeQuery) queries.push(codeQuery);
       if (hasName) {
         const ja = translate(name.trim(), 'ja');
         queries.push(ja || name.trim());

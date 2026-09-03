@@ -33,6 +33,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useScanToSearch } from '@/lib/useScanToSearch';
 import { CardRegisterForm, useManualPalette, type ManualPalette } from '@/components/CardRegisterForm';
 import { parseCardStatics } from '../../shared/cardStatics';
+import { cardCodeQuery } from '../../shared/cardCode';
 
 /** "¥2,000" → 2000. 못 읽으면 0. */
 function parseYen(t?: string): number {
@@ -320,11 +321,13 @@ function ScanScreenInner() {
   const runManualSearch = async () => {
     if (manSearching) return;
     setManErr(null);
+    // 세트코드·카드번호·카드이름 중 하나만 있어도 검색 가능 (웹 ManualAddForm 동일).
+    // 정확 매칭(lookup)은 코드+번호가 모두 있을 때만, 스니덩크 검색은 있는 것만 합쳐서.
     const hasCode = !!manSet.trim() && !!manNum.trim();
     const hasName = !!manName.trim();
-    // 세트코드+번호 또는 이름 중 하나만 있으면 검색 가능 (웹 ManualAddForm 동일).
-    if (!hasCode && !hasName) {
-      setManErr('세트 코드+카드 번호 또는 카드 이름을 입력해 주세요');
+    const codeQuery = cardCodeQuery({ setCode: manSet.trim(), cardNumber: manNum.trim() });
+    if (!codeQuery && !hasName) {
+      setManErr('세트 코드, 카드 번호, 카드 이름 중 하나 이상 입력해 주세요');
       return;
     }
     setManSearching(true);
@@ -368,7 +371,7 @@ function ScanScreenInner() {
       //    (이름만 입력 시 이 경로가 메인 검색이 된다)
       const seen = new Set<number>();
       const queries: string[] = [];
-      if (hasCode) queries.push(`${manSet.trim()} ${manNum.trim()}`.trim());
+      if (codeQuery) queries.push(codeQuery);
       if (hasName) queries.push((await koToJaServer(manName.trim())) || manName.trim());
       const { items, anyRows } = await fetchManPage(queries, 1, seen);
       list.push(...items);
