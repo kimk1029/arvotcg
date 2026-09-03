@@ -11,6 +11,7 @@ import { KreamCompare } from '@/components/cards/KreamCompare';
 import { MultiSourceKoPrice } from '@/components/cards/MultiSourceKoPrice';
 import { PsaPopPanel } from '@/components/cards/PsaPopPanel';
 import { downsamplePricePoints, isGradedSnkrdunkBadge } from '@/lib/snkrdunk';
+import { getCardPackMeta } from '@/lib/cardPacks';
 import { boxHeadlineFromHistory, defaultGradeKey, gradeDisplayJpy, gradeUplift, priceChangeFromPoints, type SnkrGradeAgg } from '@/lib/snkrdunkPrice';
 
 /**
@@ -208,24 +209,28 @@ export function CardDetailView({
           )}
           {/* 박스: 상품번호 대신 소속 세트코드 라벨 */}
           {isBox ? (setCode && <Chip muted>{setCode.toUpperCase()}</Chip>) : (productNumber && <Chip muted>{productNumber}</Chip>)}
-          {/* 박스 → 수록 카드(힛카드) 목록 = 시세확인의 해당 박스 페이지(/cards/packs/{code}). 앱 동일. */}
-          {isBox && packCode && (
+        </div>
+
+        {/* 박스 → 수록 카드(힛카드) 목록 = 시세확인의 해당 박스 페이지(/cards/packs/{code}).
+            칩 행 아래 별도 줄, 색은 BOX 칩(보라)과 구분되는 해당 팩 고유색(CARD_PACKS.bg). 앱 동일. */}
+        {isBox && packCode && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
             <Link
               href={`/cards/packs/${packCode}`}
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--f1)', fontSize: 11, fontWeight: 800,
-                color: 'var(--white)', background: 'var(--pur)', padding: '6px 12px', borderRadius: 'var(--r-pill)',
-                boxShadow: '0 2px 6px rgba(106,58,255,.28)', textDecoration: 'none', whiteSpace: 'nowrap',
+                display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--f1)', fontSize: 12, fontWeight: 800,
+                color: 'var(--white)', background: getCardPackMeta(packCode)?.bg ?? 'var(--ink)', padding: '8px 16px', borderRadius: 'var(--r-pill)',
+                boxShadow: '0 2px 8px rgba(0,0,0,.18)', textDecoration: 'none', whiteSpace: 'nowrap',
               }}
             >
               {setCode ? `${setCode.toUpperCase()} ` : ''}힛카드
               {/* 외부 이동 아이콘 — 오른쪽 위 화살표 */}
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M7 17 17 7M9 7h8v8" />
               </svg>
             </Link>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* 가격 박스 */}
         <Panel style={{ marginTop: 16, padding: 18 }}>

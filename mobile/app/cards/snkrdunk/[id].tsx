@@ -40,6 +40,7 @@ import {
 } from '../../../../shared/snkrdunkPrice';
 import { isGradedSnkrdunkBadge } from '../../../../shared/snkrdunk';
 import { shotSetCode, shotSource, shotText } from '@/lib/shotMode';
+import { getCardPack } from '@/data/cardPacks';
 
 /* ── 등급 집계 — 정본 shared gradeAggsFromHistory 하나만 쓴다(웹과 동일 표본·통계) ── */
 type GradeAgg = SnkrGradeAgg;
@@ -259,21 +260,25 @@ export default function SnkrdunkDetail() {
                     <PixelText variant={txt} size={10} color={tc.ink3}>{shotSetCode(apparel.productNumber)}</PixelText>
                   </Chip>
                 ) : null}
-                {/* 박스 → 수록 카드(힛카드) 목록 = 시세확인의 해당 박스 페이지(/cards/packs/{code}). 웹 동일. */}
-                {isBox && boxPackCode ? (
+              </View>
+
+              {/* 박스 → 수록 카드(힛카드) 목록 = 시세확인의 해당 박스 페이지(/cards/packs/{code}).
+                  칩 행 아래 별도 줄, 색은 BOX 칩(보라)과 구분되는 해당 팩 고유색(CARD_PACKS.bg). 웹 동일. */}
+              {isBox && boxPackCode ? (
+                <View style={{ alignItems: 'center', marginTop: 10 }}>
                   <Pressable
                     onPress={() => router.push(`/cards/packs/${boxPackCode}` as never)}
                     hitSlop={6}
-                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: tc.pur, paddingHorizontal: 12, paddingVertical: 6, borderRadius: flat ? 999 : 0, opacity: pressed ? 0.75 : 1, elevation: 2, shadowColor: tc.pur, shadowOpacity: 0.28, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } })}
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: getCardPack(boxPackCode)?.bg ?? tc.ink, paddingHorizontal: 16, paddingVertical: 8, borderRadius: flat ? 999 : 0, opacity: pressed ? 0.75 : 1, elevation: 2, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } })}
                   >
-                    <PixelText variant={txt} size={10} weight="bold" color={tc.white}>{`${boxSetCode ? `${boxSetCode.toUpperCase()} ` : ''}힛카드`}</PixelText>
+                    <PixelText variant={txt} size={11} weight="bold" color={tc.white}>{`${boxSetCode ? `${boxSetCode.toUpperCase()} ` : ''}힛카드`}</PixelText>
                     {/* 외부 이동 아이콘 — 오른쪽 위 화살표 (웹 동일) */}
-                    <Svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke={tc.white} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
+                    <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={tc.white} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
                       <Path d="M7 17 17 7M9 7h8v8" />
                     </Svg>
                   </Pressable>
-                ) : null}
-              </View>
+                </View>
+              ) : null}
 
               {/* 가격 박스 */}
               <View style={{ marginTop: 14 }}>
