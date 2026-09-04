@@ -7,8 +7,8 @@ import { CARDS_CATALOG } from '@/lib/cardsCatalog';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: '카드 직접 입력 · ARVOTCG',
-  description: '카드명·세트·메모 등을 직접 입력해 컬렉션에 보관합니다.',
+  title: '내 카드 등록 · ARVOTCG',
+  description: '카드이름·세트코드·카드번호 중 하나만 있어도 검색해 내 컬렉션에 등록합니다.',
 };
 
 export default async function Page() {
@@ -16,8 +16,8 @@ export default async function Page() {
   if (!user?.id) {
     return (
       <LoginRequired
-        title="카드 추가"
-        message="카드를 추가하려면 로그인해주세요"
+        title="내 카드 등록"
+        message="카드를 등록하려면 로그인해주세요"
         callbackUrl="/cards/add/manual"
       />
     );

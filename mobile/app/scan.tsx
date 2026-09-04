@@ -46,6 +46,14 @@ function parseYen(t?: string): number {
 
 type ManSortKey = 'rel' | 'rarity' | 'price' | 'volume';
 
+/* ── 검색 기준(카드이름/세트코드/카드번호) — 웹 ManualAddForm FIELDS 미러 ── */
+type ManFieldKey = 'name' | 'set' | 'num';
+const MAN_FIELDS: Array<{ key: ManFieldKey; label: string; color: string; placeholder: string; hint: string; max: number }> = [
+  { key: 'name', label: '카드이름', color: '#FF7A00', placeholder: '예) 피카츄', hint: '이름 일부만 입력해도 돼요.', max: 60 },
+  { key: 'set', label: '세트코드', color: '#2563EB', placeholder: '예) SV4a', hint: '카드 왼쪽 하단의 코드예요.', max: 16 },
+  { key: 'num', label: '카드번호', color: '#1E8E5A', placeholder: '예) 025/165', hint: '세트코드 바로 옆 번호예요.', max: 16 },
+];
+
 const MAN_SORT_LABEL: Record<ManSortKey, string> = {
   rel: '관련도순',
   rarity: '레어도순',
@@ -127,6 +135,8 @@ function ScanScreenInner() {
   const { scanBusy: camSearchBusy, scanToSearch: camSearch } = useScanToSearch();
   // 직접입력 팔레트 — 정본은 CardRegisterForm.useManualPalette (등록 폼과 공유).
   const MP = useManualPalette();
+  // 클린 테마에서만 기준별 고정색(주황/파랑/초록)을 쓴다 — 그 외 테마는 accent 하나.
+  const mclean = theme === 'clean';
   const params = useLocalSearchParams<{
     mode?: string;
     regApparelId?: string;
@@ -184,6 +194,13 @@ function ScanScreenInner() {
   const [manSetFilter, setManSetFilter] = useState<string | null>(null);
   const [manMenu, setManMenu] = useState<'set' | 'rarity' | 'sort' | null>(null);
   const [manSelectedIdx, setManSelectedIdx] = useState<number | null>(null);
+  // 검색 기준(지금 입력 중인 항목) + 등록 옵션 패널 — 웹 ManualAddForm 동일.
+  const [manField, setManField] = useState<ManFieldKey>('name');
+  const [manOptOpen, setManOptOpen] = useState(false);
+  // 검색에 안 잡혀도 입력값 그대로 등록('직접 입력하기') — 웹 useFallback 페어.
+  const [manUseFallback, setManUseFallback] = useState(false);
+  const [manSaving, setManSaving] = useState(false);
+  const manSubmitRef = useRef<null | (() => void)>(null);
   // 거래량많은순 — 카탈로그 스냅샷의 출품수(listingCount). apparelId → count.
   const [manVolumes, setManVolumes] = useState<Record<number, number>>({});
   const manVolFetchedRef = useRef<Set<number>>(new Set());
@@ -454,6 +471,24 @@ function ScanScreenInner() {
   }, [manResults, manSetFilter, manRarityFilter, manSort, manVolumes]);
 
   const manSelected = manSelectedIdx != null ? (manResults[manSelectedIdx] ?? null) : null;
+  const manValueOf = (k: ManFieldKey) => (k === 'name' ? manName : k === 'set' ? manSet : manNum);
+  const manSetValueOf = (k: ManFieldKey, v: string) => {
+    if (k === 'name') setManName(v);
+    else if (k === 'set') setManSet(v.toUpperCase());
+    else setManNum(v);
+  };
+  const manFilled = MAN_FIELDS.filter((f) => manValueOf(f.key).trim().length > 0);
+  /** 등록 대상 — 선택한 검색 결과, 없으면 '직접 입력하기'로 만든 입력값 카드. */
+  const manTarget = manUseFallback ? buildManualCard() : manSelected;
+  const manCur = MAN_FIELDS.find((f) => f.key === manField) ?? MAN_FIELDS[0];
+  /** 검색 초기화 — 기준·값·결과·선택을 모두 비운다 (웹 clearSearch). */
+  const clearManualSearch = () => {
+    setManName(''); setManSet(''); setManNum('');
+    setManField('name');
+    setManSearched(false); setManResults([]); setManSelectedIdx(null);
+    setManSetFilter(null); setManRarityFilter(null); setManMenu(null);
+    setManErr(null); setManOptOpen(false); setManUseFallback(false);
+  };
 
   /** "더보기" — 다음 페이지를 이어서 로드해 append. 새 항목이 없으면 버튼 숨김. */
   const loadMoreManual = async () => {
@@ -509,23 +544,7 @@ function ScanScreenInner() {
           }
           setMode('choose');
         }}
-        title={mode === 'manual' ? '카드 추가' : '카드 등록'}
-        right={
-          mode === 'manual' ? (
-            <Pressable
-              onPress={camSearch}
-              disabled={camSearchBusy}
-              hitSlop={6}
-              accessibilityLabel="카드 사진 스캔"
-              style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: MP.btnBg, alignItems: 'center', justifyContent: 'center', opacity: camSearchBusy ? 0.5 : 1 }}
-            >
-              <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={MP.btnFg} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-                <Path d="M14.5 4h-5L7 7H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-3l-2.5-3Z" />
-                <Circle cx={12} cy={13} r={3.2} />
-              </Svg>
-            </Pressable>
-          ) : undefined
-        }
+        title={mode === 'manual' ? '내 카드 등록' : '카드 등록'}
       />
       {mode === 'preview' && photoUri && photoMeta ? (
         <ScanPreview
@@ -779,71 +798,105 @@ function ScanScreenInner() {
 
         {mode === 'manual' && (
           <View style={{ paddingHorizontal: 16 }}>
-            {/* ── 입력 폼 — 웹 ManualAddForm 프로토타입 레이아웃 (세트코드+번호 → 카드이름 → 검색) ── */}
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <View style={{ flex: 1 }}>
-                <PixelText variant="ko" size={10} weight="bold" color={MP.ink2} style={{ marginBottom: 5, paddingLeft: 2 }}>세트코드</PixelText>
-                <View style={{ backgroundColor: MP.fieldBg, borderWidth: 1.5, borderColor: MP.fieldBd, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10 }}>
-                  <TextInput
-                    value={manSet}
-                    onChangeText={(t) => setManSet(t.toUpperCase())}
-                    placeholder="예) SV4a"
-                    placeholderTextColor={MP.ink3}
-                    autoCapitalize="characters"
-                    maxLength={16}
-                    style={{ fontSize: 14, fontWeight: '700', color: MP.ink, padding: 0 }}
-                  />
-                </View>
-              </View>
-              <View style={{ flex: 1 }}>
-                <PixelText variant="ko" size={10} weight="bold" color={MP.ink2} style={{ marginBottom: 5, paddingLeft: 2 }}>카드번호</PixelText>
-                <View style={{ backgroundColor: MP.fieldBg, borderWidth: 1.5, borderColor: MP.fieldBd, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10 }}>
-                  <TextInput
-                    value={manNum}
-                    onChangeText={setManNum}
-                    placeholder="예) 201/165"
-                    placeholderTextColor={MP.ink3}
-                    maxLength={16}
-                    style={{ fontSize: 14, fontWeight: '700', color: MP.ink, padding: 0 }}
-                  />
-                </View>
-              </View>
+            {/* ── 기준 칩 + 입력 한 줄 (웹 ManualAddForm 동일: 셋 중 하나만 골라도 검색) ── */}
+            <PixelText variant="ko" size={10} weight="bold" color={MP.ink3} style={{ marginBottom: 6 }}>
+              셋 중 하나만 골라도 검색됩니다
+            </PixelText>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {MAN_FIELDS.map((f) => {
+                const has = manValueOf(f.key).trim().length > 0;
+                const on = manField === f.key;
+                const c = mclean ? f.color : MP.accent;
+                return (
+                  <Pressable
+                    key={f.key}
+                    onPress={() => setManField(f.key)}
+                    style={{
+                      flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center',
+                      paddingVertical: 8, borderRadius: 16,
+                      backgroundColor: has ? c : MP.pageBg,
+                      borderWidth: 1.5, borderColor: has || on ? c : MP.fieldBd,
+                    }}
+                  >
+                    <PixelText variant="ko" size={11} weight="bold" color={has ? '#ffffff' : on ? c : MP.ink2} numberOfLines={1}>
+                      {has ? `✓ ${f.label}` : f.label}
+                    </PixelText>
+                  </Pressable>
+                );
+              })}
             </View>
-            <View style={{ marginTop: 9 }}>
-              <PixelText variant="ko" size={10} weight="bold" color={MP.ink2} style={{ marginBottom: 5, paddingLeft: 2 }}>카드이름</PixelText>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: MP.nameBg, borderWidth: 1.5, borderColor: MP.accent, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 11 }}>
-                <PixelText variant="ko" size={13} color={MP.ink}>🔍</PixelText>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 9 }}>
+              <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: MP.pageBg, borderWidth: 1.5, borderColor: mclean ? manCur.color : MP.accent, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+                <View style={{ backgroundColor: mclean ? manCur.color : MP.accent, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7 }}>
+                  <PixelText variant="ko" size={10} weight="bold" color="#ffffff">{manCur.label}</PixelText>
+                </View>
                 <TextInput
-                  value={manName}
-                  onChangeText={setManName}
-                  placeholder="예) 카드명 입력"
+                  value={manValueOf(manField)}
+                  onChangeText={(t) => manSetValueOf(manField, t)}
+                  placeholder={manCur.placeholder}
                   placeholderTextColor={MP.ink3}
-                  maxLength={60}
-                  style={{ flex: 1, fontSize: 14.5, fontWeight: '700', color: MP.ink, padding: 0 }}
+                  autoCapitalize={manField === 'set' ? 'characters' : 'none'}
+                  maxLength={manCur.max}
+                  onSubmitEditing={runManualSearch}
+                  style={{ flex: 1, fontSize: 14, fontWeight: '700', color: MP.ink, padding: 0 }}
                 />
-                {manName ? (
-                  <Pressable onPress={() => setManName('')} hitSlop={6}>
+                {manValueOf(manField) ? (
+                  <Pressable onPress={() => manSetValueOf(manField, '')} hitSlop={6}>
                     <PixelText variant="ko" size={13} color={MP.ink3}>ⓧ</PixelText>
                   </Pressable>
                 ) : null}
               </View>
+              <Pressable
+                disabled={manSearching}
+                onPress={runManualSearch}
+                style={{ paddingHorizontal: 18, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: manFilled.length > 0 ? MP.btnBg : MP.disBg, opacity: manSearching ? 0.6 : 1 }}
+              >
+                <PixelText variant="ko" size={13} weight="bold" color={manFilled.length > 0 ? MP.btnFg : MP.disFg}>
+                  {manSearching ? '검색 중' : '검색'}
+                </PixelText>
+              </Pressable>
             </View>
+            <PixelText variant="ko" size={10} color={MP.ink3} style={{ marginTop: 6 }}>{manCur.hint}</PixelText>
             {manErr ? (
-              <PixelText variant="ko" size={11} weight="bold" color={MP.red} style={{ marginTop: 8 }}>⚠ {manErr}</PixelText>
+              <PixelText variant="ko" size={11} weight="bold" color={MP.red} style={{ marginTop: 6 }}>⚠ {manErr}</PixelText>
             ) : null}
+
+            {/* 또는 — 스캔으로 바로 채우기 (웹 동일) */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, marginBottom: 12 }}>
+              <View style={{ flex: 1, height: 1, backgroundColor: MP.line }} />
+              <PixelText variant="ko" size={10} weight="bold" color={MP.ink3}>또는</PixelText>
+              <View style={{ flex: 1, height: 1, backgroundColor: MP.line }} />
+            </View>
             <Pressable
-              disabled={manSearching}
-              onPress={runManualSearch}
-              style={{ marginTop: 11, height: 44, borderRadius: 12, backgroundColor: MP.btnBg, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, opacity: manSearching ? 0.6 : 1 }}
+              onPress={camSearch}
+              disabled={camSearchBusy}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 12,
+                borderWidth: 1.5, borderColor: MP.accent, borderStyle: 'dashed',
+                backgroundColor: MP.accentSoft, borderRadius: 14,
+                paddingHorizontal: 14, paddingVertical: 12, opacity: camSearchBusy ? 0.6 : 1,
+              }}
             >
-              <PixelText variant="ko" size={13} weight="bold" color={MP.btnFg}>{manSearching ? '검색 중...' : '🔍 카드 검색'}</PixelText>
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: MP.accent, alignItems: 'center', justifyContent: 'center' }}>
+                <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <Path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" />
+                  <Circle cx={12} cy={13} r={3.4} />
+                </Svg>
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <PixelText variant="ko" size={13} weight="bold" color={MP.ink}>
+                  {camSearchBusy ? '카드를 읽는 중…' : '카드 스캔으로 바로 등록'}
+                </PixelText>
+                <PixelText variant="ko" size={10.5} color={MP.ink3} style={{ marginTop: 2 }}>
+                  카드를 찍으면 이름·세트코드·번호를 자동 인식해요
+                </PixelText>
+              </View>
+              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={MP.accent} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+                <Path d="m9 6 6 6-6 6" />
+              </Svg>
             </Pressable>
 
-            {!manSearched && !manSearching ? (
-              <PixelText variant="ko" size={12} color={MP.ink3} style={{ textAlign: 'center', paddingVertical: 46, lineHeight: 20 }}>
-                세트코드+카드번호 또는 카드이름으로 검색해 보세요.{'\n'}이름만 입력해도 검색돼요.
-              </PixelText>
-            ) : null}
+            {!manSearched && !manSearching ? <ManualCardGuide P={MP} clean={mclean} /> : null}
 
             {/* ── 검색 결과 — 필터 칩(드롭다운 메뉴) → 결과 수+정렬 → 라디오 행 리스트 ── */}
             {manSearched ? (
@@ -876,10 +929,28 @@ function ScanScreenInner() {
                   </MMenu>
                 ) : null}
 
+                {/* 적용된 기준 칩 + 결과 수 + 초기화 (웹 동일) */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 14, paddingBottom: 4 }}>
+                  <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                    {manFilled.map((f) => (
+                      <View key={f.key} style={{ backgroundColor: mclean ? f.color : MP.accent, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 12, maxWidth: 150 }}>
+                        <PixelText variant="ko" size={10} weight="bold" color="#ffffff" numberOfLines={1}>
+                          {`${f.label.replace('카드', '')} ${manValueOf(f.key)}`}
+                        </PixelText>
+                      </View>
+                    ))}
+                    <PixelText variant="ko" size={12} color={MP.ink2}>
+                      결과 <PixelText variant="ko" size={12} weight="bold" color={MP.ink}>{manDisplayed.length}</PixelText>개
+                    </PixelText>
+                  </View>
+                  <Pressable onPress={clearManualSearch} hitSlop={6}>
+                    <PixelText variant="ko" size={11.5} weight="bold" color={MP.ink3}>✕ 초기화</PixelText>
+                  </Pressable>
+                </View>
+
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 2 }}>
                   <PixelText variant="ko" size={12} color={MP.ink3}>
-                    검색 결과 <PixelText variant="ko" size={12} weight="bold" color={MP.ink}>{manDisplayed.length}</PixelText>개
-                    {manDisplayed.length !== manResults.length ? ` (전체 ${manResults.length})` : ''}
+                    {manDisplayed.length !== manResults.length ? `전체 ${manResults.length}개 중 ${manDisplayed.length}개` : `​`}
                   </PixelText>
                   <Pressable onPress={() => setManMenu(manMenu === 'sort' ? null : 'sort')} hitSlop={6}>
                     <PixelText variant="ko" size={12} weight="bold" color={MP.ink}>{MAN_SORT_LABEL[manSort]} ▾</PixelText>
@@ -894,7 +965,7 @@ function ScanScreenInner() {
                 ) : null}
 
                 {manDisplayed.map(({ c, idx }) => {
-                  const sel = manSelectedIdx === idx;
+                  const sel = !manUseFallback && manSelectedIdx === idx;
                   const rar = manRarityOf(c);
                   const rarC = rar ? (MAN_RARITY_BADGE[rar] ?? { fg: '#8E8E93', bg: '#F2F2F4' }) : null;
                   const sub = [c.set && c.set !== '-' ? c.set : '', c.num && c.num !== '-' ? c.num : ''].filter(Boolean).join(' · ');
@@ -954,16 +1025,37 @@ function ScanScreenInner() {
 
                 <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4, paddingTop: 12, paddingBottom: 8 }}>
                   <PixelText variant="ko" size={12} weight="bold" color={MP.ink3}>찾는 카드가 없나요?</PixelText>
-                  <Pressable onPress={() => openRegister(buildManualCard(), 'manual')} hitSlop={6}>
+                  <Pressable onPress={() => { setManSelectedIdx(null); setManUseFallback(true); setManOptOpen(true); }} hitSlop={6}>
                     <PixelText variant="ko" size={12} weight="bold" color={MP.accent}>직접 입력하기</PixelText>
                   </Pressable>
                 </View>
               </>
             ) : null}
+
+            {/* ── 등록 옵션 — 같은 화면의 접이식 패널. 별도 '카드 등록' 화면 없음.
+                 접혀 있어도 마운트해 둬야 하단 바가 submitRef 로 바로 저장할 수 있다. ── */}
+            {manSearched && manTarget ? (
+              <View style={{ display: manOptOpen ? 'flex' : 'none', borderTopWidth: 1, borderTopColor: MP.line, paddingTop: 14, marginTop: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <PixelText variant="ko" size={13} weight="bold" color={MP.ink} style={{ flex: 1 }}>등록 옵션</PixelText>
+                  <Pressable onPress={() => setManOptOpen(false)} hitSlop={6}>
+                    <PixelText variant="ko" size={11.5} weight="bold" color={MP.ink3}>접기 ⌄</PixelText>
+                  </Pressable>
+                </View>
+                <CardRegisterForm
+                  key={manTarget.id}
+                  card={manTarget}
+                  hideCta
+                  submitRef={manSubmitRef}
+                  onBusyChange={setManSaving}
+                  onSaved={onRegisterSaved}
+                />
+              </View>
+            ) : null}
           </View>
         )}
 
-        {/* ── 카드 등록 — 공용 폼(CardRegisterForm). 시세상세 팝업과 동일 내용 ── */}
+        {/* ── 카드 등록 — 공용 폼(CardRegisterForm). 스캔(촬영) 경로 전용 ── */}
         {mode === 'register' && pendingCard && (
           <View style={{ paddingHorizontal: 16 }}>
             <CardRegisterForm key={pendingCard.id} card={pendingCard} onSaved={onRegisterSaved} />
@@ -1091,31 +1183,39 @@ function ScanScreenInner() {
             marginBottom: floatNavInset,
           }}
         >
-          <View style={{ maxWidth: 120 }}>
+          <View style={{ maxWidth: 104 }}>
             <PixelText variant="ko" size={10} color={MP.ink3}>선택한 카드</PixelText>
             <PixelText variant="ko" size={13} weight="bold" color={MP.ink} numberOfLines={1} style={{ marginTop: 1 }}>
-              {manSelected ? displayCardName(manSelected.name) : '선택 안 됨'}
+              {manTarget ? displayCardName(manTarget.name) : '선택 안 됨'}
             </PixelText>
           </View>
+          {manTarget ? (
+            <Pressable
+              onPress={() => setManOptOpen((v) => !v)}
+              style={{ height: 50, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1.5, borderColor: MP.fieldBd, backgroundColor: MP.pageBg, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <PixelText variant="ko" size={11.5} weight="bold" color={MP.ink}>{`옵션 ${manOptOpen ? '⌄' : '⌃'}`}</PixelText>
+            </Pressable>
+          ) : null}
           <Pressable
-            disabled={!manSelected}
-            onPress={() => manSelected && openRegister(manSelected, 'manual')}
+            disabled={!manTarget || manSaving}
+            onPress={() => manSubmitRef.current?.()}
             style={{
               flex: 1,
               height: 50,
               borderRadius: 14,
-              backgroundColor: manSelected ? MP.btnBg : MP.disBg,
+              backgroundColor: manTarget ? MP.btnBg : MP.disBg,
               alignItems: 'center',
               justifyContent: 'center',
-              elevation: manSelected ? 4 : 0,
+              elevation: manTarget ? 4 : 0,
               shadowColor: '#000',
-              shadowOpacity: manSelected ? 0.18 : 0,
+              shadowOpacity: manTarget ? 0.18 : 0,
               shadowRadius: 8,
               shadowOffset: { width: 0, height: 6 },
             }}
           >
-            <PixelText variant="ko" size={13} weight="bold" color={manSelected ? MP.btnFg : MP.disFg}>
-              {manSelected ? '내 컬렉션에 추가' : '카드를 선택하세요'}
+            <PixelText variant="ko" size={13} weight="bold" color={manTarget ? MP.btnFg : MP.disFg}>
+              {manSaving ? '등록 중…' : manTarget ? '내 카드로 등록' : '카드를 선택하세요'}
             </PixelText>
           </Pressable>
         </View>
@@ -1254,3 +1354,62 @@ const inputStyle = {
   borderWidth: 3,
 } as const;
 
+
+/**
+ * 검색 전 안내 — 카드의 어느 위치에서 이름/세트코드/카드번호를 읽으면 되는지.
+ * 실제 카드 이미지는 저작권 문제가 있어 샘플 일러스트로 그린다 (웹 CardGuide 페어).
+ */
+function ManualCardGuide({ P, clean }: { P: ManualPalette; clean: boolean }) {
+  const NAME_C = clean ? '#FF7A00' : P.accent;
+  const SET_C = clean ? '#2563EB' : P.ink;
+  const NUM_C = clean ? '#1E8E5A' : P.ink;
+  return (
+    <View style={{ alignItems: 'center', paddingTop: 18, paddingBottom: 26 }}>
+      <PixelText variant="ko" size={12} weight="bold" color={P.ink3} style={{ marginBottom: 12 }}>
+        카드에서 이 위치를 확인하세요
+      </PixelText>
+      <View style={{ width: 196, height: 274, borderRadius: 11, padding: 7, backgroundColor: '#e6b800', overflow: 'hidden' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <PixelText variant="ko" size={11} weight="bold" color="#16161a">피카츄 ex</PixelText>
+          <View style={{ flex: 1 }} />
+          <PixelText variant="ko" size={7} weight="bold" color="#b3261e">HP</PixelText>
+          <PixelText variant="ko" size={11} weight="bold" color="#16161a">200</PixelText>
+        </View>
+        <View style={{ height: 152, marginTop: 5, borderWidth: 3, borderColor: '#c9a000', borderRadius: 4, backgroundColor: '#ffd76e', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 58 }}>⚡</Text>
+        </View>
+        <View style={{ marginTop: 7, gap: 5, paddingHorizontal: 2 }}>
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.12)' }} />
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.12)', width: '76%' }} />
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.12)', width: '58%' }} />
+        </View>
+        <View style={{ position: 'absolute', left: 7, right: 7, bottom: 6, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <PixelText variant="ko" size={9.5} weight="bold" color="#16161a">SV4a</PixelText>
+          <PixelText variant="ko" size={9.5} weight="bold" color="#16161a">025/165</PixelText>
+        </View>
+        {/* 실제 카드가 아님을 분명히 — 샘플 워터마크 */}
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.42)', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 30, fontWeight: '900', color: 'rgba(22,22,26,0.2)', letterSpacing: 5, transform: [{ rotate: '-24deg' }] }}>SAMPLE</Text>
+        </View>
+        {/* 콜아웃 — 카드이름 / 세트코드 / 카드번호 */}
+        <View pointerEvents="none" style={{ position: 'absolute', top: 26, left: 5, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <View style={{ width: 44, height: 5, borderLeftWidth: 2, borderTopWidth: 2, borderColor: NAME_C }} />
+          <View style={{ backgroundColor: NAME_C, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+            <PixelText variant="ko" size={9.5} weight="bold" color="#ffffff">카드이름</PixelText>
+          </View>
+        </View>
+        <View pointerEvents="none" style={{ position: 'absolute', left: 5, bottom: 22, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ backgroundColor: SET_C, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+            <PixelText variant="ko" size={9.5} weight="bold" color="#ffffff">세트코드</PixelText>
+          </View>
+          <View style={{ backgroundColor: NUM_C, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+            <PixelText variant="ko" size={9.5} weight="bold" color="#ffffff">카드번호</PixelText>
+          </View>
+        </View>
+        <View pointerEvents="none" style={{ position: 'absolute', left: 6, bottom: 18, width: 27, height: 5, borderLeftWidth: 2, borderBottomWidth: 2, borderColor: SET_C }} />
+        <View pointerEvents="none" style={{ position: 'absolute', left: 36, bottom: 18, width: 43, height: 5, borderRightWidth: 2, borderBottomWidth: 2, borderColor: NUM_C }} />
+      </View>
+      <PixelText variant="ko" size={10} color={P.ink3} style={{ marginTop: 10 }}>· 설명용 샘플 이미지입니다</PixelText>
+    </View>
+  );
+}

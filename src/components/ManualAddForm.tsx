@@ -5,10 +5,19 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { startRouteTransition } from '@/components/RouteProgress';
 import { ScanProgressOverlay } from '@/components/ScanProgressOverlay';
-import { CardRegisterSheet, type RegisterCardInput } from '@/components/cards/CardRegisterSheet';
+import { type RegisterCardInput } from '@/components/cards/CardRegisterSheet';
 import { CardThumb } from '@/components/CardThumb';
 import { useTheme } from '@/components/ThemeProvider';
 import { translate, translateKnownCardNameToKo } from '@/lib/cardTranslate';
+import { invalidateCollectionCaches } from '@/lib/collectionCache';
+import { registerBasisJpy } from '@/lib/snkrdunkPrice';
+import {
+  buildRegisterPayload,
+  defaultRegisterOptions,
+  postMyCard,
+  selfPulledBasis,
+  type RegisterOptions,
+} from '@/lib/registerCard';
 import { parseCardStatics } from '../../shared/cardStatics';
 import { cardCodeQuery } from '../../shared/cardCode';
 
@@ -222,11 +231,28 @@ function IcCaret({ c, size = 14 }: { c: string; size?: number }) {
   );
 }
 
+/* ── 검색 기준(카드이름/세트코드/카드번호) ─────────────────────────
+   프로토타입은 입력칸 3개 대신 "기준 칩 + 입력 한 줄"이다. 칩을 누르면 그 기준을
+   입력 중으로 바꾸고(포커스), 값이 들어간 기준은 체크 표시로 남아 검색에 함께 쓰인다. */
+type FieldKey = 'name' | 'set' | 'num';
+
+/** 등급사 — 등록 옵션의 그레이딩사 선택 (CardRegisterSheet 와 동일 목록). */
+const GRADE_COMPANIES = ['PSA', 'BGS', 'CGC', 'SGC', 'ARS'];
+
+const FIELDS: Array<{ key: FieldKey; label: string; color: string; placeholder: string; hint: string; max: number }> = [
+  { key: 'name', label: '카드이름', color: '#FF7A00', placeholder: '예) 피카츄', hint: '이름 일부만 입력해도 돼요.', max: 60 },
+  { key: 'set', label: '세트코드', color: '#2563EB', placeholder: '예) SV4a', hint: '카드 왼쪽 하단의 코드예요.', max: 16 },
+  { key: 'num', label: '카드번호', color: '#1E8E5A', placeholder: '예) 025/165', hint: '세트코드 바로 옆 번호예요.', max: 16 },
+];
+
 /**
- * 카드 추가(직접입력) — Claude Design 'ARVOTCG 카드추가' 프로토타입 레이아웃.
- *  헤더(뒤로가기·스캔 버튼) + 세트코드/카드번호/카드이름 입력 + 카드 검색 →
- *  필터 칩 · 결과 리스트(단일 선택 라디오) · 하단 고정 "내 컬렉션에 추가" 바 →
- *  스캔과 동일한 "카드 등록" 시트로 진입.
+ * 내 카드 등록 — Claude Design 'ARVO 카드등록' 프로토타입 레이아웃.
+ *
+ * 검색(기준 칩 + 입력 한 줄 + 스캔) → 결과 단일 선택 → 하단 바에서 바로 등록까지
+ * **한 화면**에서 끝난다. 이전에는 결과를 고르면 별도의 '카드 등록' 화면으로
+ * 넘어갔는데, 그 단계를 없애고 등록 옵션(구입가·수량·등급·메모)을 같은 화면의
+ * 접이식 패널로 옮겼다. 저장 규칙(payload)의 정본은 src/lib/registerCard.ts —
+ * 시세상세 '내 컬렉션에 추가' 팝업과 같은 함수를 쓴다. 앱 scan.tsx manual 모드와 페어.
  */
 export function ManualAddForm(_props: Props) {
   const router = useRouter();
@@ -234,43 +260,31 @@ export function ManualAddForm(_props: Props) {
   const clean = theme === 'clean';
   const P = clean ? CLEAN_P : VAR_P;
 
-  // 우상단 카메라 — 홈 검색 인풋(HomeKoSearchBar) 카메라와 동일한 촬영→OCR→검색 플로우.
-  const [scanning, setScanning] = useState(false);
-  const camFileRef = useRef<HTMLInputElement>(null);
-  async function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // 같은 파일 재선택 허용
-    if (!file) return;
-    setScanning(true);
-    try {
-      const img = await fileToImage(file);
-      const { recognizeCard } = await import('@/components/grading/cardOcr');
-      const r = await recognizeCard(img, null, { useAi: true, language: 'ko' });
-      const num = r.cardNumber?.left ?? '';
-      const q = r.setCode && num ? `${r.setCode} ${num}` : (r.name ?? num ?? '').trim();
-      if (q) {
-        startRouteTransition();
-        router.push(`/cards/snkrdunk/search?q=${encodeURIComponent(q)}`);
-      } else {
-        alert('카드 정보를 읽지 못했어요. 더 또렷한 사진으로 다시 시도해 주세요.');
-      }
-    } catch {
-      alert('스캔에 실패했어요. 다시 시도해 주세요.');
-    } finally {
-      setScanning(false);
-    }
-  }
-
+  /* ── 검색 입력 ── */
   const [setCode, setSetCode] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [name, setName] = useState('');
+  const [field, setField] = useState<FieldKey>('name');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const valueOf = (k: FieldKey) => (k === 'name' ? name : k === 'set' ? setCode : cardNumber);
+  const setValueOf = (k: FieldKey, v: string) => {
+    if (k === 'name') setName(v);
+    else if (k === 'set') setSetCode(v.toUpperCase());
+    else setCardNumber(v);
+  };
+  const filled = FIELDS.filter((f) => valueOf(f.key).trim().length > 0);
+  const cur = FIELDS.find((f) => f.key === field) ?? FIELDS[0];
+
+  /* ── 스캔(촬영 → OCR → 기준 자동 채움 → 검색) ── */
+  const [scanning, setScanning] = useState(false);
+  const camFileRef = useRef<HTMLInputElement>(null);
 
   const [searching, setSearching] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const [results, setResults] = useState<RegisterCardInput[]>([]);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const [registering, setRegistering] = useState<RegisterCardInput | null>(null);
   // 정렬/필터 — 관련도순 = 검색 API가 준 순서 그대로.
   const [sort, setSort] = useState<SortKey>('rel');
   const [rarityFilter, setRarityFilter] = useState<string | null>(null);
@@ -288,6 +302,13 @@ export function ManualAddForm(_props: Props) {
     nextPage: 1,
   });
 
+  /* ── 등록(같은 화면에서 처리 — 별도 '카드 등록' 화면 없음) ── */
+  const [optOpen, setOptOpen] = useState(false);
+  const [opts, setOpts] = useState<RegisterOptions>(() => defaultRegisterOptions());
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+  const patch = (p: Partial<RegisterOptions>) => setOpts((o) => ({ ...o, ...p }));
   /** snkrdunk 한 페이지 로드 — 새 항목만 반환. */
   const fetchSnkPage = async (queries: string[], page: number, seen: Set<number>) => {
     const items: RegisterCardInput[] = [];
@@ -313,8 +334,8 @@ export function ManualAddForm(_props: Props) {
             nameJa: row.name,
             imageUrl: row.imageUrl ?? null,
             currentPriceJpy: parseYen(row.priceText),
-            setCode: setCode.trim() || parsed.setCode,
-            cardNumber: cardNumber.trim() || parsed.cardNumber,
+            setCode: parsed.setCode ?? null,
+            cardNumber: parsed.cardNumber ?? null,
             rarity: parsed.rarity,
           });
         }
@@ -325,14 +346,18 @@ export function ManualAddForm(_props: Props) {
     return { items, anyRows };
   };
 
-  const runSearch = async () => {
+  /** 실제 검색 — 스캔 결과처럼 상태 반영 전 값으로도 돌 수 있도록 인자로 받는다. */
+  const runSearchWith = async (nameV: string, setCodeV: string, cardNumberV: string) => {
     if (searching) return;
     setErr(null);
+    setSaved(false);
+    setSaveErr(null);
+    setUseFallback(false);
     // 세트코드·카드번호·카드이름 중 하나만 있어도 검색 가능.
     // 정확 매칭(lookup)은 코드+번호가 모두 있을 때만, 스니덩크 검색은 있는 것만 합쳐서.
-    const hasCode = !!setCode.trim() && !!cardNumber.trim();
-    const hasName = !!name.trim();
-    const codeQuery = cardCodeQuery({ setCode: setCode.trim(), cardNumber: cardNumber.trim() });
+    const hasCode = !!setCodeV.trim() && !!cardNumberV.trim();
+    const hasName = !!nameV.trim();
+    const codeQuery = cardCodeQuery({ setCode: setCodeV.trim(), cardNumber: cardNumberV.trim() });
     if (!codeQuery && !hasName) {
       setErr('세트코드, 카드번호, 카드이름 중 하나 이상 입력해 주세요');
       return;
@@ -350,8 +375,8 @@ export function ManualAddForm(_props: Props) {
 
       // 1) TCGdex 정확 매칭 (setCode-번호) + 로컬 DB — 코드+번호가 있을 때만.
       if (hasCode) {
-        const qs = new URLSearchParams({ setCode: setCode.trim(), number: cardNumber.trim() });
-        if (name.trim()) qs.set('name', name.trim());
+        const qs = new URLSearchParams({ setCode: setCodeV.trim(), number: cardNumberV.trim() });
+        if (nameV.trim()) qs.set('name', nameV.trim());
         const r = await fetch(`/api/cards/lookup?${qs.toString()}`, { cache: 'no-store' });
         const data = (await r.json().catch(() => null)) as
           | { ok?: boolean; found?: boolean; card?: LookupCard | null }
@@ -365,8 +390,8 @@ export function ManualAddForm(_props: Props) {
       const queries: string[] = [];
       if (codeQuery) queries.push(codeQuery);
       if (hasName) {
-        const ja = translate(name.trim(), 'ja');
-        queries.push(ja || name.trim());
+        const ja = translate(nameV.trim(), 'ja');
+        queries.push(ja || nameV.trim());
       }
       const seen = new Set<number>();
       const { items, anyRows } = await fetchSnkPage(queries, 1, seen);
@@ -397,20 +422,6 @@ export function ManualAddForm(_props: Props) {
     } finally {
       setLoadingMore(false);
     }
-  };
-
-  // 검색이 비어도 입력값 그대로 등록할 수 있도록 fallback 카드 구성
-  const fallbackCard: RegisterCardInput = {
-    setCode: setCode.trim() || null,
-    cardNumber: cardNumber.trim() || null,
-    name: name.trim() || null,
-    imageUrl: null,
-  };
-
-  const selected = selectedIdx != null ? (results[selectedIdx] ?? null) : null;
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') runSearch();
   };
 
   // 거래량많은순 선택 시 — 현재 결과의 카탈로그 스냅샷(출품수)을 배치로 로드.
@@ -479,192 +490,288 @@ export function ManualAddForm(_props: Props) {
     return rows;
   }, [results, setFilter, rarityFilter, sort, volumes]);
 
-  /* ── 등록 시트 단계 ── */
-  if (registering) {
-    return (
-      <div className="pagebg" style={{ background: P.pageBg }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: `1px solid ${P.line}` }}>
-          <button
-            type="button"
-            onClick={() => setRegistering(null)}
-            style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', margin: -8, padding: 8, cursor: 'pointer' }}
-            aria-label="다른 카드 선택"
-          >
-            <IcBack c={clean ? '#16161a' : 'var(--ink)'} />
-          </button>
-          <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: P.ink, letterSpacing: -0.3 }}>카드 등록</div>
-        </div>
-        <div className="cv-manual-form">
-          <CardRegisterSheet card={registering} />
-        </div>
-      </div>
-    );
+
+  /** 검색 초기화 — 기준·값·결과·선택을 모두 비운다 (프로토타입 '초기화'). */
+  const clearSearch = () => {
+    setName(''); setSetCode(''); setCardNumber('');
+    setField('name');
+    setSearched(false); setResults([]); setSelectedIdx(null);
+    setHasMore(false); setRarityFilter(null); setSetFilter(null); setMenu(null);
+    setErr(null); setSaved(false); setSaveErr(null); setOptOpen(false);
+  };
+
+  /** 촬영 → OCR → 읽어낸 이름/세트/번호를 기준에 채우고 그대로 검색. */
+  async function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // 같은 파일 재선택 허용
+    if (!file) return;
+    setScanning(true);
+    try {
+      const img = await fileToImage(file);
+      const { recognizeCard } = await import('@/components/grading/cardOcr');
+      const r = await recognizeCard(img, null, { useAi: true, language: 'ko' });
+      const num = r.cardNumber?.left ?? '';
+      if (!r.setCode && !num && !r.name) {
+        setErr('카드 정보를 읽지 못했어요. 더 또렷한 사진으로 다시 시도해 주세요.');
+        return;
+      }
+      // 인식된 항목만 채운다 — 프로토타입의 "스캔 완료 → 기준 자동 선택 → 결과" 흐름.
+      if (r.name) setName(r.name);
+      if (r.setCode) setSetCode(r.setCode.toUpperCase());
+      if (num) setCardNumber(num);
+      setField(r.setCode ? 'set' : r.name ? 'name' : 'num');
+      setErr(null);
+      // 상태 반영 후 검색 — 최신 값으로 돌도록 다음 틱에.
+      setTimeout(() => { void runSearchWith(r.name ?? '', r.setCode ?? '', num); }, 0);
+    } catch {
+      setErr('스캔에 실패했어요. 다시 시도해 주세요.');
+    } finally {
+      setScanning(false);
+    }
   }
 
-  const labelSt: React.CSSProperties = {
-    fontSize: 11.5,
-    fontWeight: 700,
-    color: P.ink2,
-    marginBottom: 5,
-    paddingLeft: 2,
+  const runSearch = () => runSearchWith(name, setCode, cardNumber);
+
+  /* ── 등록 ── */
+  const selected = selectedIdx != null ? (results[selectedIdx] ?? null) : null;
+  // 검색에 안 잡혀도 입력한 정보 그대로 등록할 수 있는 폴백 카드.
+  const fallbackCard: RegisterCardInput = {
+    setCode: setCode.trim() || null,
+    cardNumber: cardNumber.trim() || null,
+    name: name.trim() || null,
+    imageUrl: null,
   };
-  const inputSt: React.CSSProperties = {
-    width: '100%',
-    background: 'transparent',
-    border: 'none',
-    outline: 'none',
-    fontSize: 14,
-    fontWeight: 700,
-    color: P.ink,
-    padding: 0,
-    fontFamily: 'inherit',
+  const [useFallback, setUseFallback] = useState(false);
+  const target = useFallback ? fallbackCard : selected;
+
+  // 구매가 미입력 시 적용될 등록가 미리보기 — 서버 registerBasisJpy 와 동일 규칙.
+  const registerPreview = useMemo(() => {
+    const gp = target?.gradePrices;
+    if (!gp) return null;
+    const b = registerBasisJpy(
+      { single: gp.single, psa10: gp.psa10, psa9: gp.psa9, psa8: gp.psa8, trendJpy: [] },
+      { graded: opts.graded, gradeCompany: opts.gradeCompany, gradeValue: opts.gradeValue },
+    );
+    return b.price > 0 ? b : null;
+  }, [target, opts.graded, opts.gradeCompany, opts.gradeValue]);
+  const basis = target ? selfPulledBasis(target, opts) : null;
+
+  const onRegister = async () => {
+    if (!target || saving || saved) return;
+    setSaveErr(null);
+    setSaving(true);
+    try {
+      await postMyCard(buildRegisterPayload(target, opts));
+      // 내 컬렉션/홈 헤더 세션 캐시 무효화 — 안 비우면 재진입 시 낡은 총액이 먼저 그려진다.
+      invalidateCollectionCaches();
+      setSaved(true);
+      setOptOpen(false);
+      // 프로토타입처럼 '등록 완료!' 를 잠깐 보여준 뒤 내 컬렉션으로.
+      setTimeout(() => {
+        startRouteTransition();
+        router.push('/my/cards');
+        router.refresh();
+      }, 700);
+    } catch (e) {
+      setSaveErr(e instanceof Error ? e.message : '저장 실패');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') runSearch();
   };
 
   return (
     <div className="pagebg" style={{ background: P.pageBg, display: 'flex', flexDirection: 'column' }}>
       <ScanProgressOverlay visible={scanning} />
-      {/* ── 헤더 + 입력 폼 (스크롤 시 상단 고정) ── */}
+
+      {/* ── 헤더 + 검색 폼 (스크롤 시 상단 고정) ── */}
       <div style={{ position: 'sticky', top: 0, zIndex: 20, background: P.pageBg, borderBottom: `1px solid ${P.line}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 16px 8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 16px 10px' }}>
           <Link href="/my/cards" aria-label="뒤로가기" style={{ display: 'flex', alignItems: 'center', margin: -8, padding: 8 }}>
             <IcBack c={clean ? '#16161a' : 'var(--ink)'} />
           </Link>
-          <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: P.ink, letterSpacing: -0.3 }}>카드 추가</div>
-          {/* 우상단 카메라 — 촬영 → OCR → 카드 검색 (앱 scan.tsx 우상단 카메라 페어) */}
-          <input ref={camFileRef} type="file" accept="image/*" capture="environment" onChange={onPickPhoto} style={{ display: 'none' }} />
-          <button
-            type="button"
-            onClick={() => camFileRef.current?.click()}
-            disabled={scanning}
-            aria-label="카드 사진 스캔"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 34,
-              height: 34,
-              background: P.btnBg,
-              border: 'none',
-              borderRadius: 17,
-              cursor: scanning ? 'default' : 'pointer',
-              opacity: scanning ? 0.5 : 1,
-            }}
-          >
-            {scanning ? (
-              <span style={{ fontSize: 11, color: P.btnFg }}>…</span>
-            ) : (
-              <IcCamera c={clean ? '#fff' : 'var(--paper)'} />
-            )}
-          </button>
+          <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: P.ink, letterSpacing: -0.3 }}>내 카드 등록</div>
         </div>
 
-        <div style={{ padding: '2px 16px 12px' }}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ flex: 1 }}>
-              <div style={labelSt}>세트코드</div>
-              <div style={{ display: 'flex', alignItems: 'center', background: P.fieldBg, border: `1.5px solid ${P.fieldBd}`, borderRadius: 11, padding: '10px 12px' }}>
-                <input
-                  style={inputSt}
-                  maxLength={16}
-                  value={setCode}
-                  onChange={(e) => setSetCode(e.target.value.toUpperCase())}
-                  onKeyDown={onKeyDown}
-                  placeholder="예) SV4a"
-                />
-              </div>
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={labelSt}>카드번호</div>
-              <div style={{ display: 'flex', alignItems: 'center', background: P.fieldBg, border: `1.5px solid ${P.fieldBd}`, borderRadius: 11, padding: '10px 12px' }}>
-                <input
-                  style={inputSt}
-                  maxLength={16}
-                  value={cardNumber}
-                  onChange={(e) => setCardNumber(e.target.value)}
-                  onKeyDown={onKeyDown}
-                  placeholder="예) 201/165"
-                />
-              </div>
-            </div>
+        {/* 기준 칩 — 셋 중 하나만 골라도 검색된다. 값이 든 기준엔 체크. */}
+        <div style={{ padding: '0 16px 12px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: P.ink3, marginBottom: 6 }}>
+            셋 중 하나만 골라도 검색됩니다
           </div>
-          <div style={{ marginTop: 9 }}>
-            <div style={labelSt}>카드이름</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: P.nameBg, border: `1.5px solid ${P.accent}`, borderRadius: 11, padding: '11px 13px' }}>
-              <IcSearch c={clean ? '#16161a' : 'var(--ink)'} />
+          <div style={{ display: 'flex', gap: 6 }}>
+            {FIELDS.map((f) => {
+              const has = valueOf(f.key).trim().length > 0;
+              const on = field === f.key;
+              const c = clean ? f.color : P.accent;
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => { setField(f.key); inputRef.current?.focus(); }}
+                  style={{
+                    flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+                    fontSize: 12, fontWeight: 800, padding: '8px 2px', borderRadius: 16, cursor: 'pointer',
+                    background: has ? c : P.pageBg,
+                    color: has ? '#fff' : on ? c : P.ink2,
+                    border: `1.5px solid ${has || on ? c : P.fieldBd}`,
+                    whiteSpace: 'nowrap', overflow: 'hidden', fontFamily: 'inherit',
+                  }}
+                >
+                  {has && (
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}>
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  )}
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 입력 한 줄 — 라벨 칩은 지금 입력 중인 기준, 값은 그 기준의 값. */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
+            <div
+              style={{
+                flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 7,
+                background: P.pageBg, border: `1.5px solid ${clean ? cur.color : P.accent}`,
+                borderRadius: 12, padding: '10px 12px', overflow: 'hidden',
+              }}
+            >
+              <span
+                style={{
+                  flex: 'none', fontSize: 10.5, fontWeight: 800, color: '#fff',
+                  background: clean ? cur.color : P.accent, padding: '3px 8px', borderRadius: 7, whiteSpace: 'nowrap',
+                }}
+              >
+                {cur.label}
+              </span>
               <input
-                style={{ ...inputSt, fontSize: 14.5 }}
-                maxLength={60}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                ref={inputRef}
+                style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', fontSize: 14, fontWeight: 700, color: P.ink, padding: 0, fontFamily: 'inherit' }}
+                maxLength={cur.max}
+                value={valueOf(field)}
+                onChange={(e) => setValueOf(field, e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="예) 카드명 입력"
+                placeholder={cur.placeholder}
               />
-              {name && (
+              {valueOf(field) && (
                 <button
                   type="button"
-                  onClick={() => setName('')}
-                  aria-label="이름 지우기"
-                  style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                  onClick={() => setValueOf(field, '')}
+                  aria-label="지우기"
+                  style={{ flex: 'none', display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill={clean ? '#C7C7CC' : 'var(--ink3)'}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill={clean ? '#C7C7CC' : 'var(--ink3)'}>
                     <circle cx="12" cy="12" r="10" />
                     <path d="M15 9l-6 6M9 9l6 6" stroke={clean ? '#fff' : 'var(--paper)'} strokeWidth="2" strokeLinecap="round" />
                   </svg>
                 </button>
               )}
             </div>
+            <button
+              type="button"
+              disabled={searching}
+              onClick={runSearch}
+              style={{
+                flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: filled.length > 0 ? P.btnBg : P.disBg, borderRadius: 12, padding: '0 18px',
+                border: 'none', cursor: searching ? 'default' : 'pointer',
+                boxShadow: filled.length > 0 ? '0 4px 12px rgba(0,0,0,.16)' : 'none',
+                opacity: searching ? 0.6 : 1, fontFamily: 'inherit',
+              }}
+            >
+              <span style={{ fontSize: 14, fontWeight: 800, color: filled.length > 0 ? P.btnFg : P.disFg, whiteSpace: 'nowrap' }}>
+                {searching ? '검색 중' : '검색'}
+              </span>
+            </button>
           </div>
+          <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, color: P.ink3 }}>{cur.hint}</div>
           {err && (
-            <div style={{ marginTop: 8, fontSize: 12.5, fontWeight: 700, color: clean ? '#F5333F' : 'var(--red)' }}>⚠ {err}</div>
+            <div style={{ marginTop: 6, fontSize: 12.5, fontWeight: 700, color: clean ? '#F5333F' : 'var(--red)' }}>⚠ {err}</div>
           )}
+        </div>
+
+        {/* 또는 — 스캔으로 바로 채우기 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px 12px' }}>
+          <div style={{ flex: 1, height: 1, background: P.line }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: P.ink3 }}>또는</span>
+          <div style={{ flex: 1, height: 1, background: P.line }} />
+        </div>
+        <div style={{ padding: '0 16px 14px' }}>
+          <input ref={camFileRef} type="file" accept="image/*" capture="environment" onChange={onPickPhoto} style={{ display: 'none' }} />
           <button
             type="button"
-            disabled={searching}
-            onClick={runSearch}
+            disabled={scanning}
+            onClick={() => camFileRef.current?.click()}
             style={{
-              marginTop: 11,
-              width: '100%',
-              height: 44,
-              borderRadius: 12,
-              border: 'none',
-              background: P.btnBg,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 7,
-              cursor: 'pointer',
-              opacity: searching ? 0.6 : 1,
-              fontFamily: 'inherit',
+              width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+              border: `1.5px dashed ${P.accent}`, background: P.accentSoft, borderRadius: 14,
+              padding: '12px 14px', cursor: scanning ? 'default' : 'pointer', textAlign: 'left',
+              opacity: scanning ? 0.6 : 1, fontFamily: 'inherit',
             }}
           >
-            <IcSearch c={clean ? '#fff' : 'var(--paper)'} size={17} w={2.4} />
-            <span style={{ fontSize: 14.5, fontWeight: 800, color: P.btnFg, whiteSpace: 'nowrap' }}>
-              {searching ? '검색 중...' : '카드 검색'}
+            <span style={{ width: 40, height: 40, borderRadius: 12, background: P.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', boxShadow: '0 4px 10px rgba(255,122,0,.3)' }}>
+              <IcCamera c="#fff" />
             </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 14, fontWeight: 800, color: P.ink }}>
+                {scanning ? '카드를 읽는 중…' : '카드 스캔으로 바로 등록'}
+              </span>
+              <span style={{ display: 'block', fontSize: 11.5, color: P.ink3, fontWeight: 600, marginTop: 2 }}>
+                카드를 찍으면 이름·세트코드·번호를 자동 인식해요
+              </span>
+            </span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={P.accent} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}>
+              <path d="m9 6 6 6-6 6" />
+            </svg>
           </button>
         </div>
       </div>
 
-      {/* ── 검색 결과 영역 ── */}
+      {/* ── 본문 ── */}
       <div style={{ flex: 1 }}>
-        {!searched && !searching && (
-          <div style={{ textAlign: 'center', padding: '46px 24px', fontSize: 13, fontWeight: 600, color: P.ink3, lineHeight: 1.6 }}>
-            세트코드+카드번호 또는 카드이름으로 검색해 보세요.
-            <br />
-            이름만 입력해도 검색돼요.
-          </div>
-        )}
+        {/* 검색 전 안내 — 카드의 어느 위치를 보고 입력하면 되는지 (프로토타입 튜토리얼) */}
+        {!searched && !searching && <CardGuide P={P} clean={clean} />}
 
         {searched && (
           <>
-            {/* 메뉴 열림 시 바깥 클릭으로 닫기 */}
-            {menu && (
-              <div onClick={() => setMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 30 }} />
-            )}
+            {menu && <div onClick={() => setMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 30 }} />}
 
-            {/* 필터 칩 */}
+            {/* 적용된 기준 칩 + 결과 수 + 초기화 */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '14px 18px 8px' }}>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                {filled.map((f) => (
+                  <span
+                    key={f.key}
+                    style={{
+                      fontSize: 11, fontWeight: 800, color: '#fff', background: clean ? f.color : P.accent,
+                      padding: '3px 9px', borderRadius: 12, whiteSpace: 'nowrap',
+                      maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {f.label.replace('카드', '')} {valueOf(f.key)}
+                  </span>
+                ))}
+                <span style={{ fontSize: 13, color: P.ink2, fontWeight: 600 }}>
+                  결과 <span style={{ color: P.ink, fontWeight: 800 }}>{displayed.length}</span>개
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={clearSearch}
+                style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700, color: P.ink3, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                초기화
+              </button>
+            </div>
+
+            {/* 필터 칩 + 정렬 — 결과가 많을 때 좁히는 용도 */}
             {results.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '14px 16px 12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px 10px', flexWrap: 'wrap' }}>
                 <Chip P={P} active={!setFilter && !rarityFilter} onClick={() => { setSetFilter(null); setRarityFilter(null); setMenu(null); }}>
                   <IcFilter c={!setFilter && !rarityFilter ? P.btnFg : P.ink} />
                   전체
@@ -677,13 +784,9 @@ export function ManualAddForm(_props: Props) {
                     </Chip>
                     {menu === 'set' && (
                       <Menu P={P}>
-                        <MenuItem P={P} active={!setFilter} onClick={() => { setSetFilter(null); setMenu(null); }}>
-                          전체 세트
-                        </MenuItem>
+                        <MenuItem P={P} active={!setFilter} onClick={() => { setSetFilter(null); setMenu(null); }}>전체 세트</MenuItem>
                         {setOptions.map((s) => (
-                          <MenuItem key={s} P={P} active={setFilter === s} onClick={() => { setSetFilter(s); setMenu(null); }}>
-                            {s}
-                          </MenuItem>
+                          <MenuItem key={s} P={P} active={setFilter === s} onClick={() => { setSetFilter(s); setMenu(null); }}>{s}</MenuItem>
                         ))}
                       </Menu>
                     )}
@@ -697,9 +800,7 @@ export function ManualAddForm(_props: Props) {
                     </Chip>
                     {menu === 'rarity' && (
                       <Menu P={P}>
-                        <MenuItem P={P} active={!rarityFilter} onClick={() => { setRarityFilter(null); setMenu(null); }}>
-                          전체 레어도
-                        </MenuItem>
+                        <MenuItem P={P} active={!rarityFilter} onClick={() => { setRarityFilter(null); setMenu(null); }}>전체 레어도</MenuItem>
                         {rarityOptions.map((r) => (
                           <MenuItem key={r} P={P} active={rarityFilter === r} onClick={() => { setRarityFilter(r); setMenu(null); }}>
                             {r === 'PROMO' ? '프로모' : r}
@@ -709,88 +810,47 @@ export function ManualAddForm(_props: Props) {
                     )}
                   </div>
                 )}
+                <div style={{ flex: 1 }} />
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => setMenu(menu === 'sort' ? null : 'sort')}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 700, color: P.ink, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    {SORT_LABEL[sort]} <IcCaret c={P.ink} />
+                  </button>
+                  {menu === 'sort' && (
+                    <Menu P={P} right>
+                      {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
+                        <MenuItem key={k} P={P} active={sort === k} onClick={() => { setSort(k); setMenu(null); }}>{SORT_LABEL[k]}</MenuItem>
+                      ))}
+                    </Menu>
+                  )}
+                </div>
               </div>
             )}
 
-            {/* 결과 수 + 정렬 */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: results.length > 0 ? '0 18px 8px' : '14px 18px 8px' }}>
-              <div style={{ fontSize: 13.5, color: P.ink3, fontWeight: 600 }}>
-                검색 결과 <span style={{ color: P.ink, fontWeight: 800 }}>{displayed.length}</span>개
-                {displayed.length !== results.length && (
-                  <span> (전체 {results.length})</span>
-                )}
-              </div>
-              <div style={{ position: 'relative' }}>
-                <button
-                  type="button"
-                  onClick={() => setMenu(menu === 'sort' ? null : 'sort')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: P.ink,
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  {SORT_LABEL[sort]} <IcCaret c={P.ink} />
-                </button>
-                {menu === 'sort' && (
-                  <Menu P={P} right>
-                    {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
-                      <MenuItem key={k} P={P} active={sort === k} onClick={() => { setSort(k); setMenu(null); }}>
-                        {SORT_LABEL[k]}
-                      </MenuItem>
-                    ))}
-                  </Menu>
-                )}
-              </div>
-            </div>
-
-            {/* 결과 리스트 */}
+            {/* 결과 리스트 (단일 선택) */}
             <div style={{ padding: '0 16px 10px' }}>
               {displayed.map(({ c, idx }) => {
-                const sel = selectedIdx === idx;
+                const sel = !useFallback && selectedIdx === idx;
                 const sub = [c.setCode?.toUpperCase(), c.cardNumber].filter(Boolean).join(' · ');
                 const rar = rarityOf(c);
                 const rarC = rar ? (RARITY_BADGE[rar] ?? { fg: '#8E8E93', bg: '#F2F2F4' }) : null;
                 return (
                   <div
                     key={idx}
-                    onClick={() => setSelectedIdx(sel ? null : idx)}
+                    onClick={() => { setUseFallback(false); setSelectedIdx(sel ? null : idx); setSaved(false); setSaveErr(null); }}
                     role="radio"
                     aria-checked={sel}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 13,
-                      padding: 12,
-                      borderRadius: 14,
-                      marginBottom: 8,
-                      cursor: 'pointer',
-                      background: sel ? P.accentSoft : P.pageBg,
+                      display: 'flex', alignItems: 'center', gap: 13, padding: 12, borderRadius: 14, marginBottom: 8,
+                      cursor: 'pointer', background: sel ? P.accentSoft : P.pageBg,
                       border: `1.5px solid ${sel ? P.accent : P.line}`,
                     }}
                   >
                     <CardThumb
-                      style={{
-                        position: 'relative',
-                        width: 52,
-                        height: 72,
-                        borderRadius: 8,
-                        background: P.fieldBg,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flex: 'none',
-                        overflow: 'hidden',
-                        boxShadow: '0 3px 8px rgba(0,0,0,.14)',
-                      }}
+                      style={{ position: 'relative', width: 52, height: 72, borderRadius: 8, background: P.fieldBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', overflow: 'hidden', boxShadow: '0 3px 8px rgba(0,0,0,.14)' }}
                       src={c.imageUrl}
                       alt={c.name ?? '카드'}
                       emojiSize={26}
@@ -800,14 +860,10 @@ export function ManualAddForm(_props: Props) {
                         {c.name ?? '이름 미상'}
                       </div>
                       {c.nameJa && c.nameJa !== c.name && (
-                        <div style={{ fontSize: 11, color: P.ink3, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {c.nameJa}
-                        </div>
+                        <div style={{ fontSize: 11, color: P.ink3, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.nameJa}</div>
                       )}
                       {sub && (
-                        <div style={{ fontSize: 12, color: P.ink3, fontWeight: 600, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {sub}
-                        </div>
+                        <div style={{ fontSize: 12, color: P.ink3, fontWeight: 600, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>
                       )}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 7 }}>
                         {rar && rarC && (
@@ -815,9 +871,7 @@ export function ManualAddForm(_props: Props) {
                             {rar === 'PROMO' ? '프로모' : rar}
                           </span>
                         )}
-                        <span style={{ fontSize: 10.5, fontWeight: 700, color: P.ink2, border: `1px solid ${P.fieldBd}`, padding: '2px 7px', borderRadius: 6 }}>
-                          일본판
-                        </span>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, color: P.ink2, border: `1px solid ${P.fieldBd}`, padding: '2px 7px', borderRadius: 6 }}>일본판</span>
                         {c.currentPriceJpy != null && (
                           <span style={{ fontSize: 11.5, fontWeight: 800, color: P.ink, marginLeft: 2 }}>
                             ¥{Math.round(c.currentPriceJpy).toLocaleString()}
@@ -825,53 +879,31 @@ export function ManualAddForm(_props: Props) {
                         )}
                       </div>
                     </div>
-                    <div
-                      style={{
-                        flex: 'none',
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        border: `2px solid ${sel ? P.accent : P.radioBd}`,
-                        background: P.pageBg,
-                      }}
-                    >
+                    <div style={{ flex: 'none', width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${sel ? P.accent : P.radioBd}`, background: P.pageBg }}>
                       {sel && <div style={{ width: 12, height: 12, borderRadius: '50%', background: P.accent }} />}
                     </div>
                   </div>
                 );
               })}
 
-              {/* 더보기 — 다음 페이지 이어서 로드 */}
               {hasMore && (
                 <button
                   type="button"
                   disabled={loadingMore}
                   onClick={loadMore}
-                  style={{
-                    width: '100%',
-                    padding: '11px 0',
-                    borderRadius: 12,
-                    border: `1.5px solid ${P.fieldBd}`,
-                    background: P.pageBg,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: P.ink,
-                    cursor: 'pointer',
-                    marginBottom: 4,
-                    fontFamily: 'inherit',
-                  }}
+                  style={{ width: '100%', padding: '11px 0', borderRadius: 12, border: `1.5px solid ${P.fieldBd}`, background: P.pageBg, fontSize: 13, fontWeight: 700, color: P.ink, cursor: 'pointer', marginBottom: 4, fontFamily: 'inherit' }}
                 >
                   {loadingMore ? '불러오는 중...' : '↓ 결과 더보기'}
                 </button>
               )}
 
-              {/* 검색에 안 잡혀도 입력한 정보로 직접 등록 */}
+              {/* 검색에 안 잡혀도 입력한 정보 그대로 등록 */}
               <div style={{ textAlign: 'center', padding: '12px 0 8px', fontSize: 13, fontWeight: 700, color: P.ink3 }}>
                 찾는 카드가 없나요?{' '}
-                <span onClick={() => setRegistering(fallbackCard)} style={{ color: P.accent, cursor: 'pointer' }}>
+                <span
+                  onClick={() => { setUseFallback(true); setSelectedIdx(null); setOptOpen(true); }}
+                  style={{ color: P.accent, cursor: 'pointer', textDecoration: useFallback ? 'underline' : 'none' }}
+                >
                   직접 입력하기
                 </span>
               </div>
@@ -880,57 +912,302 @@ export function ManualAddForm(_props: Props) {
         )}
       </div>
 
-      {/* ── 하단 고정 추가 바 ── */}
+      {/* ── 등록 옵션 (같은 화면의 접이식 패널 — 별도 '카드 등록' 화면 없음) ── */}
+      {target && optOpen && (
+        <div
+          className="addbar-sticky"
+          style={{ position: 'sticky', zIndex: 21, background: P.pageBg, borderTop: `1px solid ${P.line}`, padding: '14px 18px 4px', maxHeight: '58vh', overflowY: 'auto' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <div style={{ flex: 1, fontSize: 14.5, fontWeight: 800, color: P.ink }}>등록 옵션</div>
+            <button type="button" onClick={() => setOptOpen(false)} aria-label="옵션 닫기" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 12.5, fontWeight: 700, color: P.ink3, fontFamily: 'inherit' }}>
+              접기 ⌄
+            </button>
+          </div>
+
+          <OptCheck P={P} on={opts.selfPulled} onClick={() => patch({ selfPulled: !opts.selfPulled })}
+            label="직접 뽑은 카드예요" sub="구입가 대신 현재시세를 기준가로" />
+
+          <div style={{ marginTop: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+              <span style={{ flex: 1, fontSize: 11.5, fontWeight: 700, color: P.ink2 }}>구입가격</span>
+              {!opts.selfPulled && (
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {(['KRW', 'JPY'] as const).map((c) => (
+                    <button key={c} type="button" onClick={() => patch({ buyCurrency: c })}
+                      style={{ fontSize: 11, fontWeight: 800, padding: '4px 9px', borderRadius: 8, border: 'none', cursor: 'pointer', background: opts.buyCurrency === c ? P.btnBg : P.fieldBg, color: opts.buyCurrency === c ? P.btnFg : P.ink2, fontFamily: 'inherit' }}>
+                      {c === 'JPY' ? '¥ 엔화' : '₩ 원화'}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {opts.selfPulled ? (
+              <div style={{ fontSize: 12, fontWeight: 600, color: P.ink3, background: P.fieldBg, borderRadius: 11, padding: '10px 12px' }}>
+                {basis
+                  ? `현재시세 ${basis.cur === 'JPY' ? '¥' : '₩'}${basis.price.toLocaleString()} 적용`
+                  : registerPreview
+                    ? `${registerPreview.basis} 시세 ¥${registerPreview.price.toLocaleString()} 적용`
+                    : '현재시세 정보가 없어 기준가는 비워둡니다'}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: P.fieldBg, border: `1.5px solid ${P.fieldBd}`, borderRadius: 11, padding: '10px 12px' }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: P.ink3 }}>{opts.buyCurrency === 'JPY' ? '¥' : '₩'}</span>
+                <input
+                  inputMode="numeric"
+                  value={opts.buyPrice}
+                  onChange={(e) => patch({ buyPrice: e.target.value.replace(/[^0-9]/g, '') })}
+                  placeholder={opts.buyCurrency === 'JPY' ? '엔화 금액' : '원화 금액'}
+                  style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', fontSize: 14, fontWeight: 700, color: P.ink, padding: 0, fontFamily: 'inherit' }}
+                />
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: P.ink2, marginBottom: 5 }}>구입 날짜</div>
+              <input
+                type="date"
+                value={opts.buyDate}
+                onChange={(e) => patch({ buyDate: e.target.value })}
+                style={{ width: '100%', background: P.fieldBg, border: `1.5px solid ${P.fieldBd}`, borderRadius: 11, padding: '9px 12px', fontSize: 13.5, fontWeight: 700, color: P.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ flex: 'none' }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: P.ink2, marginBottom: 5 }}>수량</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 2, background: P.fieldBg, border: `1.5px solid ${P.fieldBd}`, borderRadius: 11, padding: '3px 4px' }}>
+                <QtyBtn P={P} onClick={() => patch({ qty: Math.max(1, opts.qty - 1) })}>−</QtyBtn>
+                <span style={{ minWidth: 30, textAlign: 'center', fontSize: 14, fontWeight: 800, color: P.ink }}>{opts.qty}</span>
+                <QtyBtn P={P} onClick={() => patch({ qty: Math.min(999, opts.qty + 1) })}>＋</QtyBtn>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: P.ink2, marginBottom: 5 }}>발매 지역</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {([{ k: 'jp', label: '일본판' }, { k: 'kr', label: '한국판' }, { k: 'en', label: '영문판' }] as const).map((r) => (
+                <OptSeg key={r.k} P={P} active={opts.region === r.k} onClick={() => patch({ region: r.k })}>{r.label}</OptSeg>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <OptCheck P={P} on={opts.graded} onClick={() => patch({ graded: !opts.graded })} label="등급(그레이딩) 카드예요" />
+          </div>
+          {opts.graded && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: P.ink2, marginBottom: 5 }}>등급사</div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {GRADE_COMPANIES.map((c) => (
+                    <OptSeg key={c} P={P} compact active={opts.gradeCompany === c} onClick={() => patch({ gradeCompany: c })}>{c}</OptSeg>
+                  ))}
+                </div>
+              </div>
+              <div style={{ flex: 'none', width: 118 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: P.ink2, marginBottom: 5 }}>등급</div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {['10', '9', '8'].map((v) => (
+                    <OptSeg key={v} P={P} compact active={opts.gradeValue === v} onClick={() => patch({ gradeValue: v })}>{v}</OptSeg>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 구매가 미입력 시 적용될 등록가 안내 */}
+          {!opts.selfPulled && !opts.buyPrice.trim() && (
+            <div style={{ marginTop: 10, fontSize: 11.5, fontWeight: 600, color: P.ink3, lineHeight: 1.6 }}>
+              {registerPreview
+                ? `구매가 미입력 시 ${registerPreview.basis} 시세 ¥${registerPreview.price.toLocaleString()}(등록 시점 기준)로 등록돼요`
+                : opts.graded
+                  ? '구매가 미입력 시 등급 시세(타사 등급은 PSA10 기준)로 등록돼요'
+                  : '구매가 미입력 시 현재 싱글 시세로 등록돼요'}
+            </div>
+          )}
+
+          <div style={{ marginTop: 12, marginBottom: 8 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: P.ink2, marginBottom: 5 }}>메모 (선택)</div>
+            <textarea
+              rows={2}
+              maxLength={500}
+              value={opts.memo}
+              onChange={(e) => patch({ memo: e.target.value })}
+              placeholder="구입 경로, 보관 위치, 컨디션 등"
+              style={{ width: '100%', background: P.fieldBg, border: `1.5px solid ${P.fieldBd}`, borderRadius: 11, padding: '10px 12px', fontSize: 13.5, fontWeight: 600, color: P.ink, outline: 'none', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── 하단 고정 등록 바 ── */}
       {searched && (
         <div
           className="addbar-sticky"
           style={{
-            position: 'sticky',
-            zIndex: 20,
-            background: P.barBg,
-            backdropFilter: 'blur(12px)',
-            borderTop: `1px solid ${P.line}`,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '12px 18px',
+            position: 'sticky', zIndex: 20, background: P.barBg, backdropFilter: 'blur(12px)',
+            borderTop: `1px solid ${P.line}`, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 18px',
           }}
         >
-          <div style={{ flex: 'none', maxWidth: 120 }}>
+          <div style={{ flex: 'none', maxWidth: 104, minWidth: 0 }}>
             <div style={{ fontSize: 11.5, color: P.ink3, fontWeight: 600 }}>선택한 카드</div>
             <div style={{ fontSize: 15, fontWeight: 900, color: P.ink, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {selected?.name ?? '선택 안 됨'}
+              {target?.name ?? '선택 안 됨'}
             </div>
           </div>
+          {target && !saved && (
+            <button
+              type="button"
+              onClick={() => setOptOpen((v) => !v)}
+              aria-label="등록 옵션"
+              style={{ flex: 'none', height: 50, padding: '0 12px', borderRadius: 14, border: `1.5px solid ${P.fieldBd}`, background: P.pageBg, cursor: 'pointer', fontSize: 12.5, fontWeight: 800, color: P.ink, fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+            >
+              옵션 {optOpen ? '⌄' : '⌃'}
+            </button>
+          )}
           <button
             type="button"
-            disabled={!selected}
-            onClick={() => selected && setRegistering(selected)}
+            disabled={!target || saving || saved}
+            onClick={onRegister}
             style={{
-              flex: 1,
-              height: 50,
-              borderRadius: 14,
-              border: 'none',
-              background: selected ? P.btnBg : P.disBg,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              cursor: selected ? 'pointer' : 'default',
-              boxShadow: selected ? '0 6px 16px rgba(0,0,0,.18)' : 'none',
+              flex: 1, height: 50, borderRadius: 14, border: 'none',
+              background: saved ? '#2BB673' : target ? P.btnBg : P.disBg,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              cursor: target && !saving && !saved ? 'pointer' : 'default',
+              boxShadow: target && !saved ? '0 6px 16px rgba(0,0,0,.18)' : 'none',
               fontFamily: 'inherit',
             }}
           >
-            <span style={{ fontSize: 15.5, fontWeight: 800, color: selected ? P.btnFg : P.disFg }}>
-              {selected ? '내 컬렉션에 추가' : '카드를 선택하세요'}
+            {saved && (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+            )}
+            <span style={{ fontSize: 15.5, fontWeight: 800, color: saved || target ? '#fff' : P.disFg }}>
+              {saved ? '등록 완료!' : saving ? '등록 중…' : target ? '내 카드로 등록' : '카드를 선택하세요'}
             </span>
           </button>
         </div>
+      )}
+      {saveErr && (
+        <div style={{ padding: '0 18px 10px', fontSize: 12.5, fontWeight: 700, color: clean ? '#F5333F' : 'var(--red)', background: P.barBg }}>⚠ {saveErr}</div>
       )}
     </div>
   );
 }
 
+/** 등록 옵션 체크 행. */
+function OptCheck({ P, on, onClick, label, sub }: { P: Palette; on: boolean; onClick: () => void; label: string; sub?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12,
+        background: on ? P.accentSoft : P.fieldBg, border: `1.5px solid ${on ? P.accent : P.fieldBd}`,
+        cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+      }}
+    >
+      <span style={{ width: 20, height: 20, flex: 'none', borderRadius: 6, border: `2px solid ${on ? P.accent : P.radioBd}`, background: on ? P.accent : P.pageBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {on && (
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+        )}
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: P.ink }}>{label}</span>
+        {sub && <span style={{ display: 'block', fontSize: 11, fontStyle: 'italic', color: P.ink3, marginTop: 2 }}>{sub}</span>}
+      </span>
+    </button>
+  );
+}
+
+/** 등록 옵션 세그먼트 버튼. */
+function OptSeg({ P, active, compact, onClick, children }: { P: Palette; active: boolean; compact?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        flex: compact ? 'none' : 1, padding: compact ? '7px 11px' : '10px 0', borderRadius: 11, cursor: 'pointer',
+        background: active ? P.btnBg : P.pageBg, color: active ? P.btnFg : P.ink,
+        border: `1.5px solid ${active ? P.btnBg : P.fieldBd}`, fontSize: compact ? 11.5 : 12.5, fontWeight: 800, fontFamily: 'inherit',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function QtyBtn({ P, onClick, children }: { P: Palette; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: P.pageBg, color: P.ink, fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * 검색 전 안내 — 카드의 어느 위치에서 이름/세트코드/카드번호를 읽으면 되는지.
+ * 실제 카드 이미지는 저작권 문제가 있어 샘플 일러스트로 그린다(프로토타입 동일).
+ */
+function CardGuide({ P, clean }: { P: Palette; clean: boolean }) {
+  const NAME_C = clean ? '#FF7A00' : P.accent;
+  const SET_C = clean ? '#2563EB' : P.ink;
+  const NUM_C = clean ? '#1E8E5A' : P.ink;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '18px 20px 26px' }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: P.ink3, marginBottom: 12 }}>
+        카드에서 이 위치를 확인하세요
+      </div>
+      <div
+        style={{
+          position: 'relative', width: 196, height: 274, borderRadius: 11, padding: 7,
+          background: 'linear-gradient(150deg,#f5d442,#d4a800 70%,#b08800)',
+          boxShadow: '0 10px 26px rgba(0,0,0,.18)', overflow: 'hidden',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 11.5, fontWeight: 900, color: '#16161a', whiteSpace: 'nowrap' }}>피카츄 ex</span>
+          <span style={{ flex: 1 }} />
+          <span style={{ fontSize: 7, fontWeight: 800, color: '#b3261e' }}>HP</span>
+          <span style={{ fontSize: 11.5, fontWeight: 900, color: '#16161a' }}>200</span>
+        </div>
+        <div style={{ position: 'relative', height: 152, marginTop: 5, border: '3px solid #c9a000', borderRadius: 4, overflow: 'hidden', background: 'radial-gradient(120% 100% at 50% 30%,#fff3b0 0%,#ffd76e 45%,#e8a800 100%)' }}>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 58 }}>⚡</div>
+        </div>
+        <div style={{ marginTop: 7, display: 'flex', flexDirection: 'column', gap: 5, padding: '0 2px' }}>
+          <div style={{ height: 6, borderRadius: 3, background: 'rgba(0,0,0,.12)' }} />
+          <div style={{ height: 6, borderRadius: 3, background: 'rgba(0,0,0,.12)', width: '76%' }} />
+          <div style={{ height: 6, borderRadius: 3, background: 'rgba(0,0,0,.12)', width: '58%' }} />
+        </div>
+        <div style={{ position: 'absolute', left: 7, right: 7, bottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ fontSize: 9.5, fontWeight: 900, color: '#16161a' }}>SV4a</span>
+          <span style={{ fontSize: 9.5, fontWeight: 900, color: '#16161a' }}>025/165</span>
+        </div>
+        {/* 실제 카드가 아님을 분명히 — 샘플 워터마크 */}
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+          <span style={{ fontSize: 30, fontWeight: 900, color: 'rgba(22,22,26,.2)', letterSpacing: 5, transform: 'rotate(-24deg)' }}>SAMPLE</span>
+        </div>
+        {/* 콜아웃 — 카드이름 / 세트코드 / 카드번호 */}
+        <div style={{ position: 'absolute', top: 26, left: 5, display: 'flex', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
+          <div style={{ width: 44, height: 5, borderLeft: `2px solid ${NAME_C}`, borderTop: `2px solid ${NAME_C}` }} />
+          <span style={{ fontSize: 9.5, fontWeight: 800, color: '#fff', background: NAME_C, padding: '2px 7px', borderRadius: 6, whiteSpace: 'nowrap' }}>카드이름</span>
+        </div>
+        <div style={{ position: 'absolute', left: 5, bottom: 22, display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'none' }}>
+          <span style={{ fontSize: 9.5, fontWeight: 800, color: '#fff', background: SET_C, padding: '2px 7px', borderRadius: 6, whiteSpace: 'nowrap' }}>세트코드</span>
+          <span style={{ fontSize: 9.5, fontWeight: 800, color: '#fff', background: NUM_C, padding: '2px 7px', borderRadius: 6, whiteSpace: 'nowrap' }}>카드번호</span>
+        </div>
+        <div style={{ position: 'absolute', left: 6, bottom: 18, width: 27, height: 5, borderLeft: `2px solid ${SET_C}`, borderBottom: `2px solid ${SET_C}`, pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', left: 36, bottom: 18, width: 43, height: 5, borderRight: `2px solid ${NUM_C}`, borderBottom: `2px solid ${NUM_C}`, pointerEvents: 'none' }} />
+      </div>
+      <div style={{ fontSize: 10.5, color: P.ink3, fontWeight: 600, marginTop: 10 }}>· 설명용 샘플 이미지입니다</div>
+    </div>
+  );
+}
 function Chip({
   P,
   active,

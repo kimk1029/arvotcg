@@ -6,6 +6,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { startRouteTransition } from '@/components/RouteProgress';
 import { registerBasisJpy } from '@/lib/snkrdunkPrice';
+import {
+  buildRegisterPayload,
+  postMyCard,
+  selfPulledBasis,
+  todayStr,
+  type RegisterOptions,
+} from '@/lib/registerCard';
 
 /** 등록 시트에 채워질 카드 정보 — 스캔/직접입력 양쪽에서 동일 형태로 넘겨준다. */
 export interface RegisterCardInput {
@@ -33,14 +40,6 @@ export interface RegisterCardInput {
 }
 
 const GRADE_COMPANIES = ['PSA', 'BGS', 'CGC', 'SGC', 'ARS'];
-
-/** 오늘 날짜 YYYY-MM-DD (로컬). */
-function todayStr(): string {
-  const d = new Date();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${mm}-${dd}`;
-}
 
 function fmtJpy(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return '—';
@@ -83,16 +82,12 @@ export function CardRegisterSheet({
   const [gradeValue, setGradeValue] = useState('');
   const [memo, setMemo] = useState('');
 
-  const hasCurrentPrice = card.currentPriceJpy != null || card.currentPriceKrw != null;
-
   // 직접뽑기면 현재시세를 기준가로. (JPY 우선, 없으면 KRW)
   // 단, 등급카드는 서버가 등급 시세로 등록가를 산정하므로 여기선 제외.
-  const effectiveBasis = useMemo(() => {
-    if (!selfPulled || graded) return null;
-    if (card.currentPriceJpy != null) return { price: Math.round(card.currentPriceJpy), cur: 'JPY' as const };
-    if (card.currentPriceKrw != null) return { price: Math.round(card.currentPriceKrw), cur: 'KRW' as const };
-    return null;
-  }, [selfPulled, graded, card.currentPriceJpy, card.currentPriceKrw]);
+  const effectiveBasis = useMemo(
+    () => selfPulledBasis(card, { selfPulled, graded }),
+    [card, selfPulled, graded],
+  );
 
   // 구매가 미입력 시 적용될 등록가 미리보기 — 서버 registerBasisJpy 와 동일 규칙.
   //  · 등급카드: PSA10/9/8 → 해당 등급 시세, 타사(BGS 등)·데이터 없음 → PSA10 → 싱글.
@@ -110,57 +105,13 @@ export function CardRegisterSheet({
   const onSave = async () => {
     if (saving || saved) return;
     setErr(null);
-
-    const payload: Record<string, unknown> = {
-      cardId: card.cardId ?? null,
-      ocrSetCode: card.setCode ?? null,
-      ocrCardNumber: card.cardNumber ? card.cardNumber.split('/')[0] : null,
-      snkrdunkApparelId: card.snkrdunkApparelId ?? null,
-      nickname: card.name ?? null,
-      photoUrl: card.snkrdunkApparelId ? null : card.imageUrl ?? null,
-      gradeEstimate: card.gradeEstimate ?? null,
-      centeringScore: card.centeringScore ?? null,
-      buyDate: buyDate.trim() || null,
-      qty,
-      region,
-      selfPulled,
+    // payload 규칙 정본은 src/lib/registerCard.ts — '내 카드 등록' 화면과 같은 함수.
+    const options: RegisterOptions = {
+      selfPulled, buyPrice, buyCurrency, buyDate, qty, region, graded, gradeCompany, gradeValue, memo,
     };
-
-    if (selfPulled) {
-      if (effectiveBasis) {
-        payload.buyPrice = effectiveBasis.price;
-        payload.buyCurrency = effectiveBasis.cur;
-      }
-    } else {
-      const bp = parseInt(buyPrice, 10);
-      if (Number.isFinite(bp) && bp > 0) {
-        payload.buyPrice = bp;
-        payload.buyCurrency = buyCurrency;
-      }
-    }
-
-    if (graded) {
-      payload.graded = true;
-      if (gradeCompany.trim()) payload.gradeCompany = gradeCompany.trim();
-      if (gradeValue.trim()) payload.gradeValue = gradeValue.trim();
-    }
-    if (memo.trim()) payload.memo = memo.trim();
-
     setSaving(true);
     try {
-      const r = await fetch('/api/me/cards', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (r.status === 401) {
-        setErr('로그인이 필요해요');
-        return;
-      }
-      if (!r.ok) {
-        const body = (await r.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? `HTTP ${r.status}`);
-      }
+      await postMyCard(buildRegisterPayload(card, options));
       // 내 컬렉션/홈 헤더 세션 캐시 무효화 — 안 비우면 재진입 시 낡은 총액이 먼저 그려지고
       // 무거운 /api/me/portfolio 가 타임아웃되면 새 카드가 합산되지 않은 채 남는다.
       invalidateCollectionCaches();

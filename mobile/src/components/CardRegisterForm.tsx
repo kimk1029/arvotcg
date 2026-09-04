@@ -7,7 +7,7 @@
  * → 발매지역 → 등급 → 메모 → 등록 CTA.
  * 저장: 로컬 컬렉션(addCards) + 서버(/api/me/cards, createMyCard) 양쪽. 완료 시 onSaved(card).
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 import { PixelText } from '@/components/PixelText';
 import { CardThumb } from '@/components/cv/CardThumb';
@@ -109,10 +109,22 @@ export function MCatBtn({ P, active, onPress, label, compact }: { P: ManualPalet
 export function CardRegisterForm({
   card,
   onSaved,
+  hideCta = false,
+  submitRef,
+  onBusyChange,
 }: {
   card: CardItem;
   /** 저장 완료 — 구매정보가 반영된 카드 전달 (호출측에서 결과 화면/닫기 처리). */
   onSaved: (saved: CardItem) => void;
+  /**
+   * 폼 안의 등록 버튼을 숨긴다 — '내 카드 등록' 화면처럼 화면 하단 고정 바가
+   * 등록을 대신 눌러줄 때. 그 경우 submitRef 로 저장 함수를 넘겨받는다.
+   */
+  hideCta?: boolean;
+  /** 바깥에서 등록을 실행할 수 있게 저장 함수를 담아 주는 ref. */
+  submitRef?: { current: null | (() => void) };
+  /** 저장 진행 상태 알림 — 바깥 버튼의 '등록 중…' 표시용. */
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const MP = useManualPalette();
   const { mode: priceMode } = usePriceMode();
@@ -194,6 +206,15 @@ export function CardRegisterForm({
     setSaving(false);
     onSaved(saved);
   };
+
+  // 바깥(하단 고정 바)에서 등록을 누를 수 있도록 최신 finalize 를 ref 에 실어 준다.
+  // deps 없이 매 렌더 갱신 — 최신 입력값을 담은 클로저를 유지해야 한다.
+  useEffect(() => {
+    if (submitRef) submitRef.current = finalize;
+  });
+  useEffect(() => {
+    onBusyChange?.(saving);
+  }, [saving, onBusyChange]);
 
   return (
     <View style={{ gap: 14 }}>
@@ -352,6 +373,7 @@ export function CardRegisterForm({
       </View>
 
       {/* 등록 CTA — 웹 cv-manual-submit(clean: 에메랄드 채움 라운드) */}
+      {hideCta ? null : (
       <Pressable
         onPress={finalize}
         disabled={saving}
@@ -372,6 +394,7 @@ export function CardRegisterForm({
       >
         <PixelText variant="ko" size={14} weight="bold" color="#ffffff">{saving ? '저장 중...' : '＋ 컬렉션에 등록'}</PixelText>
       </Pressable>
+      )}
     </View>
   );
 }
