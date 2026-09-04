@@ -126,7 +126,7 @@ export function ShopManager({ initialShops }: { initialShops: ShopData[] }) {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
-      setMsg({ type: 'ok', text: isNew ? '추가됨 — 웹/앱 Shop 지도에 바로 반영됩니다' : '저장됨' });
+      setMsg({ type: 'ok', text: isNew ? '추가됨 — 웹/앱 카드샵 지도에 바로 반영됩니다' : '저장됨' });
       setEditingId(null);
       router.refresh();
     } catch (e) {

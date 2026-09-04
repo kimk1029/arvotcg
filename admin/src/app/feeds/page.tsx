@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { DeleteFeedButton } from '@/components/DeleteFeedButton';
+import { FeedBulkTable, type FeedRow } from '@/components/FeedBulkTable';
 import { prisma } from '@/lib/prisma';
 import { fmtDate, parseIntParam, trunc } from '@/lib/format';
 
@@ -20,7 +20,7 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
 
   const where = q ? { text: { contains: q, mode: 'insensitive' as const } } : {};
 
-  const [feeds, total] = await Promise.all([
+  const [feeds, total, grandTotal] = await Promise.all([
     prisma.feed.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -31,15 +31,24 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
       },
     }),
     prisma.feed.count({ where }),
+    prisma.feed.count(),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const rows: FeedRow[] = feeds.map((f) => ({
+    id: f.id,
+    text: trunc(f.text, 60),
+    category: f.category,
+    author: f.author?.name ?? null,
+    createdAt: fmtDate(f.createdAt),
+  }));
 
   return (
     <>
-      <h1 className="admin-h1">피드 관리</h1>
+      <h1 className="admin-h1">커뮤니티 글 관리</h1>
       <p className="admin-sub">
-        총 {total.toLocaleString()}건 · {page} / {totalPages} 페이지
+        총 {total.toLocaleString()}건 · {page} / {totalPages} 페이지 · 체크박스로 여러 건을 골라 한 번에
+        삭제하거나, 전체를 초기화할 수 있습니다 (댓글·북마크 동반 삭제).
       </p>
 
       <form className="search" method="get">
@@ -47,34 +56,7 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
         <button type="submit">검색</button>
       </form>
 
-      {feeds.length === 0 ? (
-        <div className="empty">결과 없음</div>
-      ) : (
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>본문</th>
-              <th>작성자</th>
-              <th>시각</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {feeds.map((f) => (
-              <tr key={f.id}>
-                <td className="mono">{f.id}</td>
-                <td>{trunc(f.text, 60)}</td>
-                <td>{f.author?.name ?? <span className="muted">(탈퇴/익명)</span>}</td>
-                <td className="mono muted">{fmtDate(f.createdAt)}</td>
-                <td style={{ textAlign: 'right' }}>
-                  <DeleteFeedButton id={f.id} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <FeedBulkTable rows={rows} total={grandTotal} />
 
       <Pager base="/feeds" q={q} page={page} totalPages={totalPages} />
     </>

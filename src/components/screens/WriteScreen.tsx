@@ -196,7 +196,8 @@ export function WriteScreen({ mode, places = [], prefill }: Props) {
       {isFeed && (
         <div className="form-sect">
           <div className="form-label">🏷 카테고리</div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          {/* 카테고리가 4개라 좁은 화면에서는 두 줄로 접힌다 (라벨 잘림 방지). */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {FEED_CATEGORIES.map((c) => {
               const on = category === c;
               return (
@@ -205,7 +206,9 @@ export function WriteScreen({ mode, places = [], prefill }: Props) {
                   type="button"
                   onClick={() => setCategory(c)}
                   style={{
-                    flex: 1,
+                    flex: '1 1 20%',
+                    minWidth: 72,
+                    whiteSpace: 'nowrap',
                     padding: '10px 0',
                     fontFamily: 'var(--f2)',
                     fontSize: 14,

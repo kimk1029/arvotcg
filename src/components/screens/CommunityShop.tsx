@@ -3,7 +3,19 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
 import { HAS_NAVER_MAP_KEY, ShopNaverMap } from '@/components/screens/ShopNaverMap';
-import { SHOP_REGIONS as SHARED_SHOP_REGIONS, filterShopsByRegion, regionFocusOf } from '@/lib/shopRegions';
+import {
+  ALL_REGIONS,
+  SHOP_COMING_SOON,
+  SHOP_COMING_SOON_SUB,
+  SHOP_COMING_SOON_TEXT,
+  SHOP_COUNTRIES,
+  buildRegionTree,
+  filterShopsByRegion,
+  regionFocusOf,
+  regionLabel,
+  type RegionSelection,
+  type ShopCountry,
+} from '@/lib/shopRegions';
 
 /**
  * 커뮤니티 Shop 모드 — Claude Design 'ARVOTCG 커뮤니티' 프로토타입의 샵 화면.
@@ -29,9 +41,6 @@ export interface ShopPalette {
 const ORANGE = '#FF7A00';
 const ORANGE_SOFT = '#FFF1E6';
 const STAR = '#FFC53D';
-
-/** 지역 탭 — 정본 shared/shopRegions.ts (판정 규칙도 거기). */
-export const SHOP_REGIONS: string[] = [...SHARED_SHOP_REGIONS];
 
 interface ShopInfo {
   id: string;
@@ -145,7 +154,12 @@ const officialBadge = (
   </svg>
 );
 
-export function ShopSection({ P, region = '전체' }: { P: ShopPalette; region?: string }) {
+export function ShopSection({ P }: { P: ShopPalette }) {
+  // 한국 / 일본 카드샵 탭. 일본은 아직 데이터가 없어 자리만 있다.
+  const [country, setCountry] = useState<ShopCountry>('kr');
+  // 지역 — 기본 '내 주변'(전체). 칩을 누르면 시/도 → 구/군 선택 시트.
+  const [sel, setSel] = useState<RegionSelection>(ALL_REGIONS);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [shopId, setShopId] = useState('s1');
   const [reviewOpen, setReviewOpen] = useState(false);
   const [myStars, setMyStars] = useState(0);
@@ -172,9 +186,11 @@ export function ShopSection({ P, region = '전체' }: { P: ShopPalette; region?:
     return () => { cancelled = true; };
   }, []);
   const list = shops ?? FALLBACK_SHOPS;
-  // 지역 탭 — 해당 지역 샵만 목록·지도에 (정본 shared/shopRegions). 지도는 지역 중심으로 이동.
-  const regionShops = filterShopsByRegion(list, region);
-  const focus = regionFocusOf(region);
+  // 지역 선택 — 해당 지역 샵만 목록·지도에 (정본 shared/shopRegions). 지도는 그 샵들의 중심으로 이동.
+  const regionShops = filterShopsByRegion(list, sel);
+  const focus = regionFocusOf(sel, list);
+  // 선택지(시/도 → 구/군)는 실제 등록된 샵에서 만든다 — 샵 없는 지역은 나오지 않는다.
+  const regionTree = buildRegionTree(list);
   useEffect(() => {
     if (regionShops.length > 0 && !regionShops.some((s) => s.id === shopId)) {
       setShopId(regionShops[0].id);
@@ -183,7 +199,7 @@ export function ShopSection({ P, region = '전체' }: { P: ShopPalette; region?:
       setReviewCount(5);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [region, shops]);
+  }, [sel, shops]);
 
   const shopName = (id: string) => list.find((s) => s.id === id)?.name ?? '';
   const shop = list.find((s) => s.id === shopId) ?? list[0];
@@ -224,8 +240,70 @@ export function ShopSection({ P, region = '전체' }: { P: ShopPalette; region?:
 
   const cardSt: CSSProperties = { background: P.cardBg, borderRadius: 16, boxShadow: '0 2px 10px rgba(0,0,0,.05)' };
 
+  const curtained = SHOP_COMING_SOON[country];
+
   return (
     <div>
+      {/* 한국 / 일본 카드샵 탭 + 지역 칩 — '준비중' 커튼 바깥(항상 조작 가능) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px 8px', borderBottom: `1px solid ${P.line}` }}>
+        {SHOP_COUNTRIES.map((c) => {
+          const on = country === c.id;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setCountry(c.id)}
+              style={{
+                flex: 'none', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 800, padding: '8px 14px',
+                borderRadius: 18, cursor: 'pointer', border: 'none',
+                background: on ? P.ink : P.chip, color: on ? P.cardBg : P.ink3,
+              }}
+            >
+              {c.label}
+            </button>
+          );
+        })}
+        <div style={{ flex: 1 }} />
+        {country === 'kr' && (
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            aria-label="지역 선택"
+            style={{
+              flex: 'none', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+              fontSize: 12.5, fontWeight: 800, padding: '8px 12px', borderRadius: 18, cursor: 'pointer',
+              background: P.chip, color: P.ink, border: 'none',
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="2.6" /></svg>
+            {regionLabel(sel)}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+          </button>
+        )}
+      </div>
+
+      {pickerOpen && (
+        <RegionPicker
+          P={P}
+          tree={regionTree}
+          sel={sel}
+          onPick={(next) => { setSel(next); setPickerOpen(false); }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+
+      {country === 'jp' ? (
+        <Curtain P={P} on>
+          <div style={{ padding: '46px 20px 60px', textAlign: 'center' }}>
+            <div style={{ fontSize: 46 }}>🇯🇵</div>
+            <div style={{ marginTop: 12, fontSize: 15, fontWeight: 800, color: P.ink }}>일본 카드샵</div>
+            <div style={{ marginTop: 6, fontSize: 12.5, color: P.ink3, fontWeight: 600, lineHeight: 1.7 }}>
+              아키하바라 · 나카노 등 현지 카드샵 정보를<br />모으고 있어요.
+            </div>
+          </div>
+        </Curtain>
+      ) : (
+      <Curtain P={P} on={curtained}>
       {/* map — 네이버 지도 (키 미설정 시 일러스트 지도 폴백) */}
       <div style={{ padding: '14px 16px 6px' }}>
         <div style={{ position: 'relative', height: 230, borderRadius: 18, overflow: 'hidden', background: '#E8EDE6', boxShadow: '0 2px 10px rgba(0,0,0,.06)' }}>
@@ -329,7 +407,7 @@ export function ShopSection({ P, region = '전체' }: { P: ShopPalette; region?:
 
       {/* shop list */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px 10px' }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: P.ink }}>{region === '전체' ? '주변' : region} 카드샵 <span style={{ color: P.ink3 }}>{regionShops.length}</span></div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: P.ink }}>{regionLabel(sel)} 카드샵 <span style={{ color: P.ink3 }}>{regionShops.length}</span></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700, color: P.ink }}>
           평점순 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
         </div>
@@ -338,7 +416,7 @@ export function ShopSection({ P, region = '전체' }: { P: ShopPalette; region?:
         <div style={{ ...cardSt, overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,.04)' }}>
           {regionShops.length === 0 && (
             <div style={{ padding: '26px 16px', textAlign: 'center', fontSize: 13, color: P.ink3, fontWeight: 600, lineHeight: 1.6 }}>
-              {region} 지역에 등록된 카드샵이 아직 없어요.<br />어드민 › 카드샵 관리에서 추가하면 바로 표시돼요.
+              {regionLabel(sel)} 지역에 등록된 카드샵이 아직 없어요.<br />어드민 › 카드샵 관리에서 추가하면 바로 표시돼요.
             </div>
           )}
           {regionShops.map((s, i) => {
@@ -408,6 +486,129 @@ export function ShopSection({ P, region = '전체' }: { P: ShopPalette; region?:
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C2C2C8' }} />
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#B0B0B6' }} />
             <span style={{ fontSize: 11.5, color: P.ink3, fontWeight: 600, marginLeft: 4 }}>스크롤하면 더 불러와요</span>
+          </div>
+        )}
+      </div>
+      </Curtain>
+      )}
+    </div>
+  );
+}
+
+/**
+ * '준비중' 커튼 — 실제 화면을 딤 처리해 뒤에 두고 앞에 안내를 덮는다.
+ * on=false 면 아무것도 하지 않고 children 만 그대로 낸다(오픈 시 코드 변경 없음).
+ * 정본 플래그: shared/shopRegions.ts SHOP_COMING_SOON.
+ */
+function Curtain({ P, on, children }: { P: ShopPalette; on: boolean; children: React.ReactNode }) {
+  if (!on) return <>{children}</>;
+  return (
+    <div style={{ position: 'relative' }}>
+      <div aria-hidden style={{ opacity: 0.32, filter: 'grayscale(0.35)', pointerEvents: 'none', userSelect: 'none' }}>
+        {children}
+      </div>
+      <div
+        style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'flex-start', paddingTop: 90, gap: 8,
+          background: 'linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.62) 22%)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: P.ink, color: P.cardBg, borderRadius: 999, padding: '10px 20px', fontSize: 15, fontWeight: 900, boxShadow: '0 6px 18px rgba(0,0,0,.22)' }}>
+          <span aria-hidden>🛠️</span>
+          {SHOP_COMING_SOON_TEXT}
+        </div>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: P.ink2, textAlign: 'center', textShadow: '0 1px 3px rgba(255,255,255,.9)' }}>
+          {SHOP_COMING_SOON_SUB}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 지역 선택 시트 — 시/도 목록 → 그 안의 구/군. 선택지는 등록된 샵에서 생성된다. */
+function RegionPicker({
+  P, tree, sel, onPick, onClose,
+}: {
+  P: ShopPalette;
+  tree: ReturnType<typeof buildRegionTree>;
+  sel: RegionSelection;
+  onPick: (next: RegionSelection) => void;
+  onClose: () => void;
+}) {
+  const [sido, setSido] = useState<string | null>(sel.sido ?? tree[0]?.name ?? null);
+  const node = tree.find((t) => t.name === sido) ?? null;
+
+  return (
+    <div
+      role="dialog"
+      aria-label="지역 선택"
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'flex-end' }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: '100%', maxHeight: '72vh', background: P.cardBg, borderRadius: '20px 20px 0 0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 18px 12px', borderBottom: `1px solid ${P.line}` }}>
+          <span style={{ flex: 1, fontSize: 16, fontWeight: 800, color: P.ink }}>지역 선택</span>
+          <button type="button" onClick={() => onPick(ALL_REGIONS)} style={{ fontSize: 12.5, fontWeight: 800, color: P.ink3, background: P.chip, border: 'none', borderRadius: 14, padding: '6px 12px', cursor: 'pointer' }}>
+            내 주변
+          </button>
+          <button type="button" onClick={onClose} aria-label="닫기" style={{ fontSize: 20, lineHeight: 1, color: P.ink3, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>×</button>
+        </div>
+
+        {tree.length === 0 ? (
+          <div style={{ padding: '34px 20px', textAlign: 'center', fontSize: 13, color: P.ink3, fontWeight: 600, lineHeight: 1.7 }}>
+            등록된 카드샵이 아직 없어요.<br />어드민 › 카드샵 관리에서 추가하면 지역이 생겨요.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', minHeight: 0, flex: 1 }}>
+            {/* 좌: 시/도 */}
+            <div style={{ width: 108, flex: 'none', overflowY: 'auto', background: P.pageBg, borderRight: `1px solid ${P.line}` }}>
+              {tree.map((t) => {
+                const on = t.name === sido;
+                return (
+                  <button
+                    key={t.name}
+                    type="button"
+                    onClick={() => setSido(t.name)}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left', padding: '13px 14px', cursor: 'pointer', border: 'none',
+                      background: on ? P.cardBg : 'transparent', color: on ? P.ink : P.ink3, fontSize: 13.5, fontWeight: on ? 800 : 600,
+                    }}
+                  >
+                    {t.name} <span style={{ color: P.ink3, fontWeight: 600 }}>{t.count}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* 우: 구/군 */}
+            <div style={{ flex: 1, minWidth: 0, overflowY: 'auto' }}>
+              <button
+                type="button"
+                onClick={() => sido && onPick({ sido, gu: null })}
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '13px 16px', cursor: 'pointer', border: 'none', background: 'none', color: P.ink, fontSize: 13.5, fontWeight: 800, borderBottom: `1px solid ${P.line}` }}
+              >
+                {sido} 전체 <span style={{ color: P.ink3, fontWeight: 600 }}>{node?.count ?? 0}</span>
+              </button>
+              {(node?.gus ?? []).map((g) => {
+                const on = sel.sido === sido && sel.gu === g.name;
+                return (
+                  <button
+                    key={g.name}
+                    type="button"
+                    onClick={() => sido && onPick({ sido, gu: g.name })}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left', padding: '13px 16px', cursor: 'pointer', border: 'none',
+                      background: on ? P.chip : 'none', color: P.ink, fontSize: 13.5, fontWeight: on ? 800 : 600, borderBottom: `1px solid ${P.line}`,
+                    }}
+                  >
+                    {g.name} <span style={{ color: P.ink3, fontWeight: 600 }}>{g.count}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

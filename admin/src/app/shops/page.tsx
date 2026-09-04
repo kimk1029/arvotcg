@@ -1,3 +1,4 @@
+import { ShopImport } from '@/components/ShopImport';
 import { ShopManager, type ShopData } from '@/components/ShopManager';
 import { prisma } from '@/lib/prisma';
 
@@ -37,9 +38,11 @@ export default async function Page() {
     <>
       <h1 className="admin-h1">카드샵 관리</h1>
       <p className="admin-sub">
-        커뮤니티 Shop 지도/리스트에 노출되는 오프라인 카드샵 — 주소찾기로 추가하면
+        커뮤니티 카드샵 지도/리스트에 노출되는 오프라인 카드샵 — 주소찾기로 추가하면
         웹·앱 네이버 지도에 핀이 자동으로 찍힙니다. 비활성 샵은 노출되지 않습니다.
+        지역 분류(서울 › ○○구)도 주소에서 자동으로 만들어집니다.
       </p>
+      <ShopImport />
       <ShopManager initialShops={shops} />
     </>
   );

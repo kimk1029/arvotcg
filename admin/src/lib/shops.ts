@@ -114,3 +114,65 @@ export function parseShopInput(
 
   return { ok: true, data: out };
 }
+
+/* ------------------------------------------------------------------ */
+/* JSON 일괄 등록 양식 — 어드민 '기본 양식 다운로드' + 필드 설명           */
+/* ------------------------------------------------------------------ */
+
+export interface ShopTemplateField {
+  key: keyof ShopInput;
+  required?: boolean;
+  desc: string;
+}
+
+/** 양식 필드 설명 — parseShopInput 의 검증 규칙과 같은 내용을 사람 말로. */
+export const SHOP_TEMPLATE_FIELDS: ShopTemplateField[] = [
+  { key: 'name', required: true, desc: '샵 이름 (1~120자)' },
+  { key: 'addr', required: true, desc: '도로명 주소 (1~120자). 지역 분류(서울 > ○○구)와 지도 핀이 이 주소에서 나옵니다' },
+  { key: 'lat', desc: '위도. 비우거나 null 이면 지도가 주소를 지오코딩해 자동으로 찍습니다' },
+  { key: 'lng', desc: '경도 (lat 과 같은 규칙)' },
+  { key: 'official', desc: '공식 인증 뱃지 (true/false, 기본 false)' },
+  { key: 'emoji', desc: '리스트 타일 이모지 (기본 🏪)' },
+  { key: 'gradFrom', desc: '웹 타일 그라디언트 시작색 #rrggbb (기본 #ffb347)' },
+  { key: 'gradTo', desc: '웹 타일 그라디언트 끝색 #rrggbb (기본 #ff7a1f)' },
+  { key: 'tileColor', desc: '앱 타일 단색 #rrggbb (기본 #ff9a33)' },
+  { key: 'oripaPct', desc: '오리파 비중 0~100 정수 (기본 0)' },
+  { key: 'singleText', desc: '싱글 종수 표시 텍스트 (예: "1,240종"). 비우면 숨김' },
+  { key: 'priceLevel', desc: `가격대 — ${PRICE_LEVELS.join(' / ')} 중 하나 (기본 보통)` },
+  { key: 'rating', desc: '평점 0~5 (기본 0)' },
+  { key: 'reviewCount', desc: '후기 수, 0 이상 정수 (기본 0)' },
+  { key: 'dist', desc: '거리 표시 텍스트 (예: "320m"). 비우면 숨김' },
+  { key: 'sortOrder', desc: '정렬 — 작을수록 먼저 (기본 50)' },
+  { key: 'active', desc: '웹/앱 노출 여부 (true/false, 기본 true)' },
+];
+
+/** 다운로드용 기본 양식 — 필수만 채운 행 + 전부 채운 행 두 개(복붙 기준). */
+export const SHOP_TEMPLATE_JSON = JSON.stringify(
+  {
+    _설명: 'ARVOTCG 카드샵 일괄 등록 양식 — shops 배열만 채워서 어드민 › 카드샵 관리에서 업로드하세요. name·addr 만 필수입니다.',
+    shops: [
+      { name: '포켓랩 성수점', addr: '서울 성동구 연무장길 21' },
+      {
+        name: '카드킹덤 홍대',
+        addr: '서울 마포구 와우산로 105',
+        lat: 37.5535,
+        lng: 126.9256,
+        official: true,
+        emoji: '👑',
+        gradFrom: '#6fb1e0',
+        gradTo: '#3a6ea5',
+        tileColor: '#5595c8',
+        oripaPct: 40,
+        singleText: '2,860종',
+        priceLevel: '보통',
+        rating: 4.6,
+        reviewCount: 158,
+        dist: '1.2km',
+        sortOrder: 20,
+        active: true,
+      },
+    ],
+  },
+  null,
+  2,
+);

@@ -14,7 +14,7 @@ const NAV = [
   { href: '/searches', label: '검색 로그', icon: '🔍' },
   { href: '/scans', label: '스캔 로그', icon: '📷' },
   { href: '/cards', label: '카드 카탈로그', icon: '🃏' },
-  { href: '/feeds', label: '피드 관리', icon: '📝' },
+  { href: '/feeds', label: '커뮤니티 글', icon: '📝' },
   { href: '/messages', label: '쪽지 목록', icon: '✉️' },
   { href: '/trades', label: '거래 관리', icon: '🤝' },
   { href: '/shops', label: '카드샵 관리', icon: '🏪' },

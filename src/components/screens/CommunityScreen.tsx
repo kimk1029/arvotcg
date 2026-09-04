@@ -9,7 +9,7 @@ import { BookmarkButton } from '@/components/BookmarkButton';
 import { FeedComments, Lightbox } from '@/components/FeedRow';
 import { ReportMenu } from '@/components/ReportMenu';
 import { isAvatarId } from '@/lib/avatars';
-import { ShopSection, SHOP_REGIONS } from '@/components/screens/CommunityShop';
+import { ShopSection } from '@/components/screens/CommunityShop';
 import { isFeedCategory } from '@/lib/feedCategories';
 import { feedHotScore, feedPostTitle, formatCount, rankBestPosts, rankHotPosts } from '@/lib/feedRanking';
 import type { FeedPost, Trade } from '@/lib/types';
@@ -90,8 +90,8 @@ const GRAD = {
   koi: 'linear-gradient(150deg,#5b86e5,#36d1dc)',
 };
 
-type CatId = '전체' | '자유' | '시세/정보' | '자랑' | '거래/나눔';
-const CATS: CatId[] = ['전체', '자유', '시세/정보', '자랑', '거래/나눔'];
+type CatId = '전체' | '자유' | '시세/정보' | '자랑' | '카드쇼' | '거래/나눔';
+const CATS: CatId[] = ['전체', '자유', '시세/정보', '자랑', '카드쇼', '거래/나눔'];
 
 type SortId = '최신순' | '인기순' | '추천순' | '댓글순';
 const SORTS: SortId[] = ['최신순', '인기순', '추천순', '댓글순'];
@@ -102,6 +102,7 @@ const TAG_COLOR: Record<string, { fg: string; bg: string }> = {
   '자랑': { fg: '#C2410C', bg: '#FFEDD5' },
   '거래/나눔': { fg: '#7C3AED', bg: '#F1EAFF' },
   '시세/정보': { fg: '#0369A1', bg: '#E0F2FE' },
+  '카드쇼': { fg: '#B45309', bg: '#FEF3C7' },
 };
 function tagStyle(label: string, clean: boolean, P: Palette): { fg: string; bg: string } {
   if (clean) return TAG_COLOR[label] ?? TAG_COLOR['자유'];
@@ -130,7 +131,7 @@ interface FeatureItem {
 }
 // 인기글 타일 배경 — 순위별 순환.
 const GRAD_CYCLE = [GRAD.zard, GRAD.gengar, GRAD.mew, GRAD.char, GRAD.umb, GRAD.gard, GRAD.koi];
-const CAT_EMOJI: Record<string, string> = { '자유': '💬', '시세/정보': '📈', '자랑': '✨', '거래/나눔': '🤝' };
+const CAT_EMOJI: Record<string, string> = { '자유': '💬', '시세/정보': '📈', '자랑': '✨', '카드쇼': '🎪', '거래/나눔': '🤝' };
 /** 실제 피드 → 인기글 행 (정본 shared/feedRanking). hot 은 점수 배지, best 는 배지 없음. */
 function toFeatureItems(posts: FeedPost[], kind: 'hot' | 'best'): FeatureItem[] {
   const ranked = kind === 'hot' ? rankHotPosts(posts, 3) : rankBestPosts(posts, 3);
@@ -211,7 +212,6 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('tab') === 'shop') setMode('shop');
   }, []);
-  const [region, setRegion] = useState('전체');
   const [cat, setCat] = useState<CatId>('전체');
   const [sort, setSort] = useState<SortId>('최신순');
   const [feature, setFeature] = useState<'hot' | 'best'>('hot');
@@ -298,7 +298,7 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
             <SegmentedTabs
               items={[
                 { id: 'feed', label: '커뮤니티', icon: SegIcons.chat },
-                { id: 'shop', label: 'Shop', icon: SegIcons.pin },
+                { id: 'shop', label: '카드샵', icon: SegIcons.pin },
               ]}
               value={mode}
               onChange={setMode}
@@ -339,17 +339,8 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
             </div>
           )}
 
-          {/* shop 모드: 지역 칩 / feed 모드: 카테고리 탭 */}
-          {isShop ? (
-            <div className="cv-hrow" style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto', padding: '4px 16px 12px', borderBottom: `1px solid ${P.line}` }}>
-              {SHOP_REGIONS.map((rg) => {
-                const on = region === rg;
-                return (
-                  <button key={rg} type="button" onClick={() => setRegion(rg)} style={{ flex: 'none', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 700, padding: '7px 14px', borderRadius: 18, cursor: 'pointer', border: 'none', background: on ? P.ink : P.chip, color: on ? P.cardBg : P.ink3 }}>{rg}</button>
-                );
-              })}
-            </div>
-          ) : (
+          {/* 카테고리 탭 — 카드샵 모드의 국가/지역 선택은 ShopSection 안에 있다. */}
+          {isShop ? null : (
           <div className="cv-hrow" style={{ display: 'flex', alignItems: 'center', gap: 18, overflowX: 'auto', padding: '4px 16px 0', position: 'relative' }}>
             {CATS.map((c) => {
               const on = cat === c;
@@ -379,7 +370,7 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
         </div>
 
         {isShop ? (
-          <ShopSection P={P} region={region} />
+          <ShopSection P={P} />
         ) : (
         <>
         {/* 전체 탭에서만 인기글 + HOT 키워드 노출. 그 외 카테고리는 목록만. */}

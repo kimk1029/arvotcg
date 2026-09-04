@@ -183,7 +183,8 @@ export default function WriteFeed() {
         <PixelText variant="ko" size={11} weight="bold">
           🏷 카테고리
         </PixelText>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
+        {/* 카테고리가 4개라 좁은 화면에서는 두 줄로 접힌다 (웹 동일, 라벨 잘림 방지). */}
+        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
           {FEED_CATEGORIES.map((c) => {
             const on = category === c;
             return (
@@ -191,7 +192,9 @@ export default function WriteFeed() {
                 key={c}
                 onPress={() => setCategory(c)}
                 style={{
-                  flex: 1,
+                  flexGrow: 1,
+                  flexBasis: '20%',
+                  minWidth: 72,
                   paddingVertical: 10,
                   alignItems: 'center',
                   backgroundColor: on ? tc.ink : tc.white,

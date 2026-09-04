@@ -1,10 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 
 import { HAS_NAVER_MAP_KEY, ShopNaverMap } from '@/components/ShopNaverMap';
 import { api } from '@/lib/apiClient';
-import { SHOP_REGIONS as SHARED_SHOP_REGIONS, filterShopsByRegion, regionFocusOf } from '@/lib/shopRegions';
+import {
+  ALL_REGIONS,
+  SHOP_COMING_SOON,
+  SHOP_COMING_SOON_SUB,
+  SHOP_COMING_SOON_TEXT,
+  SHOP_COUNTRIES,
+  buildRegionTree,
+  filterShopsByRegion,
+  regionFocusOf,
+  regionLabel,
+  type RegionSelection,
+  type ShopCountry,
+} from '@/lib/shopRegions';
 
 /**
  * 커뮤니티 Shop 모드 — Claude Design 'ARVOTCG 커뮤니티' 프로토타입의 샵 화면 (네이티브).
@@ -32,9 +44,6 @@ type TsFn = (s: number, w: '400' | '500' | '600' | '700' | '800' | '900', c: str
 const ORANGE = '#FF7A00';
 const ORANGE_SOFT = '#FFF1E6';
 const STAR = '#FFC53D';
-
-/** 지역 탭 — 정본 shared/shopRegions.ts (판정 규칙도 거기). */
-export const SHOP_REGIONS: string[] = [...SHARED_SHOP_REGIONS];
 
 interface ShopInfo {
   id: string;
@@ -154,7 +163,12 @@ const MAP_H = 230;
 const PIN_W = 110;
 const PIN_H = 35;
 
-export function ShopSection({ P, ts, region = '전체' }: { P: ShopPalette; ts: TsFn; region?: string }) {
+export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
+  // 한국 / 일본 카드샵 탭. 일본은 아직 데이터가 없어 자리만 있다 (웹 동일).
+  const [country, setCountry] = useState<ShopCountry>('kr');
+  // 지역 — 기본 '내 주변'(전체). 칩을 누르면 시/도 → 구/군 선택 시트.
+  const [sel, setSel] = useState<RegionSelection>(ALL_REGIONS);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [shopId, setShopId] = useState('s1');
   const [reviewOpen, setReviewOpen] = useState(false);
   const [myStars, setMyStars] = useState(0);
@@ -181,9 +195,11 @@ export function ShopSection({ P, ts, region = '전체' }: { P: ShopPalette; ts: 
     return () => { cancelled = true; };
   }, []);
   const list = shops ?? FALLBACK_SHOPS;
-  // 지역 탭 — 해당 지역 샵만 목록·지도에 (정본 shared/shopRegions, 웹 동일). 지도는 지역 중심으로 이동.
-  const regionShops = filterShopsByRegion(list, region);
-  const focus = regionFocusOf(region);
+  // 지역 선택 — 해당 지역 샵만 목록·지도에 (정본 shared/shopRegions, 웹 동일).
+  const regionShops = filterShopsByRegion(list, sel);
+  const focus = regionFocusOf(sel, list);
+  // 선택지(시/도 → 구/군)는 실제 등록된 샵에서 만든다 — 샵 없는 지역은 나오지 않는다.
+  const regionTree = buildRegionTree(list);
   useEffect(() => {
     if (regionShops.length > 0 && !regionShops.some((s) => s.id === shopId)) {
       setShopId(regionShops[0].id);
@@ -192,7 +208,7 @@ export function ShopSection({ P, ts, region = '전체' }: { P: ShopPalette; ts: 
       setReviewCount(5);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [region, shops]);
+  }, [sel, shops]);
 
   const shopName = (id: string) => list.find((s) => s.id === id)?.name ?? '';
   const shop = list.find((s) => s.id === shopId) ?? list[0];
@@ -221,7 +237,65 @@ export function ShopSection({ P, ts, region = '전체' }: { P: ShopPalette; ts: 
 
   const card = { backgroundColor: P.cardBg, borderRadius: 16 } as const;
 
+  const curtained = SHOP_COMING_SOON[country];
+
   return (
+    <View style={{ flex: 1 }}>
+      {/* 한국 / 일본 카드샵 탭 + 지역 칩 — '준비중' 커튼 바깥(항상 조작 가능, 웹 동일) */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: P.line }}>
+        {SHOP_COUNTRIES.map((c) => {
+          const on = country === c.id;
+          return (
+            <Pressable
+              key={c.id}
+              onPress={() => setCountry(c.id)}
+              style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: 18, backgroundColor: on ? P.ink : P.chip }}
+            >
+              <Text style={ts(13, '800', on ? P.cardBg : P.ink3)}>{c.label}</Text>
+            </Pressable>
+          );
+        })}
+        <View style={{ flex: 1 }} />
+        {country === 'kr' ? (
+          <Pressable
+            onPress={() => setPickerOpen(true)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 18, backgroundColor: P.chip }}
+          >
+            <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+              <Path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+              <Circle cx={12} cy={10} r={2.6} />
+            </Svg>
+            <Text style={ts(12.5, '800', P.ink)}>{regionLabel(sel)}</Text>
+            <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
+              <Path d="m6 9 6 6 6-6" />
+            </Svg>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <RegionPicker
+        P={P}
+        ts={ts}
+        open={pickerOpen}
+        tree={regionTree}
+        sel={sel}
+        onPick={(next) => { setSel(next); setPickerOpen(false); }}
+        onClose={() => setPickerOpen(false)}
+      />
+
+      {country === 'jp' ? (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+          <Curtain P={P} ts={ts} on>
+            <View style={{ paddingTop: 46, paddingBottom: 60, paddingHorizontal: 20, alignItems: 'center' }}>
+              <Text style={{ fontSize: 46 }}>🇯🇵</Text>
+              <Text style={[ts(15, '800', P.ink), { marginTop: 12 }]}>일본 카드샵</Text>
+              <Text style={[ts(12.5, '600', P.ink3), { marginTop: 6, textAlign: 'center', lineHeight: 20 }]}>
+                아키하바라 · 나카노 등 현지 카드샵 정보를{'\n'}모으고 있어요.
+              </Text>
+            </View>
+          </Curtain>
+        </ScrollView>
+      ) : (
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={{ paddingBottom: 120 }}
@@ -234,6 +308,7 @@ export function ShopSection({ P, ts, region = '전체' }: { P: ShopPalette; ts: 
         }
       }}
     >
+      <Curtain P={P} ts={ts} on={curtained}>
       {/* map — 네이버 지도 (키 미설정 시 일러스트 지도 폴백) */}
       <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 }}>
         <View
@@ -366,7 +441,7 @@ export function ShopSection({ P, ts, region = '전체' }: { P: ShopPalette; ts: 
 
       {/* shop list */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 10 }}>
-        <Text style={ts(16, '800', P.ink)}>{region === '전체' ? '주변' : region} 카드샵 <Text style={{ color: P.ink3 }}>{regionShops.length}</Text></Text>
+        <Text style={ts(16, '800', P.ink)}>{regionLabel(sel)} 카드샵 <Text style={{ color: P.ink3 }}>{regionShops.length}</Text></Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Text style={ts(12.5, '700', P.ink)}>평점순</Text>
           <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><Path d="m6 9 6 6 6-6" /></Svg>
@@ -376,7 +451,7 @@ export function ShopSection({ P, ts, region = '전체' }: { P: ShopPalette; ts: 
         <View style={[card, { overflow: 'hidden' }]}>
           {regionShops.length === 0 ? (
             <View style={{ paddingVertical: 26, paddingHorizontal: 16, alignItems: 'center' }}>
-              <Text style={[ts(13, '600', P.ink3), { textAlign: 'center' }]}>{region} 지역에 등록된 카드샵이 아직 없어요.{'\n'}어드민 › 카드샵 관리에서 추가하면 바로 표시돼요.</Text>
+              <Text style={[ts(13, '600', P.ink3), { textAlign: 'center' }]}>{regionLabel(sel)} 지역에 등록된 카드샵이 아직 없어요.{'\n'}어드민 › 카드샵 관리에서 추가하면 바로 표시돼요.</Text>
             </View>
           ) : null}
           {regionShops.map((s, i) => {
@@ -459,6 +534,125 @@ export function ShopSection({ P, ts, region = '전체' }: { P: ShopPalette; ts: 
           </View>
         ) : null}
       </View>
+      </Curtain>
     </ScrollView>
+      )}
+    </View>
+  );
+}
+
+/**
+ * '준비중' 커튼 — 실제 화면을 딤 처리해 뒤에 두고 앞에 안내를 덮는다 (웹 Curtain 페어).
+ * on=false 면 children 을 그대로 낸다. 정본 플래그: shared/shopRegions.ts SHOP_COMING_SOON.
+ */
+function Curtain({ P, ts, on, children }: { P: ShopPalette; ts: TsFn; on: boolean; children: React.ReactNode }) {
+  if (!on) return <>{children}</>;
+  return (
+    <View style={{ position: 'relative' }}>
+      <View pointerEvents="none" style={{ opacity: 0.32 }}>
+        {children}
+      </View>
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          alignItems: 'center', paddingTop: 90, gap: 8,
+          backgroundColor: 'rgba(255,255,255,0.55)',
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: P.ink, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 20 }}>
+          <Text style={{ fontSize: 15 }}>🛠️</Text>
+          <Text style={ts(15, '900', P.cardBg)}>{SHOP_COMING_SOON_TEXT}</Text>
+        </View>
+        <Text style={[ts(12.5, '700', P.ink2), { textAlign: 'center', paddingHorizontal: 24 }]}>
+          {SHOP_COMING_SOON_SUB}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/** 지역 선택 시트 — 시/도 목록 → 그 안의 구/군 (웹 RegionPicker 페어). */
+function RegionPicker({
+  P, ts, open, tree, sel, onPick, onClose,
+}: {
+  P: ShopPalette;
+  ts: TsFn;
+  open: boolean;
+  tree: ReturnType<typeof buildRegionTree>;
+  sel: RegionSelection;
+  onPick: (next: RegionSelection) => void;
+  onClose: () => void;
+}) {
+  const [sido, setSido] = useState<string | null>(null);
+  useEffect(() => {
+    if (open) setSido(sel.sido ?? tree[0]?.name ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  const node = tree.find((t) => t.name === sido) ?? null;
+
+  return (
+    <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
+        <Pressable
+          onPress={() => undefined}
+          style={{ maxHeight: '72%', backgroundColor: P.cardBg, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: P.line }}>
+            <Text style={[ts(16, '800', P.ink), { flex: 1 }]}>지역 선택</Text>
+            <Pressable onPress={() => onPick(ALL_REGIONS)} style={{ backgroundColor: P.chip, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 12 }}>
+              <Text style={ts(12.5, '800', P.ink3)}>내 주변</Text>
+            </Pressable>
+            <Pressable onPress={onClose} hitSlop={8}>
+              <Text style={ts(20, '400', P.ink3)}>×</Text>
+            </Pressable>
+          </View>
+
+          {tree.length === 0 ? (
+            <View style={{ paddingVertical: 34, paddingHorizontal: 20 }}>
+              <Text style={[ts(13, '600', P.ink3), { textAlign: 'center', lineHeight: 22 }]}>
+                등록된 카드샵이 아직 없어요.{'\n'}어드민 › 카드샵 관리에서 추가하면 지역이 생겨요.
+              </Text>
+            </View>
+          ) : (
+            <View style={{ flexDirection: 'row', minHeight: 240 }}>
+              <ScrollView style={{ width: 108, backgroundColor: P.pageBg, borderRightWidth: 1, borderRightColor: P.line }}>
+                {tree.map((t) => {
+                  const on = t.name === sido;
+                  return (
+                    <Pressable key={t.name} onPress={() => setSido(t.name)} style={{ paddingVertical: 13, paddingHorizontal: 14, backgroundColor: on ? P.cardBg : 'transparent' }}>
+                      <Text style={ts(13.5, on ? '800' : '600', on ? P.ink : P.ink3)}>
+                        {t.name} <Text style={ts(13.5, '600', P.ink3)}>{t.count}</Text>
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              <ScrollView style={{ flex: 1 }}>
+                <Pressable onPress={() => sido && onPick({ sido, gu: null })} style={{ paddingVertical: 13, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: P.line }}>
+                  <Text style={ts(13.5, '800', P.ink)}>
+                    {sido} 전체 <Text style={ts(13.5, '600', P.ink3)}>{node?.count ?? 0}</Text>
+                  </Text>
+                </Pressable>
+                {(node?.gus ?? []).map((g) => {
+                  const on = sel.sido === sido && sel.gu === g.name;
+                  return (
+                    <Pressable
+                      key={g.name}
+                      onPress={() => sido && onPick({ sido, gu: g.name })}
+                      style={{ paddingVertical: 13, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: P.line, backgroundColor: on ? P.chip : 'transparent' }}
+                    >
+                      <Text style={ts(13.5, on ? '800' : '600', P.ink)}>
+                        {g.name} <Text style={ts(13.5, '600', P.ink3)}>{g.count}</Text>
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }

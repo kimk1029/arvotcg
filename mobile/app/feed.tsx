@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme, useThemeColors } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import { PixelFrame } from '@/components/cv/PixelFrame';
-import { ShopSection, SHOP_REGIONS } from '@/components/CommunityShop';
+import { ShopSection } from '@/components/CommunityShop';
 import { isFeedCategory } from '@/lib/feedCategories';
 import { feedHotScore, feedPostTitle, formatCount, rankBestPosts, rankHotPosts } from '@/lib/feedRanking';
 import { fonts } from '@/theme/tokens';
@@ -68,8 +68,8 @@ const CLEAN_P: Palette = {
   chev: '#C2C2C8',
 };
 
-type CatId = '전체' | '자유' | '시세/정보' | '자랑' | '거래/나눔';
-const CATS: CatId[] = ['전체', '자유', '시세/정보', '자랑', '거래/나눔'];
+type CatId = '전체' | '자유' | '시세/정보' | '자랑' | '카드쇼' | '거래/나눔';
+const CATS: CatId[] = ['전체', '자유', '시세/정보', '자랑', '카드쇼', '거래/나눔'];
 
 type SortId = '최신순' | '인기순' | '추천순' | '댓글순';
 const SORTS: SortId[] = ['최신순', '인기순', '추천순', '댓글순'];
@@ -79,6 +79,7 @@ const TAG_COLOR: Record<string, { fg: string; bg: string }> = {
   '자랑': { fg: '#C2410C', bg: '#FFEDD5' },
   '거래/나눔': { fg: '#7C3AED', bg: '#F1EAFF' },
   '시세/정보': { fg: '#0369A1', bg: '#E0F2FE' },
+  '카드쇼': { fg: '#B45309', bg: '#FEF3C7' },
 };
 
 /* ---------------- 정적 편집 데이터 ---------------- */
@@ -96,7 +97,7 @@ interface FeatureItem {
 }
 // 인기글 타일 배경 — 순위별 순환 (웹 GRAD_CYCLE 대응).
 const BG_CYCLE = ['#ff5a2b', '#5a3aa0', '#c98ce0', '#ff7a2f', '#2a2a34', '#6a5ad0', '#36a0c8'];
-const CAT_EMOJI: Record<string, string> = { '자유': '💬', '시세/정보': '📈', '자랑': '✨', '거래/나눔': '🤝' };
+const CAT_EMOJI: Record<string, string> = { '자유': '💬', '시세/정보': '📈', '자랑': '✨', '카드쇼': '🎪', '거래/나눔': '🤝' };
 
 const KEYWORDS = ['# 신규발매', '# 그레이딩', '# 일본판', '# 시세폭등', '# 직거래', '# 컬렉션'];
 
@@ -291,7 +292,6 @@ export default function CommunityScreen() {
   useEffect(() => {
     if (tab === 'shop') setMode('shop');
   }, [tab]);
-  const [region, setRegion] = useState('전체');
   const [cat, setCat] = useState<CatId>('전체');
   const [sort, setSort] = useState<SortId>('최신순');
   const [feature, setFeature] = useState<'hot' | 'best'>('hot');
@@ -476,7 +476,7 @@ export default function CommunityScreen() {
           <SegmentedTabs
             items={[
               { id: 'feed', label: '커뮤니티', icon: SegIcons.chat },
-              { id: 'shop', label: 'Shop', icon: SegIcons.pin },
+              { id: 'shop', label: '카드샵', icon: SegIcons.pin },
             ]}
             value={mode}
             onChange={switchMode}
@@ -522,24 +522,8 @@ export default function CommunityScreen() {
           </View>
         ) : null}
 
-        {/* shop 모드: 지역 칩 / feed 모드: 카테고리 탭 */}
-        {isShop ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 12 }}
-            style={{ borderBottomWidth: 1, borderBottomColor: P.line }}
-          >
-            {SHOP_REGIONS.map((rg) => {
-              const on = region === rg;
-              return (
-                <Pressable key={rg} onPress={() => setRegion(rg)} style={{ paddingVertical: 7, paddingHorizontal: 14, borderRadius: 18, backgroundColor: on ? P.ink : P.chip }}>
-                  <Text style={ts(13, '700', on ? P.cardBg : P.ink3)}>{rg}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        ) : (
+        {/* 카테고리 탭 — 카드샵 모드의 국가/지역 선택은 ShopSection 안에 있다 (웹 동일). */}
+        {isShop ? null : (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -572,7 +556,7 @@ export default function CommunityScreen() {
       </View>
 
       {isShop ? (
-        <ShopSection P={P} ts={ts} region={region} />
+        <ShopSection P={P} ts={ts} />
       ) : (
       <View ref={scrollBoxRef} collapsable={false} style={{ flex: 1 }}>
       <ScrollView
