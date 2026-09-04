@@ -28,6 +28,7 @@ import { CARD_PACKS, type CardPackMeta } from '@/data/cardPacks';
 import { pickHomeBoxPacks } from '../../../shared/homeBoxPacks';
 import { jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
 import { useScanToSearch } from '@/lib/useScanToSearch';
+import { peekHomeState, patchHomeState } from '@/lib/homeScreenState';
 import { api } from '@/lib/apiClient';
 import { fetchMySummary, fetchNotifUnreadCount, fetchPortfolio, fetchUnreadCount, peekPortfolio, type MySummary } from '@/lib/myApi';
 import { isAuthenticated } from '@/lib/session';
@@ -444,6 +445,21 @@ export function CleanHomeScreen() {
   // Modal 이라 탭바 위까지 덮는다(웹 fixed 오버레이 패리티).
   // 열릴 땐 패널 스프링(살짝 튀어나왔다 자리잡음) + 항목 위→아래 스태거, 닫힐 땐 빠른 이즈.
   const insets = useSafeAreaInsets();
+
+  // ── 뒤로가기 복귀 복원 ─────────────────────────────────────────────
+  // 루트가 <Slot/> 이라 상세로 나가면 홈이 언마운트된다. 마지막 스냅샷(게임 칩·랭킹 탭·
+  // 대표가/등락률·스크롤 위치)을 시드로 써서 "보던 자리"가 그대로 이어지게 한다.
+  const restored = useRef(peekHomeState()).current;
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollYRef = useRef(0);
+  const pendingScrollY = useRef(restored?.scrollY ?? 0);
+  useEffect(
+    () => () => {
+      patchHomeState({ scrollY: scrollYRef.current });
+    },
+    [],
+  );
+
   const [drawerVisible, setDrawerVisible] = useState(false);
   const drawerAnim = useRef(new Animated.Value(0)).current;
   const drawerItemAnims = useRef(
@@ -526,7 +542,7 @@ export function CleanHomeScreen() {
   // 홈 노출 게임 — 단일 선택(라디오). 기본 포켓몬, 다른 칩을 누르면 그 게임만 노출.
   // enabledGames(설정)는 어떤 칩을 보여줄지에만 쓰인다 (웹 CleanHome 동일).
   const { enabledGames } = useGamePrefs();
-  const [homeGame, setHomeGame] = useState<GameId>('pokemon');
+  const [homeGame, setHomeGame] = useState<GameId>(() => (restored?.homeGame as GameId | undefined) ?? 'pokemon');
 
   // 인기 카드 — 선택 게임만 조회(포켓몬=browse, 그 외=키워드 검색) 후 게임별 캐시.
   // 칩 전환 시 재조회 없이 즉시 복귀. 세션 캐시(TTL)로 홈 재진입도 즉시.
@@ -616,18 +632,24 @@ export function CleanHomeScreen() {
 
   // 등락률 + 대표 시세 — 표시된 인기 카드의 판매 차트/거래내역을 받아 채움(렌더 후 점진).
   // 대표 시세 = 시세상세 헤드라인과 동일(거래 많은 등급의 최근 체결가). 없으면 minPrice 폴백.
-  const [changeById, setChangeById] = useState<Record<number, number>>({});
-  const [priceById, setPriceById] = useState<Record<number, number>>({});
+  const [changeById, setChangeById] = useState<Record<number, number>>(() => restored?.changeById ?? {});
+  const [priceById, setPriceById] = useState<Record<number, number>>(() => restored?.priceById ?? {});
   // 대표 시세의 등급 기준('PSA 10' 이면 우하단에 PSA10 마크 표시).
-  const [basisById, setBasisById] = useState<Record<number, string>>({});
+  const [basisById, setBasisById] = useState<Record<number, string>>(() => restored?.basisById ?? {});
   /**
    * 목록 → 시세상세 이동. 목록이 보여준 등급 기준(basis)을 `?grade=` 로 실어 보내
    * 상세 첫 화면 헤드라인이 목록 가격과 같아지게 한다.
    */
   // 하단 섹션 탭 (웹 CleanHome 동일): 급등 | SNKR 최고가 | 컬렉션 TOP — 랭킹 2종은 /api/snkrdunk/ranking.
-  const [moverTab, setMoverTab] = useState<MoverTab>('surge');
-  const [rankRows, setRankRows] = useState<Record<string, RankRow[]>>({});
+  const [moverTab, setMoverTab] = useState<MoverTab>(() => (restored?.moverTab as MoverTab | undefined) ?? 'surge');
+  const [rankRows, setRankRows] = useState<Record<string, RankRow[]>>(
+    () => (restored?.rankRows as Record<string, RankRow[]> | undefined) ?? {},
+  );
   const rankKey = `${moverTab}:${homeGame}`;
+  // 스냅샷 갱신 — 값이 바뀔 때마다(얕은 병합, 메모리 전용). 스크롤은 언마운트 시 별도 저장.
+  useEffect(() => {
+    patchHomeState({ homeGame, moverTab, rankRows, priceById, changeById, basisById });
+  }, [homeGame, moverTab, rankRows, priceById, changeById, basisById]);
   useEffect(() => {
     if (moverTab === 'surge' || rankRows[rankKey]) return;
     let alive = true;
@@ -860,7 +882,25 @@ export function CleanHomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: P.bg }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 110 }}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={100}
+        onScroll={(e) => {
+          scrollYRef.current = e.nativeEvent.contentOffset.y;
+        }}
+        onContentSizeChange={(_w, h) => {
+          // 복귀 복원 — 캐시 시드로 그려진 콘텐츠가 목표 위치만큼 커지면 한 번만 점프.
+          const y = pendingScrollY.current;
+          if (y > 0 && h >= y) {
+            pendingScrollY.current = 0;
+            scrollYRef.current = y;
+            scrollRef.current?.scrollTo({ y, animated: false });
+          }
+        }}
+      >
         {/* header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 8 }}>
           <Text style={ts(24, '900', P.ink)}>

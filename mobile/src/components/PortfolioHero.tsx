@@ -12,6 +12,7 @@ import { router } from 'expo-router';
 import { PixelText } from '@/components/PixelText';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { isAuthenticated, subscribeSession } from '@/lib/session';
+import { useSWR } from '@/lib/swr';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { useCollection } from '@/lib/collection';
 import { cardJpy } from '@/data/cardvault';
@@ -19,7 +20,7 @@ import {
   fetchMyCards,
   fetchPortfolio,
   peekMyCards,
-  peekPortfolio,
+  SWR_PORTFOLIO,
   type MyCardRow,
   type PortfolioSummary,
 } from '@/lib/myApi';
@@ -77,21 +78,15 @@ export function PortfolioHero({ totals: totalsProp }: { totals?: HeroTotals | nu
   const { format, rate, mode, setMode } = useCurrency();
 
   // 서버 포트폴리오 — totalJpy 는 등급 일치 합산(웹 동일 소스).
-  // SWR 캐시 시드 — 오프라인/조회 실패에도 마지막 총액이 ¥0 으로 무너지지 않게.
-  const [port, setPort] = useState<PortfolioSummary | null>(() => {
-    const p = peekPortfolio();
-    return p && p.totalCount > 0 ? p : null;
+  // 내 카드 화면과 같은 SWR 키를 구독한다 — 카드 등록/삭제가 `me:portfolio` 를 무효화하면
+  // 포커스 복귀 시 자동 재조회되어 총액이 바로 합산된다(예전엔 마운트 1회 조회라 낡은 값 유지).
+  // 캐시 시드 — 오프라인/조회 실패에도 마지막 총액이 ¥0 으로 무너지지 않게.
+  const { data: portData } = useSWR<PortfolioSummary>(SWR_PORTFOLIO, fetchPortfolio, {
+    persist: true,
+    enabled: authed,
+    deps: [authed],
   });
-  useEffect(() => {
-    if (!authed) return;
-    let alive = true;
-    fetchPortfolio()
-      .then((d) => alive && d && d.totalCount > 0 && setPort(d))
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, [authed]);
+  const port = portData && portData.totalCount > 0 ? portData : null;
 
   // 구매금액/평가손익 — 웹 CollectionScreen totals 와 동일하게 서버 카드 행 기준.
   // 부모(내 카드 화면)가 이미 with-prices 를 갖고 있으면 prop 으로 받고,
@@ -123,9 +118,10 @@ export function PortfolioHero({ totals: totalsProp }: { totals?: HeroTotals | nu
   const totalJpy = port ? port.totalJpy : localTotalJpy;
   const totalCount = port ? port.totalCount : owned.length;
 
-  const realPct = port?.changePct ?? null;
-  const realAbsJpy = port?.changeAbsJpy ?? null;
-  const up = (realPct ?? 0) >= 0;
+  // 누적 수익률 — 보유 카드 전체의 (현재가-기준가)×수량 합산 / 구매금액 합산.
+  // 카드별 손익(-100만/+50만)을 상쇄해 평균 수익률로 보여준다 (웹 CollectionScreen 동일).
+  const profitPct = hasInvested ? (profitJpy / investedJpy) * 100 : null;
+  const up = profitJpy >= 0;
 
   return (
     <View style={{ marginHorizontal: 14, marginBottom: 6, position: 'relative' }}>
@@ -167,12 +163,12 @@ export function PortfolioHero({ totals: totalsProp }: { totals?: HeroTotals | nu
             {format(totalJpy)}
           </PixelText>
 
-          {/* 어제 대비 등락 — 서버 changePct 있을 때만 (웹 동일) */}
-          {realPct != null ? (
+          {/* 누적 수익률 — 구매금액 있는 카드 합산 손익 / 구매금액 (웹 동일) */}
+          {profitPct != null ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 8, flexWrap: 'wrap' }}>
-              <PixelText variant="ko" size={10} color="rgba(255,255,255,0.5)">어제 대비 등락</PixelText>
+              <PixelText variant="ko" size={10} color="rgba(255,255,255,0.5)">누적 수익률</PixelText>
               <PixelText variant="ko" size={12} weight="bold" color={up ? '#FF6B5E' : '#6FA8FF'}>
-                {up ? '+' : '-'}{format(Math.abs(realAbsJpy ?? 0))} ({up ? '+' : ''}{realPct.toFixed(2)}%) {up ? '▲' : '▼'}
+                {up ? '+' : '-'}{format(Math.abs(profitJpy))} ({up ? '+' : ''}{profitPct.toFixed(2)}%) {up ? '▲' : '▼'}
               </PixelText>
             </View>
           ) : null}

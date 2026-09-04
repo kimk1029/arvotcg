@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { invalidateCollectionCaches } from '@/lib/collectionCache';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { startRouteTransition } from '@/components/RouteProgress';
@@ -160,6 +161,9 @@ export function CardRegisterSheet({
         const body = (await r.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? `HTTP ${r.status}`);
       }
+      // 내 컬렉션/홈 헤더 세션 캐시 무효화 — 안 비우면 재진입 시 낡은 총액이 먼저 그려지고
+      // 무거운 /api/me/portfolio 가 타임아웃되면 새 카드가 합산되지 않은 채 남는다.
+      invalidateCollectionCaches();
       setSaved(true);
       onSaved?.();
       if (redirectOnSave) {

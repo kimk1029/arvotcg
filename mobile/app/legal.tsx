@@ -5,7 +5,7 @@
  * 별도 OAuth 가로채기 로직 없이 단순 표시 전용.
  */
 import { useState } from 'react';
-import { ActivityIndicator, StatusBar, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { EMBED_QUERY_KEY, EMBED_UA_TOKEN } from '@/lib/embed';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -32,7 +32,6 @@ export default function LegalScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: tc.paper }}>
-      <StatusBar barStyle="dark-content" />
       <AppBar onBack={() => router.back()} title={meta.title} />
       <View style={{ flex: 1, marginBottom: floatNavInset }}>
         <WebView

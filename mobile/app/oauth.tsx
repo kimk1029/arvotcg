@@ -8,7 +8,7 @@
  * 발생하지 않는다.
  */
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, StatusBar, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -84,7 +84,6 @@ export default function OAuthWebView() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.paper, paddingTop: insets.top }}>
-      <StatusBar barStyle="dark-content" />
       <AppBar onBack={() => router.back()} title="소셜 로그인" />
       <View style={{ flex: 1 }}>
         <WebView

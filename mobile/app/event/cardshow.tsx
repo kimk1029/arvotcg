@@ -5,7 +5,7 @@
  * 미로그인 상태면 게이트를 띄워 로그인으로 유도 (페이지 자체 게이트와 이중 안전).
  */
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StatusBar, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { EMBED_QUERY_KEY, EMBED_UA_TOKEN } from '@/lib/embed';
 import { router } from 'expo-router';
@@ -48,7 +48,6 @@ export default function CardShowScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0F172A' }}>
-      <StatusBar barStyle="light-content" />
       <AppBar title="카드쇼 사전예약" onBack={() => router.back()} />
       <WebView
         source={{ uri: url }}

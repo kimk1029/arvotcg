@@ -109,7 +109,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {/* 테마 부트스트랩 — hydration 전에 동기 실행, FOUC 방지 */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('pokefesta-theme');if(t==='pokemon'||t==='onepiece'||t==='yugioh'||t==='sports'||t==='clean'||t==='dark')document.documentElement.setAttribute('data-theme',t);else document.documentElement.setAttribute('data-theme','clean');}catch(e){document.documentElement.setAttribute('data-theme','clean');}})();`,
+            __html: `(function(){var C={pokemon:'#F7F3E3',onepiece:'#F8ECD0',yugioh:'#F6ECD4',sports:'#F7F8EA',clean:'#FFFFFF',dark:'#0A0D13'};var t='clean';try{var s=localStorage.getItem('pokefesta-theme');if(s&&C[s])t=s;}catch(e){}document.documentElement.setAttribute('data-theme',t);var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement('meta');m.name='theme-color';document.head.appendChild(m);}m.content=C[t];})();`,
           }}
         />
       </head>

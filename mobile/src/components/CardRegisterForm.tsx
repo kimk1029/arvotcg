@@ -132,7 +132,7 @@ export function CardRegisterForm({
   const [saving, setSaving] = useState(false);
 
   /** 구매정보를 카드에 반영해 로컬+서버 저장. */
-  const finalize = () => {
+  const finalize = async () => {
     if (saving) return;
     setSaving(true);
     const gradingPatch: Partial<CardItem> = graded
@@ -167,8 +167,10 @@ export function CardRegisterForm({
           };
     }
     // 로컬 캐시(홈 등 로컬 기반 화면용) + 서버 DB 양쪽에 저장.
+    // 서버 저장을 기다린 뒤 onSaved — 안 기다리면 내 카드 화면이 SWR 무효화보다 먼저
+    // 포커스돼 낡은 캐시(TTL 내)를 그대로 그려 총액에 새 카드가 합산되지 않는다.
     addCards([saved]);
-    createMyCard({
+    await createMyCard({
       snkrdunkApparelId: saved.snkrdunkApparelId ?? null,
       ocrSetCode: saved.set && saved.set !== '-' ? saved.set : null,
       ocrCardNumber: saved.num && saved.num !== '-' ? saved.num.split('/')[0] : null,

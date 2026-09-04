@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 import {
+  applyThemeColorMeta,
   DEFAULT_THEME,
   isThemeId,
   THEME_STORAGE_KEY,
@@ -64,6 +65,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       // flushSync 로 동기 커밋해야 View Transition 의 "after" 스냅샷에 새 테마가 잡힘.
       flushSync(() => setThemeState(t));
       document.documentElement.setAttribute('data-theme', t);
+      applyThemeColorMeta(t);
     };
 
     const doc = document as DocWithViewTransition;

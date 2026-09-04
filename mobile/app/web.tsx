@@ -8,7 +8,7 @@
  * 외부 사이트에는 절대 토큰을 노출하지 않는다.
  */
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, StatusBar, Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { EMBED_QUERY_KEY, EMBED_UA_TOKEN } from '@/lib/embed';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -60,7 +60,6 @@ export default function InAppWebScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: tc.paper }}>
-      <StatusBar barStyle="dark-content" />
       <AppBar title={typeof title === 'string' && title ? title : '이벤트'} onBack={() => router.back()} />
       <WebView
         source={{ uri: finalUrl }}

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { COLLECTION_CACHE_KEY } from '@/lib/collectionCache';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CardThumb } from '@/components/CardThumb';
@@ -104,7 +105,6 @@ function cardSub(c: CardRow): string {
 
 /* 세션 캐시 — 재진입 시 마지막 결과를 즉시 그리고(스피너 없이) 백그라운드 갱신(SWR).
  * sessionStorage 라 탭을 닫으면 사라지고, 로그아웃/계정 전환도 새 탭 세션이면 안 샌다. */
-const COLLECTION_CACHE_KEY = 'pf30:collection-cache:v1';
 function loadCollectionCache(): { port: PortfolioData; cards: CardRow[] } | null {
   try {
     const raw = sessionStorage.getItem(COLLECTION_CACHE_KEY);
@@ -401,7 +401,9 @@ export function CollectionScreen() {
     );
 
   const totalJpy = usePsa10 && port.totalPsa10Jpy > 0 ? port.totalPsa10Jpy : port.totalJpy;
-  const up = (port.changePct ?? 0) >= 0;
+  // 누적 수익률 — 보유 카드 전체의 (현재가-기준가)×수량 합산 / 구매금액 합산.
+  // 카드별 손익(-100만/+50만)을 상쇄한 평균 수익률 (앱 PortfolioHero 동일).
+  const up = totals.profit >= 0;
 
   return (
     <div style={{ paddingBottom: 40 }}>
@@ -452,13 +454,13 @@ export function CollectionScreen() {
             <div style={{ fontFamily: 'var(--f1)', fontSize: 30, fontWeight: 900, color: '#fff', letterSpacing: '-0.5px', marginTop: 12 }}>
               {format(totalJpy)}
             </div>
-            {port.changePct != null && (
+            {totals.pct != null && (
               <div style={{ marginTop: 8 }}>
                 <span style={{ fontFamily: 'var(--f1)', fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,.5)', marginRight: 7 }}>
-                  어제 대비 등락
+                  누적 수익률
                 </span>
                 <span style={{ fontFamily: 'var(--f1)', fontSize: 13.5, fontWeight: 800, color: up ? '#FF6B5E' : '#6FA8FF' }}>
-                  {up ? '+' : '-'}{format(Math.abs(port.changeAbsJpy ?? 0))} ({up ? '+' : ''}{port.changePct.toFixed(2)}%) {up ? '▲' : '▼'}
+                  {up ? '+' : '-'}{format(Math.abs(totals.profit))} ({up ? '+' : ''}{totals.pct.toFixed(2)}%) {up ? '▲' : '▼'}
                 </span>
               </div>
             )}

@@ -96,6 +96,9 @@
     },
     "updates": {
       "url": "https://u.expo.dev/2c43f639-65c3-4f0f-a49c-7289bc28e232"
+    },
+    "androidStatusBar": {
+      "barStyle": "dark-content"
     }
   }
 }

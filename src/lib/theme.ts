@@ -59,3 +59,28 @@ export function isThemeId(v: unknown): v is ThemeId {
     v === 'dark'
   );
 }
+
+/**
+ * 테마별 상단(페이퍼) 색 — 브라우저 크롬/iOS 상태바 영역의 `<meta name="theme-color">` 값.
+ * globals.css 의 각 테마 `--paper` 와 같은 값 (앱 PhoneShell 의 SafeArea 페이퍼색과 패리티).
+ */
+export const THEME_TOP_COLOR: Record<ThemeId, string> = {
+  pokemon: '#F7F3E3',
+  onepiece: '#F8ECD0',
+  yugioh: '#F6ECD4',
+  sports: '#F7F8EA',
+  clean: '#FFFFFF',
+  dark: '#0A0D13',
+};
+
+/** `<meta name="theme-color">` 를 현재 테마 상단색으로 갱신 (없으면 생성). */
+export function applyThemeColorMeta(t: ThemeId): void {
+  if (typeof document === 'undefined') return;
+  let m = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (!m) {
+    m = document.createElement('meta');
+    m.name = 'theme-color';
+    document.head.appendChild(m);
+  }
+  m.content = THEME_TOP_COLOR[t];
+}

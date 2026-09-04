@@ -6,7 +6,7 @@
  * 루트 레이아웃의 딥링크 핸들러가 토큰을 저장한다.
  */
 import { useState } from 'react';
-import { Alert, Platform, View, ScrollView, Pressable, StatusBar } from 'react-native';
+import { Alert, Platform, View, ScrollView, Pressable } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { api } from '@/lib/apiClient';
 import { persistTokenAndGoHome } from '@/lib/oauth';
@@ -73,7 +73,6 @@ export default function LoginScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0F172A' }}>
-      <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={{ paddingHorizontal: 28, paddingBottom: 40, paddingTop: 80 }}>
         {/* Hero — 브랜드 픽셀 마크 + 타이틀 */}
         <View style={{ alignItems: 'center', gap: 20, marginBottom: 40 }}>

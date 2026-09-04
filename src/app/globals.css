@@ -3690,6 +3690,7 @@ a{color:inherit;text-decoration:none;}
    픽셀 박스섀도우/픽셀폰트/자간은 전혀 사용하지 않는다.
    ════════════════════════════════════════════════════════════════ */
 [data-theme="dark"]{
+  color-scheme: dark;
   /* 면/배경 */
   /* 프로토타입(cardvault-cyber) 토큰에 정렬 */
   --paper:#0A0D13; --pap2:#0A0D13; --pap3:#232B3A; --papdk:#454F61;

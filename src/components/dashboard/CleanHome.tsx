@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { HOME_PORT_CACHE_KEY } from '@/lib/collectionCache';
+import { peekHomeState, patchHomeState } from '@/lib/homeScreenState';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { useUnread } from '@/components/UnreadProvider';
@@ -156,7 +158,7 @@ interface DrawerSummary {
 const ME_CACHE_KEY = 'pf30:homeMe';
 const ME_TTL_MS = 5 * 60_000;
 // 헤더 포트폴리오 등락 인디케이터 캐시 — /api/me/portfolio 가 무거워(스냅샷 집계) 재사용.
-const PORT_CACHE_KEY = 'pf30:homePortPct';
+const PORT_CACHE_KEY = HOME_PORT_CACHE_KEY;
 
 function loadMeCache(): DrawerSummary | null {
   try {
@@ -567,7 +569,51 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
   // 홈 노출 게임 — 단일 선택(라디오). 기본 포켓몬, 다른 칩을 누르면 그 게임만 노출.
   // enabledGames(설정)는 어떤 칩을 보여줄지에만 쓰인다.
   const { enabledGames } = useGamePrefs();
-  const [homeGame, setHomeGame] = useState<GameId>('pokemon');
+  // ── 뒤로가기 복귀 복원 ─────────────────────────────────────────────
+  // 페이지 세그먼트가 언마운트되고 스크롤 컨테이너도 window 가 아닌 `.screen` 이라
+  // 마지막 스냅샷(게임 칩·랭킹 탭·랭킹 행·스크롤 위치)을 시드로 써서 "보던 자리"를 잇는다(앱 동일).
+  const restored = useRef(peekHomeState()).current;
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = rootRef.current?.closest('.screen') as HTMLElement | null;
+    if (!el) return;
+    const target = restored?.scrollY ?? 0;
+    let raf = 0;
+    if (target > 0) {
+      // 캐시 시드로 그려진 콘텐츠가 목표 위치만큼 커질 때까지(최대 ~20프레임) 기다렸다 점프.
+      let tries = 0;
+      const tick = () => {
+        if (el.scrollHeight - el.clientHeight >= target || tries++ > 20) {
+          el.scrollTop = target;
+          return;
+        }
+        raf = requestAnimationFrame(tick);
+      };
+      tick();
+    }
+    // 스크롤 위치는 스로틀 저장 + 언마운트 시 마지막 값 저장(언마운트 시점엔 컨테이너
+    // 내용이 이미 바뀌어 scrollTop 을 믿을 수 없다).
+    let last = target;
+    let timer: number | null = null;
+    const onScroll = () => {
+      last = el.scrollTop;
+      if (timer == null) {
+        timer = window.setTimeout(() => {
+          timer = null;
+          patchHomeState({ scrollY: last });
+        }, 150);
+      }
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      if (timer != null) window.clearTimeout(timer);
+      cancelAnimationFrame(raf);
+      patchHomeState({ scrollY: last });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [homeGame, setHomeGame] = useState<GameId>(() => (restored?.homeGame as GameId | undefined) ?? 'pokemon');
 
   // HOT 카드 — 선택 게임만 클라이언트 조회(포켓몬=브라우즈, 그 외=키워드 검색) 후 게임별 캐시.
   // 서버 렌더를 막지 않아 홈 첫 진입이 빠르고(앱과 동일 컨셉), 칩 전환 시 재조회 없이 즉시 복귀.
@@ -760,9 +806,15 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
   );
   // 하단 섹션 탭: 실시간 급등(HOT 후보 등락률) | SNKR 최고가(스니덩크 카탈로그 전체 체결가 TOP10)
   // | 컬렉션 TOP(회원 컬렉션 등록 카드 시세순, 직접 입력 제외). 랭킹 2종은 /api/snkrdunk/ranking.
-  const [moverTab, setMoverTab] = useState<MoverTab>('surge');
-  const [rankRows, setRankRows] = useState<Record<string, RankRow[]>>({});
+  const [moverTab, setMoverTab] = useState<MoverTab>(() => (restored?.moverTab as MoverTab | undefined) ?? 'surge');
+  const [rankRows, setRankRows] = useState<Record<string, RankRow[]>>(
+    () => (restored?.rankRows as Record<string, RankRow[]> | undefined) ?? {},
+  );
   const rankKey = `${moverTab}:${homeGame}`;
+  // 스냅샷 갱신 — 값이 바뀔 때마다(얕은 병합). 스크롤은 위 효과가 별도 저장.
+  useEffect(() => {
+    patchHomeState({ homeGame, moverTab, rankRows });
+  }, [homeGame, moverTab, rankRows]);
   useEffect(() => {
     if (moverTab === 'surge' || rankRows[rankKey]) return;
     let alive = true;
@@ -787,7 +839,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
   const boxDisplay = boxRows.length > 0 ? [...boxRows, ...boxRows] : [];
 
   return (
-    <div className="pagebg" style={{ fontFamily: 'var(--f1)', background: P.bg }}>
+    <div ref={rootRef} className="pagebg" style={{ fontFamily: 'var(--f1)', background: P.bg }}>
       {/* header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px 8px' }}>
         <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-.5px' }}>
