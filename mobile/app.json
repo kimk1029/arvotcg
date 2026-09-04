@@ -26,7 +26,7 @@
           "NSAllowsLocalNetworking": true
         }
       },
-      "buildNumber": "27"
+      "buildNumber": "28"
     },
     "android": {
       "package": "com.arvotcg.app",
@@ -34,7 +34,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0a1121"
       },
-      "versionCode": 22
+      "versionCode": 23
     },
     "web": {
       "bundler": "metro",
