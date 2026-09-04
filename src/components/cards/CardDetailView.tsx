@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
 import { Panel } from '@/components/ui/Panel';
@@ -10,9 +9,9 @@ import { CardActions } from '@/components/CardActions';
 import { KreamCompare } from '@/components/cards/KreamCompare';
 import { MultiSourceKoPrice } from '@/components/cards/MultiSourceKoPrice';
 import { PsaPopPanel } from '@/components/cards/PsaPopPanel';
+import { BoxHitCards } from '@/components/cards/BoxHitCards';
 import { downsamplePricePoints, isGradedSnkrdunkBadge } from '@/lib/snkrdunk';
-import { getCardPackMeta } from '@/lib/cardPacks';
-import { boxHeadlineFromHistory, defaultGradeKey, gradeDisplayJpy, gradeUplift, priceChangeFromPoints, type SnkrGradeAgg } from '@/lib/snkrdunkPrice';
+import { BOX_RANGE_MAX_DAYS, boxHeadlineFromHistory, defaultGradeKey, gradeDisplayJpy, gradeUplift, priceChangeFromPoints, type SnkrGradeAgg } from '@/lib/snkrdunkPrice';
 
 /**
  * 카드 시세 상세 — ARVOTCG '카드상세' 디자인 레이아웃.
@@ -83,6 +82,11 @@ const RANGES: Array<{ label: string; days: number }> = [
   { label: '1년', days: 365 },
   { label: '전체', days: 0 },
 ];
+/** 박스 기간 탭 — 시리즈가 일일 스냅샷(최대 90일)이라 그 이상 구간은 만들지 않는다. */
+const BOX_RANGES = RANGES.filter((r) => r.days > 0 && r.days <= BOX_RANGE_MAX_DAYS).concat({
+  label: '전체',
+  days: 0,
+});
 
 /** 등락 표시 (전일/주간). */
 function Delta({ diff, pct }: { diff: number; pct: number | null }) {
@@ -125,6 +129,9 @@ export function CardDetailView({
   const [gradeKey, setGradeKey] = useState<string>(defaultGrade);
   const [region, setRegion] = useState<string>('일본판');
   const [rangeIdx, setRangeIdx] = useState<number>(4); // 전체
+  // 박스는 스냅샷 시리즈(최대 90일)라 기간 탭이 짧다 — 인덱스는 목록 길이로 클램프.
+  const ranges = isBox ? BOX_RANGES : RANGES;
+  const rangeI = Math.min(rangeIdx, ranges.length - 1);
 
   const sel = grades.find((g) => g.key === gradeKey) ?? grades[0];
   // 정본 gradeDisplayJpy — 홈 HOT·내 컬렉션 목록가와 같은 통계(최근 체결 중앙값).
@@ -152,13 +159,13 @@ export function CardDetailView({
   // 차트 — 기간 필터 후 다운샘플.
   const chartData = useMemo(() => {
     const pts = [...chartPoints].sort((a, b) => a[0] - b[0]);
-    const days = RANGES[rangeIdx].days;
+    const days = ranges[rangeI].days;
     const filtered =
       days > 0 && pts.length > 0
         ? pts.filter((p) => p[0] >= pts[pts.length - 1][0] - days * 86_400_000)
         : pts;
     return downsamplePricePoints(filtered.length >= 2 ? filtered : pts);
-  }, [chartPoints, rangeIdx]);
+  }, [chartPoints, ranges, rangeI]);
 
   // 최근 거래내역 — 선택 등급으로 필터(빈 등급이면 전체 표시).
   const filteredTrades = useMemo(() => {
@@ -210,27 +217,6 @@ export function CardDetailView({
           {/* 박스: 상품번호 대신 소속 세트코드 라벨 */}
           {isBox ? (setCode && <Chip muted>{setCode.toUpperCase()}</Chip>) : (productNumber && <Chip muted>{productNumber}</Chip>)}
         </div>
-
-        {/* 박스 → 수록 카드(힛카드) 목록 = 시세확인의 해당 박스 페이지(/cards/packs/{code}).
-            칩 행 아래 별도 줄, 색은 BOX 칩(보라)과 구분되는 해당 팩 고유색(CARD_PACKS.bg). 앱 동일. */}
-        {isBox && packCode && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
-            <Link
-              href={`/cards/packs/${packCode}`}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--f1)', fontSize: 12, fontWeight: 800,
-                color: 'var(--white)', background: getCardPackMeta(packCode)?.bg ?? 'var(--ink)', padding: '8px 16px', borderRadius: 'var(--r-pill)',
-                boxShadow: '0 2px 8px rgba(0,0,0,.18)', textDecoration: 'none', whiteSpace: 'nowrap',
-              }}
-            >
-              {setCode ? `${setCode.toUpperCase()} ` : ''}힛카드
-              {/* 외부 이동 아이콘 — 오른쪽 위 화살표 */}
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M7 17 17 7M9 7h8v8" />
-              </svg>
-            </Link>
-          </div>
-        )}
 
         {/* 가격 박스 */}
         <Panel style={{ marginTop: 16, padding: 18 }}>
@@ -298,6 +284,14 @@ export function CardDetailView({
         gradePrices={isBox ? null : gradePrices}
       />
 
+      {/* ── 힛카드 목록 (박스 전용) — 이 박스에서 나오는 싱글을 비싼 순 가로 스와이프.
+          '내 컬렉션에 추가' 액션과 '가격 추이' 사이 자리. 앱 동일. ── */}
+      {isBox && packCode && (
+        <>
+          <div style={{ height: 14 }} />
+          <BoxHitCards packCode={packCode} setCode={setCode} />
+        </>
+      )}
 
       {/* 박스는 지역 탭·한국판 비교 없음(등급/카드번호 매칭 기반) */}
       {!isBox && (
@@ -401,11 +395,11 @@ export function CardDetailView({
       <div className="sect">
         <div className="sect-hd">
           <h2>가격 추이</h2>
-          <span className="more">{RANGES[rangeIdx].label}</span>
+          <span className="more">{ranges[rangeI].label}</span>
         </div>
         <div className="hrow" style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 10 }}>
-          {RANGES.map((r, i) => {
-            const active = i === rangeIdx;
+          {ranges.map((r, i) => {
+            const active = i === rangeI;
             return (
               <button
                 key={r.label}

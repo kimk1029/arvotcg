@@ -14,6 +14,7 @@ import { isFeedCategory } from '@/lib/feedCategories';
 import { feedHotScore, feedPostTitle, formatCount, rankBestPosts, rankHotPosts } from '@/lib/feedRanking';
 import type { FeedPost, Trade } from '@/lib/types';
 import { SegmentedTabs, SegIcons } from '@/components/ui/SegmentedTabs';
+import { useUnread } from '@/components/UnreadProvider';
 
 /**
  * 커뮤니티 — Claude Design 'ARVOTCG 커뮤니티' 프로토타입 레이아웃.
@@ -168,8 +169,9 @@ const Ic = {
   search: (c: string, s = 22) => (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
   ),
-  bell: (c: string, s = 22) => (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg>
+  // 쪽지(편지봉투) — 헤더 우측 아이콘. 이동 대상이 /my/messages 라 벨(알림)이 아닌 쪽지가 맞다.
+  mail: (c: string, s = 22) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5" /><path d="m3 7 8.1 5.6a1.6 1.6 0 0 0 1.8 0L21 7" /></svg>
   ),
   edit: (c: string, s = 16) => (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
@@ -198,6 +200,8 @@ interface Props {
 
 export function CommunityScreen({ initialFeed, trades }: Props) {
   const { theme } = useTheme();
+  // 헤더 쪽지 배지 — 실제 안 읽은 쪽지 수 (앱 feed.tsx fetchUnreadCount 페어).
+  const { count: unread } = useUnread();
   const clean = theme === 'clean';
   const P = clean ? CLEAN_P : VAR_P;
 
@@ -305,9 +309,11 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
             />
             <div style={{ flex: 1 }} />
             {!isShop && <button type="button" aria-label="검색" onClick={() => setSearchOpen((v) => !v)} style={{ display: 'block', color: searchOpen ? P.accent : P.ink, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{Ic.search(searchOpen ? P.accent : P.ink)}</button>}
-            <Link href="/my/messages" aria-label="알림" style={{ position: 'relative', display: 'block', color: P.ink }}>
-              {Ic.bell(P.ink)}
-              <span style={{ position: 'absolute', top: -4, right: -4, minWidth: 15, height: 15, padding: '0 3px', background: P.red, borderRadius: 8, color: '#fff', fontSize: 9.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px solid ${P.cardBg}` }}>3</span>
+            <Link href="/my/messages" aria-label="쪽지" style={{ position: 'relative', display: 'block', color: P.ink }}>
+              {Ic.mail(P.ink)}
+              {unread > 0 && (
+                <span style={{ position: 'absolute', top: -4, right: -4, minWidth: 15, height: 15, padding: '0 3px', background: P.red, borderRadius: 8, color: '#fff', fontSize: 9.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px solid ${P.cardBg}` }}>{unread > 99 ? '99+' : unread}</span>
+              )}
             </Link>
             <Link href={writeHref} aria-label="글쓰기" style={{ width: 32, height: 32, borderRadius: 10, background: clean ? 'linear-gradient(150deg,#9d6bff,#6a3aff)' : P.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: clean ? '0 3px 8px rgba(106,58,255,.35)' : 'none' }}>
               {Ic.edit('#fff')}

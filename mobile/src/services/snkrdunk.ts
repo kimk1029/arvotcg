@@ -19,8 +19,10 @@ import {
   type SnkrdunkSearchResult,
 } from '../../../shared/snkrdunk';
 import {
+  BOX_RANGE_MAX_DAYS,
   headlinePriceFromHistory as sharedHeadlinePrice,
   headlineFromHistory as sharedHeadline,
+  type DailyPriceStat,
   type Headline,
 } from '../../../shared/snkrdunkPrice';
 import { api } from '@/lib/apiClient';
@@ -139,6 +141,22 @@ export async function fetchSnkrdunkSalesChart(
     `/api/snkrdunk/apparels/${apparelId}/sales-chart`,
   );
   return r?.data ?? null;
+}
+
+/**
+ * 일일 스냅샷 시리즈 — 박스 '가격 추이'의 정본 소스.
+ * snkrdunk /sales-chart 는 복수 수량(2박스·카톤) 체결까지 섞인 평균이라 박스 1개
+ * 헤드라인가와 어긋난다 (규칙: shared/snkrdunkPrice.ts boxTrendPoints, 웹 동일).
+ */
+export async function fetchSnkrdunkPriceStats(
+  apparelId: number,
+  days = BOX_RANGE_MAX_DAYS,
+): Promise<DailyPriceStat[]> {
+  if (!Number.isInteger(apparelId) || apparelId <= 0) return [];
+  const r = await getProxy<{ daily?: DailyPriceStat[] }>(
+    `/api/snkrdunk/apparels/${apparelId}/price-stats?days=${days}`,
+  );
+  return r?.daily ?? [];
 }
 
 export async function fetchSnkrdunkBrowse(page = 1): Promise<SnkrdunkSearchResult[]> {

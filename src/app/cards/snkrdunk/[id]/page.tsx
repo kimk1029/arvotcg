@@ -13,7 +13,12 @@ import {
   type SnkrdunkSalesHistory,
 } from '@/lib/snkrdunk';
 import { translateKnownCardNameToKo } from '@/lib/cardTranslate';
-import { gradeAggsFromHistory } from '@/lib/snkrdunkPrice';
+import {
+  BOX_RANGE_MAX_DAYS,
+  boxTrendPoints,
+  gradeAggsFromHistory,
+  type DailyPriceStat,
+} from '@/lib/snkrdunkPrice';
 import { SNKRDUNK_FEATURED_CARDS } from '@/lib/snkrdunkCards';
 import { serverFetch } from '@/lib/apiServer';
 import { parseKreamHints } from '../../../../../shared/util/kreamMatch';
@@ -76,6 +81,21 @@ export default async function Page({ params, searchParams }: PageProps) {
   const jpName = apparel.localizedName ?? '';
   const koName = seed?.shortName ?? translateKnownCardNameToKo(jpName) ?? jpName;
   const history = salesHistory?.history ?? [];
+  const isBox = apparel.itemKind === 'box';
+
+  // 박스 가격 추이는 일일 스냅샷(price-stats) 시리즈 — snkrdunk /sales-chart 는
+  // 복수 수량(2박스·카톤) 체결까지 섞은 평균이라 박스 1개 헤드라인가와 어긋난다.
+  // (정본 규칙: shared/snkrdunkPrice.ts boxTrendPoints). 스냅샷이 없으면 기존 차트로 폴백.
+  const boxStats = isBox
+    ? (
+        await serverFetch<{ daily?: DailyPriceStat[] }>(
+          `${base}/price-stats?days=${BOX_RANGE_MAX_DAYS}`,
+          { auth: false, revalidate: 600 },
+        )
+      ).data?.daily ?? []
+    : [];
+  const boxPoints = boxTrendPoints(boxStats);
+  const chartPoints = isBox && boxPoints.length >= 2 ? boxPoints : salesChart?.points ?? [];
 
   // 등급 집계는 정본 하나만 — 목록(홈 HOT·컬렉션)이 쓰는 함수와 동일해야 숫자가 맞는다.
   const grades: GradeAgg[] = gradeAggsFromHistory(history);
@@ -121,7 +141,7 @@ export default async function Page({ params, searchParams }: PageProps) {
 
       <CardDetailView
         apparelId={apparelId}
-        kind={apparel.itemKind === 'box' ? 'box' : 'single'}
+        kind={isBox ? 'box' : 'single'}
         setCode={apparel.setCode ?? null}
         packCode={apparel.packCode ?? null}
         koName={koName}
@@ -133,7 +153,7 @@ export default async function Page({ params, searchParams }: PageProps) {
         productNumber={apparel.productNumber ?? ''}
         grades={grades}
         initialGrade={searchParams?.grade ?? null}
-        chartPoints={salesChart?.points ?? []}
+        chartPoints={chartPoints}
         trades={trades}
         kreamCardNumber={kreamHints.cardNumber}
         kreamSetCode={kreamHints.setCode}

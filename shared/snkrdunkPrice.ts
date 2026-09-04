@@ -311,3 +311,40 @@ export function priceChangeFromPoints(points: ReadonlyArray<[number, number]>): 
   const wkPct = base[1] > 0 ? (wkDiff / base[1]) * 100 : null;
   return { prevDiff, prevPct, wkDiff, wkPct };
 }
+
+/* ── 박스 가격 추이 — 일일 스냅샷 시리즈 ──────────────────────────── */
+
+/** `/api/snkrdunk/apparels/:id/price-stats` 의 일별 행 (KST 기준 하루 1행). */
+export interface DailyPriceStat {
+  /** 'YYYY-MM-DD' (KST). */
+  date: string;
+  single: number;
+  minPrice: number;
+  psa10: number;
+  samples: number;
+}
+
+/**
+ * 박스 '가격 추이' 포인트 — 일일 스냅샷(priceSingle)에서 만든다.
+ *
+ * 스니덩크 `/sales-chart` 는 "2박스 세트·카톤" 같은 복수 수량 체결까지 섞은 일별
+ * 평균이라 박스 1개 헤드라인가(단일 개체 체결만 남긴 sales-history 중앙값)와
+ * 2~4배씩 어긋난다 — 실제로 헤드라인 ¥13,490 인 박스의 차트가 ¥27,000~¥51,000 였다.
+ * 스냅샷의 priceSingle 은 헤드라인과 같은 표본·같은 통계라 두 숫자가 맞는다.
+ * 스냅샷 보관 기간(최대 90일) 때문에 박스 기간 탭은 BOX_RANGE_MAX_DAYS 까지만 쓴다.
+ */
+export function boxTrendPoints(daily: readonly DailyPriceStat[]): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (const d of daily ?? []) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d?.date ?? '')) continue;
+    const price = d.single > 0 ? d.single : d.minPrice;
+    if (!(price > 0)) continue;
+    const ts = Date.parse(`${d.date}T00:00:00+09:00`);
+    if (!Number.isFinite(ts)) continue;
+    out.push([ts, price]);
+  }
+  return out.sort((a, b) => a[0] - b[0]);
+}
+
+/** 스냅샷 보관 상한 — 박스 기간 탭은 이 일수를 넘기지 않는다(서버 price-stats 상한). */
+export const BOX_RANGE_MAX_DAYS = 90;

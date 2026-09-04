@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ScrollView, View, Pressable, Text, TextInput, Animated, Easing, Image, LayoutAnimation, Modal, Platform, RefreshControl, UIManager } from 'react-native';
-import Svg, { Path, Circle } from 'react-native-svg';
+import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme, useThemeColors } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
@@ -15,6 +15,8 @@ import { ReportMenu } from '@/components/ReportMenu';
 import { ensureUgcTerms } from '@/components/UgcTermsGate';
 import { shotSource } from '@/lib/shotMode';
 import { SegmentedTabs, SegIcons } from '@/components/cv/SegmentedTabs';
+import { fetchUnreadCount } from '@/lib/myApi';
+import { isAuthenticated } from '@/lib/session';
 
 /**
  * 커뮤니티 — Claude Design 'ARVOTCG 커뮤니티' 프로토타입 레이아웃 (네이티브).
@@ -182,10 +184,12 @@ function Search({ c, s = 22 }: { c: string; s?: number }) {
     </Svg>
   );
 }
-function Bell({ c, s = 22 }: { c: string; s?: number }) {
+/** 쪽지(편지봉투) — 헤더 우측 아이콘. 이동 대상이 /my/messages 라 벨(알림)이 아닌 쪽지가 맞다. */
+function Mail({ c, s = 22 }: { c: string; s?: number }) {
   return (
     <Svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><Path d="M13.7 21a2 2 0 0 1-3.4 0" />
+      <Rect x={2.5} y={4.5} width={19} height={15} rx={2.5} />
+      <Path d="m3 7 8.1 5.6a1.6 1.6 0 0 0 1.8 0L21 7" />
     </Svg>
   );
 }
@@ -257,6 +261,17 @@ export default function CommunityScreen() {
         chip: tc.pap2,
         chev: tc.ink3,
       };
+
+  // 헤더 쪽지 배지 — 실제 안 읽은 쪽지 수 (웹 CommunityScreen useUnread 페어).
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    if (!isAuthenticated()) return;
+    let alive = true;
+    fetchUnreadCount().then((n) => alive && setUnread(n)).catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const fontReg = flat ? undefined : fonts.ko;
   const fontBold = flat ? undefined : fonts.koBold;
@@ -475,10 +490,12 @@ export default function CommunityScreen() {
             <Pressable onPress={() => setSearchOpen((v) => !v)} hitSlop={8}><Search c={searchOpen ? P.accent : P.ink} /></Pressable>
           ) : null}
           <Pressable onPress={() => router.push('/my/messages' as never)} hitSlop={8} style={{ position: 'relative' }}>
-            <Bell c={P.ink} />
-            <View style={{ position: 'absolute', top: -4, right: -4, minWidth: 15, height: 15, paddingHorizontal: 3, backgroundColor: P.red, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: P.cardBg }}>
-              <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>3</Text>
-            </View>
+            <Mail c={P.ink} />
+            {unread > 0 ? (
+              <View style={{ position: 'absolute', top: -4, right: -4, minWidth: 15, height: 15, paddingHorizontal: 3, backgroundColor: P.red, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: P.cardBg }}>
+                <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>{unread > 99 ? '99+' : String(unread)}</Text>
+              </View>
+            ) : null}
           </Pressable>
           <Pressable onPress={() => router.push((isMarket ? '/write/trade' : '/write/feed') as never)} style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: P.accent, alignItems: 'center', justifyContent: 'center' }}>
             <Edit c="#fff" />

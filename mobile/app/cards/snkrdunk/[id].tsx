@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, View, Text } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import Svg, { Path } from 'react-native-svg';
 import { AppBar } from '@/components/AppBar';
 import { CardActions } from '@/components/CardActions';
 import { KreamCompare } from '@/components/cards/KreamCompare';
@@ -17,6 +16,7 @@ import {
   downsamplePricePoints,
   fetchSnkrdunkApparel,
   fetchSnkrdunkSalesChart,
+  fetchSnkrdunkPriceStats,
   fetchSnkrdunkSalesHistory,
   localizeSnkrdunkText,
   priceDownsampleUnit,
@@ -30,17 +30,20 @@ import { jaToKoCached, jaToKoServer } from '@/lib/cardLang';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { parseKreamHints } from '../../../../shared/util/kreamMatch';
 import {
+  BOX_RANGE_MAX_DAYS,
   boxHeadlineFromHistory,
+  boxTrendPoints,
   defaultGradeKey,
   gradeAggsFromHistory,
   gradeDisplayJpy,
   gradeUplift,
   priceChangeFromPoints,
+  type DailyPriceStat,
   type SnkrGradeAgg,
 } from '../../../../shared/snkrdunkPrice';
 import { isGradedSnkrdunkBadge } from '../../../../shared/snkrdunk';
 import { shotSetCode, shotSource, shotText } from '@/lib/shotMode';
-import { getCardPack } from '@/data/cardPacks';
+import { BoxHitCards } from '@/components/cards/BoxHitCards';
 
 /* ── 등급 집계 — 정본 shared gradeAggsFromHistory 하나만 쓴다(웹과 동일 표본·통계) ── */
 type GradeAgg = SnkrGradeAgg;
@@ -73,6 +76,11 @@ const RANGES: Array<{ label: string; days: number }> = [
   { label: '1년', days: 365 },
   { label: '전체', days: 0 },
 ];
+/** 박스 기간 탭 — 시리즈가 일일 스냅샷(최대 90일)이라 그 이상 구간은 만들지 않는다 (웹 동일). */
+const BOX_RANGES = RANGES.filter((r) => r.days > 0 && r.days <= BOX_RANGE_MAX_DAYS).concat({
+  label: '전체',
+  days: 0,
+});
 
 export default function SnkrdunkDetail() {
   const tc = useThemeColors();
@@ -89,6 +97,8 @@ export default function SnkrdunkDetail() {
   const [apparel, setApparel] = useState<SnkrdunkApparel | null>(null);
   const [history, setHistory] = useState<SnkrdunkSalesHistory | null>(null);
   const [chart, setChart] = useState<SnkrdunkSalesChart | null>(null);
+  // 박스 가격 추이용 일일 스냅샷 — apparel 이 박스로 확인된 뒤에만 받는다.
+  const [boxStats, setBoxStats] = useState<DailyPriceStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [gradeKey, setGradeKey] = useState<string | null>(null);
@@ -112,6 +122,10 @@ export default function SnkrdunkDetail() {
       setHistory(h);
       setChart(c);
       setLoading(false);
+      if (a?.itemKind === 'box') {
+        const daily = await fetchSnkrdunkPriceStats(apparelId);
+        if (alive) setBoxStats(daily);
+      }
     })();
     return () => {
       alive = false;
@@ -137,9 +151,14 @@ export default function SnkrdunkDetail() {
     () => parseKreamHints(originalJp, displayNameKo, apparel?.productNumber),
     [originalJp, displayNameKo, apparel?.productNumber],
   );
-  const allPoints = chart?.points ?? [];
   // 박스(미개봉 상품) — 등급(RAW/PSA)·PSA 팝·지역 비교 없이 BOX 라벨 + 세트코드 (웹 CardDetailView 동일).
   const isBox = apparel?.itemKind === 'box';
+  // 박스 가격 추이는 일일 스냅샷(price-stats) 시리즈 — snkrdunk /sales-chart 는 복수
+  // 수량(2박스·카톤) 체결까지 섞은 평균이라 박스 1개 헤드라인가와 어긋난다 (웹 동일).
+  const boxPoints = useMemo(() => boxTrendPoints(boxStats), [boxStats]);
+  const allPoints = isBox && boxPoints.length >= 2 ? boxPoints : chart?.points ?? [];
+  const ranges = isBox ? BOX_RANGES : RANGES;
+  const rangeI = Math.min(rangeIdx, ranges.length - 1);
   const boxSetCode = apparel?.setCode ?? null;
   const boxPackCode = apparel?.packCode ?? null;
 
@@ -175,11 +194,11 @@ export default function SnkrdunkDetail() {
   // 차트 — 기간 필터 후 다운샘플.
   const chartData = useMemo(() => {
     const pts = [...allPoints].sort((a, b) => a[0] - b[0]);
-    const days = RANGES[rangeIdx].days;
+    const days = ranges[rangeI].days;
     const filtered =
       days > 0 && pts.length > 0 ? pts.filter((p) => p[0] >= pts[pts.length - 1][0] - days * 86_400_000) : pts;
     return downsamplePricePoints(filtered.length >= 2 ? filtered : pts);
-  }, [allPoints, rangeIdx]);
+  }, [allPoints, ranges, rangeI]);
   const chartUnit = priceDownsampleUnit(chartData);
   const chartUnitLabel = chartUnit === 'monthly' ? '월 평균' : chartUnit === 'weekly' ? '주 평균' : '거래 단위';
   const chartMore =
@@ -262,24 +281,6 @@ export default function SnkrdunkDetail() {
                 ) : null}
               </View>
 
-              {/* 박스 → 수록 카드(힛카드) 목록 = 시세확인의 해당 박스 페이지(/cards/packs/{code}).
-                  칩 행 아래 별도 줄, 색은 BOX 칩(보라)과 구분되는 해당 팩 고유색(CARD_PACKS.bg). 웹 동일. */}
-              {isBox && boxPackCode ? (
-                <View style={{ alignItems: 'center', marginTop: 10 }}>
-                  <Pressable
-                    onPress={() => router.push(`/cards/packs/${boxPackCode}` as never)}
-                    hitSlop={6}
-                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: getCardPack(boxPackCode)?.bg ?? tc.ink, paddingHorizontal: 16, paddingVertical: 8, borderRadius: flat ? 999 : 0, opacity: pressed ? 0.75 : 1, elevation: 2, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } })}
-                  >
-                    <PixelText variant={txt} size={11} weight="bold" color={tc.white}>{`${boxSetCode ? `${boxSetCode.toUpperCase()} ` : ''}힛카드`}</PixelText>
-                    {/* 외부 이동 아이콘 — 오른쪽 위 화살표 (웹 동일) */}
-                    <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={tc.white} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
-                      <Path d="M7 17 17 7M9 7h8v8" />
-                    </Svg>
-                  </Pressable>
-                </View>
-              ) : null}
-
               {/* 가격 박스 */}
               <View style={{ marginTop: 14 }}>
                 <PixelFrame bg={tc.white}>
@@ -341,6 +342,10 @@ export default function SnkrdunkDetail() {
               currentPriceJpy={(isBox ? headlinePrice : rawRecent) || apparel.minPrice || null}
               gradePrices={isBox ? null : gradePrices}
             />
+
+            {/* ── 힛카드 목록 (박스 전용) — 이 박스에서 나오는 싱글을 비싼 순 가로 스와이프.
+                '내 컬렉션에 추가' 액션과 '가격 추이' 사이 자리. 웹 동일. ── */}
+            {isBox && boxPackCode ? <BoxHitCards packCode={boxPackCode} setCode={boxSetCode} /> : null}
 
 
             {/* 박스는 지역 탭·한국판 비교 없음(등급/카드번호 매칭 기반) */}
@@ -437,8 +442,8 @@ export default function SnkrdunkDetail() {
               <SectHd title="가격 추이" more={chartMore} />
             </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 14, gap: 6, marginBottom: 10 }}>
-              {RANGES.map((r, i) => {
-                const active = i === rangeIdx;
+              {ranges.map((r, i) => {
+                const active = i === rangeI;
                 return (
                   <Pressable key={r.label} onPress={() => setRangeIdx(i)} style={{ paddingVertical: 7, paddingHorizontal: 14, backgroundColor: active ? tc.ink : tc.pap2 }}>
                     <PixelText variant={txt} size={11} weight="bold" color={active ? tc.white : tc.ink3}>{r.label}</PixelText>

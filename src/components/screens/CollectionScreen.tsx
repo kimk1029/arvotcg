@@ -12,6 +12,8 @@ import { Panel } from '@/components/ui/Panel';
 import { parseCardStatics } from '../../../shared/cardStatics';
 import { SegmentedTabs, SegIcons } from '@/components/ui/SegmentedTabs';
 import { FavoritesPanel } from '@/components/screens/FavoritesPanel';
+import { CollectionPies } from '@/components/portfolio/CollectionPies';
+import type { VizCard } from '../../../shared/portfolioViz';
 
 interface HistPoint {
   date: string;
@@ -79,12 +81,6 @@ function cardDetailHref(c: Pick<CardRow, 'snkrdunkApparelId' | 'priceBasis'>): s
 // KR 관례: 상승=빨강, 하락=파랑.
 const UP = 'var(--red)';
 const DOWN = 'var(--blu)';
-// 카드별 비중 도넛·막대 색 팔레트 (상위 카드별 구분색).
-const SLICE = ['#7C5CFC', '#3B82F6', '#F59E0B', '#10B981', '#EF4444', '#06B6D4', '#EC4899', '#F97316'];
-function sliceColor(i: number): string {
-  return SLICE[i] ?? 'var(--ink3)';
-}
-
 type SortKey = 'value' | 'recent' | 'name' | 'change' | 'game';
 type View = 'grid' | 'list';
 
@@ -166,7 +162,6 @@ export function CollectionScreen() {
   // 세션 캐시 시드 — 재진입 시 마지막 결과를 즉시 그리고 백그라운드 갱신(SWR, 앱 peekMyCards 페어).
   const [port, setPort] = useState<PortfolioData | null>(() => loadCollectionCache()?.port ?? null);
   const [cards, setCards] = useState<CardRow[] | null>(() => loadCollectionCache()?.cards ?? null);
-  const [alertCount, setAlertCount] = useState<number>(0);
   const [err, setErr] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [sort, setSort] = useState<SortKey>('value');
@@ -192,10 +187,9 @@ export function CollectionScreen() {
         const cachedCards = reload > 0 ? null : loadCollectionCache()?.cards ?? null;
         const cardsUrl =
           cachedCards && cachedCards.length > 0 ? '/api/me/cards/prices' : '/api/me/cards/with-prices';
-        const [pr, cr, ar] = await Promise.all([
+        const [pr, cr] = await Promise.all([
           fetch('/api/me/portfolio', { credentials: 'include', cache: 'no-store', signal: ctrl.signal }),
           fetch(cardsUrl, { credentials: 'include', cache: 'no-store', signal: ctrl.signal }),
-          fetch('/api/me/price-alerts', { credentials: 'include', cache: 'no-store', signal: ctrl.signal }).catch(() => null),
         ]);
         if (!alive) return;
         if (!pr.ok) {
@@ -234,10 +228,6 @@ export function CollectionScreen() {
         setPort(pj.data);
         setCards(nextCards);
         saveCollectionCache(pj.data, nextCards);
-        if (ar && ar.ok) {
-          const aj = (await ar.json().catch(() => null)) as { data?: Array<{ triggeredAt: string | null }> } | null;
-          setAlertCount((aj?.data ?? []).filter((a) => !a.triggeredAt).length);
-        }
       } catch {
         if (alive) setErr('시세 조회가 지연되고 있어요. 잠시 후 다시 시도해주세요');
       } finally {
@@ -323,27 +313,27 @@ export function CollectionScreen() {
     return { d7: over(7), d30: over(30) };
   }, [port]);
 
-  // 가격 비중(카드별) — 총 평가액에서 각 카드(평가액=현재가×수량)가 차지하는 비중.
-  const cardWeights = useMemo(() => {
-    const priced = visibleRows.filter((r) => r.curJpy > 0 && r.value > 0);
-    const total = priced.reduce((s, r) => s + r.value, 0);
-    if (total <= 0) return { items: [] as Array<{ row: Row; pct: number }>, restVal: 0, restCount: 0, restPct: 0 };
-    const sorted = [...priced].sort((a, b) => b.value - a.value);
-    const TOP = 8;
-    const items = sorted.slice(0, TOP).map((row) => ({ row, pct: (row.value / total) * 100 }));
-    const rest = sorted.slice(TOP);
-    const restVal = rest.reduce((s, r) => s + r.value, 0);
-    return { items, restVal, restCount: rest.length, restPct: (restVal / total) * 100 };
-  }, [visibleRows]);
-
-  // 카드별 비중 도넛 세그먼트 (합계 100% — 상위 카드 + 기타).
-  const donutSegments = useMemo(() => {
-    const segs = cardWeights.items.map((it, i) => ({ key: String(it.row.c.id), color: sliceColor(i), pct: it.pct }));
-    if (cardWeights.restCount > 0) {
-      segs.push({ key: '_rest', color: 'var(--ink3)', pct: cardWeights.restPct });
-    }
-    return segs;
-  }, [cardWeights]);
+  // 자산 구성 파이 입력 — 집계는 전부 정본 shared/portfolioViz (앱과 같은 함수).
+  // 게임(작품)은 저장값 우선, 없으면 카드명 파싱 폴백(테마순 정렬 gameRank 와 같은 규칙).
+  const vizCards = useMemo<VizCard[]>(
+    () =>
+      visibleRows
+        .filter((r) => r.curJpy > 0)
+        .map((r) => ({
+          id: r.c.id,
+          name: cardName(r.c),
+          valueJpy: r.value,
+          basisJpy: r.basisJpy != null ? r.basisJpy * r.qty : null,
+          changePct: r.changePct,
+          graded: !!r.c.graded,
+          gradeLabel:
+            r.c.priceBasis || (r.c.graded ? `${r.c.gradeCompany ?? 'PSA'} ${r.c.gradeValue ?? ''}`.trim() : 'RAW'),
+          game: r.c.game || parseCardStatics(cardName(r.c)).game,
+          series: r.c.series ?? null,
+          selfPulled: !!r.c.selfPulled,
+        })),
+    [visibleRows],
+  );
 
   // 컬렉션에서 카드 제거 — 낙관적으로 목록에서 빼고 DELETE. 실패 시 전체 재조회.
   const handleRemove = useCallback(async (id: number) => {
@@ -492,82 +482,8 @@ export function CollectionScreen() {
         </div>
       </Section>
 
-      {/* ── 자산 구성 — 카드별 금액 비중(합계 100%) 도넛 + 리스트 ── */}
-      {cardWeights.items.length > 0 && (
-        <Section title="자산 구성">
-          <Panel style={{ padding: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
-              <Donut segments={donutSegments} />
-            </div>
-            <div style={{ fontFamily: 'var(--f1)', fontSize: 13, fontWeight: 800, color: 'var(--ink)', margin: '0 0 12px' }}>
-              카드별 비중
-            </div>
-            {cardWeights.items.length > 0 && (
-              <>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {cardWeights.items.map(({ row, pct }, i) => {
-                    const img = row.c.snkrdunkImageUrl || row.c.photoUrl || null;
-                    const color = sliceColor(i);
-                    return (
-                      <div key={row.c.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <CardThumb
-                          style={{ width: 34, height: 34, flex: 'none', borderRadius: 'var(--r-sm)', overflow: 'hidden', background: 'var(--pap2)', display: 'grid', placeItems: 'center' }}
-                          src={img}
-                          alt={cardName(row.c)}
-                          emojiSize={16}
-                        />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                            <span style={{ fontFamily: 'var(--f1)', fontSize: 13, fontWeight: 700, color: 'var(--ink)', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cardName(row.c)}</span>
-                            <span style={{ fontFamily: 'var(--f1)', fontSize: 13, fontWeight: 800, color: 'var(--ink)', flex: 'none' }}>{pct.toFixed(1)}%</span>
-                          </div>
-                          {/* 비중 막대 */}
-                          <div style={{ height: 6, borderRadius: 3, background: 'var(--pap3)', overflow: 'hidden', marginTop: 5 }}>
-                            <div style={{ width: `${Math.max(2, pct).toFixed(1)}%`, height: '100%', background: color, borderRadius: 3 }} />
-                          </div>
-                          <div style={{ fontFamily: 'var(--f1)', fontSize: 10.5, color: 'var(--ink3)', fontWeight: 600, marginTop: 4 }}>
-                            {format(row.value)}{row.qty > 1 ? ` · ${row.qty}장` : ''}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {cardWeights.restCount > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 34, height: 34, flex: 'none', borderRadius: 'var(--r-sm)', background: 'var(--pap2)', display: 'grid', placeItems: 'center', fontSize: 14, color: 'var(--ink3)' }}>＋</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                          <span style={{ fontFamily: 'var(--f1)', fontSize: 13, fontWeight: 700, color: 'var(--ink3)', flex: 1 }}>기타 {cardWeights.restCount}장</span>
-                          <span style={{ fontFamily: 'var(--f1)', fontSize: 13, fontWeight: 800, color: 'var(--ink3)', flex: 'none' }}>{cardWeights.restPct.toFixed(1)}%</span>
-                        </div>
-                        <div style={{ fontFamily: 'var(--f1)', fontSize: 10.5, color: 'var(--ink3)', fontWeight: 600, marginTop: 4 }}>{format(cardWeights.restVal)}</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </Panel>
-        </Section>
-      )}
-
-      {/* ── 가격 알림 배너 ── */}
-      <div style={{ padding: '0 var(--gap) 18px' }}>
-        <Panel style={{ padding: 14, display: 'flex', alignItems: 'center', gap: 13 }}>
-          <span style={{ fontSize: 24, flex: 'none' }}>🎯</span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: 'var(--f1)', fontSize: 13.5, fontWeight: 800, color: 'var(--ink)' }}>가격 알림</div>
-            <div style={{ fontFamily: 'var(--f1)', fontSize: 10.5, color: 'var(--ink3)', marginTop: 3 }}>
-              원하는 카드의 가격 변동을 앱에서 알림으로 받아보세요.
-            </div>
-          </div>
-          {alertCount > 0 && (
-            <span style={{ flex: 'none', fontFamily: 'var(--f1)', fontSize: 11, fontWeight: 800, color: 'var(--orn)', whiteSpace: 'nowrap' }}>
-              {alertCount}개 설정 중
-            </span>
-          )}
-        </Panel>
-      </div>
+      {/* ── 자산 구성 — 카드 종류(작품)·등급별 평가액 비중 파이 (정본 shared/portfolioViz) ── */}
+      <CollectionPies cards={vizCards} format={format} />
 
       {/* ── 내 카드 목록 ── */}
       <div style={{ padding: '0 var(--gap)' }}>
@@ -890,7 +806,7 @@ function CardListItem({ row, format, last, onRemove }: { row: Row; format: (j: n
   );
 }
 
-/** 상단 헤더 — 내 자산 ↔ 관심카드 타이틀 스왑 탭 + 검색/알림/도움말 아이콘. */
+/** 상단 헤더 — 내 자산 ↔ 관심카드 타이틀 스왑 탭 + 검색 아이콘. */
 function CollectionHeader({ tab, setTab }: { tab?: AssetTab; setTab?: (t: AssetTab) => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px var(--gap) 10px' }}>
@@ -911,12 +827,6 @@ function CollectionHeader({ tab, setTab }: { tab?: AssetTab; setTab?: (t: AssetT
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <Link href="/cards/snkrdunk/search" aria-label="검색" style={{ display: 'block', color: 'var(--ink)' }}>
           <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-        </Link>
-        <Link href="/my/messages" aria-label="알림" style={{ display: 'block', color: 'var(--ink)' }}>
-          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg>
-        </Link>
-        <Link href="/my/faq" aria-label="도움말" style={{ display: 'block', color: 'var(--ink)' }}>
-          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" /><path d="M12 17h.01" /></svg>
         </Link>
       </div>
     </div>
@@ -969,32 +879,6 @@ function SummaryCell({
       <div style={{ fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 900, color, marginTop: 7, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{main}</div>
       {subText && <div style={{ fontFamily: 'var(--f1)', fontSize: 10.5, color: 'var(--ink3)', fontWeight: 700, marginTop: 3 }}>{subText}</div>}
     </div>
-  );
-}
-
-/** 자산 구성 도넛 — segments[].pct 합이 100 가정(아니어도 비율대로). */
-function Donut({ segments }: { segments: Array<{ key: string; color: string; pct: number }> }) {
-  const R = 42;
-  const C = 2 * Math.PI * R;
-  let acc = 0;
-  return (
-    <svg width="104" height="104" viewBox="0 0 118 118" style={{ flex: 'none' }}>
-      <circle cx="59" cy="59" r={R} fill="none" stroke="var(--pap3)" strokeWidth="15" />
-      {segments.map((s) => {
-        const len = (s.pct / 100) * C;
-        const off = -(acc / 100) * C;
-        acc += s.pct;
-        return (
-          <circle
-            key={s.key}
-            cx="59" cy="59" r={R} fill="none" stroke={s.color} strokeWidth="15"
-            strokeDasharray={`${len.toFixed(2)} ${(C - len).toFixed(2)}`}
-            strokeDashoffset={off.toFixed(2)}
-            transform="rotate(-90 59 59)"
-          />
-        );
-      })}
-    </svg>
   );
 }
 

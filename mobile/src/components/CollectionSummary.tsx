@@ -1,6 +1,6 @@
 /**
- * 자산 요약(7일/30일/누적) + 가격 알림 배너 — 내 컬렉션 상단.
- * 웹 CollectionScreen 의 "자산 요약" 섹션 + "가격 알림" 배너 모바일 포팅. 모두 실데이터.
+ * 자산 요약(7일/30일/누적) — 내 컬렉션 상단.
+ * 웹 CollectionScreen 의 "자산 요약" 섹션 모바일 포팅. 모두 실데이터.
  *  - 7일/30일 변화: 서버 포트폴리오 history(일별 평가액) 델타.
  *  - 누적 수익률: 보유 카드 매입가(basis) 대비 현재가 합.
  */
@@ -20,14 +20,12 @@ export function CollectionSummary({
   port,
   cards,
   priceMode,
-  alertCount,
   format,
   rate,
 }: {
   port: PortfolioSummary | null;
   cards: MyCardRow[];
   priceMode: 'single' | 'psa10';
-  alertCount: number;
   format: (jpy: number) => string;
   rate: number;
 }) {
@@ -80,44 +78,23 @@ export function CollectionSummary({
   }, [cards, rate]);
 
   return (
-    <>
-      {/* 자산 요약 */}
-      <View style={{ paddingHorizontal: space.gap, marginBottom: space.cg }}>
-        <PixelText variant="ko" size={15} weight="bold" color={tc.ink} style={{ marginBottom: 10 }}>
-          자산 요약
-        </PixelText>
-        <View style={{ flexDirection: 'row', gap: 9 }}>
-          <SummaryCell tc={tc} txt={txt} label="7일 변화" delta={summary.d7} format={format} />
-          <SummaryCell tc={tc} txt={txt} label="30일 변화" delta={summary.d30} format={format} />
-          <SummaryCell
-            tc={tc}
-            txt={txt}
-            label="누적 수익률"
-            pctOnly={totals.pct}
-            sub={totals.pct != null ? `${totals.profit >= 0 ? '+' : '-'}${format(Math.abs(totals.profit))}` : undefined}
-            format={format}
-          />
-        </View>
+    <View style={{ paddingHorizontal: space.gap, marginBottom: space.cg }}>
+      <PixelText variant="ko" size={15} weight="bold" color={tc.ink} style={{ marginBottom: 10 }}>
+        자산 요약
+      </PixelText>
+      <View style={{ flexDirection: 'row', gap: 9 }}>
+        <SummaryCell tc={tc} txt={txt} label="7일 변화" delta={summary.d7} format={format} />
+        <SummaryCell tc={tc} txt={txt} label="30일 변화" delta={summary.d30} format={format} />
+        <SummaryCell
+          tc={tc}
+          txt={txt}
+          label="누적 수익률"
+          pctOnly={totals.pct}
+          sub={totals.pct != null ? `${totals.profit >= 0 ? '+' : '-'}${format(Math.abs(totals.profit))}` : undefined}
+          format={format}
+        />
       </View>
-
-      {/* 가격 알림 배너 */}
-      <View style={{ paddingHorizontal: space.gap, marginBottom: space.cg }}>
-        <View style={{ backgroundColor: tc.white, borderColor: tc.pap3, borderWidth: 1, borderRadius: 14 }}>
-          <View style={{ padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <PixelText variant={txt} size={22}>🎯</PixelText>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <PixelText variant="ko" size={13} weight="bold" color={tc.ink}>가격 알림</PixelText>
-              <PixelText variant={txt} size={9} color={tc.ink3} style={{ marginTop: 3, lineHeight: 13 }}>
-                원하는 카드의 가격 변동을 알림으로 받아보세요.
-              </PixelText>
-            </View>
-            {alertCount > 0 ? (
-              <PixelText variant={txt} size={10} weight="bold" color={tc.orn}>{alertCount}개 설정 중</PixelText>
-            ) : null}
-          </View>
-        </View>
-      </View>
-    </>
+    </View>
   );
 }
 

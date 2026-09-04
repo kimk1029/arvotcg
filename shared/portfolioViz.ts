@@ -117,6 +117,7 @@ const GAME_LABEL: Record<string, string> = {
   pokemon: '포켓몬',
   onepiece: '원피스',
   yugioh: '유희왕',
+  sports: '스포츠',
   other: '기타 작품',
 };
 
@@ -416,6 +417,23 @@ export function ringArcs(slices: VizSlice[], cx: number, cy: number, rOuter: num
     });
   }
   return out;
+}
+
+/**
+ * 파이(원형) 조각 — ringArcs 의 rInner=0 특수형. 조각 사이 gapDeg 만큼 표면이 비어
+ * 인접 색이 맞닿지 않는다(마크 규칙). 조각이 하나뿐이면 arcs 는 비고 `full` 이 켜진다
+ * — 호출부가 온전한 원 하나를 그리면 된다(360° 호는 SVG 에서 그릴 수 없다).
+ */
+export function pieSlices(
+  slices: VizSlice[],
+  cx: number,
+  cy: number,
+  r: number,
+  gapDeg = 2,
+): { arcs: RingArc[]; full: VizSlice | null } {
+  const positive = slices.filter((s) => s.value > 0);
+  if (positive.length === 1) return { arcs: [], full: positive[0] };
+  return { arcs: ringArcs(positive, cx, cy, r, 0, gapDeg), full: null };
 }
 
 /** 날짜·값 시계열을 첫 포인트 = 100 으로 재기준화 (내 자산 vs 시장 비교용). */

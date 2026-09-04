@@ -6,11 +6,12 @@
  * 비그레이딩=싱글) — 웹 allRows 와 동일 계산.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { PortfolioHero } from '@/components/PortfolioHero';
-import { CollectionComposition } from '@/components/CollectionComposition';
+import { CollectionPies } from '@/components/CollectionPies';
+import { FavoritesView } from '@/components/FavoritesView';
 import { CollectionSummary } from '@/components/CollectionSummary';
 import { PixelText } from '@/components/PixelText';
 import { EmptyState, ErrorView, LoadingState } from '@/components/cv/ListState';
@@ -25,13 +26,10 @@ import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider'
 import {
   fetchMyCardsSmart,
   fetchPortfolio,
-  fetchPriceAlerts,
   deleteMyCard,
   SWR_MY_CARDS,
   SWR_PORTFOLIO,
-  fetchMyFavorites,
   type MyCardRow,
-  type MyFavoriteRow,
   type PortfolioSummary,
 } from '@/lib/myApi';
 import { useSWR } from '@/lib/swr';
@@ -122,13 +120,6 @@ export default function MyCardsScreen() {
     deps: [authed],
   });
   const portfolio = portfolioData && portfolioData.totalCount > 0 ? portfolioData : null;
-  const [alertCount, setAlertCount] = useState(0);
-  useEffect(() => {
-    if (!authed) return;
-    let alive = true;
-    fetchPriceAlerts().then((a) => { if (alive) setAlertCount(a.filter((x) => !x.triggeredAt).length); }).catch(() => {});
-    return () => { alive = false; };
-  }, [authed]);
 
   // 웹 allRows 동일 — 등급 일치 시세(서버 currentPriceJpy: PSA10/9/8→등급가,
   // 타사→PSA10, 싱글=raw) × 수량. 기준가는 구매가 → 등록가(registerPriceJpy) 순.
@@ -224,7 +215,7 @@ export default function MyCardsScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
         <CollectionHeader tc={tc} tab={tab} setTab={setTab} />
         {tab === 'favorites' ? (
-          <FavoritesPanel tc={tc} txt={txt} format={format} />
+          <FavoritesView />
         ) : (
         <>
         <PortfolioHero totals={heroTotals} />
@@ -251,11 +242,11 @@ export default function MyCardsScreen() {
               port={portfolio}
               cards={data ?? []}
               priceMode={priceMode}
-              alertCount={alertCount}
               format={format}
               rate={rate}
             />
-            <CollectionComposition cards={data ?? []} priceMode={priceMode} format={format} />
+            {/* 자산 구성 — 카드 종류(작품)·등급별 평가액 비중 파이 (정본 shared/portfolioViz, 웹 동일) */}
+            <CollectionPies cards={data ?? []} format={format} />
 
             {/* ── 내 카드 목록 (웹 동일: 헤더 + 그리드/리스트 토글 + 정렬 세그먼트) ── */}
             <View style={{ paddingHorizontal: space.gap }}>
@@ -489,83 +480,7 @@ function CardMenu({ apparelId, basis, onRemove, tc, plain = false }: { apparelId
   );
 }
 
-/** 웹 CollectionHeader 동일 — "내 자산" + 검색/알림/도움말 아이콘. */
-/** 관심카드 패널 — 카드별 하루 등락(전일 대비)까지 표시. 웹 FavoritesPanel 과 페어. */
-function FavoritesPanel({
-  tc, txt, format,
-}: {
-  tc: ReturnType<typeof useThemeColors>;
-  txt: 'pixel' | 'ko';
-  format: (jpy: number) => string;
-}) {
-  const [rows, setRows] = useState<MyFavoriteRow[] | null>(null);
-  useEffect(() => {
-    fetchMyFavorites().then(setRows).catch(() => setRows([]));
-  }, []);
-
-  if (rows === null) return <View style={{ paddingTop: 30 }}><LoadingState /></View>;
-  if (rows.length === 0) {
-    return (
-      <View style={{ padding: 34, alignItems: 'center', gap: 6 }}>
-        <PixelText variant={txt} size={11} color={tc.ink3}>관심카드가 없어요</PixelText>
-        <PixelText variant="ko" size={9} color={tc.ink3} style={{ textAlign: 'center', lineHeight: 15 }}>
-          시세상세에서 ⭐ 관심카드 버튼을 눌러보세요.
-        </PixelText>
-      </View>
-    );
-  }
-
-  const total = rows.reduce((sum, r) => sum + r.minPriceJpy, 0);
-
-  return (
-    <View style={{ paddingHorizontal: space.gap }}>
-      <PixelText variant="ko" size={9} color={tc.ink3} style={{ marginBottom: 10, lineHeight: 15 }}>
-        {rows.length}개 · 합산 시세 {format(total)} · 자산 합계엔 포함되지 않아요
-      </PixelText>
-      <View style={{ gap: 8 }}>
-        {rows.map((r) => {
-          const pct = r.changePct ?? null;
-          const up = (pct ?? 0) >= 0;
-          return (
-            <Pressable
-              key={r.id}
-              onPress={() => router.push(`/cards/snkrdunk/${r.snkrdunkApparelId}` as never)}
-              style={{
-                flexDirection: 'row', alignItems: 'center', gap: 12,
-                backgroundColor: tc.white, borderRadius: 14,
-                paddingVertical: 10, paddingHorizontal: 12,
-              }}
-            >
-              <ThumbImage uri={r.imageUrl} style={{ width: 44, height: 60, borderRadius: 7 }} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <PixelText variant={txt} size={11} color={tc.ink} numberOfLines={1}>
-                  {r.name ?? '(이름 없음)'}
-                </PixelText>
-                <PixelText variant="ko" size={9} color={tc.ink3} style={{ marginTop: 3 }}>
-                  {new Date(r.createdAt).toLocaleDateString('ko-KR')} 추가
-                </PixelText>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <PixelText variant={txt} size={11} color={tc.ink}>
-                  {r.minPriceJpy > 0 ? format(r.minPriceJpy) : '시세 없음'}
-                </PixelText>
-                <PixelText
-                  variant={txt}
-                  size={10}
-                  color={pct == null ? tc.ink3 : up ? tc.red : tc.blu}
-                  style={{ marginTop: 3 }}
-                >
-                  {pct == null ? '등락 —' : `${up ? '+' : ''}${pct.toFixed(1)}% ${up ? '▲' : '▼'}`}
-                </PixelText>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
+/** 웹 CollectionHeader 동일 — "내 자산" + 검색 아이콘. */
 function CollectionHeader({
   tc, tab, setTab,
 }: {
@@ -592,19 +507,6 @@ function CollectionHeader({
           <Svg width={23} height={23} viewBox="0 0 24 24" fill="none" stroke={tc.ink} strokeWidth={2} strokeLinecap="round">
             <Circle cx={11} cy={11} r={7} />
             <Path d="m20 20-3.5-3.5" />
-          </Svg>
-        </Pressable>
-        <Pressable onPress={() => router.push('/my/messages' as never)} hitSlop={6}>
-          <Svg width={23} height={23} viewBox="0 0 24 24" fill="none" stroke={tc.ink} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-            <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-            <Path d="M13.7 21a2 2 0 0 1-3.4 0" />
-          </Svg>
-        </Pressable>
-        <Pressable onPress={() => router.push('/my/faq' as never)} hitSlop={6}>
-          <Svg width={23} height={23} viewBox="0 0 24 24" fill="none" stroke={tc.ink} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-            <Circle cx={12} cy={12} r={10} />
-            <Path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" />
-            <Path d="M12 17h.01" />
           </Svg>
         </Pressable>
       </View>
