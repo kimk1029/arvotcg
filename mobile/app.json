@@ -90,6 +90,12 @@
         "projectId": "2c43f639-65c3-4f0f-a49c-7289bc28e232"
       }
     },
-    "owner": "kimk1029"
+    "owner": "kimk1029",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/2c43f639-65c3-4f0f-a49c-7289bc28e232"
+    }
   }
 }

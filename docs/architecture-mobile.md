@@ -25,6 +25,26 @@ eas build --profile production --platform android   # → 운영
   전환 순서는 [[migration-order-web-then-app]] 규칙(웹 실측·확정 → 앱)을 따를 것.
 - 웹도 같은 스위치를 쓴다(패리티): `NEXT_PUBLIC_APP_ENV=stage` → NAS, 그 외 `API_ORIGIN_PROD`.
 
+## OTA (EAS Update)
+
+`expo-updates` 사용. `runtimeVersion.policy = appVersion` → **`mobile/app.json` 의 `expo.version`**
+(1.1.2 …) 이 런타임 키다. (루트 package.json 을 올리는 pre-commit 훅과는 무관.)
+채널은 빌드 프로파일과 1:1: `development` / `preview` / `stage` / `production`
+(`production-apk` 도 `production` 채널을 공유).
+
+```bash
+cd mobile
+eas update --channel production --message "fix: ..."   # JS/에셋만 바뀐 배포 → 스토어 없이 반영
+eas update --channel stage      --message "..."        # 내부 stage APK
+```
+
+- OTA 로 갈 수 있는 것: `mobile/src`·`mobile/app`·`/shared` 의 TS/TSX, 이미지 등 번들 에셋.
+- **스토어 빌드가 필요한 것**: 네이티브 의존성 추가/버전 변경, app.json 의 plugins·permissions·
+  splash·icon 변경, expo SDK 업그레이드. 이때 `expo.version` 을 올리면 런타임이 갈라져
+  구버전 앱은 새 OTA 를 받지 않는다(안전). 버전을 안 올리고 네이티브를 바꾸면 크래시 위험.
+- 첫 OTA 수신 가능 빌드: 이 설정이 들어간 이후의 `eas build` 부터 (iOS build 27 / Android vc21 이상).
+- 앱은 시작 시 자동으로 확인·다운로드 → **다음 콜드 스타트**에 적용된다 (기본 `fallbackToCacheTimeout 0`).
+
 ## 레이어
 
 - `mobile/app/**` — 화면(라우트). 데이터 조립 + 화면 고유 레이아웃만.
