@@ -2,7 +2,7 @@
   "expo": {
     "name": "아르보TCG",
     "slug": "pokefesta30",
-    "version": "1.1.3",
+    "version": "1.1.4",
     "orientation": "portrait",
     "newArchEnabled": true,
     "scheme": "pokefesta30",
@@ -26,7 +26,7 @@
           "NSAllowsLocalNetworking": true
         }
       },
-      "buildNumber": "28"
+      "buildNumber": "29"
     },
     "android": {
       "package": "com.arvotcg.app",
@@ -34,7 +34,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0a1121"
       },
-      "versionCode": 24
+      "versionCode": 25
     },
     "web": {
       "bundler": "metro",
