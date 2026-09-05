@@ -56,6 +56,7 @@ import searchLogRouter from './routes/searchLog.ts';
 import reportsRouter from './routes/reports.ts';
 import cardshowRouter from './routes/cardshow.ts';
 import cardLangRouter from './routes/cardLang.ts';
+import appReleaseRouter from './routes/appRelease.ts';
 import { startPriceAlertScheduler } from './lib/priceAlerts.ts';
 import { startDailyPriceSnapshotScheduler } from './lib/dailyPriceSnapshot.ts';
 import { startMarketIndexScheduler } from './lib/marketIndex.ts';
@@ -99,6 +100,7 @@ app.use('/api/events', eventsRouter);
 app.use('/api/places', placesRouter);
 app.use('/api/shops', shopsRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/app-release', appReleaseRouter);
 
 const NAVER_IMAGE_HOST_SUFFIX = '.pstatic.net';
 const NAVER_IMAGE_UA =
