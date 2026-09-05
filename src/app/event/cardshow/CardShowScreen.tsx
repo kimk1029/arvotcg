@@ -246,6 +246,9 @@ export function CardShowScreen() {
         );
       })() : null}
 
+      {/* 예약·입장 안내 — 시간대를 고르기 전에 읽도록 목록 위에 둔다. */}
+      <VisitNotice />
+
       {/* 날짜 탭 */}
       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6, marginBottom: 16 }}>
         {dates.map((d, i) => {
@@ -273,8 +276,8 @@ export function CardShowScreen() {
         </div>
       ) : null}
 
-      {/* 시간 슬롯 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 10 }}>
+      {/* 시간 슬롯 — 한 줄에 하나씩 얇게. 왼쪽 시간 / 오른쪽 잔여석. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {daySlots.map((s) => {
           const mine = data.mySlotId === s.id;
           const full = s.remaining <= 0 && !mine;
@@ -287,28 +290,32 @@ export function CardShowScreen() {
                 setConfirm(s);
               }}
               style={{
-                padding: '16px 12px', borderRadius: 16, cursor: full ? 'default' : 'pointer',
-                border: `2px solid ${mine ? P.gold : full ? 'transparent' : P.line}`,
+                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                padding: '11px 14px', borderRadius: 12, cursor: full ? 'default' : 'pointer',
+                border: `1.5px solid ${mine ? P.gold : full ? 'transparent' : P.line}`,
                 background: mine ? 'rgba(255,210,63,0.15)' : full ? 'rgba(255,255,255,0.03)' : P.card,
-                color: P.ink, textAlign: 'center', opacity: full ? 0.55 : 1,
+                color: P.ink, textAlign: 'left', opacity: full ? 0.55 : 1,
               }}
             >
-              <div style={{ fontSize: 19, fontWeight: 900, letterSpacing: 0.5 }}>{s.time}</div>
-              <div style={{ fontSize: 12, marginTop: 6, fontWeight: 700, color: mine ? P.gold : full ? P.red : P.teal }}>
-                {mine ? '✓ 내 예약 (탭하면 취소)' : full ? '마감' : `잔여 ${s.remaining}석`}
-              </div>
-              <div style={{ fontSize: 10.5, color: P.dim, marginTop: 3 }}>{s.reserved}/{s.capacity} 예약됨</div>
+              <span style={{ flex: 'none', fontSize: 16, fontWeight: 900, letterSpacing: 0.5, fontVariantNumeric: 'tabular-nums' }}>
+                {s.time}
+              </span>
+              {mine ? (
+                <span style={{ flex: 'none', fontSize: 10.5, fontWeight: 900, color: '#3A2D00', background: P.gold, padding: '2px 7px', borderRadius: 6 }}>
+                  내 예약
+                </span>
+              ) : null}
+              <span style={{ flex: 1 }} />
+              <span style={{ flex: 'none', fontSize: 12.5, fontWeight: 800, color: mine ? P.gold : full ? P.red : P.teal, whiteSpace: 'nowrap' }}>
+                {mine ? '탭하면 취소' : full ? '마감' : `잔여 ${s.remaining}석`}
+              </span>
+              <span style={{ flex: 'none', minWidth: 52, textAlign: 'right', fontSize: 10.5, color: P.dim, fontVariantNumeric: 'tabular-nums' }}>
+                {s.reserved}/{s.capacity}
+              </span>
             </button>
           );
         })}
       </div>
-
-      <p style={{ marginTop: 26, fontSize: 11.5, color: P.dim, textAlign: 'center', lineHeight: 1.7 }}>
-        예약 변경은 원하는 시간대를 다시 선택하면 자동 이동됩니다.<br />
-        현장 확인을 위해 예약한 계정으로 로그인한 화면을 보여주세요.
-      </p>
-
-      <VisitNotice />
 
       {confirm ? (
         <ConfirmModal
