@@ -436,6 +436,54 @@ export function pieSlices(
   return { arcs: ringArcs(positive, cx, cy, r, 0, gapDeg), full: null };
 }
 
+/**
+ * 조각 위에 직접 얹는 라벨 잉크. VIZ_SERIES 5색 + VIZ_OTHER 전부에서
+ * WCAG 대비 4.65~5.98:1 로, 흰 글자(3.07~3.94)보다 안전해 단일 값으로 쓴다.
+ */
+export const VIZ_ON_SLICE = '#0C1426';
+
+/** 조각 안에 얹는 직접 라벨 한 개. */
+export interface PieLabel {
+  slice: VizSlice;
+  x: number;
+  y: number;
+  /** 표시 문자열 — 좁은 폭을 고려해 소수점 없는 정수 %. */
+  text: string;
+}
+
+/**
+ * 파이 조각 안의 % 라벨 위치 — 중심각 방향 0.62r(부채꼴 무게중심 근처).
+ *
+ * 좁은 조각은 글자 폭이 조각 현(chord)보다 길어 밖으로 삐져나오므로 `minPct`
+ * 미만은 라벨을 만들지 않는다(= dataviz "selective direct labels"). 12% 는 목업 렌더로
+ * 확인한 값 — 8% 조각에선 글자가 이웃 조각을 침범했다. 빠진 조각의
+ * 비중은 호출부가 범례 이름 뒤에 보완 표기한다. 조각이 하나뿐이면 정중앙.
+ */
+export function pieLabels(
+  slices: VizSlice[],
+  cx: number,
+  cy: number,
+  r: number,
+  minPct = 12,
+): PieLabel[] {
+  const positive = slices.filter((s) => s.value > 0);
+  const total = positive.reduce((a, s) => a + s.value, 0);
+  if (total <= 0) return [];
+  const text = (s: VizSlice) => `${Math.round(s.pct)}%`;
+  if (positive.length === 1) return [{ slice: positive[0], x: cx, y: cy, text: text(positive[0]) }];
+  let start = 0;
+  const out: PieLabel[] = [];
+  for (const slice of positive) {
+    const sweep = (slice.value / total) * 360;
+    const mid = start + sweep / 2;
+    start += sweep;
+    if (slice.pct < minPct) continue;
+    const [x, y] = polar(cx, cy, r * 0.62, mid);
+    out.push({ slice, x, y, text: text(slice) });
+  }
+  return out;
+}
+
 /** 날짜·값 시계열을 첫 포인트 = 100 으로 재기준화 (내 자산 vs 시장 비교용). */
 export function rebaseTo100(points: Array<{ date: string; value: number }>): Array<{ date: string; value: number }> {
   const base = points.find((p) => p.value > 0)?.value;

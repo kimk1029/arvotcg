@@ -2,15 +2,19 @@
  * 내 자산 '자산 구성' — 카드 종류(작품)별 · 등급별 평가액 비중 파이차트 2개.
  *
  * 집계·기하·색은 전부 정본 /shared/portfolioViz.ts (compositionByGame /
- * compositionByGrade / pieSlices / VIZ_SERIES). 웹 src/components/portfolio/CollectionPies 와
- * 페어 — 두 화면이 같은 숫자·같은 배치를 그린다.
+ * compositionByGrade / pieSlices / pieLabels / VIZ_SERIES). 웹
+ * src/components/portfolio/CollectionPies 와 페어 — 같은 숫자·같은 배치를 그린다.
  *
- * 색만으로 항목을 구분하지 않는다: 조각마다 범례에 색칩 + 이름 + 비중(%) + 금액을
- * 직접 라벨로 붙인다(팔레트 대비 WARN 슬롯의 완화 조건).
+ * 배치: 두 블록을 가로 한 줄로 세우고, 각 블록은 제목 → 파이 → 범례 세로 스택.
+ * 비중(%)은 조각 안에 직접 얹는다.
+ *
+ * 색만으로 항목을 구분하지 않는다: 범례에 색칩 + 이름 + 금액을 붙이고 조각 안에 %
+ * 를 얹는다(팔레트 대비 WARN 슬롯의 완화 조건). 조각이 좁아 안쪽 라벨을 못 다는
+ * 항목은 범례 이름 뒤에 (n%) 로 보완한다.
  */
 import { useMemo } from 'react';
 import { View } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 import { PixelText } from '@/components/PixelText';
 import { space } from '@/theme/tokens';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
@@ -19,13 +23,15 @@ import { parseCardStatics } from '../../../shared/cardStatics';
 import {
   compositionByGame,
   compositionByGrade,
+  pieLabels,
   pieSlices,
+  VIZ_ON_SLICE,
   type VizCard,
   type VizSlice,
 } from '../../../shared/portfolioViz';
 
-const R = 52;
-const BOX = 120; // 2*R + 여백 (조각 사이 간격이 잘리지 않게)
+const R = 48;
+const BOX = 112; // 2*R + 여백 (조각 사이 간격이 잘리지 않게)
 const C = BOX / 2;
 
 function cardName(c: MyCardRow): string {
@@ -78,13 +84,11 @@ export function CollectionPies({ cards, format }: { cards: MyCardRow[]; format: 
         자산 구성
       </PixelText>
       <View style={{ backgroundColor: tc.white, borderColor: tc.pap3, borderWidth: 1, borderRadius: 14 }}>
-        <View style={{ padding: 16, gap: 18 }}>
+        {/* 두 블록 가로 한 줄 — 각 블록이 폭을 반씩 나눠 갖는다. */}
+        <View style={{ padding: 16, flexDirection: 'row', alignItems: 'flex-start', gap: 14 }}>
           <PieBlock title="카드 종류" sub="작품별 평가액 비중" slices={byGame} format={format} />
           {byGrade.length > 0 ? (
-            <>
-              <View style={{ height: 1, backgroundColor: tc.pap3 }} />
-              <PieBlock title="등급 구성" sub="RAW · PSA 등급별 비중" slices={byGrade} format={format} />
-            </>
+            <PieBlock title="등급 구성" sub="RAW · PSA 등급별" slices={byGrade} format={format} />
           ) : null}
         </View>
       </View>
@@ -107,38 +111,52 @@ function PieBlock({
   const txt = useThemeTextVariant();
   if (slices.length === 0) return null;
   const { arcs, full } = pieSlices(slices, C, C, R);
+  const labels = pieLabels(slices, C, C, R);
+  const labeled = new Set(labels.map((l) => l.slice.key));
 
   return (
-    <View>
-      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 7, marginBottom: 10 }}>
-        <PixelText variant="ko" size={12} weight="bold" color={tc.ink}>{title}</PixelText>
-        <PixelText variant="ko" size={9} color={tc.ink3}>{sub}</PixelText>
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        <Svg width={BOX} height={BOX} viewBox={`0 0 ${BOX} ${BOX}`}>
-          {full ? (
-            <Circle cx={C} cy={C} r={R} fill={full.color} />
-          ) : (
-            arcs.map(({ slice, d }) => <Path key={slice.key} d={d} fill={slice.color} />)
-          )}
-        </Svg>
-        {/* 직접 라벨 범례 — 색칩 + 이름 + %. 색만으로 구분되는 항목이 없게. */}
-        <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
-          {slices.map((s) => (
-            <View key={s.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-              <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: s.color }} />
-              <PixelText variant="ko" size={11} weight="bold" color={tc.ink} numberOfLines={1} style={{ flex: 1 }}>
-                {s.label}
-              </PixelText>
-              <PixelText variant={txt} size={11} weight="bold" color={tc.ink}>
-                {`${s.pct.toFixed(1)}%`}
-              </PixelText>
-              <PixelText variant={txt} size={9} color={tc.ink3} numberOfLines={1}>
-                {format(s.value)}
-              </PixelText>
-            </View>
-          ))}
-        </View>
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <PixelText variant="ko" size={12} weight="bold" color={tc.ink}>{title}</PixelText>
+      <PixelText variant="ko" size={9} color={tc.ink3} numberOfLines={1} style={{ marginTop: 2 }}>
+        {sub}
+      </PixelText>
+
+      <Svg width={BOX} height={BOX} viewBox={`0 0 ${BOX} ${BOX}`} style={{ alignSelf: 'center', marginVertical: 10 }}>
+        {full ? (
+          <Circle cx={C} cy={C} r={R} fill={full.color} />
+        ) : (
+          arcs.map(({ slice, d }) => <Path key={slice.key} d={d} fill={slice.color} />)
+        )}
+        {/* 비중(%)은 조각 안에 직접. 잉크는 6색 전부 대비 4.6:1 이상인 단일 값. */}
+        {labels.map((l) => (
+          <SvgText
+            key={l.slice.key}
+            x={l.x}
+            y={l.y}
+            fill={VIZ_ON_SLICE}
+            fontSize={11}
+            fontWeight="bold"
+            textAnchor="middle"
+            alignmentBaseline="central"
+          >
+            {l.text}
+          </SvgText>
+        ))}
+      </Svg>
+
+      {/* 직접 라벨 범례 — 색칩 + 이름 + 금액. 안쪽 라벨을 못 단 조각만 이름 뒤에 (n%). */}
+      <View style={{ gap: 7 }}>
+        {slices.map((s) => (
+          <View key={s.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: s.color }} />
+            <PixelText variant="ko" size={11} weight="bold" color={tc.ink} numberOfLines={1} style={{ flex: 1 }}>
+              {labeled.has(s.key) ? s.label : `${s.label} (${Math.round(s.pct)}%)`}
+            </PixelText>
+            <PixelText variant={txt} size={9} color={tc.ink3} numberOfLines={1}>
+              {format(s.value)}
+            </PixelText>
+          </View>
+        ))}
       </View>
     </View>
   );
