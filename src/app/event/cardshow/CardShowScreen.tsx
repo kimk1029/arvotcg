@@ -119,6 +119,8 @@ export function CardShowScreen() {
   const [showCheckInConfirm, setShowCheckInConfirm] = useState(false);
   // 슬롯 탭 = 선택만. 예약/이동/취소는 하단 CTA → 확인 모달을 거친다.
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  // '내 예약 보기' 모달 — 예약 상세 + 담당자 확인 + 예약 취소.
+  const [myOpen, setMyOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -148,26 +150,40 @@ export function CardShowScreen() {
     setNotice(null);
     setConfirm(null);
     try {
-      if (data.mySlotId === slot.id) {
-        const r = await call('/api/cardshow/reserve', { method: 'DELETE' });
-        if (!r.ok) throw new Error();
-        setNotice('예약이 취소되었어요.');
+      const r = await call('/api/cardshow/reserve', {
+        method: 'POST',
+        body: JSON.stringify({ slotId: slot.id }),
+      });
+      const j = (await r.json().catch(() => null)) as { error?: string; moved?: boolean } | null;
+      if (!r.ok) {
+        setNotice(j?.error ?? '예약에 실패했어요. 다시 시도해 주세요.');
       } else {
-        const r = await call('/api/cardshow/reserve', {
-          method: 'POST',
-          body: JSON.stringify({ slotId: slot.id }),
-        });
-        const j = (await r.json().catch(() => null)) as { error?: string; moved?: boolean } | null;
-        if (!r.ok) {
-          setNotice(j?.error ?? '예약에 실패했어요. 다시 시도해 주세요.');
-        } else {
-          setNotice(
-            j?.moved
-              ? `예약을 ${slot.date} ${slot.time} 으로 옮겼어요! 🎟️`
-              : `${slot.date} ${slot.time} 예약 완료! 🎟️`,
-          );
-        }
+        setNotice(
+          j?.moved
+            ? `예약을 ${slot.date} ${slot.time} 으로 옮겼어요! 🎟️`
+            : `${slot.date} ${slot.time} 예약 완료! 🎟️`,
+        );
       }
+      setSelectedId(null);
+      await load();
+    } catch {
+      setNotice('요청에 실패했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** 예약 취소 — '내 예약 보기' 모달에서만 호출된다(목록의 내 예약 칸은 비활성). */
+  const cancelReservation = async () => {
+    if (busy || !data?.myReservation) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const r = await call('/api/cardshow/reserve', { method: 'DELETE' });
+      if (!r.ok) throw new Error();
+      setMyOpen(false);
+      setSelectedId(null);
+      setNotice('예약이 취소되었어요.');
       await load();
     } catch {
       setNotice('요청에 실패했어요. 잠시 후 다시 시도해 주세요.');
@@ -199,15 +215,14 @@ export function CardShowScreen() {
 
   /* ---------- 렌더 ---------- */
 
-  /** flush=true 면 좌우 패딩을 섹션이 직접 갖는다 (하단 CTA 를 화면 끝까지 붙이기 위함). */
-  const shell = (children: React.ReactNode, flush = false) => (
+  const shell = (children: React.ReactNode) => (
     <div className="pagebg" style={{ background: P.bg, color: P.ink, fontFamily: "'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',sans-serif" }}>
       <div style={{ background: P.card, borderBottom: `1px solid ${P.line}` }}>
         <div style={{ maxWidth: 560, margin: '0 auto', padding: '14px 20px 12px' }}>
           <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: -0.3 }}>카드쇼 사전예약</div>
         </div>
       </div>
-      <div style={{ maxWidth: 560, margin: '0 auto', padding: flush ? '0 0 40px' : '16px 16px 40px' }}>{children}</div>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '16px 16px 40px' }}>{children}</div>
     </div>
   );
 
@@ -259,27 +274,11 @@ export function CardShowScreen() {
     ? data.slots.find((s) => s.id === data.myReservation!.slotId) ?? data.myReservation.slot
     : null;
   const checkedIn = Boolean(data.myReservation?.checkedInAt);
-  // 입장 확인이 끝나면 예약을 바꿀 수 없다.
-  const locked = checkedIn;
+  // 내 예약 시간대는 목록에서 비활성이라 selected 로 잡히지 않는다(취소는 '내 예약 보기').
   const selected = selectedId != null ? daySlots.find((s) => s.id === selectedId) ?? null : null;
-  const isMine = selected != null && data.mySlotId === selected.id;
-  const isMove = selected != null && !isMine && data.mySlotId != null;
-
-  const ctaLabel = locked
-    ? '입장 완료됨'
-    : !selected
-      ? '시간을 선택하세요'
-      : isMine
-        ? '예약 취소하기'
-        : isMove
-          ? '이 시간으로 변경'
-          : '사전예약 신청';
-  const ctaBg = locked || !selected ? '#F2F2F4' : isMine ? P.red : P.ink;
-  const ctaFg = locked || !selected ? P.mute : '#fff';
 
   return shell(
     <>
-      <div style={{ padding: '16px 16px 0' }}>
       {/* 날짜 캘린더 칩 */}
       <div className="cv-hrow" style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, marginBottom: 14 }}>
         {dates.map((d, i) => {
@@ -306,34 +305,31 @@ export function CardShowScreen() {
         })}
       </div>
 
-      {/* 내 예약 배너 */}
+      {/* 내 예약 — 상세/취소는 '내 예약 보기' 모달에서 */}
       {mySlot ? (
-        <section style={{ marginBottom: 12, padding: '15px 16px 14px', borderRadius: 18, background: checkedIn ? 'rgba(43,182,115,0.10)' : P.orangeSoft, border: `1.5px solid ${checkedIn ? P.green : P.orange}` }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ color: checkedIn ? P.green : P.orange, fontSize: 10.5, fontWeight: 900, letterSpacing: 1.2 }}>
-                {checkedIn ? '✓ 입장 완료' : 'MY RESERVATION'}
-              </div>
-              <div style={{ marginTop: 6, fontSize: 19, fontWeight: 900, letterSpacing: -0.4 }}>
-                {mySlot.date.replace(/-/g, '.')} ({weekdayKo(mySlot.date)}) {mySlot.time}
-              </div>
-            </div>
-            <div style={{ fontSize: 32 }}>{checkedIn ? '✅' : '🎟️'}</div>
-          </div>
-          {checkedIn ? (
-            <div style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${P.line}`, color: P.sub, fontSize: 12 }}>
-              입장 확인 시각: {new Date(data.myReservation!.checkedInAt!).toLocaleString('ko-KR')}
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowCheckInConfirm(true)}
-              disabled={busy}
-              style={{ width: '100%', marginTop: 14, padding: '12px 16px', border: 'none', borderRadius: 12, background: P.orange, color: '#fff', fontSize: 14.5, fontWeight: 900, cursor: 'pointer' }}
-            >
-              담당자 확인
-            </button>
-          )}
-        </section>
+        <button
+          onClick={() => setMyOpen(true)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
+            padding: '13px 14px', borderRadius: 16, cursor: 'pointer', textAlign: 'left',
+            background: checkedIn ? 'rgba(43,182,115,0.10)' : P.orangeSoft,
+            border: `1.5px solid ${checkedIn ? P.green : P.orange}`,
+          }}
+        >
+          <span style={{ fontSize: 24, flex: 'none' }}>{checkedIn ? '✅' : '🎟️'}</span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: 'block', fontSize: 10.5, fontWeight: 900, letterSpacing: 1, color: checkedIn ? P.green : P.orange }}>
+              {checkedIn ? '입장 완료' : 'MY RESERVATION'}
+            </span>
+            <span style={{ display: 'block', fontSize: 15, fontWeight: 900, color: P.ink, marginTop: 3 }}>
+              {mySlot.date.replace(/-/g, '.')} ({weekdayKo(mySlot.date)}) {mySlot.time}
+            </span>
+          </span>
+          <span style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 3, fontSize: 12.5, fontWeight: 800, color: P.sub }}>
+            내 예약 보기
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="m9 6 6 6-6 6" /></svg>
+          </span>
+        </button>
       ) : null}
 
       {/* 행사 요약 */}
@@ -381,23 +377,23 @@ export function CardShowScreen() {
           const st = slotState(s.remaining, s.capacity);
           const soldout = st === 'soldout' && !mine;
           const sel = selectedId === s.id;
-          const end = slotEnd(daySlots, i);
           return (
             <button
               key={s.id}
-              disabled={soldout || busy || locked}
+              // 이미 예약한 시간대는 비활성 — 변경/취소는 '내 예약 보기'에서.
+              disabled={soldout || mine || busy}
               onClick={() => setSelectedId(sel ? null : s.id)}
               style={{
                 display: 'flex', alignItems: 'stretch', width: '100%', padding: 0, marginBottom: 9,
-                background: sel ? P.orangeSoft : P.card, border: `1.5px solid ${sel ? P.orange : P.line}`,
+                background: sel || mine ? P.orangeSoft : P.card,
+                border: `1.5px solid ${sel || mine ? P.orange : P.line}`,
                 borderRadius: 16, overflow: 'hidden', textAlign: 'left',
-                cursor: soldout || locked ? 'default' : 'pointer', opacity: soldout ? 0.55 : 1,
+                cursor: soldout || mine ? 'default' : 'pointer', opacity: soldout ? 0.55 : 1,
               }}
             >
-              {/* 시간 레일 */}
-              <span style={{ flex: 'none', width: 72, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, background: sel ? 'rgba(255,122,0,.10)' : P.bg, padding: '14px 0' }}>
-                <span style={{ fontSize: 15, fontWeight: 900, letterSpacing: -0.4, color: soldout ? P.mute : P.ink }}>{s.time}</span>
-                {end ? <span style={{ fontSize: 10, fontWeight: 700, color: soldout ? '#C7C7CC' : P.dim }}>~ {end}</span> : null}
+              {/* 시간 레일 — 시작 시각만 (종료 시각은 데이터에 없다) */}
+              <span style={{ flex: 'none', width: 72, display: 'flex', alignItems: 'center', justifyContent: 'center', background: sel || mine ? 'rgba(255,122,0,.10)' : P.bg, padding: '16px 0' }}>
+                <span style={{ fontSize: 16, fontWeight: 900, letterSpacing: -0.4, color: soldout ? P.mute : P.ink }}>{s.time}</span>
               </span>
               {/* 본문 — 잔여석/예약현황 (막대 그래프 없음) */}
               <span style={{ flex: 1, minWidth: 0, padding: '12px 13px' }}>
@@ -415,9 +411,13 @@ export function CardShowScreen() {
                   정원 {s.capacity}석 · {s.reserved}명 예약
                 </span>
               </span>
-              {/* 라디오 */}
+              {/* 선택 표시 — 내 예약은 체크로 고정, 그 외는 라디오 */}
               <span style={{ flex: 'none', width: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {!soldout ? (
+                {mine ? (
+                  <span style={{ width: 22, height: 22, borderRadius: '50%', background: P.orange, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                  </span>
+                ) : !soldout ? (
                   <span style={{ width: 22, height: 22, borderRadius: '50%', border: `2px solid ${sel ? P.orange : P.gray}`, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {sel ? <span style={{ width: 11, height: 11, borderRadius: '50%', background: P.orange }} /> : null}
                   </span>
@@ -433,31 +433,20 @@ export function CardShowScreen() {
         · 현장 확인을 위해 예약한 계정으로 로그인한 화면을 보여주세요.<br />
         · 잔여석은 실시간으로 변동될 수 있습니다.
       </p>
-      </div>
 
-      {/* 하단 고정 CTA */}
-      <div
-        className="addbar-sticky"
-        style={{ position: 'sticky', zIndex: 20, marginTop: 18, padding: '12px 18px', background: 'rgba(255,255,255,.97)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${P.line}`, display: 'flex', alignItems: 'center', gap: 12 }}
+      {/* 예약 버튼 — 리스트 제일 아래에 그대로 붙는다(스크롤 따라다니지 않음). */}
+      <button
+        disabled={!selected || busy}
+        onClick={() => selected && setConfirm(selected)}
+        style={{
+          width: '100%', height: 52, marginTop: 14, borderRadius: 14, border: 'none',
+          background: selected ? P.ink : '#F2F2F4', color: selected ? '#fff' : P.mute,
+          fontSize: 15.5, fontWeight: 800, cursor: selected ? 'pointer' : 'default',
+          boxShadow: selected ? '0 6px 16px rgba(0,0,0,.18)' : 'none',
+        }}
       >
-        <div style={{ flex: 'none', maxWidth: 118, minWidth: 0 }}>
-          <div style={{ fontSize: 11, color: P.dim, fontWeight: 700 }}>선택한 시간</div>
-          <div style={{ fontSize: 14.5, fontWeight: 900, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {selected ? `${selected.time}${slotEnd(daySlots, daySlots.indexOf(selected)) ? ` ~ ${slotEnd(daySlots, daySlots.indexOf(selected))}` : ''}` : '선택 안 됨'}
-          </div>
-        </div>
-        <button
-          disabled={!selected || busy || locked}
-          onClick={() => selected && setConfirm(selected)}
-          style={{
-            flex: 1, height: 50, borderRadius: 14, border: 'none', background: ctaBg, color: ctaFg,
-            fontSize: 15.5, fontWeight: 800, cursor: selected && !locked ? 'pointer' : 'default',
-            boxShadow: selected && !locked ? '0 6px 16px rgba(0,0,0,.18)' : 'none',
-          }}
-        >
-          {busy ? '처리 중…' : ctaLabel}
-        </button>
-      </div>
+        {busy ? '처리 중…' : selected ? `${selected.time} 사전예약 신청` : '시간을 선택하세요'}
+      </button>
 
       {confirm ? (
         <ConfirmModal
@@ -476,14 +465,20 @@ export function CardShowScreen() {
           onClose={() => setShowCheckInConfirm(false)}
         />
       ) : null}
-    </>,
-    true,
-  );
-}
 
-/** 같은 날짜 목록에서 i번째 슬롯의 종료 시각 = 다음 슬롯 시작. 마지막이면 null. */
-function slotEnd(list: Slot[], i: number): string | null {
-  return i >= 0 && i + 1 < list.length ? list[i + 1].time : null;
+      {myOpen && mySlot ? (
+        <MyReservationModal
+          slot={mySlot}
+          reservedAt={data.myReservation?.reservedAt ?? null}
+          checkedInAt={data.myReservation?.checkedInAt ?? null}
+          busy={busy}
+          onCheckIn={() => { setMyOpen(false); setShowCheckInConfirm(true); }}
+          onCancel={cancelReservation}
+          onClose={() => setMyOpen(false)}
+        />
+      ) : null}
+    </>,
+  );
 }
 
 function InfoLine({ icon, children }: { icon: 'pin' | 'clock'; children: React.ReactNode }) {
@@ -564,6 +559,91 @@ function ModalShell({ onClose, children }: { onClose: () => void; children: Reac
   );
 }
 
+/**
+ * 내 예약 보기 — 예약 상세 + 담당자 확인 + 예약 취소.
+ * 입장 완료(checkedInAt)된 예약은 취소할 수 없다(서버 정책과 동일).
+ */
+function MyReservationModal({
+  slot,
+  reservedAt,
+  checkedInAt,
+  busy,
+  onCheckIn,
+  onCancel,
+  onClose,
+}: {
+  slot: Pick<Slot, 'id' | 'date' | 'time' | 'capacity'>;
+  reservedAt: string | null;
+  checkedInAt: string | null;
+  busy: boolean;
+  onCheckIn: () => void;
+  onCancel: () => void;
+  onClose: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const done = Boolean(checkedInAt);
+
+  const row = (label: string, value: string) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: `1px solid ${P.line2}` }}>
+      <span style={{ fontSize: 12.5, color: P.dim, flex: 'none', fontWeight: 700 }}>{label}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 800, color: P.ink, textAlign: 'right' }}>{value}</span>
+    </div>
+  );
+
+  return (
+    <ModalShell onClose={onClose}>
+      <div style={{ textAlign: 'center', marginBottom: 14 }}>
+        <div style={{ fontSize: 36 }}>{done ? '✅' : '🎟️'}</div>
+        <h3 style={{ fontSize: 17, fontWeight: 900, margin: '10px 0 0', color: P.ink }}>내 예약</h3>
+        <p style={{ margin: '6px 0 0', fontSize: 12.5, fontWeight: 700, color: done ? P.green : P.orange }}>
+          {done ? '입장 완료' : '입장 대기'}
+        </p>
+      </div>
+
+      <div style={{ background: P.bg, borderRadius: 14, padding: '4px 14px', marginBottom: 16 }}>
+        {row('방문 일시', `${slot.date.replace(/-/g, '.')} (${weekdayKo(slot.date)}) ${slot.time}`)}
+        {row('입장 인원', '1인 + 동반 1인')}
+        {reservedAt ? row('예약 시각', new Date(reservedAt).toLocaleString('ko-KR')) : null}
+        {checkedInAt ? row('입장 확인', new Date(checkedInAt).toLocaleString('ko-KR')) : null}
+      </div>
+
+      {done ? (
+        <button onClick={onClose} style={{ width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', background: P.ink, color: '#fff', fontSize: 14.5, fontWeight: 900, cursor: 'pointer' }}>
+          닫기
+        </button>
+      ) : confirming ? (
+        <>
+          <p style={{ margin: '0 0 12px', textAlign: 'center', fontSize: 13.5, fontWeight: 800, color: P.ink }}>
+            예약을 취소하시겠습니까?
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={() => setConfirming(false)} disabled={busy} style={{ flex: 1, padding: '13px 0', borderRadius: 12, border: `1.5px solid ${P.line}`, background: P.card, color: P.sub, fontSize: 14.5, fontWeight: 800, cursor: 'pointer' }}>
+              돌아가기
+            </button>
+            <button onClick={onCancel} disabled={busy} style={{ flex: 1.4, padding: '13px 0', borderRadius: 12, border: 'none', background: P.red, color: '#fff', fontSize: 14.5, fontWeight: 900, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+              {busy ? '처리 중…' : '예약 취소'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button onClick={onCheckIn} disabled={busy} style={{ width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', background: P.orange, color: '#fff', fontSize: 14.5, fontWeight: 900, cursor: 'pointer' }}>
+            담당자 확인
+          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} disabled={busy} style={{ flex: 1, padding: '12px 0', borderRadius: 12, border: `1.5px solid ${P.line}`, background: P.card, color: P.sub, fontSize: 13.5, fontWeight: 800, cursor: 'pointer' }}>
+              닫기
+            </button>
+            <button onClick={() => setConfirming(true)} disabled={busy} style={{ flex: 1, padding: '12px 0', borderRadius: 12, border: `1.5px solid ${P.red}`, background: P.card, color: P.red, fontSize: 13.5, fontWeight: 800, cursor: 'pointer' }}>
+              예약 취소
+            </button>
+          </div>
+        </div>
+      )}
+    </ModalShell>
+  );
+}
+
 function CheckInConfirmModal({ busy, onConfirm, onClose }: { busy: boolean; onConfirm: () => void; onClose: () => void }) {
   return (
     <ModalShell onClose={onClose}>
@@ -601,13 +681,11 @@ function ConfirmModal({
   onConfirm: () => void;
   onClose: () => void;
 }) {
-  const isCancel = mySlot?.id === slot.id;
-  const isMove = !isCancel && mySlot != null;
-  const fmt = (s: Slot) => `${s.date.replace(/-/g, '.')} (${weekdayKo(s.date)}) ${s.time}`;
+  // 취소는 '내 예약 보기'에서만 — 여기는 신규 예약 / 다른 시간대로 이동만 다룬다.
+  const isMove = mySlot != null && mySlot.id !== slot.id;
+  const fmt = (s: Pick<Slot, 'date' | 'time'>) => `${s.date.replace(/-/g, '.')} (${weekdayKo(s.date)}) ${s.time}`;
 
-  const title = isCancel ? '예약을 취소하시겠습니까?' : isMove ? '예약을 이 시간으로 옮기시겠습니까?' : '예약하시겠습니까?';
-  const icon = isCancel ? '🗑️' : '🎟️';
-  const accent = isCancel ? P.red : P.ink;
+  const title = isMove ? '예약을 이 시간으로 옮기시겠습니까?' : '예약하시겠습니까?';
 
   const row = (label: string, value: string, strike = false) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: `1px solid ${P.line2}` }}>
@@ -621,15 +699,15 @@ function ConfirmModal({
   return (
     <ModalShell onClose={onClose}>
       <div style={{ textAlign: 'center', marginBottom: 14 }}>
-        <div style={{ fontSize: 36 }}>{icon}</div>
+        <div style={{ fontSize: 36 }}>🎟️</div>
         <h3 style={{ fontSize: 17, fontWeight: 900, margin: '10px 0 0', color: P.ink }}>{title}</h3>
       </div>
 
       <div style={{ background: P.bg, borderRadius: 14, padding: '4px 14px', marginBottom: 16 }}>
         {isMove && mySlot ? row('기존 예약', fmt(mySlot), true) : null}
-        {row(isCancel ? '취소할 예약' : '방문 일시', fmt(slot))}
-        {!isCancel ? row('잔여석', `${slot.remaining}석 (${slot.reserved}/${slot.capacity} 예약됨)`) : null}
-        {!isCancel ? row('입장 인원', '1인 + 동반 1인') : null}
+        {row('방문 일시', fmt(slot))}
+        {row('잔여석', `${slot.remaining}석 (${slot.reserved}/${slot.capacity} 예약됨)`)}
+        {row('입장 인원', '1인 + 동반 1인')}
       </div>
 
       <div style={{ display: 'flex', gap: 10 }}>
@@ -643,7 +721,7 @@ function ConfirmModal({
         <button
           onClick={onConfirm}
           disabled={busy}
-          style={{ flex: 1.4, padding: '13px 0', borderRadius: 12, cursor: 'pointer', fontSize: 14.5, fontWeight: 900, border: 'none', background: accent, color: '#fff', opacity: busy ? 0.6 : 1 }}
+          style={{ flex: 1.4, padding: '13px 0', borderRadius: 12, cursor: 'pointer', fontSize: 14.5, fontWeight: 900, border: 'none', background: P.ink, color: '#fff', opacity: busy ? 0.6 : 1 }}
         >
           {busy ? '처리 중…' : '확인'}
         </button>
