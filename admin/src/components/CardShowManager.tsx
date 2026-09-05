@@ -10,12 +10,27 @@
  */
 import { useMemo, useState, type FormEvent } from 'react';
 
+interface ReservationUser {
+  avatarId: string;
+  points: number;
+  signupPlatform: string | null;
+  isAdmin: boolean;
+  joinedAt: string;
+  cards: number;
+  trades: number;
+  feeds: number;
+}
+
 interface Reservation {
   id: number;
   userId: string;
   name: string;
   email: string | null;
   createdAt: string;
+  /// 현장 입장 확정 시각. null = 미입장.
+  checkedInAt: string | null;
+  /// 회원정보 모달용 요약. 탈퇴 회원이면 null.
+  user: ReservationUser | null;
 }
 
 export interface CardShowEventInfo {
@@ -55,6 +70,8 @@ export function CardShowManager({
     return m;
   }, [initialEvents]);
   const [openId, setOpenId] = useState<number | null>(null);
+  /// 회원정보 모달에 띄울 예약(= 클릭한 예약자). null 이면 닫힘.
+  const [detail, setDetail] = useState<(Reservation & { slotLabel: string }) | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -114,6 +131,58 @@ export function CardShowManager({
       const r = await fetch(`/api/cardshow/${s.id}`, { method: 'DELETE' });
       if (r.ok) setSlots((prev) => prev.filter((x) => x.id !== s.id));
       else setMsg('삭제 실패');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** 관리자 예약 취소 — 확정·입장 완료된 예약도 지울 수 있다(노쇼·중복 정리). */
+  const cancelReservation = async (slotId: number, r: Reservation) => {
+    if (busy) return;
+    if (!window.confirm(`${r.name} 님의 예약을 취소할까요?\n취소하면 그 자리는 다시 예약 가능해집니다.`)) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/cardshow/reservation/${r.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setSlots((prev) =>
+          prev.map((s) =>
+            s.id === slotId ? { ...s, reservations: s.reservations.filter((x) => x.id !== r.id) } : s,
+          ),
+        );
+        setDetail(null);
+      } else {
+        setMsg('예약 취소 실패');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** 입장 확정 토글 — 현장에서 앱 확인이 안 될 때 관리자가 직접 처리. */
+  const toggleCheckIn = async (slotId: number, r: Reservation) => {
+    if (busy) return;
+    const next = !r.checkedInAt;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/cardshow/reservation/${r.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checkedIn: next }),
+      });
+      const j = (await res.json().catch(() => null)) as { checkedInAt?: string | null } | null;
+      if (res.ok) {
+        const checkedInAt = j?.checkedInAt ?? null;
+        setSlots((prev) =>
+          prev.map((s) =>
+            s.id === slotId
+              ? { ...s, reservations: s.reservations.map((x) => (x.id === r.id ? { ...x, checkedInAt } : x)) }
+              : s,
+          ),
+        );
+        setDetail((d) => (d && d.id === r.id ? { ...d, checkedInAt } : d));
+      } else {
+        setMsg('입장 처리 실패');
+      }
     } finally {
       setBusy(false);
     }
@@ -212,7 +281,9 @@ export function CardShowManager({
                         ) : (
                           <>
                             <button className="btn" style={{ fontSize: 11, marginBottom: open ? 8 : 0 }} onClick={() => setOpenId(open ? null : s.id)}>
-                              {open ? '접기 ▲' : `명단 보기 (${s.reservations.length}) ▼`}
+                              {open
+                                ? '접기 ▲'
+                                : `명단 보기 (${s.reservations.length}명 · 입장 ${s.reservations.filter((r) => r.checkedInAt).length}) ▼`}
                             </button>
                             {open ? (
                               <table className="tbl" style={{ marginTop: 6 }}>
@@ -220,9 +291,43 @@ export function CardShowManager({
                                   {s.reservations.map((r, i) => (
                                     <tr key={r.id}>
                                       <td className="mono muted" style={{ width: 30 }}>{i + 1}</td>
-                                      <td style={{ fontWeight: 600 }}>{r.name}</td>
+                                      <td>
+                                        {/* 예약자 클릭 → 회원정보 모달 */}
+                                        <button
+                                          className="btn"
+                                          style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px' }}
+                                          onClick={() => setDetail({ ...r, slotLabel: `${s.date} ${s.time}` })}
+                                        >
+                                          {r.name}
+                                        </button>
+                                      </td>
                                       <td className="mono" style={{ fontSize: 11 }}>{r.email ?? '-'}</td>
+                                      <td style={{ width: 92 }}>
+                                        {r.checkedInAt ? (
+                                          <span style={{ fontSize: 11, fontWeight: 700, color: '#0F766E' }}>✅ 입장완료</span>
+                                        ) : (
+                                          <span className="muted" style={{ fontSize: 11 }}>대기</span>
+                                        )}
+                                      </td>
                                       <td className="mono muted" style={{ width: 100 }}>{fmtTime(r.createdAt)} 예약</td>
+                                      <td style={{ width: 150, textAlign: 'right' }}>
+                                        <button
+                                          className="btn"
+                                          style={{ fontSize: 11, marginRight: 6 }}
+                                          disabled={busy}
+                                          onClick={() => toggleCheckIn(s.id, r)}
+                                        >
+                                          {r.checkedInAt ? '입장 취소' : '입장 확정'}
+                                        </button>
+                                        <button
+                                          className="btn"
+                                          style={{ fontSize: 11, color: '#B91C1C' }}
+                                          disabled={busy}
+                                          onClick={() => cancelReservation(s.id, r)}
+                                        >
+                                          예약 취소
+                                        </button>
+                                      </td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -242,7 +347,101 @@ export function CardShowManager({
           </section>
         ))
       )}
+
+      {/* 회원정보 모달 — 예약자 이름을 누르면 뜬다. 여기서도 입장/취소 처리 가능. */}
+      {detail ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setDetail(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(15,23,42,.5)',
+            display: 'grid', placeItems: 'center', padding: 16,
+          }}
+        >
+          <div
+            className="card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 'min(460px, 100%)', maxHeight: '85vh', overflowY: 'auto' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <h2 style={{ margin: 0 }}>👤 {detail.name}</h2>
+              <button className="btn" style={{ fontSize: 12 }} onClick={() => setDetail(null)}>닫기</button>
+            </div>
+            <div className="muted" style={{ marginTop: 4, fontSize: 12 }}>
+              {detail.slotLabel} 예약 · {fmtTime(detail.createdAt)} 신청
+            </div>
+
+            <table className="tbl" style={{ marginTop: 12 }}>
+              <tbody>
+                <DetailRow label="회원 ID" value={<span className="mono" style={{ fontSize: 11 }}>{detail.userId}</span>} />
+                <DetailRow label="이메일" value={<span className="mono" style={{ fontSize: 11 }}>{detail.email ?? '-'}</span>} />
+                <DetailRow
+                  label="입장 상태"
+                  value={
+                    detail.checkedInAt ? (
+                      <span style={{ color: '#0F766E', fontWeight: 700 }}>✅ 입장 완료 ({fmtTime(detail.checkedInAt)})</span>
+                    ) : (
+                      <span className="muted">대기</span>
+                    )
+                  }
+                />
+                {detail.user ? (
+                  <>
+                    <DetailRow label="가입일" value={fmtTime(detail.user.joinedAt)} />
+                    <DetailRow label="가입 경로" value={detail.user.signupPlatform ?? '-'} />
+                    <DetailRow label="포인트" value={`${detail.user.points.toLocaleString()}P`} />
+                    <DetailRow
+                      label="활동"
+                      value={`보유카드 ${detail.user.cards} · 거래 ${detail.user.trades} · 글 ${detail.user.feeds}`}
+                    />
+                    {detail.user.isAdmin ? <DetailRow label="권한" value={<b>관리자</b>} /> : null}
+                  </>
+                ) : (
+                  <tr><td className="muted" colSpan={2}>탈퇴한 회원입니다.</td></tr>
+                )}
+              </tbody>
+            </table>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+              <button
+                className="btn"
+                disabled={busy}
+                onClick={() => {
+                  const slot = slots.find((x) => x.reservations.some((r) => r.id === detail.id));
+                  if (slot) toggleCheckIn(slot.id, detail);
+                }}
+              >
+                {detail.checkedInAt ? '입장 취소' : '입장 확정'}
+              </button>
+              <button
+                className="btn"
+                style={{ color: '#B91C1C' }}
+                disabled={busy}
+                onClick={() => {
+                  const slot = slots.find((x) => x.reservations.some((r) => r.id === detail.id));
+                  if (slot) cancelReservation(slot.id, detail);
+                }}
+              >
+                예약 취소
+              </button>
+              <a className="btn" href={`/users?q=${encodeURIComponent(detail.userId)}`} target="_blank" rel="noreferrer">
+                회원 관리에서 열기 ↗
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <tr>
+      <td className="muted" style={{ width: 90, fontSize: 12 }}>{label}</td>
+      <td style={{ fontSize: 13 }}>{value}</td>
+    </tr>
   );
 }
 

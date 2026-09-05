@@ -80,7 +80,8 @@
           "backgroundColor": "#0a1121"
         }
       ],
-      "./plugins/withR8Optimize"
+      "./plugins/withR8Optimize",
+      "./plugins/withGradleMemory"
     ],
     "experiments": {
       "typedRoutes": false

@@ -49,9 +49,10 @@ type ManSortKey = 'rel' | 'rarity' | 'price' | 'volume';
 /* ── 검색 기준(카드이름/세트코드/카드번호) — 웹 ManualAddForm FIELDS 미러 ── */
 type ManFieldKey = 'name' | 'set' | 'num';
 const MAN_FIELDS: Array<{ key: ManFieldKey; label: string; color: string; placeholder: string; hint: string; max: number }> = [
+  // 카드번호가 가장 확실한 단서라 첫 번째이자 기본 선택 (사용자 지시 2026-09-06).
+  { key: 'num', label: '카드번호', color: '#1E8E5A', placeholder: '예) 025/165', hint: '세트코드 바로 옆 번호예요.', max: 16 },
   { key: 'name', label: '카드이름', color: '#FF7A00', placeholder: '예) 피카츄', hint: '이름 일부만 입력해도 돼요.', max: 60 },
   { key: 'set', label: '세트코드', color: '#2563EB', placeholder: '예) SV4a', hint: '카드 왼쪽 하단의 코드예요.', max: 16 },
-  { key: 'num', label: '카드번호', color: '#1E8E5A', placeholder: '예) 025/165', hint: '세트코드 바로 옆 번호예요.', max: 16 },
 ];
 
 const MAN_SORT_LABEL: Record<ManSortKey, string> = {
@@ -105,7 +106,7 @@ function manSetKeyOf(c: CardItem): string | null {
 }
 import type { GuideRect, ScanLanguage } from '@/types/cardScan';
 
-type Mode = 'choose' | 'camera' | 'preview' | 'batch' | 'manual' | 'register' | 'result' | 'batchResult' | 'fastResult';
+type Mode = 'camera' | 'preview' | 'batch' | 'manual' | 'register' | 'result' | 'batchResult' | 'fastResult';
 
 export default function ScanScreen() {
   // 서버 /api/cards/scan 이 로그인 필수가 됨 — 미로그인은 게이트만 렌더.
@@ -145,7 +146,8 @@ function ScanScreenInner() {
     regPrice?: string;
   }>();
   const initRef = useRef(false);
-  const [mode, setMode] = useState<Mode>('choose');
+  // 'choose'(방법 선택) 화면은 폐지 — 진입하면 바로 '내 카드 등록' 폼이다 (2026-09-06).
+  const [mode, setMode] = useState<Mode>('manual');
   // 카메라 fast scan — 찍는 즉시 좌하단 코드 인식 → 코드로 카드 조회(백그라운드).
   const fastScan = useFastScan();
   const [found, setFound] = useState<CardItem | null>(null);
@@ -195,7 +197,7 @@ function ScanScreenInner() {
   const [manMenu, setManMenu] = useState<'set' | 'rarity' | 'sort' | null>(null);
   const [manSelectedIdx, setManSelectedIdx] = useState<number | null>(null);
   // 검색 기준(지금 입력 중인 항목) + 등록 옵션 패널 — 웹 ManualAddForm 동일.
-  const [manField, setManField] = useState<ManFieldKey>('name');
+  const [manField, setManField] = useState<ManFieldKey>('num');
   const [manOptOpen, setManOptOpen] = useState(false);
   // 검색에 안 잡혀도 입력값 그대로 등록('직접 입력하기') — 웹 useFallback 페어.
   const [manUseFallback, setManUseFallback] = useState(false);
@@ -518,7 +520,7 @@ function ScanScreenInner() {
             setMode('fastResult');
             return;
           }
-          setMode('choose');
+          setMode('manual');
         }}
         onCaptured={(shot) => fastScan.addShot(shot)}
         onDone={() => setMode('fastResult')}
@@ -530,19 +532,19 @@ function ScanScreenInner() {
     <View style={{ flex: 1, backgroundColor: tc.paper }}>
       <AppBar
         onBack={() => {
-          if (mode === 'choose') {
-            router.replace('/my/cards' as never);
-            return;
-          }
-          if (mode === 'register') {
-            setMode(pendingFrom === 'manual' ? 'manual' : 'choose');
+          // 등록 폼(첫 화면)에서 뒤로가기 = 진짜 이전 화면으로 나간다.
+          // 예전엔 '방법 선택' 화면으로 되돌아가 밖으로 못 나갔다.
+          if (mode === 'manual') {
+            if (router.canGoBack()) router.back();
+            else router.replace('/' as never);
             return;
           }
           if (mode === 'batchResult' || mode === 'batch') {
             setBatchFound([]);
             setCaptures([]);
           }
-          setMode('choose');
+          // 나머지 단계(촬영 결과·등록 등)는 폼으로 되돌아온다.
+          setMode('manual');
         }}
         title={mode === 'manual' ? '내 카드 등록' : '카드 등록'}
       />
@@ -631,7 +633,7 @@ function ScanScreenInner() {
             ))}
           </View>
           <View style={{ marginHorizontal: 14, flexDirection: 'row', gap: 8 }}>
-            <PixelPress wrapStyle={{ flex: 1 }} onPress={() => { setBatchFound([]); setCaptures([]); setMode('choose'); }}>
+            <PixelPress wrapStyle={{ flex: 1 }} onPress={() => { setBatchFound([]); setCaptures([]); setMode('manual'); }}>
               <View style={{ paddingVertical: 11, alignItems: 'center' }}>
                 <PixelText variant={txt} size={10}>처음으로</PixelText>
               </View>
@@ -661,140 +663,6 @@ function ScanScreenInner() {
             !(mode === 'manual' && manSearched) ? floatNavInset + 40 : 40,
         }}
       >
-        {mode === 'choose' && (
-          <>
-            <View style={{ alignItems: 'center', paddingVertical: 24, gap: 10 }}>
-              <PixelBall size={80} />
-              <PixelText variant={txt} size={13} style={{ marginTop: 6, letterSpacing: 2 }}>
-                카드 추가
-              </PixelText>
-              <PixelText variant={txt} size={10} color={tc.ink3} style={{ letterSpacing: 0.5 }}>
-                방법을 선택하세요
-              </PixelText>
-            </View>
-
-            <View style={{ marginHorizontal: 14, gap: 12 }}>
-              <PixelPress
-                onPress={() => setMode('camera')}
-                bg={tc.ink2}
-                borderWidth={4}
-                shadow={7}
-                hi="rgba(255,255,255,0.08)"
-                lo="rgba(0,0,0,0.4)"
-                inner={3}
-              >
-                <View
-                  style={{
-                    padding: 18,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 14,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 52,
-                      height: 52,
-                      backgroundColor: tc.grn,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderColor: tc.ink,
-                      borderWidth: 3,
-                    }}
-                  >
-                    <Text style={{ fontSize: 26 }}>📷</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <PixelText variant={txt} size={12} color={tc.white} style={{ marginBottom: 7, letterSpacing: 1 }}>
-                      사진으로 스캔
-                    </PixelText>
-                    <PixelText variant={txt} size={9} color="rgba(255,255,255,0.5)" style={{ lineHeight: 16 }}>
-                      카드를 촬영하면 자동으로{`\n`}카드 정보를 인식합니다
-                    </PixelText>
-                  </View>
-                  <PixelText variant={txt} size={16} color={tc.gold}>
-                    ▶
-                  </PixelText>
-                </View>
-              </PixelPress>
-
-              {/* Card-name language — pick one so the server runs only that
-                  language's OCR worker. Cuts time + drops cross-language hallucination. */}
-              <View
-                style={{
-                  flexDirection: 'row',
-                  borderColor: tc.ink,
-                  borderWidth: 2,
-                  backgroundColor: tc.white,
-                }}
-              >
-                {(
-                  [
-                    { v: 'ko', label: '한국어' },
-                    { v: 'jp', label: '일본어' },
-                    { v: 'en', label: 'English' },
-                  ] as const
-                ).map((opt, i) => (
-                  <Pressable
-                    key={opt.v}
-                    onPress={() => setScanLang(opt.v)}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 11,
-                      alignItems: 'center',
-                      backgroundColor: scanLang === opt.v ? tc.gold : 'transparent',
-                      borderLeftWidth: i === 0 ? 0 : 2,
-                      borderLeftColor: tc.ink,
-                    }}
-                  >
-                    <PixelText variant={txt} size={11} color={scanLang === opt.v ? tc.ink : tc.ink3}>
-                      {opt.label}
-                    </PixelText>
-                  </Pressable>
-                ))}
-              </View>
-              <PixelText variant={txt} size={9} color={tc.ink3} style={{ marginTop: -4, marginBottom: -2, marginLeft: 2 }}>
-                카드 이름이 어느 언어인지 골라주세요
-              </PixelText>
-
-              <PixelPress onPress={() => setMode('manual')} borderWidth={4} shadow={7}>
-                <View
-                  style={{
-                    padding: 18,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 14,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 52,
-                      height: 52,
-                      backgroundColor: tc.gold,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderColor: tc.ink,
-                      borderWidth: 3,
-                    }}
-                  >
-                    <Text style={{ fontSize: 26 }}>✏️</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <PixelText variant={txt} size={12} style={{ marginBottom: 7, letterSpacing: 1 }}>
-                      직접 입력
-                    </PixelText>
-                    <PixelText variant={txt} size={9} color={tc.ink3} style={{ lineHeight: 16 }}>
-                      카드 이름·세트·번호 등{`\n`}정보를 직접 입력해 등록합니다
-                    </PixelText>
-                  </View>
-                  <PixelText variant={txt} size={16}>
-                    ▶
-                  </PixelText>
-                </View>
-              </PixelPress>
-            </View>
-          </>
-        )}
 
         {mode === 'manual' && (
           <View style={{ paddingHorizontal: 16 }}>
@@ -1141,7 +1009,7 @@ function ScanScreenInner() {
               );
             })()}
             <View style={{ marginHorizontal: 14, flexDirection: 'row', gap: 8 }}>
-              <PixelPress wrapStyle={{ flex: 1 }} onPress={() => setMode('choose')}>
+              <PixelPress wrapStyle={{ flex: 1 }} onPress={() => setMode('manual')}>
                 <View style={{ paddingVertical: 11, alignItems: 'center' }}>
                   <PixelText variant={txt} size={10}>
                     처음으로
@@ -1369,47 +1237,56 @@ function ManualCardGuide({ P, clean }: { P: ManualPalette; clean: boolean }) {
         카드에서 이 위치를 확인하세요
       </PixelText>
       <View style={{ width: 196, height: 274, borderRadius: 11, padding: 7, backgroundColor: '#e6b800', overflow: 'hidden' }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <PixelText variant="ko" size={11} weight="bold" color="#16161a">피카츄 ex</PixelText>
+        {/* 샘플 워터마크 — 콜아웃보다 먼저 깔아 색 표시가 흐려지지 않게 한다. */}
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.30)', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 30, fontWeight: '900', color: 'rgba(22,22,26,0.22)', letterSpacing: 5, transform: [{ rotate: '-24deg' }] }}>SAMPLE</Text>
+        </View>
+
+        {/* 카드이름 — 실제 이름 글자를 테두리로 감싸고 배지를 바로 옆에 붙인다. */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <View style={{ borderWidth: 2, borderColor: NAME_C, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1, backgroundColor: 'rgba(255,255,255,0.55)' }}>
+            <PixelText variant="ko" size={11} weight="bold" color="#16161a">피카츄 ex</PixelText>
+          </View>
+          <ManualGuideTag color={NAME_C}>카드이름</ManualGuideTag>
           <View style={{ flex: 1 }} />
           <PixelText variant="ko" size={7} weight="bold" color="#b3261e">HP</PixelText>
           <PixelText variant="ko" size={11} weight="bold" color="#16161a">200</PixelText>
         </View>
-        <View style={{ height: 152, marginTop: 5, borderWidth: 3, borderColor: '#c9a000', borderRadius: 4, backgroundColor: '#ffd76e', alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 58 }}>⚡</Text>
+
+        <View style={{ height: 138, marginTop: 5, borderWidth: 3, borderColor: '#c9a000', borderRadius: 4, backgroundColor: '#ffd76e', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 54 }}>⚡</Text>
         </View>
         <View style={{ marginTop: 7, gap: 5, paddingHorizontal: 2 }}>
           <View style={{ height: 6, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.12)' }} />
           <View style={{ height: 6, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.12)', width: '76%' }} />
-          <View style={{ height: 6, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.12)', width: '58%' }} />
         </View>
-        <View style={{ position: 'absolute', left: 7, right: 7, bottom: 6, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-          <PixelText variant="ko" size={9.5} weight="bold" color="#16161a">SV4a</PixelText>
-          <PixelText variant="ko" size={9.5} weight="bold" color="#16161a">025/165</PixelText>
-        </View>
-        {/* 실제 카드가 아님을 분명히 — 샘플 워터마크 */}
-        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.42)', alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 30, fontWeight: '900', color: 'rgba(22,22,26,0.2)', letterSpacing: 5, transform: [{ rotate: '-24deg' }] }}>SAMPLE</Text>
-        </View>
-        {/* 콜아웃 — 카드이름 / 세트코드 / 카드번호 */}
-        <View pointerEvents="none" style={{ position: 'absolute', top: 26, left: 5, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <View style={{ width: 44, height: 5, borderLeftWidth: 2, borderTopWidth: 2, borderColor: NAME_C }} />
-          <View style={{ backgroundColor: NAME_C, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-            <PixelText variant="ko" size={9.5} weight="bold" color="#ffffff">카드이름</PixelText>
+
+        {/* 세트코드 · 카드번호 — 하단 실제 표기를 각각 감싸고 배지를 바로 위에 둔다. */}
+        <View style={{ position: 'absolute', left: 7, right: 7, bottom: 7 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+            <ManualGuideTag color={SET_C}>세트코드</ManualGuideTag>
+            <ManualGuideTag color={NUM_C}>카드번호</ManualGuideTag>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ borderWidth: 2, borderColor: SET_C, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, backgroundColor: 'rgba(255,255,255,0.55)' }}>
+              <PixelText variant="ko" size={9.5} weight="bold" color="#16161a">SV4a</PixelText>
+            </View>
+            <View style={{ borderWidth: 2, borderColor: NUM_C, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, backgroundColor: 'rgba(255,255,255,0.55)' }}>
+              <PixelText variant="ko" size={9.5} weight="bold" color="#16161a">025/165</PixelText>
+            </View>
           </View>
         </View>
-        <View pointerEvents="none" style={{ position: 'absolute', left: 5, bottom: 22, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <View style={{ backgroundColor: SET_C, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-            <PixelText variant="ko" size={9.5} weight="bold" color="#ffffff">세트코드</PixelText>
-          </View>
-          <View style={{ backgroundColor: NUM_C, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-            <PixelText variant="ko" size={9.5} weight="bold" color="#ffffff">카드번호</PixelText>
-          </View>
-        </View>
-        <View pointerEvents="none" style={{ position: 'absolute', left: 6, bottom: 18, width: 27, height: 5, borderLeftWidth: 2, borderBottomWidth: 2, borderColor: SET_C }} />
-        <View pointerEvents="none" style={{ position: 'absolute', left: 36, bottom: 18, width: 43, height: 5, borderRightWidth: 2, borderBottomWidth: 2, borderColor: NUM_C }} />
       </View>
       <PixelText variant="ko" size={10} color={P.ink3} style={{ marginTop: 10 }}>· 설명용 샘플 이미지입니다</PixelText>
+    </View>
+  );
+}
+
+/** 콜아웃 배지 — 가리키는 항목 바로 옆/위에 붙는 작은 색 라벨 (웹 Tag 페어). */
+function ManualGuideTag({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <View style={{ backgroundColor: color, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+      <PixelText variant="ko" size={9} weight="bold" color="#ffffff">{children}</PixelText>
     </View>
   );
 }
