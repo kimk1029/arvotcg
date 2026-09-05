@@ -18,6 +18,7 @@ import { PixelFrame } from '@/components/cv/PixelFrame';
 import { PixelPress } from '@/components/cv/PixelPress';
 import { ProviderLogo } from '@/components/ProviderLogo';
 import { useTheme, useThemeColors } from '@/components/ThemeProvider';
+import { colors } from '@/theme/tokens';
 import { isFlatTheme } from '@/lib/theme';
 import { startSocialLogin, type AuthProvider } from '@/lib/oauth';
 
@@ -227,12 +228,14 @@ function CompactLoginBtn({ bg, fg, provider, name, onPress, disabled }: CompactB
     <PixelPress
       onPress={onPress}
       disabled={disabled}
-      wrapStyle={disabled ? { opacity: 0.45 } : undefined}
-      bg={bg}
+      // 비활성은 전체 opacity 로 낮추지 않는다 — 픽셀 베벨의 흰 하이라이트가 남아
+      // 텍스트 영역이 흰 박스처럼 뜬다. 대신 면·글자색 자체를 중성 회색으로 바꾸고
+      // 하이라이트를 없애 버튼 전체가 고르게 죽어 보이게 한다.
+      bg={disabled ? colors.btnOffBg : bg}
       borderWidth={3}
       shadow={5}
-      hi="rgba(255,255,255,0.4)"
-      lo="rgba(0,0,0,0.18)"
+      hi={disabled ? null : 'rgba(255,255,255,0.4)'}
+      lo={disabled ? 'rgba(0,0,0,0.10)' : 'rgba(0,0,0,0.18)'}
       inner={2}
     >
       <View
@@ -254,11 +257,12 @@ function CompactLoginBtn({ bg, fg, provider, name, onPress, disabled }: CompactB
             borderColor: 'rgba(0,0,0,0.12)',
             borderWidth: flat ? 0 : 1,
             borderRadius: flat ? 8 : 0,
+            opacity: disabled ? 0.5 : 1,
           }}
         >
           <ProviderLogo provider={provider} size={19} />
         </View>
-        <PixelText variant="pixel" size={flat ? 13 : 11} weight={flat ? 'bold' : 'normal'} color={fg} style={{ flex: 1, letterSpacing: flat ? 0 : 0.5 }}>
+        <PixelText variant="pixel" size={flat ? 13 : 11} weight={flat ? 'bold' : 'normal'} color={disabled ? colors.btnOffFg : fg} style={{ flex: 1, letterSpacing: flat ? 0 : 0.5 }}>
           {name}
         </PixelText>
       </View>

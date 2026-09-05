@@ -16,6 +16,11 @@ export const colors = {
   goldDk: '#B88400',
   /** 웹 --gold-soft 대응 — 골드 틴트 면(가격 필 등). 픽셀 테마는 골드 원색과 동일. */
   goldSoft: '#FFD23F',
+  /** 비활성(준비 중) 버튼 면/글자 — 라이트 페이퍼·다크 네이비 양쪽에서 읽히는 중성 회색.
+      opacity 로 흐리게 하면 픽셀 베벨 하이라이트가 남아 흰 박스처럼 보이므로 색으로 처리한다.
+      웹 globals.css `.login-btn-off` 와 같은 값. */
+  btnOffBg: '#AEB6C0',
+  btnOffFg: '#3F4653',
   blu: '#3A5BD9',
   bluLt: '#7A94FF',
   bluDk: '#1B2E89',

@@ -16,6 +16,7 @@ import { PixelPress } from '@/components/cv/PixelPress';
 import { PixelBall } from '@/components/PixelBall';
 import { ProviderLogo } from '@/components/ProviderLogo';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
+import { colors } from '@/theme/tokens';
 import { getApiBaseUrl } from '@/lib/apiClient';
 import { isAuthenticated } from '@/lib/session';
 import { startSocialLogin, type AuthProvider } from '@/lib/oauth';
@@ -225,12 +226,13 @@ function LoginBtn({ bg, fg, provider, name, desc, onPress, disabled }: BtnProps)
     <PixelPress
       onPress={onPress}
       disabled={disabled}
-      wrapStyle={disabled ? { opacity: 0.45 } : undefined}
-      bg={bg}
+      // 비활성은 전체 opacity 로 낮추지 않는다 — 픽셀 베벨의 흰 하이라이트가 남아
+      // 텍스트 영역이 흰 박스처럼 뜬다. 면·글자색 자체를 중성 회색으로 바꾼다.
+      bg={disabled ? colors.btnOffBg : bg}
       borderWidth={4}
       shadow={7}
-      hi="rgba(255,255,255,0.4)"
-      lo="rgba(0,0,0,0.18)"
+      hi={disabled ? null : 'rgba(255,255,255,0.4)'}
+      lo={disabled ? 'rgba(0,0,0,0.10)' : 'rgba(0,0,0,0.18)'}
       inner={3}
     >
       <View
@@ -251,18 +253,19 @@ function LoginBtn({ bg, fg, provider, name, desc, onPress, disabled }: BtnProps)
             justifyContent: 'center',
             borderColor: 'rgba(0,0,0,0.15)',
             borderWidth: 1,
+            opacity: disabled ? 0.5 : 1,
           }}
         >
           <ProviderLogo provider={provider} size={24} />
         </View>
         <View style={{ flex: 1 }}>
-          <PixelText variant={txt} size={11} color={fg} style={{ letterSpacing: 1 }}>
+          <PixelText variant={txt} size={11} color={disabled ? colors.btnOffFg : fg} style={{ letterSpacing: 1 }}>
             {name}
           </PixelText>
           <PixelText
             variant={txt}
             size={9}
-            color={fg}
+            color={disabled ? colors.btnOffFg : fg}
             style={{ marginTop: 5, opacity: 0.65, letterSpacing: 0.3 }}
           >
             {desc}
