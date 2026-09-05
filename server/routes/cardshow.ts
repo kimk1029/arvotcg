@@ -13,11 +13,15 @@ const router = Router();
 /** GET /api/cardshow/slots — 활성 슬롯 + 잔여석, 로그인 시 내 예약 포함. */
 router.get('/slots', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const slots = await prisma.cardShowSlot.findMany({
-      where: { active: true },
-      orderBy: [{ date: 'asc' }, { time: 'asc' }],
-      include: { _count: { select: { reservations: true } } },
-    });
+    const [slots, events] = await Promise.all([
+      prisma.cardShowSlot.findMany({
+        where: { active: true },
+        orderBy: [{ date: 'asc' }, { time: 'asc' }],
+        include: { _count: { select: { reservations: true } } },
+      }),
+      // 날짜별 행사 정보(행사명·장소·시간 등) — 어드민에서 관리. 없는 날짜는 웹이 기본값.
+      prisma.cardShowEvent.findMany({ orderBy: { date: 'asc' } }),
+    ]);
     const userId = req.user?.userId ?? null;
     const mine = userId
       ? await prisma.cardShowReservation.findUnique({
@@ -48,6 +52,15 @@ router.get('/slots', optionalAuth, async (req: Request, res: Response) => {
         capacity: s.capacity,
         reserved: s._count.reservations,
         remaining: Math.max(0, s.capacity - s._count.reservations),
+      })),
+      events: events.map((e) => ({
+        date: e.date,
+        title: e.title,
+        venue: e.venue,
+        hours: e.hours,
+        // 쉼표 구분 문자열 → 배열. 빈 값은 버린다.
+        badges: e.badges.split(',').map((b) => b.trim()).filter(Boolean),
+        note: e.note,
       })),
     });
   } catch (err) {

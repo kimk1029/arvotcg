@@ -1,8 +1,12 @@
 'use client';
 
 /**
- * 카드쇼 슬롯 관리자 — 날짜별 그룹으로 슬롯 나열, 정원 인라인 수정·활성 토글·삭제,
- * 슬롯 클릭 시 예약자 목록 펼침. 신규 생성은 상단 폼(시간 쉼표 구분 일괄 등록).
+ * 카드쇼 관리자 — 날짜별로 (1) 행사 정보(행사명·장소·시간·배지·안내) 편집과
+ * (2) 시간대 슬롯(정원 인라인 수정·노출 토글·삭제·예약자 명단)을 함께 다룬다.
+ * 신규 슬롯은 상단 폼(시간 쉼표 구분 일괄 등록).
+ *
+ * 행사 정보는 CardShowEvent(날짜 유일)에 저장되고, 비워 두면 웹이 기본 문구/슬롯
+ * 시간대에서 자동으로 채운다 — 즉 입력은 전부 선택 사항이다.
  */
 import { useMemo, useState, type FormEvent } from 'react';
 
@@ -12,6 +16,15 @@ interface Reservation {
   name: string;
   email: string | null;
   createdAt: string;
+}
+
+export interface CardShowEventInfo {
+  date: string;
+  title: string;
+  venue: string;
+  hours: string;
+  badges: string;
+  note: string;
 }
 
 interface Slot {
@@ -28,8 +41,19 @@ function fmtTime(d: string): string {
   return `${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
 }
 
-export function CardShowManager({ initialSlots }: { initialSlots: Slot[] }) {
+export function CardShowManager({
+  initialSlots,
+  initialEvents,
+}: {
+  initialSlots: Slot[];
+  initialEvents: CardShowEventInfo[];
+}) {
   const [slots, setSlots] = useState(initialSlots);
+  const eventByDate = useMemo(() => {
+    const m = new Map<string, CardShowEventInfo>();
+    for (const e of initialEvents) m.set(e.date, e);
+    return m;
+  }, [initialEvents]);
   const [openId, setOpenId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -137,6 +161,9 @@ export function CardShowManager({ initialSlots }: { initialSlots: Slot[] }) {
         byDate.map(([date, daySlots]) => (
           <section className="card" key={date} style={{ marginBottom: 16 }}>
             <h2>📅 {date} <span className="muted">({daySlots.length}개 시간대 · 예약 {daySlots.reduce((a, s) => a + s.reservations.length, 0)}명)</span></h2>
+
+            <EventInfoForm date={date} initial={eventByDate.get(date) ?? null} />
+
             <table className="tbl">
               <thead>
                 <tr>
@@ -216,5 +243,119 @@ export function CardShowManager({ initialSlots }: { initialSlots: Slot[] }) {
         ))
       )}
     </>
+  );
+}
+
+/**
+ * 날짜별 행사 정보 편집 — 비워 두면 웹이 기본 문구/슬롯 시간대로 채운다.
+ * 저장은 PUT /api/cardshow/event (date 기준 upsert).
+ */
+function EventInfoForm({ date, initial }: { date: string; initial: CardShowEventInfo | null }) {
+  const [open, setOpen] = useState(false);
+  const [v, setV] = useState<Omit<CardShowEventInfo, 'date'>>({
+    title: initial?.title ?? '',
+    venue: initial?.venue ?? '',
+    hours: initial?.hours ?? '',
+    badges: initial?.badges ?? '',
+    note: initial?.note ?? '',
+  });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const filled = [v.title, v.venue, v.hours].filter(Boolean).length > 0;
+
+  const save = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await fetch('/api/cardshow/event', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, ...v }),
+      });
+      const j = (await r.json().catch(() => null)) as { error?: string } | null;
+      if (!r.ok) throw new Error(j?.error ?? `HTTP ${r.status}`);
+      setMsg({ ok: true, text: '저장됨 — 웹/앱 예약 페이지에 바로 반영됩니다' });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : '저장 실패' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clear = async () => {
+    if (!window.confirm(`${date} 행사 정보를 지울까요? (웹은 기본 문구로 돌아갑니다)`)) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await fetch(`/api/cardshow/event?date=${encodeURIComponent(date)}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setV({ title: '', venue: '', hours: '', badges: '', note: '' });
+      setMsg({ ok: true, text: '행사 정보를 지웠습니다' });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : '삭제 실패' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const field = (
+    key: keyof Omit<CardShowEventInfo, 'date'>,
+    label: string,
+    placeholder: string,
+    width?: number,
+  ) => (
+    <label style={{ fontSize: 12, color: '#475569', display: 'flex', flexDirection: 'column', gap: 4, flex: width ? undefined : 1, minWidth: width ?? 180 }}>
+      {label}
+      <input
+        className="login-input"
+        style={{ height: 34, width: width ?? undefined }}
+        value={v[key]}
+        placeholder={placeholder}
+        onChange={(e) => setV((prev) => ({ ...prev, [key]: e.target.value }))}
+      />
+    </label>
+  );
+
+  return (
+    <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <strong style={{ fontSize: 13 }}>🎪 행사 정보</strong>
+        <span className="muted" style={{ fontSize: 12 }}>
+          {filled ? `${v.title || '(행사명 없음)'}${v.venue ? ` · ${v.venue}` : ''}` : '미입력 — 웹은 기본 문구로 표시됩니다'}
+        </span>
+        <div style={{ flex: 1 }} />
+        <button className="btn" style={{ fontSize: 11 }} onClick={() => setOpen((o) => !o)}>
+          {open ? '접기 ▲' : '편집 ▼'}
+        </button>
+      </div>
+
+      {open ? (
+        <>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
+            {field('title', '행사명', 'ARVO 카드쇼 2026 서울')}
+            {field('venue', '장소', '서울 성수 S팩토리 A동')}
+            {field('hours', '운영 시간 (비우면 슬롯에서 자동)', '10:00 ~ 19:00', 200)}
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
+            {field('badges', '배지 (쉼표 구분, 비우면 기본)', '사전예약, 무료 입장', 240)}
+            {field('note', '추가 안내 한 줄 (선택)', '주차 공간이 협소하니 대중교통을 이용해 주세요')}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center' }}>
+            <button className="btn" disabled={busy} onClick={save} style={{ height: 32, background: '#129782', color: '#fff', borderColor: '#129782' }}>
+              {busy ? '저장 중…' : '행사 정보 저장'}
+            </button>
+            <button className="btn" disabled={busy} onClick={clear} style={{ height: 32, fontSize: 12, color: '#B91C1C' }}>
+              지우기
+            </button>
+            {msg ? (
+              <span style={{ fontSize: 12, color: msg.ok ? '#047857' : '#B91C1C' }}>
+                {msg.ok ? '✓ ' : '⚠ '}{msg.text}
+              </span>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+    </div>
   );
 }

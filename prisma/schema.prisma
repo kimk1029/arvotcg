@@ -26,51 +26,51 @@ model User {
   updatedAt DateTime @updatedAt
 
   // profile / inventory (클라이언트 로컬스토리지 대체)
-  points           Int       @default(0)
+  points              Int       @default(0)
   /// 어드민 권한. 어드민 회원 관리에서 부여/해제하며, ADMIN_EMAILS env 와 합집합으로 판정.
   /// 권한이 있으면 admin.arvotcg.com 에 소셜 로그인으로 접근할 수 있다.
-  isAdmin          Boolean   @default(false)
+  isAdmin             Boolean   @default(false)
   /// 알림함을 마지막으로 연 시각 — 이후 생성된 PointLog 수 = 미확인 알림 배지.
   notificationsSeenAt DateTime?
   /// 마지막 출석체크 시각. KST 일자 비교용. null = 아직 출석 한 번도 안 함.
-  lastCheckInAt    DateTime?
+  lastCheckInAt       DateTime?
   /// 연속 출석 일수. 3 의 배수에 도달할 때 보너스 지급.
-  streakCount      Int       @default(0)
-  avatarId         String    @default("bulbasaur")
-  backgroundId     String    @default("default")
-  frameId          String    @default("none")
-  ownedAvatars     String[]  @default(["bulbasaur", "charmander", "squirtle"])
-  ownedBackgrounds String[]  @default(["default"])
-  ownedFrames      String[]  @default(["none"])
+  streakCount         Int       @default(0)
+  avatarId            String    @default("bulbasaur")
+  backgroundId        String    @default("default")
+  frameId             String    @default("none")
+  ownedAvatars        String[]  @default(["bulbasaur", "charmander", "squirtle"])
+  ownedBackgrounds    String[]  @default(["default"])
+  ownedFrames         String[]  @default(["none"])
   /// 커뮤니티 이용규칙(UGC EULA, shared/ugcTerms.ts) 동의 시각. null = 미동의 → 글·댓글 작성 전 동의 게이트.
-  ugcTermsAgreedAt DateTime?
+  ugcTermsAgreedAt    DateTime?
   /// 동의한 규칙 버전(UGC_TERMS_VERSION). 규칙 개정 시 버전이 낮으면 재동의.
-  ugcTermsVersion  Int       @default(0)
+  ugcTermsVersion     Int       @default(0)
 
   /// 가입 플랫폼 — 'web' | 'mobile'(앱). 최초 가입(create) 시 기록. null = 컬럼 도입 전 가입.
   signupPlatform String?
 
-  trades           Trade[]
-  feeds            Feed[]
-  feedComments     FeedComment[]
-  bookmarks        Bookmark[]
-  sentMessages     Message[]      @relation("SentMessages")
-  receivedMessages Message[]      @relation("ReceivedMessages")
-  oripaTickets     OripaTicket[]
-  userCards        UserCard[]
-  favoriteCards    FavoriteCard[]
-  priceAlerts      PriceAlert[]
-  listingFavorites ListingFavorite[]
+  trades                  Trade[]
+  feeds                   Feed[]
+  feedComments            FeedComment[]
+  bookmarks               Bookmark[]
+  sentMessages            Message[]                @relation("SentMessages")
+  receivedMessages        Message[]                @relation("ReceivedMessages")
+  oripaTickets            OripaTicket[]
+  userCards               UserCard[]
+  favoriteCards           FavoriteCard[]
+  priceAlerts             PriceAlert[]
+  listingFavorites        ListingFavorite[]
   portfolioDailySnapshots PortfolioDailySnapshot[]
-  searchLogs       SearchLog[]
-  scanLogs         ScanLog[]
-  eventPosts       EventPost[]
-  eventPostComments EventPostComment[]
-  reportsFiled     ContentReport[] @relation("ReportsFiled")
-  blocksMade       UserBlock[]     @relation("BlocksMade")
-  blocksReceived   UserBlock[]     @relation("BlocksReceived")
-  cardShowReservations CardShowReservation[]
-  pointLogs        PointLog[]
+  searchLogs              SearchLog[]
+  scanLogs                ScanLog[]
+  eventPosts              EventPost[]
+  eventPostComments       EventPostComment[]
+  reportsFiled            ContentReport[]          @relation("ReportsFiled")
+  blocksMade              UserBlock[]              @relation("BlocksMade")
+  blocksReceived          UserBlock[]              @relation("BlocksReceived")
+  cardShowReservations    CardShowReservation[]
+  pointLogs               PointLog[]
 
   @@map("users")
 }
@@ -161,14 +161,37 @@ model CardShowSlot {
   @@map("cardshow_slots")
 }
 
+/// 카드쇼 행사 정보 — 날짜별 1건. 슬롯(CardShowSlot)은 시간대·정원만 갖고,
+/// 행사명·장소·운영시간 같은 안내 문구는 여기서 어드민이 관리한다.
+/// 해당 날짜 행이 없으면 웹은 기본 문구로 렌더한다(하위호환).
+model CardShowEvent {
+  id        Int      @id @default(autoincrement())
+  /// 행사 일자 (YYYY-MM-DD) — CardShowSlot.date 와 매칭되는 키.
+  date      String   @unique
+  /// 행사명 (예: "ARVO 카드쇼 2026 서울").
+  title     String   @default("")
+  /// 장소 (예: "서울 성수 S팩토리 A동").
+  venue     String   @default("")
+  /// 운영 시간 표시 문구 (예: "10:00 ~ 19:00"). 비우면 슬롯 시간대에서 자동 생성.
+  hours     String   @default("")
+  /// 상단 배지 — 쉼표 구분(예: "사전예약,무료 입장"). 비우면 기본 배지.
+  badges    String   @default("")
+  /// 추가 안내 한 줄 — 행사 요약 카드 아래에 노출. 비우면 미표시.
+  note      String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("cardshow_events")
+}
+
 /// 카드쇼 예약 — 유저당 1건 (새 슬롯 예약 시 기존 예약 이동).
 model CardShowReservation {
-  id        Int          @id @default(autoincrement())
-  slotId    Int
-  slot      CardShowSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime     @default(now())
+  id          Int          @id @default(autoincrement())
+  slotId      Int
+  slot        CardShowSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
   /// 현장 담당자가 사용자 예약 화면에서 입장을 확정한 시각
   checkedInAt DateTime?
 
@@ -420,49 +443,49 @@ model AdEvent {
 /// cardId 는 CARDS_CATALOG 의 id (예: 'magikarp-holo'). 미매칭 카드는 cardId=null + ocrSetCode/ocrCardNumber 로 식별.
 /// gradeEstimate / centeringScore 는 모의 그레이딩 결과 스냅샷 (PSA 등급 추정).
 model UserCard {
-  id             Int      @id @default(autoincrement())
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                Int      @id @default(autoincrement())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// CARDS_CATALOG id. 매칭 못한 카드는 null.
-  cardId         String?
+  cardId            String?
   /// 매칭 실패 시 보조 — OCR 로 추출한 raw 식별자.
-  ocrSetCode     String?
-  ocrCardNumber  String?
+  ocrSetCode        String?
+  ocrCardNumber     String?
   /// 시세 소스 식별자. 스니덩크 시세 페이지에서 추가한 카드는 여기에 apparelId.
   /// 포트폴리오 합계 계산 시 이 값으로 실시간 시세 조회.
   snkrdunkApparelId Int?
   /// 사용자가 직접 적은 별칭/메모.
-  nickname       String?
-  memo           String?
+  nickname          String?
+  memo              String?
   /// 모의 그레이딩 결과 — "PSA 9 (Mint)" 등 라벨 그대로.
-  gradeEstimate  String?
+  gradeEstimate     String?
   /// 0..100 중심도 점수 (가까운 쪽 비율, 50이면 완벽). worstCloser 그대로 저장.
-  centeringScore Float?
+  centeringScore    Float?
   /// 업로드한 카드 사진 URL (Vercel Blob).
-  photoUrl       String?
+  photoUrl          String?
   /// 구매 단가 (정수). 통화는 buyCurrency. 미입력이면 null.
-  buyPrice       Int?
+  buyPrice          Int?
   /// 구매가 통화 — 'KRW' | 'JPY'. 기본 KRW.
-  buyCurrency    String?  @default("KRW")
+  buyCurrency       String?  @default("KRW")
   /// 보유 수량. 기본 1.
-  qty            Int      @default(1)
+  qty               Int      @default(1)
   /// 구매 시기 (YYYY-MM 또는 YYYY-MM-DD). 표시용 문자열. 미입력이면 등록일.
-  buyDate        String?
+  buyDate           String?
   /// 카드 발매 지역(에디션) — 'jp'(일본판) | 'kr'(한국판) | 'en'(영문판). 자산 구성 비중용. 미입력이면 null.
-  region         String?
+  region            String?
   /// 등록 시점의 싱글 시세(JPY) — 컬렉션 리스트의 "등록가 → 현재가 등락률" 기준값.
   /// 최초 조회 시 현재 시세로 자동 백필되고, 이후엔 고정 베이스라인으로 유지.
-  registerPriceJpy Int?
+  registerPriceJpy  Int?
   /// 직접뽑기 여부 — true 면 구매가 없이 등록 시점 현재시세를 기준가(buyPrice)로 저장.
-  selfPulled     Boolean  @default(false)
+  selfPulled        Boolean  @default(false)
   /// 등급(그레이딩) 카드 여부 — true 면 gradeCompany/gradeValue 사용.
-  graded         Boolean  @default(false)
+  graded            Boolean  @default(false)
   /// 등급사 — 'PSA' | 'BGS' | 'CGC' | 'SGC' 등.
-  gradeCompany   String?
+  gradeCompany      String?
   /// 사용자가 입력한 실제 등급 값 — "10", "9.5" 등.
-  gradeValue     String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  gradeValue        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([cardId])
@@ -609,27 +632,27 @@ model SnkrdunkCard {
 
 /// SNKRDUNK 시세 스냅샷 — 시세 갱신마다 한 줄 누적. 현재가 = apparelId 별 최신 행.
 model SnkrdunkPriceSnapshot {
-  id           Int      @id @default(autoincrement())
-  apparelId    Int
+  id            Int      @id @default(autoincrement())
+  apparelId     Int
   /// 최저가 (JPY).
-  minPrice     Int
-  listingCount Int      @default(0)
+  minPrice      Int
+  listingCount  Int      @default(0)
   /// computeApparelPrices 의 raw 싱글가 (JPY). 0 = 미계산(목록 최저가만 수집한 스냅샷).
-  priceSingle  Int      @default(0)
+  priceSingle   Int      @default(0)
   /// computeApparelPrices 의 PSA10 가 (JPY). 0 = 미계산.
-  pricePsa10   Int      @default(0)
+  pricePsa10    Int      @default(0)
   /// computeApparelPrices 의 PSA9 가 (JPY). 0 = 미계산. 등급카드 등록가/등락률용.
-  pricePsa9    Int      @default(0)
+  pricePsa9     Int      @default(0)
   /// computeApparelPrices 의 PSA8 가 (JPY). 0 = 미계산.
-  pricePsa8    Int      @default(0)
+  pricePsa8     Int      @default(0)
   /// sales-chart 일별 시세 시리즈 (number[], 오래된→최신). 컬렉션 스파크라인용.
-  trend        Json?
+  trend         Json?
   /// 시세상세 헤드라인과 동일한 대표 시세 (headlineFromHistory). 0 = 미계산.
   /// 박스별 카드 목록이 상세와 같은 값을 보여주기 위해 저장한다.
-  headlinePrice Int     @default(0)
+  headlinePrice Int      @default(0)
   /// 위 대표 시세의 기준 등급 ('PSA 10' | 'PSA 9' | 'RAW'). 목록에 라벨로 표시.
   headlineBasis String?
-  fetchedAt    DateTime @default(now())
+  fetchedAt     DateTime @default(now())
 
   @@index([apparelId, fetchedAt(sort: Desc)])
   @@map("snkrdunk_price_snapshots")
@@ -700,25 +723,25 @@ model HeroBanner {
 /// 이벤트 게시판 글 — 어드민 공지 + 회원 작성 글, 웹 /events 에 노출.
 /// startsAt/endsAt 은 'YYYY-MM-DD' 문자열. 둘 다 비우면 상시 이벤트.
 model EventPost {
-  id        Int      @id @default(autoincrement())
+  id        Int                @id @default(autoincrement())
   /// 작성자 — null = 어드민 작성 공지.
   authorId  String?
-  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  author    User?              @relation(fields: [authorId], references: [id], onDelete: SetNull)
   /// 말머리 — '구매' | '시세파악' | '오리파구매'. null = 말머리 없음(공지 등).
   category  String?
   title     String
   /// 본문 — 줄바꿈 \n 그대로 렌더.
-  body      String   @default("")
+  body      String             @default("")
   /// 대표 이미지 URL. 비우면 텍스트 카드.
   imageUrl  String?
   startsAt  String?
   endsAt    String?
   /// 목록 상단 고정.
-  pinned    Boolean  @default(false)
+  pinned    Boolean            @default(false)
   /// false = 비공개(웹 미노출, 어드민에서만 보임).
-  published Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  published Boolean            @default(true)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
   comments  EventPostComment[]
 
   @@index([published, pinned, createdAt(sort: Desc)])

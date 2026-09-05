@@ -26,6 +26,17 @@ interface Slot {
   remaining: number;
 }
 
+/** 날짜별 행사 정보 — 어드민(카드쇼 관리)에서 입력. 없으면 기본 문구로 렌더. */
+interface EventInfo {
+  date: string;
+  title: string;
+  venue: string;
+  /** 운영 시간 표시 문구. 비면 슬롯 시간대에서 자동 생성. */
+  hours: string;
+  badges: string[];
+  note: string;
+}
+
 interface SlotsResp {
   loggedIn: boolean;
   mySlotId: number | null;
@@ -36,6 +47,7 @@ interface SlotsResp {
     slot: Pick<Slot, 'id' | 'date' | 'time' | 'capacity'>;
   } | null;
   slots: Slot[];
+  events?: EventInfo[];
 }
 
 /** 프로토타입 팔레트 (라이트). 이 페이지는 앱 테마와 무관하게 행사 페이지 고유 톤을 쓴다. */
@@ -56,13 +68,10 @@ const P = {
 };
 
 /**
- * 행사 안내 문구 — DB에 행사 메타(장소/명칭)가 없어 여기서 관리한다.
- * 다음 행사를 열 때 이 상수만 고치면 된다.
+ * 행사 정보 기본값 — 어드민(카드쇼 관리 › 행사 정보)에 그 날짜 입력이 없을 때만 쓴다.
+ * 장소는 날짜마다 다를 수 있어 기본값을 두지 않는다(빈 값이면 줄 자체를 숨김).
  */
-const EVENT = {
-  title: 'ARVO 카드쇼',
-  venue: '서울 성수 S팩토리 A동',
-};
+const EVENT_FALLBACK = { title: 'ARVO 카드쇼', venue: '', badges: ['사전예약', '무료 입장'] };
 
 /** 잔여 비율로 본 시간대 상태 — 날짜 칩 태그와 타임테이블 색이 같은 기준을 쓴다. */
 type SlotState = 'soldout' | 'tight' | 'open';
@@ -266,10 +275,18 @@ export function CardShowScreen() {
   /* 파생값 — 슬롯에서 직접 계산해 하드코딩하지 않는다. */
   const dayRemaining = daySlots.reduce((a, s) => a + s.remaining, 0);
   const dayCapacity = daySlots.reduce((a, s) => a + s.capacity, 0);
-  // 마지막 슬롯의 종료 시각은 데이터에 없으므로 '입장 시작 시간대'로만 표기한다.
-  const openHours = daySlots.length > 0
-    ? `${daySlots[0].time} ~ ${daySlots[daySlots.length - 1].time} 입장`
-    : '';
+  // 행사 정보 — 어드민 입력 우선, 없으면 기본값/슬롯 파생값.
+  const info = (data.events ?? []).find((e) => e.date === activeDate) ?? null;
+  const evTitle = info?.title || EVENT_FALLBACK.title;
+  const evVenue = info?.venue || EVENT_FALLBACK.venue;
+  const evBadges = info && info.badges.length > 0 ? info.badges : EVENT_FALLBACK.badges;
+  // 운영 시간: 어드민 입력이 있으면 그대로, 없으면 슬롯의 입장 시작 시간대로.
+  // (슬롯엔 종료 시각이 없어 '~ 마지막 입장' 형태로만 만든다.)
+  const openHours = info?.hours
+    ? info.hours
+    : daySlots.length > 0
+      ? `${daySlots[0].time} ~ ${daySlots[daySlots.length - 1].time} 입장`
+      : '';
   const mySlot = data.myReservation
     ? data.slots.find((s) => s.id === data.myReservation!.slotId) ?? data.myReservation.slot
     : null;
@@ -334,17 +351,30 @@ export function CardShowScreen() {
 
       {/* 행사 요약 */}
       <section style={{ background: P.card, borderRadius: 18, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,.04)', marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: P.red, padding: '3px 8px', borderRadius: 8 }}>사전예약</span>
-          <span style={{ fontSize: 10.5, fontWeight: 800, color: P.orange, background: P.orangeSoft, padding: '3px 8px', borderRadius: 8 }}>무료 입장</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          {evBadges.map((b, i) => (
+            <span
+              key={b}
+              style={{
+                fontSize: 10.5, fontWeight: 800, padding: '3px 8px', borderRadius: 8,
+                color: i === 0 ? '#fff' : P.orange,
+                background: i === 0 ? P.red : P.orangeSoft,
+              }}
+            >
+              {b}
+            </span>
+          ))}
         </div>
-        <h1 style={{ fontSize: 19, fontWeight: 900, letterSpacing: -0.5, margin: '10px 0 0', lineHeight: 1.3 }}>{EVENT.title}</h1>
+        <h1 style={{ fontSize: 19, fontWeight: 900, letterSpacing: -0.5, margin: '10px 0 0', lineHeight: 1.3 }}>{evTitle}</h1>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
-          <InfoLine icon="pin">{EVENT.venue}</InfoLine>
+          {evVenue ? <InfoLine icon="pin">{evVenue}</InfoLine> : null}
           <InfoLine icon="clock">
             {activeDate ? `${activeDate.replace(/-/g, '.')} (${weekdayKo(activeDate)})` : ''}{openHours ? ` · ${openHours}` : ''}
           </InfoLine>
         </div>
+        {info?.note ? (
+          <p style={{ margin: '10px 0 0', fontSize: 11.5, fontWeight: 600, color: P.sub, lineHeight: 1.6 }}>{info.note}</p>
+        ) : null}
         <div style={{ display: 'flex', gap: 8, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${P.line2}` }}>
           <Stat label="전체 잔여석" value={`${dayRemaining}석`} />
           <Stat label="예약 마감" value={activeDate ? (dDay(activeDate) ?? '종료') : '—'} color={P.red} />
