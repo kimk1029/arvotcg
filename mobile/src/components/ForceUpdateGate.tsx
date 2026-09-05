@@ -22,9 +22,12 @@ export function ForceUpdateGate() {
 
   useEffect(() => {
     let alive = true;
-    checkAppRelease().then((r) => {
-      if (alive) setCheck(r);
-    });
+    // 부팅 경로 — 어떤 실패도 앱을 막지 않는다(체크 실패 = 통과).
+    checkAppRelease()
+      .then((r) => {
+        if (alive) setCheck(r);
+      })
+      .catch(() => undefined);
     return () => {
       alive = false;
     };
