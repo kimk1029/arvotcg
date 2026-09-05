@@ -1,7 +1,12 @@
 'use client';
 
 /**
- * 카드쇼 사전예약 — 날짜 탭 + 시간 슬롯 그리드.
+ * 카드쇼 사전예약 — Claude Design 'ARVO 카드쇼 예약' 레이아웃.
+ *  날짜 캘린더 칩 · 행사 요약 카드 · 예약/입장 안내 · 타임테이블(시간레일+잔여석+라디오)
+ *  · 하단 고정 CTA. 시간을 고르면 선택만 되고, CTA 를 눌러야 확인 모달이 뜬다.
+ *
+ * 앱은 이 페이지를 WebView 로 그대로 띄우므로(mobile/app/event/cardshow.tsx)
+ * 여기만 고치면 웹·앱에 함께 반영된다.
  *
  * 인증 두 경로:
  *  · 브라우저: 웹 세션 쿠키 (credentials include)
@@ -33,17 +38,50 @@ interface SlotsResp {
   slots: Slot[];
 }
 
+/** 프로토타입 팔레트 (라이트). 이 페이지는 앱 테마와 무관하게 행사 페이지 고유 톤을 쓴다. */
 const P = {
-  bg: '#0F172A',
-  card: 'rgba(255,255,255,0.06)',
-  line: 'rgba(255,255,255,0.12)',
-  ink: '#FFFFFF',
-  sub: 'rgba(255,255,255,0.65)',
-  dim: 'rgba(255,255,255,0.38)',
-  teal: '#2DD4BF',
-  gold: '#FFD23F',
-  red: '#F87171',
+  bg: '#F7F7F9',
+  card: '#FFFFFF',
+  line: '#EFEFF2',
+  line2: '#F4F4F6',
+  ink: '#16161a',
+  sub: '#6B6B70',
+  dim: '#9A9AA0',
+  mute: '#B0B0B6',
+  orange: '#FF7A00',
+  orangeSoft: '#FFF1E6',
+  green: '#2BB673',
+  red: '#F5333F',
+  gray: '#D2D2D8',
 };
+
+/**
+ * 행사 안내 문구 — DB에 행사 메타(장소/명칭)가 없어 여기서 관리한다.
+ * 다음 행사를 열 때 이 상수만 고치면 된다.
+ */
+const EVENT = {
+  title: 'ARVO 카드쇼',
+  venue: '서울 성수 S팩토리 A동',
+};
+
+/** 잔여 비율로 본 시간대 상태 — 날짜 칩 태그와 타임테이블 색이 같은 기준을 쓴다. */
+type SlotState = 'soldout' | 'tight' | 'open';
+function slotState(remaining: number, capacity: number): SlotState {
+  if (remaining <= 0) return 'soldout';
+  return capacity > 0 && remaining / capacity <= 0.2 ? 'tight' : 'open';
+}
+const STATE_COLOR: Record<SlotState, string> = { soldout: P.gray, tight: P.orange, open: P.green };
+const STATE_LABEL: Record<SlotState, string> = { soldout: '매진', tight: '임박', open: '여유' };
+
+/** 오늘부터 행사일까지 D-N. 당일이면 D-DAY, 지났으면 null. */
+function dDay(dateStr: string): string | null {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(`${dateStr}T00:00:00`);
+  const diff = Math.round((target.getTime() - today.getTime()) / 86_400_000);
+  if (diff < 0) return null;
+  return diff === 0 ? 'D-DAY' : `D-${diff}`;
+}
 
 function weekdayKo(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00`);
@@ -79,6 +117,8 @@ export function CardShowScreen() {
   // 슬롯 클릭 → 바로 실행하지 않고 확인 모달을 먼저 띄운다 (예약/이동/취소 공통).
   const [confirm, setConfirm] = useState<Slot | null>(null);
   const [showCheckInConfirm, setShowCheckInConfirm] = useState(false);
+  // 슬롯 탭 = 선택만. 예약/이동/취소는 하단 CTA → 확인 모달을 거친다.
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -159,18 +199,15 @@ export function CardShowScreen() {
 
   /* ---------- 렌더 ---------- */
 
-  const shell = (children: React.ReactNode) => (
-    <div style={{ minHeight: '100dvh', background: `linear-gradient(165deg, ${P.bg} 0%, #134E4A 130%)`, color: P.ink, fontFamily: "-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',sans-serif" }}>
-      <div style={{ maxWidth: 560, margin: '0 auto', padding: '32px 20px 60px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 26 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 4, color: P.gold }}>ARVOTCG EVENT</div>
-          <h1 style={{ fontSize: 30, fontWeight: 900, margin: '10px 0 6px', letterSpacing: -0.5 }}>🎪 카드쇼 사전예약</h1>
-          <p style={{ fontSize: 13.5, color: P.sub, margin: 0, lineHeight: 1.6 }}>
-            원하는 방문 시간대를 선택해 예약하세요.<br />1인 1타임 — 다른 시간을 누르면 예약이 이동해요.
-          </p>
+  /** flush=true 면 좌우 패딩을 섹션이 직접 갖는다 (하단 CTA 를 화면 끝까지 붙이기 위함). */
+  const shell = (children: React.ReactNode, flush = false) => (
+    <div className="pagebg" style={{ background: P.bg, color: P.ink, fontFamily: "'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',sans-serif" }}>
+      <div style={{ background: P.card, borderBottom: `1px solid ${P.line}` }}>
+        <div style={{ maxWidth: 560, margin: '0 auto', padding: '14px 20px 12px' }}>
+          <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: -0.3 }}>카드쇼 사전예약</div>
         </div>
-        {children}
       </div>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: flush ? '0 0 40px' : '16px 16px 40px' }}>{children}</div>
     </div>
   );
 
@@ -179,7 +216,7 @@ export function CardShowScreen() {
       <div style={{ textAlign: 'center', padding: 40, background: P.card, borderRadius: 18 }}>
         <div style={{ fontSize: 40 }}>😵</div>
         <p style={{ color: P.sub }}>정보를 불러오지 못했어요.</p>
-        <button onClick={load} style={{ padding: '10px 22px', borderRadius: 12, border: 'none', background: P.teal, color: '#043', fontWeight: 800, cursor: 'pointer' }}>다시 시도</button>
+        <button onClick={load} style={{ padding: '10px 22px', borderRadius: 12, border: 'none', background: P.ink, color: '#fff', fontWeight: 800, cursor: 'pointer' }}>다시 시도</button>
       </div>,
     );
   }
@@ -196,7 +233,7 @@ export function CardShowScreen() {
         <p style={{ fontSize: 13.5, color: P.sub, lineHeight: 1.7, margin: '0 0 20px' }}>
           카드쇼 예약은 로그인한 회원만 가능해요.<br />앱에서는 로그인 후 다시 열어주세요.
         </p>
-        <a href="/login?callbackUrl=/event/cardshow" style={{ display: 'inline-block', padding: '12px 28px', borderRadius: 12, background: P.gold, color: '#3A2D00', fontWeight: 800, textDecoration: 'none' }}>
+        <a href="/login?callbackUrl=/event/cardshow" style={{ display: 'inline-block', padding: '12px 28px', borderRadius: 12, background: P.ink, color: '#fff', fontWeight: 800, textDecoration: 'none' }}>
           로그인하기
         </a>
       </div>,
@@ -211,110 +248,215 @@ export function CardShowScreen() {
     );
   }
 
+  /* 파생값 — 슬롯에서 직접 계산해 하드코딩하지 않는다. */
+  const dayRemaining = daySlots.reduce((a, s) => a + s.remaining, 0);
+  const dayCapacity = daySlots.reduce((a, s) => a + s.capacity, 0);
+  // 마지막 슬롯의 종료 시각은 데이터에 없으므로 '입장 시작 시간대'로만 표기한다.
+  const openHours = daySlots.length > 0
+    ? `${daySlots[0].time} ~ ${daySlots[daySlots.length - 1].time} 입장`
+    : '';
+  const mySlot = data.myReservation
+    ? data.slots.find((s) => s.id === data.myReservation!.slotId) ?? data.myReservation.slot
+    : null;
+  const checkedIn = Boolean(data.myReservation?.checkedInAt);
+  // 입장 확인이 끝나면 예약을 바꿀 수 없다.
+  const locked = checkedIn;
+  const selected = selectedId != null ? daySlots.find((s) => s.id === selectedId) ?? null : null;
+  const isMine = selected != null && data.mySlotId === selected.id;
+  const isMove = selected != null && !isMine && data.mySlotId != null;
+
+  const ctaLabel = locked
+    ? '입장 완료됨'
+    : !selected
+      ? '시간을 선택하세요'
+      : isMine
+        ? '예약 취소하기'
+        : isMove
+          ? '이 시간으로 변경'
+          : '사전예약 신청';
+  const ctaBg = locked || !selected ? '#F2F2F4' : isMine ? P.red : P.ink;
+  const ctaFg = locked || !selected ? P.mute : '#fff';
+
   return shell(
     <>
-      {data.myReservation ? (() => {
-        const mySlot = data.slots.find((s) => s.id === data.myReservation!.slotId) ?? data.myReservation.slot;
-        const checkedIn = Boolean(data.myReservation.checkedInAt);
-        return (
-          <section style={{ marginBottom: 20, padding: '18px 18px 16px', borderRadius: 18, background: checkedIn ? 'rgba(45,212,191,0.14)' : 'rgba(255,210,63,0.12)', border: `2px solid ${checkedIn ? P.teal : P.gold}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div>
-                <div style={{ color: checkedIn ? P.teal : P.gold, fontSize: 12, fontWeight: 900, letterSpacing: 1.5 }}>
-                  {checkedIn ? '✓ 입장 완료' : 'MY RESERVATION'}
-                </div>
-                <div style={{ marginTop: 7, fontSize: 21, fontWeight: 900 }}>
-                  {mySlot.date.replace(/-/g, '.')} ({weekdayKo(mySlot.date)}) {mySlot.time}
-                </div>
-              </div>
-              <div style={{ fontSize: 36 }}>{checkedIn ? '✅' : '🎟️'}</div>
-            </div>
-            {checkedIn ? (
-              <div style={{ marginTop: 13, paddingTop: 12, borderTop: `1px solid ${P.line}`, color: P.sub, fontSize: 12.5 }}>
-                입장 확인 시각: {new Date(data.myReservation.checkedInAt!).toLocaleString('ko-KR')}
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowCheckInConfirm(true)}
-                disabled={busy}
-                style={{ width: '100%', marginTop: 16, padding: '13px 16px', border: 'none', borderRadius: 12, background: P.gold, color: '#3A2D00', fontSize: 15, fontWeight: 900, cursor: 'pointer' }}
-              >
-                담당자 확인
-              </button>
-            )}
-          </section>
-        );
-      })() : null}
-
-      {/* 예약·입장 안내 — 시간대를 고르기 전에 읽도록 목록 위에 둔다. */}
-      <VisitNotice />
-
-      {/* 날짜 탭 */}
-      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6, marginBottom: 16 }}>
+      <div style={{ padding: '16px 16px 0' }}>
+      {/* 날짜 캘린더 칩 */}
+      <div className="cv-hrow" style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, marginBottom: 14 }}>
         {dates.map((d, i) => {
           const on = d === activeDate;
+          const ds = (data.slots ?? []).filter((x) => x.date === d);
+          const rem = ds.reduce((a, x) => a + x.remaining, 0);
+          const cap = ds.reduce((a, x) => a + x.capacity, 0);
+          const st = slotState(rem, cap);
           return (
             <button
               key={d}
-              onClick={() => setDateIdx(i)}
+              onClick={() => { setDateIdx(i); setSelectedId(null); }}
               style={{
-                flex: 'none', padding: '10px 16px', borderRadius: 14, cursor: 'pointer',
-                border: `1px solid ${on ? P.teal : P.line}`,
-                background: on ? P.teal : 'transparent', color: on ? '#043' : P.sub,
-                fontWeight: 800, fontSize: 13.5,
+                flex: 'none', width: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                padding: '9px 0 10px', borderRadius: 14, cursor: 'pointer',
+                background: on ? P.ink : P.card, border: `1.5px solid ${on ? P.ink : P.line}`,
               }}
             >
-              {d.slice(5).replace('-', '.')} ({weekdayKo(d)})
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: on ? 'rgba(255,255,255,.7)' : P.dim }}>{weekdayKo(d)}</span>
+              <span style={{ fontSize: 18, fontWeight: 900, letterSpacing: -0.5, color: on ? '#fff' : P.ink }}>{Number(d.slice(8, 10))}</span>
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: on ? '#FFB86B' : STATE_COLOR[st] }}>{STATE_LABEL[st]}</span>
             </button>
           );
         })}
       </div>
 
+      {/* 내 예약 배너 */}
+      {mySlot ? (
+        <section style={{ marginBottom: 12, padding: '15px 16px 14px', borderRadius: 18, background: checkedIn ? 'rgba(43,182,115,0.10)' : P.orangeSoft, border: `1.5px solid ${checkedIn ? P.green : P.orange}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ color: checkedIn ? P.green : P.orange, fontSize: 10.5, fontWeight: 900, letterSpacing: 1.2 }}>
+                {checkedIn ? '✓ 입장 완료' : 'MY RESERVATION'}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 19, fontWeight: 900, letterSpacing: -0.4 }}>
+                {mySlot.date.replace(/-/g, '.')} ({weekdayKo(mySlot.date)}) {mySlot.time}
+              </div>
+            </div>
+            <div style={{ fontSize: 32 }}>{checkedIn ? '✅' : '🎟️'}</div>
+          </div>
+          {checkedIn ? (
+            <div style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${P.line}`, color: P.sub, fontSize: 12 }}>
+              입장 확인 시각: {new Date(data.myReservation!.checkedInAt!).toLocaleString('ko-KR')}
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowCheckInConfirm(true)}
+              disabled={busy}
+              style={{ width: '100%', marginTop: 14, padding: '12px 16px', border: 'none', borderRadius: 12, background: P.orange, color: '#fff', fontSize: 14.5, fontWeight: 900, cursor: 'pointer' }}
+            >
+              담당자 확인
+            </button>
+          )}
+        </section>
+      ) : null}
+
+      {/* 행사 요약 */}
+      <section style={{ background: P.card, borderRadius: 18, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,.04)', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: P.red, padding: '3px 8px', borderRadius: 8 }}>사전예약</span>
+          <span style={{ fontSize: 10.5, fontWeight: 800, color: P.orange, background: P.orangeSoft, padding: '3px 8px', borderRadius: 8 }}>무료 입장</span>
+        </div>
+        <h1 style={{ fontSize: 19, fontWeight: 900, letterSpacing: -0.5, margin: '10px 0 0', lineHeight: 1.3 }}>{EVENT.title}</h1>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+          <InfoLine icon="pin">{EVENT.venue}</InfoLine>
+          <InfoLine icon="clock">
+            {activeDate ? `${activeDate.replace(/-/g, '.')} (${weekdayKo(activeDate)})` : ''}{openHours ? ` · ${openHours}` : ''}
+          </InfoLine>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${P.line2}` }}>
+          <Stat label="전체 잔여석" value={`${dayRemaining}석`} />
+          <Stat label="예약 마감" value={activeDate ? (dDay(activeDate) ?? '종료') : '—'} color={P.red} />
+          <Stat label="입장 인원" value="1인 + 동반 1인" />
+        </div>
+      </section>
+
+      <VisitNotice />
+
       {notice ? (
-        <div style={{ marginBottom: 14, padding: '11px 16px', borderRadius: 12, background: 'rgba(45,212,191,0.12)', border: `1px solid ${P.teal}`, color: P.teal, fontSize: 13.5, fontWeight: 700 }}>
+        <div style={{ margin: '12px 0 0', padding: '11px 14px', borderRadius: 12, background: P.orangeSoft, border: `1px solid ${P.orange}`, color: '#B4530A', fontSize: 13, fontWeight: 700 }}>
           {notice}
         </div>
       ) : null}
 
-      {/* 시간 슬롯 — 한 줄에 하나씩 얇게. 왼쪽 시간 / 오른쪽 잔여석. */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {daySlots.map((s) => {
+      {/* 타임테이블 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 4px 10px' }}>
+        <div style={{ flex: 1, fontSize: 13, fontWeight: 800 }}>타임테이블</div>
+        {(['open', 'tight', 'soldout'] as SlotState[]).map((st) => (
+          <div key={st} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 700, color: '#8E8E93' }}>
+            <span style={{ width: 8, height: 8, borderRadius: 3, background: STATE_COLOR[st] }} />
+            {st === 'open' ? '여유' : st === 'tight' ? '마감임박' : '매진'}
+          </div>
+        ))}
+      </div>
+
+      <div>
+        {daySlots.map((s, i) => {
           const mine = data.mySlotId === s.id;
-          const full = s.remaining <= 0 && !mine;
+          const st = slotState(s.remaining, s.capacity);
+          const soldout = st === 'soldout' && !mine;
+          const sel = selectedId === s.id;
+          const end = slotEnd(daySlots, i);
           return (
             <button
               key={s.id}
-              disabled={full || busy}
-              onClick={() => {
-                if (mine && data.myReservation?.checkedInAt) return;
-                setConfirm(s);
-              }}
+              disabled={soldout || busy || locked}
+              onClick={() => setSelectedId(sel ? null : s.id)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                padding: '11px 14px', borderRadius: 12, cursor: full ? 'default' : 'pointer',
-                border: `1.5px solid ${mine ? P.gold : full ? 'transparent' : P.line}`,
-                background: mine ? 'rgba(255,210,63,0.15)' : full ? 'rgba(255,255,255,0.03)' : P.card,
-                color: P.ink, textAlign: 'left', opacity: full ? 0.55 : 1,
+                display: 'flex', alignItems: 'stretch', width: '100%', padding: 0, marginBottom: 9,
+                background: sel ? P.orangeSoft : P.card, border: `1.5px solid ${sel ? P.orange : P.line}`,
+                borderRadius: 16, overflow: 'hidden', textAlign: 'left',
+                cursor: soldout || locked ? 'default' : 'pointer', opacity: soldout ? 0.55 : 1,
               }}
             >
-              <span style={{ flex: 'none', fontSize: 16, fontWeight: 900, letterSpacing: 0.5, fontVariantNumeric: 'tabular-nums' }}>
-                {s.time}
+              {/* 시간 레일 */}
+              <span style={{ flex: 'none', width: 72, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, background: sel ? 'rgba(255,122,0,.10)' : P.bg, padding: '14px 0' }}>
+                <span style={{ fontSize: 15, fontWeight: 900, letterSpacing: -0.4, color: soldout ? P.mute : P.ink }}>{s.time}</span>
+                {end ? <span style={{ fontSize: 10, fontWeight: 700, color: soldout ? '#C7C7CC' : P.dim }}>~ {end}</span> : null}
               </span>
-              {mine ? (
-                <span style={{ flex: 'none', fontSize: 10.5, fontWeight: 900, color: '#3A2D00', background: P.gold, padding: '2px 7px', borderRadius: 6 }}>
-                  내 예약
+              {/* 본문 — 잔여석/예약현황 (막대 그래프 없음) */}
+              <span style={{ flex: 1, minWidth: 0, padding: '12px 13px' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 14.5, fontWeight: 800, color: st === 'soldout' ? P.mute : STATE_COLOR[st] }}>
+                    {st === 'soldout' ? '매진' : `잔여 ${s.remaining}석`}
+                  </span>
+                  {mine ? (
+                    <span style={{ flex: 'none', fontSize: 9.5, fontWeight: 800, color: '#fff', background: P.orange, padding: '2px 6px', borderRadius: 6 }}>내 예약</span>
+                  ) : st === 'tight' ? (
+                    <span style={{ flex: 'none', fontSize: 9.5, fontWeight: 800, color: '#fff', background: P.red, padding: '2px 6px', borderRadius: 6 }}>마감임박</span>
+                  ) : null}
                 </span>
-              ) : null}
-              <span style={{ flex: 1 }} />
-              <span style={{ flex: 'none', fontSize: 12.5, fontWeight: 800, color: mine ? P.gold : full ? P.red : P.teal, whiteSpace: 'nowrap' }}>
-                {mine ? '탭하면 취소' : full ? '마감' : `잔여 ${s.remaining}석`}
+                <span style={{ display: 'block', fontSize: 11.5, color: P.dim, fontWeight: 600, marginTop: 4 }}>
+                  정원 {s.capacity}석 · {s.reserved}명 예약
+                </span>
               </span>
-              <span style={{ flex: 'none', minWidth: 52, textAlign: 'right', fontSize: 10.5, color: P.dim, fontVariantNumeric: 'tabular-nums' }}>
-                {s.reserved}/{s.capacity}
+              {/* 라디오 */}
+              <span style={{ flex: 'none', width: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {!soldout ? (
+                  <span style={{ width: 22, height: 22, borderRadius: '50%', border: `2px solid ${sel ? P.orange : P.gray}`, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {sel ? <span style={{ width: 11, height: 11, borderRadius: '50%', background: P.orange }} /> : null}
+                  </span>
+                ) : null}
               </span>
             </button>
           );
         })}
+      </div>
+
+      <p style={{ fontSize: 11, color: P.mute, fontWeight: 600, padding: '4px 4px 0', lineHeight: 1.6, margin: 0 }}>
+        · 예약 변경은 원하는 시간대를 고르고 다시 신청하면 자동으로 이동됩니다.<br />
+        · 현장 확인을 위해 예약한 계정으로 로그인한 화면을 보여주세요.<br />
+        · 잔여석은 실시간으로 변동될 수 있습니다.
+      </p>
+      </div>
+
+      {/* 하단 고정 CTA */}
+      <div
+        className="addbar-sticky"
+        style={{ position: 'sticky', zIndex: 20, marginTop: 18, padding: '12px 18px', background: 'rgba(255,255,255,.97)', backdropFilter: 'blur(12px)', borderTop: `1px solid ${P.line}`, display: 'flex', alignItems: 'center', gap: 12 }}
+      >
+        <div style={{ flex: 'none', maxWidth: 118, minWidth: 0 }}>
+          <div style={{ fontSize: 11, color: P.dim, fontWeight: 700 }}>선택한 시간</div>
+          <div style={{ fontSize: 14.5, fontWeight: 900, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {selected ? `${selected.time}${slotEnd(daySlots, daySlots.indexOf(selected)) ? ` ~ ${slotEnd(daySlots, daySlots.indexOf(selected))}` : ''}` : '선택 안 됨'}
+          </div>
+        </div>
+        <button
+          disabled={!selected || busy || locked}
+          onClick={() => selected && setConfirm(selected)}
+          style={{
+            flex: 1, height: 50, borderRadius: 14, border: 'none', background: ctaBg, color: ctaFg,
+            fontSize: 15.5, fontWeight: 800, cursor: selected && !locked ? 'pointer' : 'default',
+            boxShadow: selected && !locked ? '0 6px 16px rgba(0,0,0,.18)' : 'none',
+          }}
+        >
+          {busy ? '처리 중…' : ctaLabel}
+        </button>
       </div>
 
       {confirm ? (
@@ -335,13 +477,48 @@ export function CardShowScreen() {
         />
       ) : null}
     </>,
+    true,
+  );
+}
+
+/** 같은 날짜 목록에서 i번째 슬롯의 종료 시각 = 다음 슬롯 시작. 마지막이면 null. */
+function slotEnd(list: Slot[], i: number): string | null {
+  return i >= 0 && i + 1 < list.length ? list[i + 1].time : null;
+}
+
+function InfoLine({ icon, children }: { icon: 'pin' | 'clock'; children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: P.sub, fontWeight: 600 }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={P.dim} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}>
+        {icon === 'pin' ? (
+          <>
+            <path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7Z" />
+            <circle cx="12" cy="9" r="2.5" />
+          </>
+        ) : (
+          <>
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3.5 2" />
+          </>
+        )}
+      </svg>
+      {children}
+    </div>
+  );
+}
+
+function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: 10.5, color: P.dim, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 15, fontWeight: 900, color: color ?? P.ink, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
+    </div>
   );
 }
 
 /**
- * 예약·입장 안내 — 동반 입장/대기/현장 방문 규칙. 페이지 하단에 작게 붙는다.
- * 앱은 이 페이지를 WebView 로 그대로 띄우므로(mobile/app/event/cardshow.tsx)
- * 여기만 고치면 웹·앱에 함께 반영된다.
+ * 예약·입장 안내 — 동반 입장/대기/현장 방문 규칙. 시간대를 고르기 전에 읽도록
+ * 타임테이블 위에 둔다.
  */
 const VISIT_NOTES = [
   '1인 예약 시 동반 1인까지 함께 입장 가능합니다.',
@@ -353,56 +530,64 @@ const VISIT_NOTES = [
 
 function VisitNotice() {
   return (
-    <section
-      style={{
-        marginTop: 18,
-        padding: '15px 16px 14px',
-        borderRadius: 14,
-        background: 'rgba(255,255,255,0.04)',
-        border: `1px solid ${P.line}`,
-      }}
-    >
-      <h2 style={{ margin: 0, fontSize: 12, fontWeight: 900, letterSpacing: 0.6, color: P.sub }}>
-        예약·입장 안내
-      </h2>
+    <section style={{ background: P.card, borderRadius: 16, padding: '15px 16px 14px', boxShadow: '0 2px 8px rgba(0,0,0,.04)' }}>
+      <h2 style={{ margin: 0, fontSize: 12.5, fontWeight: 900, letterSpacing: 0.3, color: P.ink }}>예약·입장 안내</h2>
       <ul style={{ margin: '10px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {VISIT_NOTES.map((t) => (
-          <li key={t} style={{ display: 'flex', gap: 7, fontSize: 11.5, lineHeight: 1.65, color: P.dim }}>
-            <span aria-hidden style={{ flex: 'none', color: P.teal }}>·</span>
+          <li key={t} style={{ display: 'flex', gap: 7, fontSize: 11.5, lineHeight: 1.65, color: P.sub }}>
+            <span aria-hidden style={{ flex: 'none', color: P.orange, fontWeight: 900 }}>·</span>
             <span>{t}</span>
           </li>
         ))}
       </ul>
-      <p style={{ margin: '12px 0 0', paddingTop: 10, borderTop: `1px solid ${P.line}`, fontSize: 11.5, fontWeight: 700, color: P.sub, lineHeight: 1.6 }}>
+      <p style={{ margin: '12px 0 0', paddingTop: 10, borderTop: `1px solid ${P.line2}`, fontSize: 11.5, fontWeight: 800, color: P.ink, lineHeight: 1.6 }}>
         원활한 이용을 위해 예약 후 방문을 권장드립니다.
       </p>
     </section>
   );
 }
 
-function CheckInConfirmModal({ busy, onConfirm, onClose }: { busy: boolean; onConfirm: () => void; onClose: () => void }) {
+/** 모달 공통 껍데기 — 라이트 팔레트. */
+function ModalShell({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'rgba(0,0,0,0.68)', backdropFilter: 'blur(3px)' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 380, borderRadius: 20, padding: '26px 22px 20px', background: '#12233F', border: `1px solid ${P.line}`, boxShadow: '0 18px 50px rgba(0,0,0,0.5)' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 42 }}>🧑‍💼</div>
-          <h3 style={{ margin: '10px 0 8px', fontSize: 19, fontWeight: 900 }}>현장 담당자 확인</h3>
-          <p style={{ margin: '0 0 20px', color: P.sub, fontSize: 13.5, lineHeight: 1.65 }}>
-            예약자와 방문 시간을 확인하셨나요?<br />확인하면 입장 완료 처리되며 예약을 변경하거나 취소할 수 없습니다.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onClose} disabled={busy} style={{ flex: 1, padding: '13px 0', borderRadius: 12, border: `1px solid ${P.line}`, background: 'transparent', color: P.sub, fontSize: 14.5, fontWeight: 800, cursor: 'pointer' }}>돌아가기</button>
-          <button onClick={onConfirm} disabled={busy} style={{ flex: 1.4, padding: '13px 0', borderRadius: 12, border: 'none', background: P.teal, color: '#043', fontSize: 14.5, fontWeight: 900, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
-            {busy ? '처리 중…' : '입장 완료 확인'}
-          </button>
-        </div>
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'rgba(22,22,26,0.5)', backdropFilter: 'blur(3px)' }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: 360, borderRadius: 20, padding: '24px 20px 18px', background: P.card, boxShadow: '0 18px 50px rgba(0,0,0,0.28)' }}
+      >
+        {children}
       </div>
     </div>
   );
 }
 
-/** 예약/이동/취소 공통 확인 모달 — 날짜·요일·시간 정보를 보여주고 확인을 받는다. */
+function CheckInConfirmModal({ busy, onConfirm, onClose }: { busy: boolean; onConfirm: () => void; onClose: () => void }) {
+  return (
+    <ModalShell onClose={onClose}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 40 }}>🧑‍💼</div>
+        <h3 style={{ margin: '10px 0 8px', fontSize: 18, fontWeight: 900, color: P.ink }}>현장 담당자 확인</h3>
+        <p style={{ margin: '0 0 20px', color: P.sub, fontSize: 13, lineHeight: 1.65 }}>
+          예약자와 방문 시간을 확인하셨나요?<br />확인하면 입장 완료 처리되며 예약을 변경하거나 취소할 수 없습니다.
+        </p>
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button onClick={onClose} disabled={busy} style={{ flex: 1, padding: '13px 0', borderRadius: 12, border: `1.5px solid ${P.line}`, background: P.card, color: P.sub, fontSize: 14.5, fontWeight: 800, cursor: 'pointer' }}>돌아가기</button>
+        <button onClick={onConfirm} disabled={busy} style={{ flex: 1.4, padding: '13px 0', borderRadius: 12, border: 'none', background: P.green, color: '#fff', fontSize: 14.5, fontWeight: 900, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+          {busy ? '처리 중…' : '입장 완료 확인'}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+/**
+ * 예약/이동/취소 확인 모달 — 하단 CTA 를 눌렀을 때 "예약하시겠습니까?" 로 한 번 더 묻는다.
+ * (시간대를 탭하는 것만으로는 아무 일도 일어나지 않는다.)
+ */
 function ConfirmModal({
   slot,
   mySlot,
@@ -422,67 +607,47 @@ function ConfirmModal({
 
   const title = isCancel ? '예약을 취소하시겠습니까?' : isMove ? '예약을 이 시간으로 옮기시겠습니까?' : '예약하시겠습니까?';
   const icon = isCancel ? '🗑️' : '🎟️';
-  const accent = isCancel ? P.red : P.teal;
+  const accent = isCancel ? P.red : P.ink;
 
   const row = (label: string, value: string, strike = false) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 0', borderBottom: `1px solid ${P.line}` }}>
-      <span style={{ fontSize: 12.5, color: P.dim, flex: 'none' }}>{label}</span>
-      <span style={{ fontSize: 13.5, fontWeight: 800, color: P.ink, textAlign: 'right', textDecoration: strike ? 'line-through' : 'none', opacity: strike ? 0.55 : 1 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: `1px solid ${P.line2}` }}>
+      <span style={{ fontSize: 12.5, color: P.dim, flex: 'none', fontWeight: 700 }}>{label}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 800, color: P.ink, textAlign: 'right', textDecoration: strike ? 'line-through' : 'none', opacity: strike ? 0.5 : 1 }}>
         {value}
       </span>
     </div>
   );
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 24, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%', maxWidth: 380, borderRadius: 20, padding: '26px 22px 20px',
-          background: '#12233F', border: `1px solid ${P.line}`, boxShadow: '0 18px 50px rgba(0,0,0,0.5)',
-        }}
-      >
-        <div style={{ textAlign: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 38 }}>{icon}</div>
-          <h3 style={{ fontSize: 17, fontWeight: 900, margin: '10px 0 0', color: P.ink }}>{title}</h3>
-        </div>
-
-        <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: '6px 14px', marginBottom: 18 }}>
-          {isMove && mySlot ? row('기존 예약', fmt(mySlot), true) : null}
-          {row(isCancel ? '취소할 예약' : '방문 일시', fmt(slot))}
-          {!isCancel ? row('잔여석', `${slot.remaining}석 (${slot.reserved}/${slot.capacity} 예약됨)`) : null}
-        </div>
-
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            onClick={onClose}
-            disabled={busy}
-            style={{
-              flex: 1, padding: '13px 0', borderRadius: 12, cursor: 'pointer', fontSize: 14.5, fontWeight: 800,
-              border: `1px solid ${P.line}`, background: 'transparent', color: P.sub,
-            }}
-          >
-            취소
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={busy}
-            style={{
-              flex: 1.4, padding: '13px 0', borderRadius: 12, cursor: 'pointer', fontSize: 14.5, fontWeight: 900,
-              border: 'none', background: accent, color: isCancel ? '#FFF' : '#043',
-              opacity: busy ? 0.6 : 1,
-            }}
-          >
-            {busy ? '처리 중…' : '확인'}
-          </button>
-        </div>
+    <ModalShell onClose={onClose}>
+      <div style={{ textAlign: 'center', marginBottom: 14 }}>
+        <div style={{ fontSize: 36 }}>{icon}</div>
+        <h3 style={{ fontSize: 17, fontWeight: 900, margin: '10px 0 0', color: P.ink }}>{title}</h3>
       </div>
-    </div>
+
+      <div style={{ background: P.bg, borderRadius: 14, padding: '4px 14px', marginBottom: 16 }}>
+        {isMove && mySlot ? row('기존 예약', fmt(mySlot), true) : null}
+        {row(isCancel ? '취소할 예약' : '방문 일시', fmt(slot))}
+        {!isCancel ? row('잔여석', `${slot.remaining}석 (${slot.reserved}/${slot.capacity} 예약됨)`) : null}
+        {!isCancel ? row('입장 인원', '1인 + 동반 1인') : null}
+      </div>
+
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button
+          onClick={onClose}
+          disabled={busy}
+          style={{ flex: 1, padding: '13px 0', borderRadius: 12, cursor: 'pointer', fontSize: 14.5, fontWeight: 800, border: `1.5px solid ${P.line}`, background: P.card, color: P.sub }}
+        >
+          취소
+        </button>
+        <button
+          onClick={onConfirm}
+          disabled={busy}
+          style={{ flex: 1.4, padding: '13px 0', borderRadius: 12, cursor: 'pointer', fontSize: 14.5, fontWeight: 900, border: 'none', background: accent, color: '#fff', opacity: busy ? 0.6 : 1 }}
+        >
+          {busy ? '처리 중…' : '확인'}
+        </button>
+      </div>
+    </ModalShell>
   );
 }
