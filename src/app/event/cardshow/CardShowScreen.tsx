@@ -308,6 +308,8 @@ export function CardShowScreen() {
         현장 확인을 위해 예약한 계정으로 로그인한 화면을 보여주세요.
       </p>
 
+      <VisitNotice />
+
       {confirm ? (
         <ConfirmModal
           slot={confirm}
@@ -326,6 +328,48 @@ export function CardShowScreen() {
         />
       ) : null}
     </>,
+  );
+}
+
+/**
+ * 예약·입장 안내 — 동반 입장/대기/현장 방문 규칙. 페이지 하단에 작게 붙는다.
+ * 앱은 이 페이지를 WebView 로 그대로 띄우므로(mobile/app/event/cardshow.tsx)
+ * 여기만 고치면 웹·앱에 함께 반영된다.
+ */
+const VISIT_NOTES = [
+  '1인 예약 시 동반 1인까지 함께 입장 가능합니다.',
+  '자녀는 동반 1인 인원과 별도로 함께 입장 가능합니다.',
+  '예약 시간에 방문하셔도 현장 상황에 따라 대기가 발생할 수 있습니다.',
+  '사전 예약 없이 현장 방문도 가능합니다.',
+  '현장 방문 고객은 도착 순서대로 순차 입장 안내드립니다.',
+];
+
+function VisitNotice() {
+  return (
+    <section
+      style={{
+        marginTop: 18,
+        padding: '15px 16px 14px',
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.04)',
+        border: `1px solid ${P.line}`,
+      }}
+    >
+      <h2 style={{ margin: 0, fontSize: 12, fontWeight: 900, letterSpacing: 0.6, color: P.sub }}>
+        예약·입장 안내
+      </h2>
+      <ul style={{ margin: '10px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {VISIT_NOTES.map((t) => (
+          <li key={t} style={{ display: 'flex', gap: 7, fontSize: 11.5, lineHeight: 1.65, color: P.dim }}>
+            <span aria-hidden style={{ flex: 'none', color: P.teal }}>·</span>
+            <span>{t}</span>
+          </li>
+        ))}
+      </ul>
+      <p style={{ margin: '12px 0 0', paddingTop: 10, borderTop: `1px solid ${P.line}`, fontSize: 11.5, fontWeight: 700, color: P.sub, lineHeight: 1.6 }}>
+        원활한 이용을 위해 예약 후 방문을 권장드립니다.
+      </p>
+    </section>
   );
 }
 
