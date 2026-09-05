@@ -58,6 +58,17 @@ export function LoginRequired({
         <div className="login-btns" style={{ position: 'relative', padding: '0 8px' }}>
           <button
             type="button"
+            className="login-btn login-btn-google"
+            onClick={() => signIn('google', callbackUrl)}
+          >
+            <div className="login-btn-icon"><ProviderLogo provider="google" /></div>
+            <div className="login-btn-txt">
+              <div className="login-btn-name">구글로 시작하기</div>
+              <div className="login-btn-desc">Google 계정으로 간편 로그인</div>
+            </div>
+          </button>
+          <button
+            type="button"
             className="login-btn login-btn-kakao"
             onClick={() => signIn('kakao', callbackUrl)}
           >
@@ -67,26 +78,17 @@ export function LoginRequired({
               <div className="login-btn-desc">카카오 계정으로 간편 로그인</div>
             </div>
           </button>
+          {/* 네이버 — 현재 비활성(준비 중). 순서상 맨 아래. */}
           <button
             type="button"
-            className="login-btn login-btn-naver"
-            onClick={() => signIn('naver', callbackUrl)}
+            className="login-btn login-btn-naver login-btn-off"
+            disabled
+            aria-disabled="true"
           >
             <div className="login-btn-icon"><ProviderLogo provider="naver" /></div>
             <div className="login-btn-txt">
               <div className="login-btn-name">네이버로 시작하기</div>
-              <div className="login-btn-desc">네이버 계정으로 간편 로그인</div>
-            </div>
-          </button>
-          <button
-            type="button"
-            className="login-btn login-btn-google"
-            onClick={() => signIn('google', callbackUrl)}
-          >
-            <div className="login-btn-icon"><ProviderLogo provider="google" /></div>
-            <div className="login-btn-txt">
-              <div className="login-btn-name">구글로 시작하기</div>
-              <div className="login-btn-desc">Google 계정으로 간편 로그인</div>
+              <div className="login-btn-desc">준비 중입니다</div>
             </div>
           </button>
         </div>

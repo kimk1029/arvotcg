@@ -144,22 +144,6 @@ export default function LoginScreen() {
             />
           ) : null}
           <LoginBtn
-            bg="#FEE500"
-            fg="#3A1D00"
-            provider="kakao"
-            name="카카오로 시작하기"
-            desc="카카오 계정으로 간편 로그인"
-            onPress={() => startLogin('kakao')}
-          />
-          <LoginBtn
-            bg="#03C75A"
-            fg="#FFFFFF"
-            provider="naver"
-            name="네이버로 시작하기"
-            desc="네이버 계정으로 간편 로그인"
-            onPress={() => startLogin('naver')}
-          />
-          <LoginBtn
             // '#FFF': PixelPress 가 colors.white('#FFFFFF') 와 같은 문자열이면 테마 white 로
             // 치환(다크에선 어두운색)하므로 3자리 hex 로 우회해 항상 흰 배경 유지.
             bg="#FFF"
@@ -168,6 +152,24 @@ export default function LoginScreen() {
             name="구글로 시작하기"
             desc="Google 계정으로 간편 로그인"
             onPress={() => startLogin('google')}
+          />
+          <LoginBtn
+            bg="#FEE500"
+            fg="#3A1D00"
+            provider="kakao"
+            name="카카오로 시작하기"
+            desc="카카오 계정으로 간편 로그인"
+            onPress={() => startLogin('kakao')}
+          />
+          {/* 네이버 — 현재 비활성(준비 중). 순서상 맨 아래. */}
+          <LoginBtn
+            bg="#03C75A"
+            fg="#FFFFFF"
+            provider="naver"
+            name="네이버로 시작하기"
+            desc="준비 중입니다"
+            disabled
+            onPress={() => {}}
           />
         </View>
 
@@ -213,13 +215,17 @@ interface BtnProps {
   name: string;
   desc: string;
   onPress: () => void;
+  /** 준비 중인 프로바이더 — 흐리게 + 누름 차단. */
+  disabled?: boolean;
 }
 
-function LoginBtn({ bg, fg, provider, name, desc, onPress }: BtnProps) {
+function LoginBtn({ bg, fg, provider, name, desc, onPress, disabled }: BtnProps) {
   const txt = useThemeTextVariant();
   return (
     <PixelPress
       onPress={onPress}
+      disabled={disabled}
+      wrapStyle={disabled ? { opacity: 0.45 } : undefined}
       bg={bg}
       borderWidth={4}
       shadow={7}
