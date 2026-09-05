@@ -66,7 +66,7 @@ export function RegisterFromScan() {
           📷 카드 스캔으로 등록하기
         </Link>
         <Link
-          href="/cards/add/manual"
+          href="/cards/add"
           style={{
             display: 'block',
             textAlign: 'center',

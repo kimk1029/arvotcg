@@ -1,8 +1,7 @@
-// 웹 /cards/add 와 동일 — 선택 화면 없이 직접입력 폼으로 즉시 리다이렉트.
-// (스캔 진입은 탭/그레이딩 라우트가 담당 — 웹 ManualAddForm 헤더의 '스캔' 버튼과 동일하게
-//  직접입력 화면 안에서도 스캔으로 넘어갈 수 있다.)
+// 웹 /cards/add 와 동일 — 선택 화면 없이 '내 카드 등록' 폼으로 바로 간다.
+// Redirect 는 replace 라 히스토리에 남지 않아, 폼에서 뒤로가면 진짜 이전 화면으로 나간다.
 import { Redirect } from 'expo-router';
 
 export default function CardAddScreen() {
-  return <Redirect href={'/scan?mode=manual' as never} />;
+  return <Redirect href={'/scan' as never} />;
 }

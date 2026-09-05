@@ -240,9 +240,10 @@ type FieldKey = 'name' | 'set' | 'num';
 const GRADE_COMPANIES = ['PSA', 'BGS', 'CGC', 'SGC', 'ARS'];
 
 const FIELDS: Array<{ key: FieldKey; label: string; color: string; placeholder: string; hint: string; max: number }> = [
+  // 카드번호가 가장 확실한 단서라 첫 번째이자 기본 선택 (사용자 지시 2026-09-06).
+  { key: 'num', label: '카드번호', color: '#1E8E5A', placeholder: '예) 025/165', hint: '세트코드 바로 옆 번호예요.', max: 16 },
   { key: 'name', label: '카드이름', color: '#FF7A00', placeholder: '예) 피카츄', hint: '이름 일부만 입력해도 돼요.', max: 60 },
   { key: 'set', label: '세트코드', color: '#2563EB', placeholder: '예) SV4a', hint: '카드 왼쪽 하단의 코드예요.', max: 16 },
-  { key: 'num', label: '카드번호', color: '#1E8E5A', placeholder: '예) 025/165', hint: '세트코드 바로 옆 번호예요.', max: 16 },
 ];
 
 /**
@@ -264,7 +265,7 @@ export function ManualAddForm(_props: Props) {
   const [setCode, setSetCode] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [name, setName] = useState('');
-  const [field, setField] = useState<FieldKey>('name');
+  const [field, setField] = useState<FieldKey>('num');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const valueOf = (k: FieldKey) => (k === 'name' ? name : k === 'set' ? setCode : cardNumber);
@@ -1170,42 +1171,63 @@ function CardGuide({ P, clean }: { P: Palette; clean: boolean }) {
           boxShadow: '0 10px 26px rgba(0,0,0,.18)', overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontSize: 11.5, fontWeight: 900, color: '#16161a', whiteSpace: 'nowrap' }}>피카츄 ex</span>
+        {/* 샘플 워터마크 — 콜아웃보다 먼저 깔아 색 표시가 흐려지지 않게 한다. */}
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,.30)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+          <span style={{ fontSize: 30, fontWeight: 900, color: 'rgba(22,22,26,.22)', letterSpacing: 5, transform: 'rotate(-24deg)' }}>SAMPLE</span>
+        </div>
+
+        {/* 카드이름 — 실제 이름 글자를 그대로 테두리로 감싸고 배지를 바로 옆에 붙인다. */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span
+            style={{
+              fontSize: 11.5, fontWeight: 900, color: '#16161a', whiteSpace: 'nowrap',
+              border: `2px solid ${NAME_C}`, borderRadius: 5, padding: '1px 5px', background: 'rgba(255,255,255,.55)',
+            }}
+          >
+            피카츄 ex
+          </span>
+          <Tag color={NAME_C}>카드이름</Tag>
           <span style={{ flex: 1 }} />
           <span style={{ fontSize: 7, fontWeight: 800, color: '#b3261e' }}>HP</span>
           <span style={{ fontSize: 11.5, fontWeight: 900, color: '#16161a' }}>200</span>
         </div>
-        <div style={{ position: 'relative', height: 152, marginTop: 5, border: '3px solid #c9a000', borderRadius: 4, overflow: 'hidden', background: 'radial-gradient(120% 100% at 50% 30%,#fff3b0 0%,#ffd76e 45%,#e8a800 100%)' }}>
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 58 }}>⚡</div>
+
+        <div style={{ position: 'relative', height: 138, marginTop: 5, border: '3px solid #c9a000', borderRadius: 4, overflow: 'hidden', background: 'radial-gradient(120% 100% at 50% 30%,#fff3b0 0%,#ffd76e 45%,#e8a800 100%)' }}>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 54 }}>⚡</div>
         </div>
-        <div style={{ marginTop: 7, display: 'flex', flexDirection: 'column', gap: 5, padding: '0 2px' }}>
+        <div style={{ position: 'relative', marginTop: 7, display: 'flex', flexDirection: 'column', gap: 5, padding: '0 2px' }}>
           <div style={{ height: 6, borderRadius: 3, background: 'rgba(0,0,0,.12)' }} />
           <div style={{ height: 6, borderRadius: 3, background: 'rgba(0,0,0,.12)', width: '76%' }} />
-          <div style={{ height: 6, borderRadius: 3, background: 'rgba(0,0,0,.12)', width: '58%' }} />
         </div>
-        <div style={{ position: 'absolute', left: 7, right: 7, bottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-          <span style={{ fontSize: 9.5, fontWeight: 900, color: '#16161a' }}>SV4a</span>
-          <span style={{ fontSize: 9.5, fontWeight: 900, color: '#16161a' }}>025/165</span>
+
+        {/* 세트코드 · 카드번호 — 카드 하단 실제 표기를 각각 감싸고 배지를 바로 위에 둔다. */}
+        <div style={{ position: 'absolute', left: 7, right: 7, bottom: 7 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+            <Tag color={SET_C}>세트코드</Tag>
+            <Tag color={NUM_C}>카드번호</Tag>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 9.5, fontWeight: 900, color: '#16161a', border: `2px solid ${SET_C}`, borderRadius: 4, padding: '1px 4px', background: 'rgba(255,255,255,.55)' }}>SV4a</span>
+            <span style={{ fontSize: 9.5, fontWeight: 900, color: '#16161a', border: `2px solid ${NUM_C}`, borderRadius: 4, padding: '1px 4px', background: 'rgba(255,255,255,.55)' }}>025/165</span>
+          </div>
         </div>
-        {/* 실제 카드가 아님을 분명히 — 샘플 워터마크 */}
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-          <span style={{ fontSize: 30, fontWeight: 900, color: 'rgba(22,22,26,.2)', letterSpacing: 5, transform: 'rotate(-24deg)' }}>SAMPLE</span>
-        </div>
-        {/* 콜아웃 — 카드이름 / 세트코드 / 카드번호 */}
-        <div style={{ position: 'absolute', top: 26, left: 5, display: 'flex', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
-          <div style={{ width: 44, height: 5, borderLeft: `2px solid ${NAME_C}`, borderTop: `2px solid ${NAME_C}` }} />
-          <span style={{ fontSize: 9.5, fontWeight: 800, color: '#fff', background: NAME_C, padding: '2px 7px', borderRadius: 6, whiteSpace: 'nowrap' }}>카드이름</span>
-        </div>
-        <div style={{ position: 'absolute', left: 5, bottom: 22, display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'none' }}>
-          <span style={{ fontSize: 9.5, fontWeight: 800, color: '#fff', background: SET_C, padding: '2px 7px', borderRadius: 6, whiteSpace: 'nowrap' }}>세트코드</span>
-          <span style={{ fontSize: 9.5, fontWeight: 800, color: '#fff', background: NUM_C, padding: '2px 7px', borderRadius: 6, whiteSpace: 'nowrap' }}>카드번호</span>
-        </div>
-        <div style={{ position: 'absolute', left: 6, bottom: 18, width: 27, height: 5, borderLeft: `2px solid ${SET_C}`, borderBottom: `2px solid ${SET_C}`, pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', left: 36, bottom: 18, width: 43, height: 5, borderRight: `2px solid ${NUM_C}`, borderBottom: `2px solid ${NUM_C}`, pointerEvents: 'none' }} />
       </div>
       <div style={{ fontSize: 10.5, color: P.ink3, fontWeight: 600, marginTop: 10 }}>· 설명용 샘플 이미지입니다</div>
     </div>
+  );
+}
+
+/** 콜아웃 배지 — 가리키는 항목 바로 옆/위에 붙는 작은 색 라벨. */
+function Tag({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <span
+      style={{
+        fontSize: 9, fontWeight: 800, color: '#fff', background: color,
+        padding: '2px 6px', borderRadius: 6, whiteSpace: 'nowrap', lineHeight: 1.3,
+      }}
+    >
+      {children}
+    </span>
   );
 }
 function Chip({
