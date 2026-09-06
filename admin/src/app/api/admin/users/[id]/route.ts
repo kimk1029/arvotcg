@@ -24,7 +24,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     where: { id },
     select: {
       id: true, name: true, email: true, avatar: true, avatarId: true, backgroundId: true, frameId: true,
-      rating: true, points: true,
+      rating: true, points: true, signupPlatform: true, signupProvider: true,
       ownedAvatars: true, ownedBackgrounds: true, ownedFrames: true,
       createdAt: true, updatedAt: true,
       _count: {

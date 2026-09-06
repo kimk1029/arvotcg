@@ -16,7 +16,7 @@ export default async function Page() {
           user: {
             select: {
               id: true, name: true, email: true, avatarId: true, points: true,
-              signupPlatform: true, isAdmin: true, createdAt: true,
+              signupPlatform: true, signupProvider: true, isAdmin: true, createdAt: true,
               _count: { select: { userCards: true, trades: true, feeds: true } },
             },
           },
@@ -43,6 +43,7 @@ export default async function Page() {
             avatarId: r.user.avatarId,
             points: r.user.points,
             signupPlatform: r.user.signupPlatform,
+            signupProvider: r.user.signupProvider,
             isAdmin: r.user.isAdmin,
             joinedAt: r.user.createdAt.toISOString(),
             cards: r.user._count.userCards,

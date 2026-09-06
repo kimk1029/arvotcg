@@ -9,11 +9,21 @@
  * 시간대에서 자동으로 채운다 — 즉 입력은 전부 선택 사항이다.
  */
 import { useMemo, useState, type FormEvent } from 'react';
+import { PLATFORM_LABEL, PROVIDER_LABEL, resolveSignupProvider } from '@/lib/signupProvider';
+
+/** "iOS · 카카오" — 회원 관리 상세와 같은 표기 (SNS 기록 없으면 UID 추정 + "(추정)"). */
+function signupLabel(platform: string | null, provider: string | null, userId: string): string {
+  const [p, inferred] = resolveSignupProvider(provider, userId);
+  const plat = platform ? (PLATFORM_LABEL[platform] ?? platform) : userId.startsWith('apple_') ? 'iOS' : '미상';
+  const sns = p ? `${PROVIDER_LABEL[p]}${inferred ? '(추정)' : ''}` : '-';
+  return `${plat} · ${sns}`;
+}
 
 interface ReservationUser {
   avatarId: string;
   points: number;
   signupPlatform: string | null;
+  signupProvider: string | null;
   isAdmin: boolean;
   joinedAt: string;
   cards: number;
@@ -389,7 +399,7 @@ export function CardShowManager({
                 {detail.user ? (
                   <>
                     <DetailRow label="가입일" value={fmtTime(detail.user.joinedAt)} />
-                    <DetailRow label="가입 경로" value={detail.user.signupPlatform ?? '-'} />
+                    <DetailRow label="가입 경로" value={signupLabel(detail.user.signupPlatform, detail.user.signupProvider, detail.userId)} />
                     <DetailRow label="포인트" value={`${detail.user.points.toLocaleString()}P`} />
                     <DetailRow
                       label="활동"

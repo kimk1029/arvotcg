@@ -121,13 +121,14 @@ router.post('/apple/native', async (req, res) => {
     const givenName = typeof body.name === 'string' ? body.name.trim().slice(0, 20) : '';
     const user = await prisma.user.upsert({
       where: { id: userId },
-      update: email ? { email } : {},
+      update: { ...(email ? { email } : {}), signupProvider: 'apple' },
       create: {
         id: userId,
         name: givenName || defaultNameFor(userId),
         ...(email ? { email } : {}),
         // Sign in with Apple 은 iOS 앱 전용 경로.
         signupPlatform: 'ios',
+        signupProvider: 'apple',
       },
     });
     const token = await signSession({
@@ -186,13 +187,15 @@ router.get('/callback/:provider', async (req, res) => {
 
     const user = await prisma.user.upsert({
       where: { id: userId },
-      update: info.email ? { email: info.email } : {},
+      // signupProvider 는 update 에도 넣어 컬럼 도입 전 회원이 재로그인하면 채워지게 한다.
+      update: { ...(info.email ? { email: info.email } : {}), signupProvider: provider.provider },
       create: {
         id: userId,
         name: displayName,
         ...(info.email ? { email: info.email } : {}),
-        // 가입 경로 기록 — 어드민 회원 관리에서 앱/웹 구분 표시.
+        // 가입 경로 기록 — 어드민 회원 관리에서 앱/웹 구분 + SNS 종류 표시.
         signupPlatform: MOBILE_PLATFORMS.has(state.p) ? state.p : 'web',
+        signupProvider: provider.provider,
       },
     });
 

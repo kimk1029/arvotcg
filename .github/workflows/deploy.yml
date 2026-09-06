@@ -133,6 +133,33 @@ jobs:
               ALTER TABLE public.trades ADD COLUMN "images" JSONB;
               RAISE NOTICE 'ADDED trades.images column';
             END IF;
+
+            -- users.signupProvider (가입 SNS) 컬럼 추가 + 도입 전 회원 백필.
+            -- id 네임스페이스가 provider 별이라 패턴으로 확정 가능:
+            --   apple_<sub> = apple · 숫자 ≤12자리 = kakao · 숫자 ≥15자리 = google(sub 21자리) · 나머지 = naver
+            -- (system-* 는 시스템 발신자 계정이라 제외)
+            IF EXISTS (
+              SELECT 1 FROM information_schema.tables
+              WHERE table_schema='public' AND table_name='users'
+            ) THEN
+              IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema='public' AND table_name='users' AND column_name='signupProvider'
+              ) THEN
+                ALTER TABLE public.users ADD COLUMN "signupProvider" TEXT;
+                RAISE NOTICE 'ADDED users.signupProvider column';
+              END IF;
+              UPDATE public.users
+                 SET "signupProvider" = CASE
+                   WHEN id LIKE 'apple\_%' THEN 'apple'
+                   WHEN id ~ '^[0-9]{1,12}$' THEN 'kakao'
+                   WHEN id ~ '^[0-9]{15,}$' THEN 'google'
+                   ELSE 'naver' END
+               WHERE "signupProvider" IS NULL
+                 AND id NOT LIKE 'system%';
+              GET DIAGNOSTICS null_count = ROW_COUNT;
+              RAISE NOTICE 'backfilled users.signupProvider: % rows', null_count;
+            END IF;
           END $$;
 
           \echo '>>> verify'

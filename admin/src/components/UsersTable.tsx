@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { UserDetailModal } from './UserDetailModal';
+import { PROVIDER_LABEL, PROVIDER_STYLE, resolveSignupProvider } from '@/lib/signupProvider';
 
 interface Row {
   id: string;
@@ -11,6 +12,8 @@ interface Row {
   points: number;
   /** 'web' | 'ios' | 'android' | 'mobile'(구버전 앱, OS 미상) | null(컬럼 도입 전 가입 — apple_ id 는 iOS 로 추정) */
   signupPlatform: string | null;
+  /** 'google' | 'kakao' | 'naver' | 'apple' | null(컬럼 도입 전 — id 패턴으로 추정 표시) */
+  signupProvider: string | null;
   /** 어드민 권한 — 부여 시 소셜 로그인으로 어드민 사이트 접근 가능. */
   isAdmin: boolean;
   createdAt: string;
@@ -38,6 +41,17 @@ function PlatformBadge({ platform, userId }: { platform: string | null; userId: 
     return <span className="tag" style={{ background: '#F0FDF4', color: '#166534' }}>💻 웹</span>;
   }
   return <span className="tag" title="가입경로 기록 도입 이전 회원">—</span>;
+}
+
+/** 가입 SNS 배지 — 저장값 없으면 id 패턴으로 추정하고 "?" 표시. */
+function ProviderBadge({ provider, userId }: { provider: string | null; userId: string }) {
+  const [p, inferred] = resolveSignupProvider(provider, userId);
+  if (!p) return <span className="tag" title="시스템 계정">—</span>;
+  return (
+    <span className="tag" style={PROVIDER_STYLE[p]} title={inferred ? '기록 없음 — UID 패턴으로 추정' : undefined}>
+      {PROVIDER_LABEL[p]}{inferred ? '?' : ''}
+    </span>
+  );
 }
 
 function fmt(d: string | null | undefined): string {
@@ -89,6 +103,7 @@ export function UsersTable({ rows }: { rows: Row[] }) {
             <th>이름</th>
             <th>이메일</th>
             <th>가입경로</th>
+            <th>SNS</th>
             <th>관리자</th>
             <th>아바타</th>
             <th style={{ textAlign: 'right' }}>포인트</th>
@@ -112,6 +127,7 @@ export function UsersTable({ rows }: { rows: Row[] }) {
               <td>{u.name}</td>
               <td className="mono" style={{ fontSize: 11 }}>{u.email ?? <span className="muted">-</span>}</td>
               <td><PlatformBadge platform={u.signupPlatform} userId={u.id} /></td>
+              <td><ProviderBadge provider={u.signupProvider} userId={u.id} /></td>
               <td>
                 {/* 권한 부여 시 이 계정으로 소셜 로그인해 어드민에 들어올 수 있다 */}
                 <button

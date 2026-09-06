@@ -47,8 +47,11 @@ model User {
   /// 동의한 규칙 버전(UGC_TERMS_VERSION). 규칙 개정 시 버전이 낮으면 재동의.
   ugcTermsVersion     Int       @default(0)
 
-  /// 가입 플랫폼 — 'web' | 'mobile'(앱). 최초 가입(create) 시 기록. null = 컬럼 도입 전 가입.
+  /// 가입 플랫폼 — 'web' | 'ios' | 'android' | 'mobile'(구 앱, OS 미상). 최초 가입(create) 시 기록. null = 컬럼 도입 전 가입.
   signupPlatform String?
+  /// 가입 SNS — 'google' | 'kakao' | 'naver' | 'apple'. 로그인마다 갱신(id 네임스페이스가 provider 별이라 항상 동일).
+  /// null = 컬럼 도입 전 가입 + 미재로그인 → deploy.yml pre-migrate 가 id 패턴으로 백필, 어드민은 inferSignupProvider 로 추정.
+  signupProvider String?
 
   trades                  Trade[]
   feeds                   Feed[]

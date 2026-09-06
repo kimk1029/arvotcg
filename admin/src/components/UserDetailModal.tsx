@@ -1,6 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { PLATFORM_LABEL, PROVIDER_LABEL, resolveSignupProvider } from '@/lib/signupProvider';
+
+/** "iOS · 카카오" 형태. SNS 기록이 없으면 UID 패턴 추정에 "(추정)" 표시. */
+function signupLabel(platform: string | null, provider: string | null, userId: string): string {
+  const [p, inferred] = resolveSignupProvider(provider, userId);
+  const plat = platform ? (PLATFORM_LABEL[platform] ?? platform) : userId.startsWith('apple_') ? 'iOS' : '미상';
+  const sns = p ? `${PROVIDER_LABEL[p]}${inferred ? '(추정)' : ''}` : '-';
+  return `${plat} · ${sns}`;
+}
 
 interface SpendItem {
   kind: 'oripa' | 'avatar' | 'background' | 'frame';
@@ -13,6 +22,7 @@ interface SpendItem {
 interface UserDetail {
   user: {
     id: string; name: string; email: string | null; avatar: string; avatarId: string;
+    signupPlatform: string | null; signupProvider: string | null;
     backgroundId: string; frameId: string; rating: number; points: number;
     ownedAvatars: string[]; ownedBackgrounds: string[]; ownedFrames: string[];
     createdAt: string; updatedAt: string;
@@ -142,6 +152,7 @@ export function UserDetailModal({ userId, onClose }: Props) {
                       <Row k="이름" v={data.user.name} />
                       <Row k="이메일" v={data.user.email ?? '-'} />
                       <Row k="UID" v={data.user.id} />
+                      <Row k="가입 경로" v={signupLabel(data.user.signupPlatform, data.user.signupProvider, data.user.id)} />
                       <Row k="아바타" v={`${data.user.avatar} / ${data.user.avatarId}`} />
                       <Row k="배경" v={data.user.backgroundId} />
                       <Row k="프레임" v={data.user.frameId} />
