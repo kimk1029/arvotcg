@@ -37,6 +37,7 @@ import { ToastProvider } from '@/components/ToastProvider';
 import { UgcTermsGateHost } from '@/components/UgcTermsGate';
 import { ForceUpdateGate } from '@/components/ForceUpdateGate';
 import { extractOAuthToken, persistTokenAndGoHome } from '@/lib/oauth';
+import { applyPendingOtaOnBoot } from '@/lib/otaUpdate';
 import { colors } from '@/theme/tokens';
 
 /**
@@ -113,7 +114,23 @@ export default function RootLayout() {
     return () => clearTimeout(t);
   }, [fontsReady]);
 
-  const proceed = fontsReady || timedOut || pixelError != null || koError != null;
+  // OTA: 새 번들이 있으면 부팅 스피너 동안 받아서 즉시 reload (첫 실행에 반영).
+  // 없거나 시간 초과면 otaDone=true 로 현재 번들 진행. 스크린샷 모드에선 건너뜀.
+  const [otaDone, setOtaDone] = useState(
+    !!process.env.EXPO_PUBLIC_SHOT_MODE || !!process.env.EXPO_PUBLIC_SHOT_ROUTE,
+  );
+  useEffect(() => {
+    if (otaDone) return undefined;
+    let alive = true;
+    applyPendingOtaOnBoot().finally(() => {
+      if (alive) setOtaDone(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [otaDone]);
+
+  const proceed = (fontsReady || timedOut || pixelError != null || koError != null) && otaDone;
 
   // 안전망: 어떤 경우든 마운트 후 splash 강제 숨김.
   useEffect(() => {
