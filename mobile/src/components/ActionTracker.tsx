@@ -3,6 +3,7 @@ import { View, AppState } from 'react-native';
 import { usePathname } from 'expo-router';
 import { File, Paths } from 'expo-file-system';
 import { api } from '@/lib/apiClient';
+import { trackScreen } from '@/lib/posthog';
 
 /**
  * 모바일 행동 추적기 — children 을 감싸 모든 탭을 비차단 캡처하고, 화면 이동(usePathname)마다
@@ -65,7 +66,10 @@ export function ActionTracker({ children }: { children: ReactNode }) {
 
   // 화면 이동 1건
   useEffect(() => {
-    if (pathname) enqueue({ type: 'pageview', path: pathname });
+    if (pathname) {
+      enqueue({ type: 'pageview', path: pathname });
+      trackScreen(pathname); // PostHog $screen (웹은 SDK 가 history_change 로 자동)
+    }
   }, [pathname]);
 
   // anonId 준비 + flush 타이밍 (마운트 1회)

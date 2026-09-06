@@ -7,6 +7,7 @@
 import { api, ApiError, getApiBaseUrl } from './apiClient';
 import { swrInvalidate, swrPeek, swrSet } from './swr';
 import { SHOT } from './shotMode';
+import { setAnalyticsPerson } from './posthog';
 import {
   SHOT_MY_CARDS, SHOT_PORTFOLIO, SHOT_PRICE_ALERTS, SHOT_SUMMARY, SHOT_UNREAD,
 } from './shotFixtures';
@@ -311,7 +312,11 @@ export interface MySummary {
 
 export function fetchMySummary(): Promise<MySummary> {
   if (SHOT) return Promise.resolve(SHOT_SUMMARY);
-  return api<MySummary>('/api/me/summary');
+  return api<MySummary>('/api/me/summary').then((r) => {
+    // PostHog 사람 속성 보강(email·name) — 웹은 세션 훅에서 같은 키로 identify.
+    setAnalyticsPerson({ email: r.user?.email, name: r.user?.name });
+    return r;
+  });
 }
 
 export function fetchMyTrades(): Promise<MyTrade[]> {

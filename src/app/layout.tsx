@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { ActionTracker } from '@/components/ActionTracker';
 import { AdScripts } from '@/components/ads/AdScripts';
 import { GoogleAnalytics } from '@/components/GoogleAnalytics';
+import { PostHogAnalytics } from '@/components/PostHogAnalytics';
 import { UgcTermsGateHost } from '@/components/UgcTermsGate';
 import { InAppBrowserNotice } from '@/components/InAppBrowserNotice';
 import { InventoryProvider } from '@/components/InventoryProvider';
@@ -145,6 +146,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           ]}
         />
         <GoogleAnalytics />
+        <PostHogAnalytics />
         <AdScripts />
         <Providers>
           <CurrencyProvider>
