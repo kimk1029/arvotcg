@@ -17,6 +17,9 @@ export function buildAuthorizeUrl(state) {
     client_id: clientId,
     redirect_uri: redirectUri,
     state,
+    // 이메일은 카카오 개발자 콘솔 "카카오계정(이메일)" 동의항목이 선택 동의로 켜져 있어야
+    // 요청 가능(비즈 앱 필요, 2026-09-06 설정). 미동의여도 로그인은 완료되고 email 만 비어 온다.
+    scope: 'account_email',
   });
   return `${AUTHORIZE_URL}?${params.toString()}`;
 }
