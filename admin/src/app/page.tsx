@@ -232,8 +232,38 @@ async function loadStats() {
   const countOf = (rows: Array<{ status: string; _count: { _all: number } }>, s: string) =>
     rows.find((r) => r.status === s)?._count._all ?? 0;
 
+  // 회원 가입경로 분포 — 플랫폼(iOS/Android/웹/구앱)·SNS(구글/카카오/네이버/애플).
+  // signupProvider 가 비어 있는 도입 전 회원은 UID 패턴으로 추정(회원 관리 페이지·deploy.yml 백필과 같은 규칙).
+  const [platformMixRaw, providerMixRaw] = await Promise.all([
+    one(prisma.$queryRaw<Array<{ key: string | null; n: bigint }>>`
+      SELECT CASE WHEN "signupPlatform" IS NULL AND id LIKE 'apple\\_%' THEN 'ios' ELSE "signupPlatform" END AS key,
+             count(*) AS n
+        FROM users WHERE id NOT LIKE 'system%' GROUP BY 1`, []),
+    one(prisma.$queryRaw<Array<{ key: string; n: bigint }>>`
+      SELECT COALESCE("signupProvider", CASE
+               WHEN id LIKE 'apple\\_%' THEN 'apple'
+               WHEN id ~ '^[0-9]{1,12}$' THEN 'kakao'
+               WHEN id ~ '^[0-9]{15,}$' THEN 'google'
+               ELSE 'naver' END) AS key, count(*) AS n
+        FROM users WHERE id NOT LIKE 'system%' GROUP BY 1`, []),
+  ]);
+  const mixOf = (rows: Array<{ key: string | null; n: bigint }>, key: string | null) =>
+    Number(rows.find((r) => r.key === key)?.n ?? 0);
+  const memberMix = {
+    ios: mixOf(platformMixRaw, 'ios'),
+    android: mixOf(platformMixRaw, 'android'),
+    web: mixOf(platformMixRaw, 'web'),
+    mobileLegacy: mixOf(platformMixRaw, 'mobile'),
+    unknownPlatform: mixOf(platformMixRaw, null),
+    google: mixOf(providerMixRaw, 'google'),
+    kakao: mixOf(providerMixRaw, 'kakao'),
+    naver: mixOf(providerMixRaw, 'naver'),
+    apple: mixOf(providerMixRaw, 'apple'),
+  };
+
   return {
     ok: true as const,
+    memberMix,
     ops: {
       reportsOpen: countOf(reportsByStatusRaw, 'open'),
       reportsResolved: countOf(reportsByStatusRaw, 'resolved'),
@@ -301,8 +331,10 @@ function buildSignups14(rows: Array<{ createdAt: Date }>) {
 
 export default async function Page() {
   const data = await loadStats();
-  const { stats, ops, recentReports, topPaths, recentVisits, dailySeries, recentFeeds, recentUsers, hourly, signups14,
+  const { stats, ops, memberMix, recentReports, topPaths, recentVisits, dailySeries, recentFeeds, recentUsers, hourly, signups14,
     topClicks, topSearches, topPages7d, topActors } = data;
+  const appTotal = memberMix.ios + memberMix.android;
+  const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
 
   // 14일 시리즈: DB 에 없는 날은 0 으로 채워 차트에 빈 칸 안 생기게
   const series14 = build14Days(dailySeries);
@@ -320,6 +352,42 @@ export default async function Page() {
         <DeltaStat label="오늘 페이지뷰" value={stats.viewsToday} prev={stats.viewsYesterday} sub="전체 PV" />
         <Stat label="오늘 검색" value={ops.searchesToday} sub="카드 검색 실행" />
         <Stat label="오늘 스캔" value={ops.scansToday} sub="카드 카메라 인식" />
+      </div>
+
+      {/* ── 회원 현황: 가입 플랫폼 · SNS 비율 ───────────────────── */}
+      <h2 style={{ fontSize: 14, color: '#475569', margin: '20px 0 10px', letterSpacing: 0.3 }}>
+        👥 회원 현황 <span style={{ fontSize: 11, color: '#94A3B8' }}>(전체 {stats.users.toLocaleString()}명 · 시스템 계정 제외)</span>
+      </h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 16 }}>
+        <section className="card">
+          <h2>📱 가입 플랫폼 (iOS · AOS)</h2>
+          <DonutChart
+            centerLabel="회원"
+            slices={[
+              { label: 'iOS', value: memberMix.ios, color: '#2a78d6' },
+              { label: 'Android', value: memberMix.android, color: '#1baf7a' },
+              { label: '웹', value: memberMix.web, color: '#eb6834' },
+              { label: '앱(구버전·OS 미상)', value: memberMix.mobileLegacy, color: '#4a3aa7' },
+            ]}
+          />
+          <div className="muted" style={{ marginTop: 10 }}>
+            앱 가입 {appTotal.toLocaleString()}명 중 iOS {pct(memberMix.ios, appTotal)}% · AOS {pct(memberMix.android, appTotal)}%
+            {memberMix.unknownPlatform > 0 ? ` · 가입경로 기록 없는 ${memberMix.unknownPlatform.toLocaleString()}명(컬럼 도입 전 가입)은 제외` : ''}
+          </div>
+        </section>
+        <section className="card">
+          <h2>🔑 가입 SNS</h2>
+          <DonutChart
+            centerLabel="회원"
+            slices={[
+              { label: '구글', value: memberMix.google, color: '#e34948' },
+              { label: '카카오', value: memberMix.kakao, color: '#eda100' },
+              { label: '네이버', value: memberMix.naver, color: '#008300' },
+              { label: '애플', value: memberMix.apple, color: '#4a3aa7' },
+            ]}
+          />
+          <div className="muted" style={{ marginTop: 10 }}>SNS 기록이 없는 회원은 UID 패턴으로 추정 · 상세는 회원 관리</div>
+        </section>
       </div>
 
       {/* ── 운영 알림 & 상태 분포 ─────────────────────────────── */}
