@@ -71,14 +71,29 @@ export function SnkrdunkImageZoom({ src, alt, width = 96, height = 96 }: Props) 
             placeItems: 'center',
             padding: 20,
             cursor: 'zoom-out',
+            backdropFilter: 'blur(6px)',
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={src}
-            alt={alt}
-            style={{ maxWidth: '95vw', maxHeight: '85vh', objectFit: 'contain', imageRendering: 'pixelated' as never }}
-          />
+          {/* 실제 카드 크기(63×88mm) — CSS mm 단위는 화면에서 대략 실물 치수. 화면이 더 작으면 폭/높이에 맞춘다.
+              (앱 [id].tsx 줌 모달과 같은 규칙: 63mm ↔ 397dp) */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 'min(63mm, 92vw, calc(82vh * 63 / 88))',
+              aspectRatio: '63 / 88',
+              borderRadius: '3mm',
+              overflow: 'hidden',
+              background: '#111',
+              boxShadow: '0 24px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.12)',
+              cursor: 'default',
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+          </div>
+          <div style={{ position: 'fixed', left: 0, right: 0, bottom: 'calc(18px + env(safe-area-inset-bottom, 0px))', textAlign: 'center', fontFamily: 'var(--f1)', fontSize: 10, letterSpacing: 0.5, color: 'rgba(255,255,255,.6)', pointerEvents: 'none' }}>
+            실제 카드 크기 63 × 88mm · 탭하면 닫힘
+          </div>
           <button
             type="button"
             onClick={(e) => {

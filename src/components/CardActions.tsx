@@ -185,7 +185,7 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
       </div>
     )}
     {/* ARVOTCG 카드상세 디자인 — 넓은 컬렉션 버튼 + 정사각형 SNKR·관심 버튼. */}
-    <div style={{ display: 'flex', gap: 8, margin: '0 var(--gap) var(--cg)' }}>
+    <div style={{ display: 'flex', gap: 8, margin: `0 var(--gap) ${isCollected ? 'calc(var(--cg) + 14px)' : 'var(--cg)'}`, position: 'relative' }}>
       <button
         type="button"
         onClick={openSheet}
@@ -215,6 +215,16 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
         )}
         <span style={{ whiteSpace: 'nowrap' }}>{isCollected ? '내 컬렉션에 담김' : '내 컬렉션에 추가'}</span>
       </button>
+      {isCollected && (
+        // 담긴 카드도 같은 시트로 추가 등록할 수 있음을 버튼 아래 작게 안내 (앱 동일).
+        <button
+          type="button"
+          onClick={openSheet}
+          style={{ position: 'absolute', left: 0, right: 56 * 2 + 8 * 2, bottom: -18, height: 18, border: 'none', background: 'none', padding: 0, fontFamily: 'var(--f1)', fontSize: 10, fontWeight: 800, color: 'var(--ink3)', cursor: 'pointer', textAlign: 'center' }}
+        >
+          ＋ 카드 추가 등록
+        </button>
+      )}
       <a
         href={snkrdunkApparelUrl(apparelId)}
         target="_blank"
