@@ -21,7 +21,7 @@ import { useToast } from '@/components/ToastProvider';
 import { uploadFeedImages } from '@/lib/uploads';
 import { fetchInventory } from '@/lib/myApi';
 import { REWARDS } from '@/lib/rewards';
-import { DEFAULT_FEED_CATEGORY, FEED_CATEGORIES, type FeedCategory } from '@/lib/feedCategories';
+import { DEFAULT_FEED_CATEGORY, FEED_CATEGORIES, isFeedCategory, type FeedCategory } from '@/lib/feedCategories';
 import { isAuthenticated, subscribeSession } from '@/lib/session';
 import { ensureUgcTerms } from '@/components/UgcTermsGate';
 
@@ -48,10 +48,13 @@ export default function WriteFeed() {
   const flat = isFlatTheme(theme);
   const toast = useToast();
   const authed = useAuthed();
-  const { userCardId } = useLocalSearchParams<{ userCardId?: string }>();
+  const { userCardId, category: categoryParam } = useLocalSearchParams<{ userCardId?: string; category?: string }>();
 
   const [note, setNote] = useState('');
-  const [category, setCategory] = useState<FeedCategory>(DEFAULT_FEED_CATEGORY);
+  // 피드에서 보고 있던 탭(?category=카드쇼)을 기본 선택 — 없으면 '자유' (웹 WriteScreen prefill.category 동일).
+  const [category, setCategory] = useState<FeedCategory>(
+    isFeedCategory(categoryParam) ? categoryParam : DEFAULT_FEED_CATEGORY,
+  );
   const [images, setImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
