@@ -5,6 +5,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme, useThemeColors } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import { PixelFrame } from '@/components/cv/PixelFrame';
+import { ComposedAvatar } from '@/components/ComposedAvatar';
+import { isAvatarId } from '@/data/shopCatalog';
 import { ShopSection } from '@/components/CommunityShop';
 import { isFeedCategory } from '@/lib/feedCategories';
 import { feedHotScore, feedPostTitle, formatCount, rankBestPosts, rankHotPosts } from '@/lib/feedRanking';
@@ -805,10 +807,16 @@ function PostRow({ post, P, ts, tagStyle, onBlocked, onDeleted, focused }: { pos
 
   return (
     <Pressable onPress={toggle} style={{ flexDirection: 'row', gap: 12, paddingVertical: 16, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: P.line }}>
-      {/* avatar — 앱은 아바타 에셋 합성이 없어 이모지 폴백 */}
-      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: P.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontSize: 21 }}>{emojiOf(post.user)}</Text>
-      </View>
+      {/* avatar — 웹 CommunityScreen 과 동일: 카탈로그 id 면 픽셀 아바타 × 배경 × 테두리 합성 */}
+      {isAvatarId(post.user) ? (
+        <View style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
+          <ComposedAvatar avatar={post.user} bg={post.authorBgId} frame={post.authorFrameId} size={36} radius={18} />
+        </View>
+      ) : (
+        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: P.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 21 }}>{emojiOf(post.user)}</Text>
+        </View>
+      )}
 
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>

@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Image, Linking, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
+import { ComposedAvatar } from '@/components/ComposedAvatar';
 import { PixelText } from '@/components/PixelText';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { LoadingState, ErrorView } from '@/components/cv/ListState';
@@ -38,6 +39,8 @@ interface TradeDetail {
   authorId?: string | null;
   authorName?: string;
   authorEmoji: string;
+  authorBgId?: string;
+  authorFrameId?: string;
   images?: string[];
 }
 
@@ -141,8 +144,8 @@ export default function TradeDetailScreen() {
 
         {/* 작성자 + 가격 + 북마크 */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: tc.pap2, borderColor: tc.ink, borderWidth: 2, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 22 }}>{emojiOf(trade.authorEmoji)}</Text>
+          <View style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+            <ComposedAvatar avatar={trade.authorEmoji} bg={trade.authorBgId} frame={trade.authorFrameId} size={38} radius={19} />
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <PixelText variant="ko" size={12} weight="bold" color={tc.ink} numberOfLines={1}>
@@ -220,12 +223,6 @@ export default function TradeDetailScreen() {
       </Modal>
     </View>
   );
-}
-
-function emojiOf(v: string | null | undefined): string {
-  if (!v) return '🙂';
-  if (/^[\p{Emoji}\p{Extended_Pictographic}]/u.test(v)) return v;
-  return '🙂';
 }
 
 /* ── 북마크 — 웹 BookmarkButton(tradeId) 동일 ── */

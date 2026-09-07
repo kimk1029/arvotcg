@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useInventory } from '@/components/InventoryProvider';
-import { PixelBackground } from '@/components/PixelBackground';
+import { ComposedAvatar } from '@/components/ComposedAvatar';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { useToast } from '@/components/ToastProvider';
 import { AppBar } from '@/components/ui/AppBar';
@@ -10,7 +10,7 @@ import { LivePill } from '@/components/ui/LivePill';
 import { SectionTitle } from '@/components/ui/SectionTitle';
 import { Segmented } from '@/components/ui/Segmented';
 import { StatusBar } from '@/components/ui/StatusBar';
-import { AVATARS, type AvatarId } from '@/lib/avatars';
+import { AVATARS, getAvatarMeta, type AvatarId } from '@/lib/avatars';
 import { REWARDS } from '@/lib/rewards';
 import { BACKGROUNDS, FRAMES, type BackgroundId, type FrameId } from '@/lib/shop';
 
@@ -46,7 +46,7 @@ export function ShopScreen() {
     try {
       if (inv.avatarOwned.includes(id)) {
         const r = await inv.pickAvatar(id);
-        r.ok ? toast.success(`${id} 선택`) : toast.error(r.msg ?? '실패');
+        r.ok ? toast.success(`${getAvatarMeta(id).name} 선택`) : toast.error(r.msg ?? '실패');
       } else {
         const r = await inv.buyAvatar(id, price);
         r.ok ? toast.success('획득!') : toast.error(r.msg ?? '실패');
@@ -120,7 +120,7 @@ export function ShopScreen() {
               const levelLocked = a.mode === 'level' && !owned;
               return (
                 <div key={a.id} className={`shop-avatar-card${current ? ' on' : ''}`}>
-                  <div className="sac-img"><ProfileAvatar id={a.id} size={60} /></div>
+                  <div className="sac-img"><ProfileAvatar id={a.id} size={56} /></div>
                   <div className="sac-name">{a.name}</div>
                   {a.tag && <div className={`sac-tag tag-${a.tag}`}>{a.tag.toUpperCase()}</div>}
                   <button
@@ -155,9 +155,7 @@ export function ShopScreen() {
               const current = inv.bg === b.id;
               return (
                 <div key={b.id} className={`shop-avatar-card${current ? ' on' : ''}`}>
-                  <div className="sac-img" style={{ position: 'relative', width: 72, height: 48, overflow: 'hidden' }}>
-                    <PixelBackground id={b.id} />
-                  </div>
+                  <div className="sac-img"><ComposedAvatar avatar={inv.avatar} bg={b.id} frame="none" size={56} /></div>
                   <div className="sac-name">{b.name}</div>
                   {b.tag && <div className={`sac-tag tag-${b.tag}`}>{b.tag.toUpperCase()}</div>}
                   <button
@@ -184,9 +182,7 @@ export function ShopScreen() {
               const current = inv.frame === f.id;
               return (
                 <div key={f.id} className={`shop-avatar-card${current ? ' on' : ''}`}>
-                  <div className={`sac-img frm-${f.id}`} style={{ width: 64, height: 64, background: 'var(--pap2)' }}>
-                    <ProfileAvatar id="bulbasaur" size={44} />
-                  </div>
+                  <div className="sac-img"><ComposedAvatar avatar={inv.avatar} bg={inv.bg} frame={f.id} size={46} /></div>
                   <div className="sac-name">{f.name}</div>
                   {f.tag && <div className={`sac-tag tag-${f.tag}`}>{f.tag.toUpperCase()}</div>}
                   <button

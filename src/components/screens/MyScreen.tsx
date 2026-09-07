@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type CSSProperties } from 'react';
+import { ComposedAvatar } from '@/components/ComposedAvatar';
 import { useCurrency } from '@/components/CurrencyProvider';
+import { useInventory } from '@/components/InventoryProvider';
 import { StatusBar } from '@/components/ui/StatusBar';
 import { useUnread } from '@/components/UnreadProvider';
 import { signOut } from '@/lib/session';
@@ -93,6 +95,7 @@ function ChevronSvg({ s = 16 }: { s?: number }) {
 }
 
 export function MyScreen({ user, level, points = 0, cardCount, tradeCount, savedCount, isGuest, isAdmin }: Props) {
+  const inv = useInventory();
   const router = useRouter();
   const { format } = useCurrency();
   const { count: unread } = useUnread();
@@ -221,7 +224,8 @@ export function MyScreen({ user, level, points = 0, cardCount, tradeCount, saved
         <div style={{ background: P.card, borderRadius: 20, padding: 20, boxShadow: CARD_SHADOW }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ position: 'relative', flex: 'none' }}>
-              <div style={{ width: 64, height: 64, borderRadius: 20, background: 'linear-gradient(150deg,#3b5bdb,#1e2f8f)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, boxShadow: '0 6px 14px rgba(40,70,200,.3)' }}>💎</div>
+              {/* 상점에서 고른 아바타 × 배경 × 테두리 — 앱 my.tsx 와 동일 */}
+              <ComposedAvatar avatar={inv.avatar} bg={inv.bg} frame={inv.frame} size={64} radius={20} />
               <div style={{ position: 'absolute', bottom: -5, right: -5, background: P.orange, color: '#fff', fontSize: 10, fontWeight: 900, padding: '3px 7px', borderRadius: 9, border: '2.5px solid #fff' }}>LV.{p.level}</div>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>

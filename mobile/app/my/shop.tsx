@@ -2,10 +2,12 @@
  * /my/shop — 꾸미기 샵.
  * 인벤토리는 /api/me/inventory 에서, 구매는 /api/me/inventory/buy 로 라우팅.
  */
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ScrollView, View, Alert, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
+import { ComposedAvatar } from '@/components/ComposedAvatar';
+import { PixelAvatar } from '@/components/PixelAvatar';
 import { PixelText } from '@/components/PixelText';
 import { PixelFrame } from '@/components/cv/PixelFrame';
 import { PixelPress } from '@/components/cv/PixelPress';
@@ -25,6 +27,12 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'frame', label: '테두리' },
 ];
 
+/** 알림 문구용 표시 이름 — 내부 id(bulbasaur 등) 노출 금지. */
+function labelOf(kind: ShopKind, id: string): string {
+  const list = kind === 'avatar' ? AVATARS : kind === 'bg' ? BACKGROUNDS : FRAMES;
+  return (list as Array<{ id: string; name: string }>).find((x) => x.id === id)?.name ?? id;
+}
+
 export default function ShopScreen() {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
@@ -42,7 +50,7 @@ export default function ShopScreen() {
       const r = await buyOrPick(owned ? 'pick' : 'buy', kind, id, price);
       if (r.ok) {
         refresh();
-        Alert.alert(owned ? '적용 완료' : '구매 완료', owned ? `${id} 적용됨` : `${id} 획득!`);
+        Alert.alert(owned ? '적용 완료' : '구매 완료', owned ? `${labelOf(kind, id)} 적용됨` : `${labelOf(kind, id)} 획득!`);
       } else {
         Alert.alert('실패', r.error ?? '알 수 없는 오류');
       }
@@ -136,7 +144,7 @@ function AvatarGrid({ inv, pending, onAction }: GridProps) {
         return (
           <ItemTile
             key={a.id}
-            preview={a.glyph}
+            preview={<PixelAvatar id={a.id} size={52} />}
             name={a.name}
             price={a.mode === 'level' ? `LV.${a.level}` : price}
             tag={a.tag}
@@ -161,7 +169,7 @@ function BgGrid({ inv, pending, onAction }: GridProps) {
         return (
           <ItemTile
             key={b.id}
-            preview={b.preview}
+            preview={<ComposedAvatar avatar={inv.avatar} bg={b.id} frame="none" size={52} />}
             name={b.name}
             price={b.price}
             tag={b.tag}
@@ -185,7 +193,7 @@ function FrameGrid({ inv, pending, onAction }: GridProps) {
         return (
           <ItemTile
             key={f.id}
-            preview={f.preview}
+            preview={<ComposedAvatar avatar={inv.avatar} bg={inv.bg} frame={f.id} size={44} />}
             name={f.name}
             price={f.price}
             tag={f.tag}
@@ -201,7 +209,7 @@ function FrameGrid({ inv, pending, onAction }: GridProps) {
 }
 
 interface TileProps {
-  preview: string;
+  preview: ReactNode;
   name: string;
   price: number | string;
   tag?: 'hot' | 'new' | 'legend';
@@ -237,15 +245,18 @@ function ItemTile({ preview, name, price, tag, owned, equipped, locked, pending,
         style={{ opacity: pending ? 0.5 : 1 }}
       >
         <View style={{ padding: 8, alignItems: 'center', gap: 4 }}>
-          <View style={{ width: '100%', height: 56, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.04)' }}>
-            <PixelText variant={txt} size={26} color={tc.ink}>{preview}</PixelText>
+          {/* 프리뷰 박스·태그 슬롯 높이 고정 → 아바타/배경/테두리 카드 크기 동일 */}
+          <View style={{ width: '100%', height: 64, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.04)' }}>
+            {preview}
           </View>
           <PixelText variant="ko" size={9} color={tc.ink} weight="bold" numberOfLines={1}>{name}</PixelText>
-          {tag ? (
-            <View style={{ paddingHorizontal: 4, backgroundColor: TAG_STYLE[tag].bg, borderColor: tc.ink, borderWidth: flat ? 0 : 1, borderRadius: flat ? 4 : 0 }}>
-              <PixelText variant={txt} size={7} color={TAG_STYLE[tag].fg}>{TAG_STYLE[tag].label}</PixelText>
-            </View>
-          ) : null}
+          <View style={{ height: 12, justifyContent: 'center' }}>
+            {tag ? (
+              <View style={{ paddingHorizontal: 4, backgroundColor: TAG_STYLE[tag].bg, borderColor: tc.ink, borderWidth: flat ? 0 : 1, borderRadius: flat ? 4 : 0 }}>
+                <PixelText variant={txt} size={7} color={TAG_STYLE[tag].fg}>{TAG_STYLE[tag].label}</PixelText>
+              </View>
+            ) : null}
+          </View>
           <View style={{ height: 14, alignItems: 'center', justifyContent: 'center' }}>
             {equipped ? (
               <PixelText variant={txt} size={8} color={tc.ink} weight="bold">사용 중</PixelText>

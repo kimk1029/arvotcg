@@ -91,3 +91,11 @@ export const FRAMES: FrameMeta[] = [
   { id: 'fire',    name: '불꽃 테두리',    price: 800,  preview: '🔥' },
   { id: 'rainbow', name: '무지개 테두리',  price: 1500, preview: '🌈', tag: 'legend' },
 ];
+
+const AVATAR_IDS = new Set<string>(AVATARS.map((a) => a.id));
+export function isAvatarId(v: unknown): v is AvatarId {
+  return typeof v === 'string' && AVATAR_IDS.has(v);
+}
+export function getAvatarMeta(id: AvatarId): AvatarMeta {
+  return AVATARS.find((a) => a.id === id) ?? AVATARS[0];
+}

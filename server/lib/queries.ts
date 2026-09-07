@@ -76,6 +76,34 @@ function asTradeStatus(s: string): TradeStatus {
     : 'open';
 }
 
+/**
+ * 게시글·거래글 작성자 join 필드. 아바타·배경·테두리는 글 작성 시점 스냅샷
+ * (authorEmoji/authorBgId/authorFrameId) 이 아니라 작성자의 *현재* 꾸미기를 우선한다 —
+ * 상점에서 바꾼 아바타가 과거 글에도 즉시 반영되도록 (웹·앱 공통).
+ */
+export const AUTHOR_SELECT = {
+  select: { name: true, avatarId: true, backgroundId: true, frameId: true },
+} as const;
+
+type AuthorLook = {
+  name: string | null;
+  avatarId?: string | null;
+  backgroundId?: string | null;
+  frameId?: string | null;
+} | null | undefined;
+
+/** 작성자 현재 꾸미기 → 없으면(탈퇴 등) 글 스냅샷으로 폴백. */
+function authorLook(
+  author: AuthorLook,
+  snap: { emoji?: string | null; bg?: string | null; frame?: string | null },
+): { emoji: string; bg: string; frame: string } {
+  return {
+    emoji: isAvatarId(author?.avatarId) ? author!.avatarId! : (snap.emoji ?? '🐣'),
+    bg: author?.backgroundId ?? snap.bg ?? 'default',
+    frame: author?.frameId ?? snap.frame ?? 'none',
+  };
+}
+
 type FeedRow = {
   id: number;
   text: string;
@@ -86,21 +114,22 @@ type FeedRow = {
   category?: string | null;
   images?: unknown;
   createdAt: Date;
-  author?: { name: string | null } | null;
+  author?: AuthorLook;
   _count?: { comments: number; bookmarks: number } | null;
 };
 
 function toFeedPost(r: FeedRow): FeedPost {
+  const look = authorLook(r.author, { emoji: r.authorEmoji, bg: r.authorBgId, frame: r.authorFrameId });
   return {
     id: r.id,
     text: r.text,
     time: relTime(r.createdAt),
     createdAt: r.createdAt.toISOString(),
-    user: r.authorEmoji ?? '🐣',
+    user: look.emoji,
     authorName: r.author?.name ?? null,
     authorId: r.authorId ?? null,
-    authorBgId: r.authorBgId,
-    authorFrameId: r.authorFrameId,
+    authorBgId: look.bg,
+    authorFrameId: look.frame,
     category: r.category ?? null,
     images: asImages(r.images),
     commentCount: r._count?.comments ?? 0,
@@ -185,7 +214,7 @@ export async function getFeedPage(opts: {
       orderBy: { createdAt: 'desc' },
       take: limit + 1,
       include: {
-        author: { select: { name: true } },
+        author: AUTHOR_SELECT,
         _count: { select: { comments: true, bookmarks: true } },
       },
     });
@@ -239,7 +268,7 @@ export async function getTrades(
       take: Math.min(Math.max(limit, 1), 100),
       include: {
         place: { select: { name: true } },
-        author: { select: { name: true } },
+        author: AUTHOR_SELECT,
       },
     });
 
@@ -267,23 +296,26 @@ export async function getTrades(
       );
     }
 
-    return rows.map((r) => ({
-      id: r.id,
-      type: r.type as TradeType,
-      status: asTradeStatus(r.status),
-      title: r.title,
-      place: r.place?.name ?? '',
-      time: relTime(r.bumpedAt ?? r.createdAt),
-      price: r.price ?? '제안',
-      kakaoId: r.kakaoId ?? null,
-      bumpCount: r.bumpCount,
-      chatCount: chatCounts[r.id] ?? 0,
-      authorName: r.author?.name ?? '탈퇴',
-      authorEmoji: r.authorEmoji,
-      authorBgId: r.authorBgId,
-      authorFrameId: r.authorFrameId,
-      images: asImages((r as { images?: unknown }).images),
-    }));
+    return rows.map((r) => {
+      const look = authorLook(r.author, { emoji: r.authorEmoji, bg: r.authorBgId, frame: r.authorFrameId });
+      return {
+        id: r.id,
+        type: r.type as TradeType,
+        status: asTradeStatus(r.status),
+        title: r.title,
+        place: r.place?.name ?? '',
+        time: relTime(r.bumpedAt ?? r.createdAt),
+        price: r.price ?? '제안',
+        kakaoId: r.kakaoId ?? null,
+        bumpCount: r.bumpCount,
+        chatCount: chatCounts[r.id] ?? 0,
+        authorName: r.author?.name ?? '탈퇴',
+        authorEmoji: look.emoji,
+        authorBgId: look.bg,
+        authorFrameId: look.frame,
+        images: asImages((r as { images?: unknown }).images),
+      };
+    });
   } catch (err) {
     console.error('[getTrades]', err);
     return [];
@@ -296,10 +328,11 @@ export async function getTradeById(id: number): Promise<TradeDetail | null> {
       where: { id, authorId: { not: null } },
       include: {
         place: { select: { name: true } },
-        author: { select: { name: true } },
+        author: AUTHOR_SELECT,
       },
     });
     if (!r) return null;
+    const look = authorLook(r.author, { emoji: r.authorEmoji, bg: r.authorBgId, frame: r.authorFrameId });
     return {
       id: r.id,
       type: r.type as TradeType,
@@ -310,9 +343,9 @@ export async function getTradeById(id: number): Promise<TradeDetail | null> {
       time: relTime(r.bumpedAt ?? r.createdAt),
       status: asTradeStatus(r.status),
       authorName: r.author?.name ?? '탈퇴',
-      authorEmoji: r.authorEmoji,
-      authorBgId: r.authorBgId,
-      authorFrameId: r.authorFrameId,
+      authorEmoji: look.emoji,
+      authorBgId: look.bg,
+      authorFrameId: look.frame,
       authorId: r.authorId ?? null,
       kakaoId: r.kakaoId ?? null,
       bumpCount: r.bumpCount,
