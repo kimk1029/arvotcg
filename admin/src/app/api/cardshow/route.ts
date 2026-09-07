@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-/** POST /api/cardshow — 슬롯 일괄 생성 { date, times: ["10:00",...], capacity } */
+/** POST /api/cardshow — 슬롯 일괄 생성 { date, times: ["10:00",...], capacity, eventKey? } */
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as {
     date?: string;
     times?: string[];
     capacity?: number;
+    eventKey?: string;
   } | null;
+  // 행사 종류 — cardshow | tradeday (shared/eventPages.ts). 잘못된 값은 cardshow.
+  const eventKey = body?.eventKey === 'tradeday' ? 'tradeday' : 'cardshow';
   const date = (body?.date ?? '').trim();
   const times = (body?.times ?? []).map((t) => t.trim()).filter((t) => /^\d{2}:\d{2}$/.test(t));
   const capacity = Number(body?.capacity);
@@ -21,8 +24,8 @@ export async function POST(req: Request) {
       times.map((time) =>
         prisma.cardShowSlot.upsert({
           where: { date_time: { date, time } },
-          update: { capacity, active: true },
-          create: { date, time, capacity },
+          update: { capacity, active: true, eventKey },
+          create: { date, time, capacity, eventKey },
         }),
       ),
     );

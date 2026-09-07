@@ -43,8 +43,12 @@ interface Reservation {
   user: ReservationUser | null;
 }
 
+/** 행사 종류 라벨 — shared/eventPages.ts EventKey 와 동일 키. */
+const EVENT_KEY_LABEL: Record<string, string> = { cardshow: '카드쇼', tradeday: '트레이드 데이' };
+
 export interface CardShowEventInfo {
   date: string;
+  eventKey?: string;
   title: string;
   venue: string;
   hours: string;
@@ -58,6 +62,7 @@ interface Slot {
   time: string;
   capacity: number;
   active: boolean;
+  eventKey?: string;
   reservations: Reservation[];
 }
 
@@ -101,6 +106,7 @@ export function CardShowManager({
           date: String(fd.get('date') ?? ''),
           times: String(fd.get('times') ?? '').split(','),
           capacity: Number(fd.get('capacity')),
+          eventKey: String(fd.get('eventKey') ?? 'cardshow'),
         }),
       });
       const j = (await r.json().catch(() => null)) as { error?: string; count?: number } | null;
@@ -215,6 +221,13 @@ export function CardShowManager({
         <h2>➕ 슬롯 추가 (같은 날짜에 시간 여러 개 — 쉼표 구분)</h2>
         <form onSubmit={create} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <label style={{ fontSize: 12, color: '#475569', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            행사
+            <select className="login-input" style={{ height: 36, width: 130 }} name="eventKey" defaultValue="cardshow">
+              <option value="cardshow">카드쇼</option>
+              <option value="tradeday">트레이드 데이</option>
+            </select>
+          </label>
+          <label style={{ fontSize: 12, color: '#475569', display: 'flex', flexDirection: 'column', gap: 4 }}>
             날짜
             <input className="login-input" style={{ height: 36, width: 150 }} type="date" name="date" required />
           </label>
@@ -239,9 +252,9 @@ export function CardShowManager({
       ) : (
         byDate.map(([date, daySlots]) => (
           <section className="card" key={date} style={{ marginBottom: 16 }}>
-            <h2>📅 {date} <span className="muted">({daySlots.length}개 시간대 · 예약 {daySlots.reduce((a, s) => a + s.reservations.length, 0)}명)</span></h2>
+            <h2>📅 {date} <span style={{ fontSize: 12, fontWeight: 700, color: '#129782', marginLeft: 6 }}>{EVENT_KEY_LABEL[daySlots[0]?.eventKey ?? 'cardshow'] ?? daySlots[0]?.eventKey}</span> <span className="muted">({daySlots.length}개 시간대 · 예약 {daySlots.reduce((a, s) => a + s.reservations.length, 0)}명)</span></h2>
 
-            <EventInfoForm date={date} initial={eventByDate.get(date) ?? null} />
+            <EventInfoForm date={date} eventKey={daySlots[0]?.eventKey ?? 'cardshow'} initial={eventByDate.get(date) ?? null} />
 
             <table className="tbl">
               <thead>
@@ -459,7 +472,7 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
  * 날짜별 행사 정보 편집 — 비워 두면 웹이 기본 문구/슬롯 시간대로 채운다.
  * 저장은 PUT /api/cardshow/event (date 기준 upsert).
  */
-function EventInfoForm({ date, initial }: { date: string; initial: CardShowEventInfo | null }) {
+function EventInfoForm({ date, eventKey, initial }: { date: string; eventKey: string; initial: CardShowEventInfo | null }) {
   const [open, setOpen] = useState(false);
   const [v, setV] = useState<Omit<CardShowEventInfo, 'date'>>({
     title: initial?.title ?? '',
@@ -480,7 +493,7 @@ function EventInfoForm({ date, initial }: { date: string; initial: CardShowEvent
       const r = await fetch('/api/cardshow/event', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date, ...v }),
+        body: JSON.stringify({ date, eventKey, ...v }),
       });
       const j = (await r.json().catch(() => null)) as { error?: string } | null;
       if (!r.ok) throw new Error(j?.error ?? `HTTP ${r.status}`);

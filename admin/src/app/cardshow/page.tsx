@@ -31,6 +31,7 @@ export default async function Page() {
     time: s.time,
     capacity: s.capacity,
     active: s.active,
+    eventKey: s.eventKey,
     reservations: s.reservations.map((r) => ({
       id: r.id,
       userId: r.userId,
@@ -60,15 +61,16 @@ export default async function Page() {
 
   return (
     <>
-      <h1 className="admin-h1">🎪 카드쇼 예약 관리</h1>
+      <h1 className="admin-h1">🎪 카드쇼 · 트레이드 데이 예약 관리</h1>
       <p className="admin-sub">
         날짜별 행사 정보(행사명·장소·시간)와 시간대 슬롯·정원을 관리하고 예약자를 확인합니다 · 총 예약 <b>{totalReserved}</b>명 / 정원 {totalCapacity}석 · 입장 완료 <b>{totalCheckedIn}</b>명
-        {' · '}이벤트 페이지 <a href="https://arvotcg.com/event/cardshow" target="_blank" rel="noreferrer">arvotcg.com/event/cardshow</a>
+        {' · '}이벤트 페이지 <a href="https://arvotcg.com/event/cardshow" target="_blank" rel="noreferrer">카드쇼</a>
+        {' / '}<a href="https://arvotcg.com/event/tradeday" target="_blank" rel="noreferrer">트레이드 데이</a>
       </p>
       <CardShowManager
         initialSlots={rows}
         initialEvents={events.map((e) => ({
-          date: e.date, title: e.title, venue: e.venue, hours: e.hours, badges: e.badges, note: e.note,
+          date: e.date, title: e.title, venue: e.venue, hours: e.hours, badges: e.badges, note: e.note, eventKey: e.eventKey,
         }))}
       />
     </>

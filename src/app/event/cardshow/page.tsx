@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { CardShowScreen } from './CardShowScreen';
+import { EventReserveScreen } from '@/components/event/EventReserveScreen';
 
 export const metadata: Metadata = {
   title: '카드쇼 사전예약',
@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
+/** 카드쇼 사전예약 — 화면은 트레이드 데이와 공용(EventReserveScreen), 설정은 shared/eventPages.ts. */
 export default function Page() {
-  return <CardShowScreen />;
+  return <EventReserveScreen eventKey="cardshow" />;
 }

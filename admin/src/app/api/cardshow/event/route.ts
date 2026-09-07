@@ -19,6 +19,7 @@ export async function PUT(req: Request) {
   }
 
   const data: Record<string, string> = {};
+  if (body?.eventKey !== undefined) data.eventKey = body.eventKey === 'tradeday' ? 'tradeday' : 'cardshow';
   for (const key of ['title', 'venue', 'hours', 'badges', 'note'] as const) {
     if (body?.[key] === undefined) continue;
     const v = String(body[key]).trim();

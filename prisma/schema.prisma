@@ -155,12 +155,15 @@ model CardShowSlot {
   capacity  Int      @default(10)
   /// 비활성이면 사용자 화면에서 숨김/예약 불가
   active    Boolean  @default(true)
+  /// 행사 종류 — cardshow | tradeday (shared/eventPages.ts EventKey). 페이지별로 슬롯을 나눈다.
+  eventKey  String   @default("cardshow")
   createdAt DateTime @default(now())
 
   reservations CardShowReservation[]
 
   @@unique([date, time])
   @@index([date, time])
+  @@index([eventKey])
   @@map("cardshow_slots")
 }
 
@@ -181,24 +184,28 @@ model CardShowEvent {
   badges    String   @default("")
   /// 추가 안내 한 줄 — 행사 요약 카드 아래에 노출. 비우면 미표시.
   note      String   @default("")
+  /// 행사 종류 — cardshow | tradeday. 같은 날짜라도 페이지가 다르면 다른 행.
+  eventKey  String   @default("cardshow")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("cardshow_events")
 }
 
-/// 카드쇼 예약 — 유저당 1건 (새 슬롯 예약 시 기존 예약 이동).
+/// 카드쇼/트레이드 데이 예약 — 유저당 행사(eventKey)마다 1건 (같은 행사의 새 슬롯 예약 시 기존 예약 이동).
 model CardShowReservation {
   id          Int          @id @default(autoincrement())
   slotId      Int
   slot        CardShowSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
   userId      String
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 슬롯의 eventKey 를 예약 시점에 복사 — (userId, eventKey) 유일성 제약용.
+  eventKey    String       @default("cardshow")
   createdAt   DateTime     @default(now())
   /// 현장 담당자가 사용자 예약 화면에서 입장을 확정한 시각
   checkedInAt DateTime?
 
-  @@unique([userId])
+  @@unique([userId, eventKey])
   @@index([slotId])
   @@map("cardshow_reservations")
 }

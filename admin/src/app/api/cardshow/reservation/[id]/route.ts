@@ -5,8 +5,8 @@ import { prisma } from '@/lib/prisma';
  * DELETE /api/cardshow/reservation/:id — 관리자가 예약을 취소한다.
  *
  * 사용자 본인 취소(server /api/cardshow/reserve DELETE)와 별개로, 확정·체크인된
- * 예약도 관리자가 지울 수 있어야 한다(노쇼 정리·중복 정리 등). 유저당 예약은 1건
- * (CardShowReservation.userId unique)이라 지우면 그 사용자는 다시 예약할 수 있다.
+ * 예약도 관리자가 지울 수 있어야 한다(노쇼 정리·중복 정리 등). 유저당 예약은 행사(eventKey)마다 1건
+ * (CardShowReservation userId+eventKey unique)이라 지우면 그 사용자는 그 행사를 다시 예약할 수 있다.
  */
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const id = Number(params.id);
