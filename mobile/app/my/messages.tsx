@@ -3,7 +3,7 @@
  * GET /api/messages 로 쓰레드 목록을 가져와 표시.
  * 행 탭 시 /messages/[peerId] 스레드(실 API)로 이동.
  */
-import { ScrollView, View, Text } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
@@ -13,6 +13,7 @@ import { EmptyState, ErrorView, LoadingState } from '@/components/cv/ListState';
 import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import { fetchMessageThreads, type MessageThread } from '@/lib/myApi';
+import { ComposedAvatar } from '@/components/ComposedAvatar';
 import { useSWR } from '@/lib/swr';
 
 export default function MyMessagesScreen() {
@@ -68,8 +69,8 @@ function ThreadRow({ thread }: { thread: MessageThread }) {
       inner={0}
     >
       <View style={{ flexDirection: 'row', padding: 12, gap: 12, alignItems: 'center' }}>
-        <View style={{ width: 42, height: 42, borderColor: tc.ink, borderWidth: flat ? 0 : 2, borderRadius: flat ? 12 : 0, backgroundColor: tc.pap2, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 22 }}>{renderAvatar(thread.peerAvatar)}</Text>
+        <View style={{ width: 42, height: 42, alignItems: 'center', justifyContent: 'center' }}>
+          <ComposedAvatar avatar={thread.peerAvatar} bg={thread.peerBgId} frame={thread.peerFrameId} size={36} radius={flat ? 10 : 0} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -92,13 +93,6 @@ function ThreadRow({ thread }: { thread: MessageThread }) {
       </View>
     </PixelPress>
   );
-}
-
-function renderAvatar(v: string | null | undefined): string {
-  if (!v) return '🐣';
-  // emoji 만 들어오면 그대로, avatarId (예: 'cat') 면 첫 글자 대신 일반 이모지로 fallback
-  if (/^[\p{Emoji}\p{Extended_Pictographic}]/u.test(v)) return v;
-  return '🃏';
 }
 
 function relTime(iso: string): string {

@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import { ComposedAvatar } from '@/components/ComposedAvatar';
 import { InlineLoginGate } from '@/components/InlineLoginGate';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { useToast } from '@/components/ToastProvider';
@@ -310,18 +311,8 @@ export default function MyScreen() {
           <View style={[{ backgroundColor: P.card, borderRadius: 20, padding: 20 }, CARD_SHADOW]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               <View style={{ position: 'relative' }}>
-                <View style={{ width: 64, height: 64, borderRadius: 20, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
-                  <Svg width={64} height={64} style={{ position: 'absolute' }}>
-                    <Defs>
-                      <LinearGradient id="av" x1="0" y1="0" x2="0.6" y2="1">
-                        <Stop offset="0" stopColor="#3b5bdb" />
-                        <Stop offset="1" stopColor="#1e2f8f" />
-                      </LinearGradient>
-                    </Defs>
-                    <Rect width={64} height={64} fill="url(#av)" />
-                  </Svg>
-                  <Text style={{ fontSize: 32 }}>💎</Text>
-                </View>
+                {/* 상점에서 고른 아바타 × 배경 × 테두리 — 웹 MyScreen 과 동일 */}
+                <ComposedAvatar avatar={summary?.inventory.avatar} bg={summary?.inventory.bg} frame={summary?.inventory.frame} size={64} radius={20} />
                 <View style={{ position: 'absolute', bottom: -5, right: -5, backgroundColor: P.orange, paddingVertical: 3, paddingHorizontal: 7, borderRadius: 9, borderWidth: 2.5, borderColor: '#fff' }}>
                   <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900' }}>LV.{level}</Text>
                 </View>

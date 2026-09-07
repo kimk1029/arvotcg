@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
+import { ComposedAvatar } from '@/components/ComposedAvatar';
 import { PixelText } from '@/components/PixelText';
 import { InlineLoginGate } from '@/components/InlineLoginGate';
 import { useToast } from '@/components/ToastProvider';
@@ -209,9 +210,7 @@ export default function MessagesThread() {
               return (
                 <View key={m.id} style={[styles.row, mine ? styles.rowMine : styles.rowPeer]}>
                   {!mine ? (
-                    <View style={styles.avatar}>
-                      <Text style={{ fontSize: 16 }}>{peerEmoji(peer?.avatarId)}</Text>
-                    </View>
+                    <ComposedAvatar avatar={peer?.avatarId} bg={peer?.backgroundId} frame={peer?.frameId} size={26} />
                   ) : null}
                   <View style={[styles.bubble, mine ? styles.bubMine : styles.bubPeer]}>
                     <PixelText variant="ko" size={11} color={mine ? tc.white : tc.ink} style={{ lineHeight: 16 }}>
@@ -252,13 +251,6 @@ export default function MessagesThread() {
   );
 }
 
-/** avatarId(예: 'cat')는 앱에 아바타 에셋 합성이 없어 이모지 폴백. */
-function peerEmoji(v: string | null | undefined): string {
-  if (!v) return '🐣';
-  if (/^[\p{Emoji}\p{Extended_Pictographic}]/u.test(v)) return v;
-  return '🃏';
-}
-
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
@@ -267,15 +259,6 @@ const styles = StyleSheet.create({
   },
   rowMine: { justifyContent: 'flex-end' },
   rowPeer: { justifyContent: 'flex-start' },
-  avatar: {
-    width: 28,
-    height: 28,
-    borderWidth: 2,
-    borderColor: colors.ink,
-    backgroundColor: colors.pap2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   bubble: {
     maxWidth: '70%',
     padding: 10,
