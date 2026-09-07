@@ -142,15 +142,17 @@ export function classifySnkrdunkName(
   return 'single';
 }
 
-/** 이름 대괄호 안의 카드 번호 `[S9 103/100]` 또는 카드 코드 `[OP05-119]`·`[QCCP-JP001]`. */
-const CARD_REF_IN_BRACKET_RE =
-  /\[[^\]]*(?:\d{1,3}\s*\/\s*\d{1,3}|\b[A-Z]{1,6}\d{1,3}-[A-Z]{0,3}\d{2,4}\b|\b[A-Z]{2,6}-[A-Z]{2}\d{3}\b)[^\]]*\]/;
 /**
- * 싱글 카드 품번 — 원피스 `OP05-119`/`ST01-012`(세트코드에 숫자 포함 + 대시 + 번호), 유희왕 `QCCP-JP001`.
- * 포켓몬 `pkmn-tcg-…` 는 박스(`pkmn-tcg-M1L`)에도 붙어 판별 불가라 이름 대괄호에 맡긴다.
- * 박스 코드 `OP-05` 는 대시 앞에 숫자가 없어 매칭되지 않는다.
+ * 이름 대괄호 안의 카드 참조 — `[S9 103/100]`·`[OP05-119]`·`[QCCP-JP001]`·프로모 `[SV-P 232]`·`[323 S-P]`·
+ * 구판 `[neo4 No.094]`. 공통점은 대괄호 안에 2~4자리 숫자 토큰이 있다는 것 (박스명은 대괄호를 쓰지 않는다).
  */
-const SINGLE_PRODUCT_NUMBER_RE = /^(?:[A-Z]{1,6}\d{1,3}-[A-Z]{0,3}\d{2,4}|[A-Z]{2,6}-[A-Z]{2}\d{3})$/i;
+const CARD_REF_IN_BRACKET_RE = /\[[^\]]*\d{2,4}[^\]]*\]/;
+/**
+ * 싱글 카드 품번 — 원피스 `OP05-119`/`ST01-012`(세트코드에 숫자 포함 + 대시 + 번호), 유희왕 `QCCP-JP001`,
+ * 포켓몬 `pkmn-tcg-<세트>-<번호>`(`pkmn-tcg-SV-P-232`, `pkmn-tcg-neo4-0066`). 박스 `pkmn-tcg-M1L`·`OP-05` 는
+ * 끝이 2~4자리 번호가 아니거나 대시 앞에 숫자가 없어 매칭되지 않는다.
+ */
+const SINGLE_PRODUCT_NUMBER_RE = /^(?:[A-Z]{1,6}\d{1,3}-[A-Z]{0,3}\d{2,4}|[A-Z]{2,6}-[A-Z]{2}\d{3}|[a-z]+-tcg-.+-\d{2,4})$/i;
 
 /** 이름/품번에서 싱글 카드 참조가 보이면 true — classifySnkrdunkName/classifySnkrdunkItem 공통. */
 export function looksLikeSingleCardRef(name: string | null | undefined, productNumber?: string | null): boolean {
