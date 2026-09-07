@@ -700,6 +700,12 @@ export interface MyCardPriceRow {
   /** currentPriceJpy 의 등급 기준 — MyCardWithPrice.priceBasis 와 같은 값. */
   priceBasis: string;
   trend: number[];
+  /**
+   * 'single' | 'box' — 카탈로그 판정(MyCardWithPrice.itemKind 와 같은 값).
+   * 클라이언트가 카드 목록을 캐시하고 이 응답으로 병합하므로, 여기 없으면 판정 규칙이
+   * 바뀌어도 캐시의 옛 값이 영원히 남는다 (2026-09-07 '박스 제외' 오판 잔존 원인).
+   */
+  itemKind: 'single' | 'box';
 }
 
 export async function getMyCardPrices(userId: string, limit = 200): Promise<MyCardPriceRow[]> {
@@ -727,7 +733,9 @@ export async function getMyCardPrices(userId: string, limit = 200): Promise<MyCa
     void Promise.allSettled(staleIds.map((id) => refreshApparelPrices(id)));
   }
   return cards.map((c) => {
-    const s = c.snkrdunkApparelId != null ? catalog.get(c.snkrdunkApparelId)?.snapshot : null;
+    const entry = c.snkrdunkApparelId != null ? catalog.get(c.snkrdunkApparelId) : undefined;
+    const itemKind = entry?.itemKind ?? ('single' as const);
+    const s = entry?.snapshot;
     if (!s) {
       return {
         id: c.id,
@@ -738,6 +746,7 @@ export async function getMyCardPrices(userId: string, limit = 200): Promise<MyCa
         currentPriceJpy: 0,
         priceBasis: 'RAW',
         trend: [],
+        itemKind,
       };
     }
     const single = s.priceSingle || s.minPrice;
@@ -755,6 +764,7 @@ export async function getMyCardPrices(userId: string, limit = 200): Promise<MyCa
       currentPriceJpy: current,
       priceBasis: basis.basis,
       trend: s.trend,
+      itemKind,
     };
   });
 }

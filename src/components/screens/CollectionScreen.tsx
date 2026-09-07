@@ -129,6 +129,8 @@ interface CardPriceRow {
   pricePsa8Jpy: number;
   currentPriceJpy: number;
   trend: number[];
+  /** 서버 최신 박스 판정 — 캐시의 옛 값을 덮어쓴다 (구서버 응답엔 없을 수 있음). */
+  itemKind?: 'single' | 'box';
 }
 
 /**
@@ -147,6 +149,8 @@ function mergeCardPrices(cached: CardRow[], prices: CardPriceRow[]): CardRow[] |
       pricePsa10Jpy: p.pricePsa10Jpy > 0 ? p.pricePsa10Jpy : c.pricePsa10Jpy,
       currentPriceJpy: p.currentPriceJpy > 0 ? p.currentPriceJpy : c.currentPriceJpy,
       trend: p.trend.length > 0 ? p.trend : c.trend,
+      // 박스 판정은 캐시가 아니라 서버 최신값 — '박스 제외' 필터가 옛 오판을 물고 있지 않게.
+      itemKind: p.itemKind ?? c.itemKind,
     };
   });
 }
