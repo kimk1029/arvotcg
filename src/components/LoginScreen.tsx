@@ -108,16 +108,16 @@ export function LoginScreen({ callbackUrl = '/' }: Props) {
           <span className="lg-btn-ic"><ProviderLogo provider="kakao" /></span>
           <span style={{ color: '#191919' }}>카카오로 계속하기</span>
         </button>
-        {/* 네이버 — 준비 중(서버 프로바이더 미설정). 디자인 자리는 유지하고 비활성. */}
-        <button type="button" className="lg-btn lg-btn-off" style={{ background: '#03C75A' }} disabled aria-disabled="true">
-          <span className="lg-btn-ic" style={{ color: '#fff', fontSize: 17, fontWeight: 900, lineHeight: 1 }}>N</span>
-          <span style={{ color: '#fff' }}>네이버로 계속하기 · 준비 중</span>
-        </button>
         <button type="button" className="lg-btn" style={{ background: '#fff' }} onClick={() => go('google')} disabled={!!pending}>
           <span className="lg-btn-ic"><ProviderLogo provider="google" /></span>
           <span style={{ color: '#16161a' }}>Google로 계속하기</span>
         </button>
         {/* Apple — 웹 OAuth 라우트 없음 → iOS 앱에서만 (플랫폼 예외). */}
+        {/* 네이버 — 준비 중(서버 프로바이더 미설정). 준비 중이라 맨 아래, 비활성. */}
+        <button type="button" className="lg-btn lg-btn-off" style={{ background: '#03C75A' }} disabled aria-disabled="true">
+          <span className="lg-btn-ic" style={{ color: '#fff', fontSize: 17, fontWeight: 900, lineHeight: 1 }}>N</span>
+          <span style={{ color: '#fff' }}>네이버로 계속하기 · 준비 중</span>
+        </button>
       </div>
 
       {/* 푸터 */}

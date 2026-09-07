@@ -193,12 +193,12 @@ export default function LoginScreen() {
       {/* 소셜 버튼 */}
       <FadeUp delay={200} style={styles.btns}>
         <SocialBtn bg="#FEE500" fg="#191919" label="카카오로 계속하기" icon={<ProviderLogo provider="kakao" size={20} />} onPress={() => startLogin('kakao')} disabled={busy} />
-        {/* 네이버 — 준비 중(서버 프로바이더 미설정). 디자인 자리는 유지하고 비활성. */}
-        <SocialBtn bg="#03C75A" fg="#fff" label="네이버로 계속하기 · 준비 중" icon={<Text style={{ fontSize: 17, fontWeight: '900', color: '#fff' }}>N</Text>} onPress={() => {}} off />
         <SocialBtn bg="#fff" fg="#16161a" label="Google로 계속하기" icon={<ProviderLogo provider="google" size={19} />} onPress={() => startLogin('google')} disabled={busy} />
         {Platform.OS === 'ios' ? (
           <SocialBtn bg="rgba(255,255,255,0.08)" fg="#fff" label="Apple로 계속하기" icon={<ProviderLogo provider="apple" size={18} />} onPress={startAppleLogin} disabled={busy} glass />
         ) : null}
+        {/* 네이버 — 준비 중(서버 프로바이더 미설정). 준비 중이라 맨 아래, 비활성. */}
+        <SocialBtn bg="#03C75A" fg="#fff" label="네이버로 계속하기 · 준비 중" icon={<Text style={{ fontSize: 17, fontWeight: '900', color: '#fff' }}>N</Text>} onPress={() => {}} off />
       </FadeUp>
 
       {/* 푸터 */}
