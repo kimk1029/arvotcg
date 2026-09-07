@@ -43,12 +43,15 @@ export interface SnkrdunkApparel {
 }
 
 export interface SnkrdunkSaleEntry {
+  /** 체결가 — fetcher 를 거친 뒤엔 항상 1개 단가 (묶음 체결은 수량으로 나눈 값, toUnitPriceSale). */
   price: number;
   date: string;
   size: string;
   condition: string;
   /** "中古" 등 거래 라벨. 싱글카드 응답에만 옴. */
   label: string;
+  /** 묶음 수량 — size "2個/3枚" 에서 파싱. 단품이면 1. toUnitPriceSale 이 채운다. */
+  units?: number;
 }
 
 export interface SnkrdunkSalesHistory {
@@ -182,13 +185,27 @@ export function toSnkrdunkApparel(raw: RawApparel, itemKind?: SnkrdunkItemKind):
   };
 }
 
-/** 여러 장 묶음 체결(2個/3枚…)은 단가가 아니라 시세 오염원 — 제외. */
+/** 묶음 수량 — size "2個" / "3枚" → 2 / 3. 비어 있거나 다른 형식이면 1(단품). */
+export function saleUnitCount(entry: Pick<SnkrdunkSaleEntry, 'size'>): number {
+  const m = /^(\d+)\s*(個|枚)$/.exec((entry.size ?? '').trim());
+  const n = m ? Number(m[1]) : 1;
+  return Number.isFinite(n) && n >= 1 ? n : 1;
+}
+
+/**
+ * 묶음 체결을 1개 단가로 정규화 — 체결가·헤드라인(중앙값)·등급 집계 전부 "1개 기준" 으로 맞춘다
+ * (2026-09-08 사용자 지시). 예전엔 묶음을 통째로 버렸는데(isSingleUnitSale) 표본이 줄고,
+ * 남은 값과 화면의 "가격" 이 어긋났다. units 에 수량을 남겨 화면이 'N개 단가' 를 표시할 수 있다.
+ */
+export function toUnitPriceSale(entry: SnkrdunkSaleEntry): SnkrdunkSaleEntry {
+  const units = saleUnitCount(entry);
+  if (units <= 1) return entry.units === 1 ? entry : { ...entry, units: 1 };
+  return { ...entry, price: Math.round(entry.price / units), units };
+}
+
+/** @deprecated 묶음 체결은 이제 제외하지 않고 toUnitPriceSale 로 단가 환산한다. 호환용으로만 남김. */
 export function isSingleUnitSale(entry: SnkrdunkSaleEntry): boolean {
-  const size = entry.size.trim();
-  if (!size) return true;
-  if (/^1\s*(個|枚)$/.test(size)) return true;
-  if (/^\d+\s*(個|枚)$/.test(size)) return false;
-  return true;
+  return saleUnitCount(entry) <= 1;
 }
 
 /* ── 로컬라이즈 / 등급 판정 ───────────────────────────────────────── */
