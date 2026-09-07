@@ -113,6 +113,8 @@ export function classifySnkrdunkItem(raw: RawApparel): SnkrdunkItemKind {
     .join(' ');
 
   if (/trading-card-single|シングルカード|single/i.test(names)) return 'single';
+  // 카드 번호 [n/m] / 카드 코드 [OP05-119] / 싱글 품번은 싱글 확정 (classifySnkrdunkName 과 동일 규칙).
+  if (looksLikeSingleCardRef(names, raw.productNumber)) return 'single';
   if (/ボックス|BOX|Box|デッキビルド|スターターセット|ポケモンセンターセット|シュリンク|trading_card/i.test(names)) {
     return 'box';
   }
@@ -125,11 +127,35 @@ export function classifySnkrdunkItem(raw: RawApparel): SnkrdunkItemKind {
  * 없어 name 으로만 판별해야 할 때 사용. 박스 마커가 보이면 box, 아니면 single.
  * (DashboardScreen 클라이언트의 BOX_NAME_RE 와 마커를 일치시킬 것 — 변경 시 양쪽 수정)
  */
-export function classifySnkrdunkName(name: string | null | undefined): SnkrdunkItemKind {
+export function classifySnkrdunkName(
+  name: string | null | undefined,
+  productNumber?: string | null,
+): SnkrdunkItemKind {
   const n = name ?? '';
   if (/シングルカード|trading-card-single/i.test(n)) return 'single';
+  // 싱글 카드명은 소속 팩명을 꼬리표로 달고 온다 — 「リザードンV SR [S9 103/100](拡張パック「スターバース」)」,
+  // 「モンキー・D・ルフィ SEC [OP05-119](ブースターパック「神速の拳」)」. 팩 마커(拡張パック·ブースター 등)보다
+  // 카드 번호/코드가 우선 — 이걸 먼저 보지 않으면 싱글 전부가 박스로 오판되어 컬렉션 '박스 제외'에서
+  // 카드까지 빠진다 (2026-09-07 실측: 포켓몬 [n/m]·원피스 [OP05-119]·[ST01-012]).
+  if (looksLikeSingleCardRef(n, productNumber)) return 'single';
   if (/ボックス|box|booster|ブースター|デッキビルド|スターター|拡張パック|ハイクラスパック|ポケモンセンターセット|シュリンク/i.test(n)) return 'box';
   return 'single';
+}
+
+/** 이름 대괄호 안의 카드 번호 `[S9 103/100]` 또는 카드 코드 `[OP05-119]`·`[QCCP-JP001]`. */
+const CARD_REF_IN_BRACKET_RE =
+  /\[[^\]]*(?:\d{1,3}\s*\/\s*\d{1,3}|\b[A-Z]{1,6}\d{1,3}-[A-Z]{0,3}\d{2,4}\b|\b[A-Z]{2,6}-[A-Z]{2}\d{3}\b)[^\]]*\]/;
+/**
+ * 싱글 카드 품번 — 원피스 `OP05-119`/`ST01-012`(세트코드에 숫자 포함 + 대시 + 번호), 유희왕 `QCCP-JP001`.
+ * 포켓몬 `pkmn-tcg-…` 는 박스(`pkmn-tcg-M1L`)에도 붙어 판별 불가라 이름 대괄호에 맡긴다.
+ * 박스 코드 `OP-05` 는 대시 앞에 숫자가 없어 매칭되지 않는다.
+ */
+const SINGLE_PRODUCT_NUMBER_RE = /^(?:[A-Z]{1,6}\d{1,3}-[A-Z]{0,3}\d{2,4}|[A-Z]{2,6}-[A-Z]{2}\d{3})$/i;
+
+/** 이름/품번에서 싱글 카드 참조가 보이면 true — classifySnkrdunkName/classifySnkrdunkItem 공통. */
+export function looksLikeSingleCardRef(name: string | null | undefined, productNumber?: string | null): boolean {
+  if (name && CARD_REF_IN_BRACKET_RE.test(name)) return true;
+  return SINGLE_PRODUCT_NUMBER_RE.test((productNumber ?? '').trim());
 }
 
 /** raw 응답 → 통합 SnkrdunkApparel. 싱글카드는 중고(usedMinPrice) 시장만 있어 활성 쪽 노출. */
