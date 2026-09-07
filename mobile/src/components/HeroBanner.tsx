@@ -170,10 +170,11 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
             >
               {s.visualType === 'image' ? (
                 // 이미지 슬라이드 — 어드민 업로드 이미지가 배너 전체를 꽉 채운다(웹 .hero-slide--image 와 동일).
+                // 크롭 없이 스트레치: 좌우가 잘려 보이던 문제 수정(2026-09-08, 웹 .hero-bg object-fit:fill 페어).
                 <Image
                   source={shotSource(imageUri(s.visualValue))}
                   style={{ position: 'absolute', left: 0, top: 0, width, height: slideHeight }}
-                  resizeMode="cover"
+                  resizeMode="stretch"
                 />
               ) : (
               <>

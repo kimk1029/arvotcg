@@ -204,7 +204,8 @@ a{color:inherit;text-decoration:none;}
 .hero-slide.hero-slide--image{padding:0;display:flex;align-items:center;background:var(--ink);box-shadow:none;}
 .hero-slide--image::before{display:none;}
 /* 가로 100% · 높이는 고정 영역에 cover — 같은 비율(2.4:1) 이미지는 잘림 없이 꽉 찬다. */
-.hero-bg{position:static;width:100%;height:100%;object-fit:cover;display:block;user-select:none;}
+/* 배너 이미지는 크롭 없이 상하좌우를 꽉 채운다(스트레치) — 2026-09-08 좌우 잘림 수정, 앱 HeroBanner resizeMode="stretch" 페어 */
+.hero-bg{position:static;width:100%;height:100%;object-fit:fill;display:block;user-select:none;}
 .hero-slide:not(.hero-slide--image){display:flex;flex-direction:column;justify-content:center;}
 .hero-wrap--compact .hero-slide--image{padding:0;}
 .hero-slide.clickable{cursor:pointer;}
