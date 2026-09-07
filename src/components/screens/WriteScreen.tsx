@@ -25,7 +25,7 @@ const TITLES: Record<WriteMode, string> = {
 interface Props {
   mode: WriteMode;
   places?: Place[];
-  prefill?: { title?: string; body?: string };
+  prefill?: { title?: string; body?: string; category?: FeedCategory };
 }
 
 async function postJson(path: string, body: unknown) {
@@ -55,7 +55,7 @@ export function WriteScreen({ mode, places = [], prefill }: Props) {
   const [kakaoId, setKakaoId] = useState('');
   const [note, setNote] = useState(prefill?.body ?? '');
   const [category, setCategory] = useState<FeedCategory>(
-    prefill?.body?.includes('자랑') ? '자랑' : DEFAULT_FEED_CATEGORY,
+    prefill?.category ?? (prefill?.body?.includes('자랑') ? '자랑' : DEFAULT_FEED_CATEGORY),
   );
   const [images, setImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);

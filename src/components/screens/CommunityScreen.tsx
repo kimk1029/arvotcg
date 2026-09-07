@@ -221,7 +221,9 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
   const isShop = mode === 'shop';
 
   const isMarket = cat === '거래/나눔';
-  const writeHref = isMarket ? '/write/trade' : '/write/feed';
+  // 글쓰기 진입 시 보고 있던 탭(카드쇼 등)을 기본 카테고리로 넘긴다 — 안 넘기면 '자유'로 저장되던 문제 (앱 동일).
+  const writeFeedHref = isFeedCategory(cat) ? `/write/feed?category=${encodeURIComponent(cat)}` : '/write/feed';
+  const writeHref = isMarket ? '/write/trade' : writeFeedHref;
   const featureItems = useMemo(() => toFeatureItems(initialFeed, feature), [initialFeed, feature]);
 
   // 인기글 행 탭 → 아래 목록에서 그 글을 펼친 채로 스크롤 이동 (글 상세 라우트 없음, 앱 동일).
@@ -475,7 +477,7 @@ export function CommunityScreen({ initialFeed, trades }: Props) {
           {isMarket ? (
             <MarketList list={trades} P={P} clean={clean} />
           ) : (
-            <FeedList posts={visiblePosts} P={P} clean={clean} focusId={focusId} />
+            <FeedList posts={visiblePosts} P={P} clean={clean} focusId={focusId} writeHref={writeFeedHref} />
           )}
 
           <div style={{ height: 20 }} />
@@ -497,13 +499,13 @@ function Meta({ icon, label, P }: { icon: ReactNode; label: string; P: Palette }
 
 /* ---------------- feed ---------------- */
 
-function FeedList({ posts, P, clean, focusId }: { posts: FeedPost[]; P: Palette; clean: boolean; focusId?: number | null }) {
+function FeedList({ posts, P, clean, focusId, writeHref = '/write/feed' }: { posts: FeedPost[]; P: Palette; clean: boolean; focusId?: number | null; writeHref?: string }) {
   if (posts.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '46px 20px', color: P.ink3, fontSize: 14 }}>
         아직 글이 없어요.
         <br />
-        <Link href="/write/feed" style={{ color: P.accent, fontWeight: 700, textDecoration: 'none' }}>＋ 첫 번째가 되어보세요</Link>
+        <Link href={writeHref} style={{ color: P.accent, fontWeight: 700, textDecoration: 'none' }}>＋ 첫 번째가 되어보세요</Link>
       </div>
     );
   }

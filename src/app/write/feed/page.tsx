@@ -2,11 +2,12 @@ import { LoginRequired } from '@/components/LoginRequired';
 import { WriteScreen } from '@/components/screens/WriteScreen';
 import { getServerUser, serverFetch } from '@/lib/apiServer';
 import { findCardEntry } from '@/lib/cardsCatalog';
+import { isFeedCategory } from '@/lib/feedCategories';
 
 export const dynamic = 'force-dynamic';
 
 interface Props {
-  searchParams: { cardId?: string; userCardId?: string };
+  searchParams: { cardId?: string; userCardId?: string; category?: string };
 }
 
 interface UserCardRow {
@@ -31,7 +32,9 @@ export default async function Page({ searchParams }: Props) {
   }
 
   const prefill = await resolvePrefill(searchParams);
-  return <WriteScreen mode="feed" prefill={prefill} />;
+  // 피드에서 보고 있던 탭(?category=카드쇼)을 기본 카테고리로 — 앱 write/feed 동일.
+  const category = isFeedCategory(searchParams.category) ? searchParams.category : undefined;
+  return <WriteScreen mode="feed" prefill={prefill || category ? { ...prefill, category } : undefined} />;
 }
 
 async function resolvePrefill(

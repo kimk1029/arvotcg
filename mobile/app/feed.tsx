@@ -295,6 +295,8 @@ export default function CommunityScreen() {
     if (tab === 'shop') setMode('shop');
   }, [tab]);
   const [cat, setCat] = useState<CatId>('전체');
+  // 글쓰기 진입 시 보고 있던 탭(카드쇼 등)을 기본 카테고리로 넘긴다 — 안 넘기면 '자유'로 저장되던 문제 (웹 동일).
+  const writeFeedHref = isFeedCategory(cat) ? `/write/feed?category=${encodeURIComponent(cat)}` : '/write/feed';
   const [sort, setSort] = useState<SortId>('최신순');
   const [feature, setFeature] = useState<'hot' | 'best'>('hot');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -499,7 +501,7 @@ export default function CommunityScreen() {
               </View>
             ) : null}
           </Pressable>
-          <Pressable onPress={() => router.push((isMarket ? '/write/trade' : '/write/feed') as never)} style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: P.accent, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable onPress={() => router.push((isMarket ? '/write/trade' : writeFeedHref) as never)} style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: P.accent, alignItems: 'center', justifyContent: 'center' }}>
             <Edit c="#fff" />
           </Pressable>
         </View>
@@ -741,7 +743,7 @@ export default function CommunityScreen() {
                 <EmptyRow
                   label={'아직 글이 없어요.'}
                   cta="＋ 첫 번째가 되어보세요"
-                  onPress={() => router.push('/write/feed' as never)}
+                  onPress={() => router.push(writeFeedHref as never)}
                   P={P}
                   ts={ts}
                 />
