@@ -35,11 +35,7 @@ import { NavPrefsProvider } from '@/components/NavPrefsProvider';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { ToastProvider } from '@/components/ToastProvider';
 import { UgcTermsGateHost } from '@/components/UgcTermsGate';
-<<<<<<< ours
-=======
-import { ForceUpdateGate } from '@/components/ForceUpdateGate';
 import { EntryGate } from '@/components/EntryGate';
->>>>>>> theirs
 import { extractOAuthToken, persistTokenAndGoHome } from '@/lib/oauth';
 import { applyPendingOtaOnBoot } from '@/lib/otaUpdate';
 import { colors } from '@/theme/tokens';
@@ -180,12 +176,7 @@ export default function RootLayout() {
                 <UgcTermsGateHost />
                 </ActionTracker>
                 </PhoneShell>
-<<<<<<< ours
-=======
                 </EntryGate>
-                {/* 강제 업데이트 — PhoneShell 바깥에 둬야 상단 밴드·플로팅 탭바까지 덮는다. */}
-                <ForceUpdateGate />
->>>>>>> theirs
               </PriceModeProvider>
               </NavPrefsProvider>
               </GamePrefsProvider>
