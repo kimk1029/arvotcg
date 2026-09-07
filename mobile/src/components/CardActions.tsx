@@ -69,20 +69,28 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
   const goLogin = () => router.push('/login');
 
   // 바로 추가하지 않고 "카드 등록" 팝업을 띄운다 — 구매가/직접뽑기/등급 입력 (웹 패리티).
-  // 이미 담긴 카드면 제거 확인 → 확인 시 컬렉션에서 제거 후 버튼 원복.
+  // 이미 담긴 카드도 같은 팝업으로 '추가 등록'(같은 카드 여러 장·다른 등급/구매가)할 수 있고,
+  // 제거는 팝업 헤더의 '컬렉션에서 제거' 로 한다 (2026-09-08 — 예전엔 제거 확인만 떠서 추가 불가).
   const openRegisterSheet = () => {
     if (!authed) {
       goLogin();
       return;
     }
-    if (isCollected) {
-      Alert.alert('내 컬렉션', '내 컬렉션에서 제거하겠습니까?', [
-        { text: '취소', style: 'cancel' },
-        { text: '확인', style: 'destructive', onPress: removeFromCollection },
-      ]);
-      return;
-    }
     setSheetOpen(true);
+  };
+
+  const confirmRemove = () => {
+    Alert.alert('내 컬렉션', '이 카드로 등록된 항목을 모두 컬렉션에서 제거하겠습니까?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '제거',
+        style: 'destructive',
+        onPress: () => {
+          setSheetOpen(false);
+          void removeFromCollection();
+        },
+      },
+    ]);
   };
 
   const removeFromCollection = async () => {
@@ -156,6 +164,8 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
       }}
       onClose={() => setSheetOpen(false)}
       onSaved={() => setIsCollected(true)}
+      alreadyCollected={isCollected}
+      onRemove={confirmRemove}
     />
   ) : null;
 

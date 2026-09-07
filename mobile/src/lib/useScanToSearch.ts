@@ -45,9 +45,12 @@ export function useScanToSearch() {
     if (scanBusy) return;
     setScanBusy(true);
     try {
-      // 카메라 권한 요청은 네이티브 launchCameraAsync 가 직접 수행한다
-      // (ImagePickerModule.ensureCameraPermissionsAreGranted) — JS 쪽 사전 요청은
-      // 중복이고, 그게 실패하면 조용히 앨범이 열려 "카메라를 눌렀는데 앨범"이 됐다.
+      // 권한은 JS 에서 먼저 요청한다. Android 의 launchCameraAsync 는 스스로 요청하지만
+      // iOS 는 "이미 허용됐는지"만 검사하고 미결정(첫 실행)이면 곧바로
+      // "Missing camera or camera roll permission" 으로 거부한다 (2026-09-08 iOS 실측).
+      // 거부됐을 땐 조용히 앨범으로 빠지지 않고 아래 catch 의 안내(설정/앨범)를 띄운다.
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) throw new Error('카메라 권한이 꺼져 있어요. 설정에서 카메라를 허용해 주세요.');
       const r = await ImagePicker.launchCameraAsync(PICK_OPTS);
       if (!r.canceled && r.assets?.[0]) goSearch(r.assets[0]);
     } catch (e) {

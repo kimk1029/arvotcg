@@ -34,11 +34,17 @@ export function CardRegisterSheet({
   card,
   onClose,
   onSaved,
+  alreadyCollected = false,
+  onRemove,
 }: {
   visible: boolean;
   card: RegisterCardInfo;
   onClose: () => void;
   onSaved?: () => void;
+  /** 이미 컬렉션에 있는 카드 — 헤더를 '추가 등록'으로 바꾸고 제거 버튼을 보여준다. */
+  alreadyCollected?: boolean;
+  /** '컬렉션에서 제거' 버튼 — 호출 측이 확인창·삭제를 처리한다. */
+  onRemove?: () => void;
 }) {
   const MP = useManualPalette();
   const toast = useToast();
@@ -86,10 +92,21 @@ export function CardRegisterSheet({
                 borderBottomColor: MP.line,
               }}
             >
-              <PixelText variant="ko" size={13} weight="bold" color={MP.ink}>＋ 카드 등록</PixelText>
-              <Pressable onPress={onClose} hitSlop={10}>
-                <PixelText variant="ko" size={15} color={MP.ink3}>✕</PixelText>
-              </Pressable>
+              <PixelText variant="ko" size={13} weight="bold" color={MP.ink}>
+                {alreadyCollected ? '＋ 카드 추가 등록' : '＋ 카드 등록'}
+              </PixelText>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                {alreadyCollected && onRemove && (
+                  <Pressable onPress={onRemove} hitSlop={8}>
+                    <PixelText variant="ko" size={12} weight="bold" color={MP.ink3} style={{ textDecorationLine: 'underline' }}>
+                      컬렉션에서 제거
+                    </PixelText>
+                  </Pressable>
+                )}
+                <Pressable onPress={onClose} hitSlop={10}>
+                  <PixelText variant="ko" size={15} color={MP.ink3}>✕</PixelText>
+                </Pressable>
+              </View>
             </View>
 
             <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 26 }} keyboardShouldPersistTaps="handled">
@@ -97,7 +114,7 @@ export function CardRegisterSheet({
                 key={card.apparelId}
                 card={formCard}
                 onSaved={() => {
-                  toast.success('내 컬렉션에 등록되었습니다');
+                  toast.success(alreadyCollected ? '내 컬렉션에 추가 등록되었습니다' : '내 컬렉션에 등록되었습니다');
                   onSaved?.();
                   onClose();
                 }}
