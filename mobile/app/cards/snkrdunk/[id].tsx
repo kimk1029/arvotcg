@@ -67,7 +67,10 @@ const GRADE_COLOR: Record<string, (tc: ReturnType<typeof useThemeColors>) => str
 };
 
 /** 등급 카드 고정 높이 — 가로 SV 의 NaN 높이 측정 우회용(명시 높이 필수). */
-const GRADE_CARD_H = 208;
+// 등급 카드 고정 높이 — 가로 ScrollView 와 카드 모두 명시 높이여야 한다(RN 0.81 Fabric 이 가로 SV
+// 콘텐츠 높이를 NaN 으로 측정해 이후 섹션이 통째로 사라지는 버그 회피, 동적 onLayout 도 재발함).
+// 208 은 내용(배지+가격+행 5개+테두리)보다 작아 하단 테두리가 잘렸다 → 232 (2026-09-08 실측 ~220).
+const GRADE_CARD_H = 232;
 
 const RANGES: Array<{ label: string; days: number }> = [
   { label: '1개월', days: 30 },
@@ -509,7 +512,15 @@ export default function SnkrdunkDetail() {
                           <View style={{ minWidth: 56, paddingHorizontal: 5, paddingVertical: 2, backgroundColor: badgeBg, borderColor: flat ? 'transparent' : isPsa ? tc.ink : 'rgba(255,255,255,0.18)', borderWidth: flat ? 0 : 1, marginRight: 8, alignItems: 'center' }}>
                             <PixelText variant={txt} size={8} weight={flat ? 'bold' : 'normal'} color={badgeFg}>{badge}</PixelText>
                           </View>
-                          <PixelText variant={txt} size={flat ? 13 : 10} weight={flat ? 'bold' : 'normal'} color={priceColor} numberOfLines={1} style={{ flex: 1 }}>{fmtYen(h.price)}</PixelText>
+                          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <PixelText variant={txt} size={flat ? 13 : 10} weight={flat ? 'bold' : 'normal'} color={priceColor} numberOfLines={1}>{fmtYen(h.price)}</PixelText>
+                            {(h.units ?? 1) > 1 ? (
+                              // 묶음 체결 — 표시 금액은 1개 단가(수량으로 나눈 값, 웹 동일).
+                              <View style={{ backgroundColor: flat ? tc.pap2 : 'rgba(255,255,255,0.12)', paddingHorizontal: 5, paddingVertical: 2 }}>
+                                <PixelText variant={txt} size={7} weight="bold" color={flat ? tc.ink3 : 'rgba(255,255,255,0.7)'}>{h.units}개 묶음 · 1개 단가</PixelText>
+                              </View>
+                            ) : null}
+                          </View>
                           <PixelText variant={txt} size={flat ? 10 : 8} color={dateColor}>{date}</PixelText>
                         </View>
                       );
