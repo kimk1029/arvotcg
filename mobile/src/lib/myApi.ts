@@ -344,7 +344,8 @@ export function absApiUrl(u: string | null | undefined): string | null {
 /* 컬렉션 캐시 — SWR 스토어([[swr]], 메모리+디스크)에 저장. 화면 재진입은 즉시
  * 그려지고 콜드 스타트도 마지막 데이터로 시작한다. 세션 변경 시 'me:' 일괄 무효화는
  * swr 스토어가 처리. */
-export const SWR_MY_CARDS = 'me:cards';
+// v2 (2026-09-07): 박스 판정(itemKind) 규칙 변경 — 디스크에 남은 옛 'box' 값을 버리기 위해 키 교체 (prefix 'me:cards' 무효화는 그대로 매칭).
+export const SWR_MY_CARDS = 'me:cards:v2';
 export const SWR_PORTFOLIO = 'me:portfolio';
 
 /** 마지막으로 받아온 내 카드 목록 — 즉시 페인트 시드용 (없으면 null). */
