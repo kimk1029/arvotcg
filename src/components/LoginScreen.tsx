@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { signIn } from '@/lib/session';
 import { ProviderLogo } from './ProviderLogo';
+import { WarpStars } from './WarpStars';
 
 interface Props {
   /** 로그인 후 돌아갈 경로. 기본값 / */
@@ -49,6 +50,8 @@ export function LoginScreen({ callbackUrl = '/' }: Props) {
       {/* 앰비언트 글로우 */}
       <div className="lg-glow-top" />
       <div className="lg-glow-bottom" />
+      {/* 워프 스타필드 — 히어로 문구를 소실점으로 별이 바깥으로 흘러나간다. */}
+      <WarpStars anchorId="lg-hero-focus" />
       {/* 스파크 */}
       {SPARKS.map((s, n) => (
         <div
@@ -91,7 +94,7 @@ export function LoginScreen({ callbackUrl = '/' }: Props) {
           <span style={{ color: '#fff' }}>ARVO</span>
           <span className="lg-grad-text"> TCG</span>
         </div>
-        <div style={{ fontSize: 26, fontWeight: 900, color: '#fff', letterSpacing: -0.8, marginTop: 30, textAlign: 'center', lineHeight: 1.3 }}>
+        <div id="lg-hero-focus" style={{ fontSize: 26, fontWeight: 900, color: '#fff', letterSpacing: -0.8, marginTop: 30, textAlign: 'center', lineHeight: 1.3 }}>
           내 컬렉션의 가치를<br />한눈에
         </div>
         <div style={{ fontSize: 14, color: 'rgba(255,255,255,.55)', fontWeight: 500, marginTop: 12, textAlign: 'center', lineHeight: 1.6 }}>

@@ -7,7 +7,7 @@
  * 뒤로가기 화살표는 온보딩으로. '둘러보기' 는 로그인 필수 정책으로 없음 (shared/onboarding.ts).
  */
 import { useState } from 'react';
-import { Alert, Animated, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, Animated, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -16,6 +16,7 @@ import { api } from '@/lib/apiClient';
 import { persistTokenAndGoHome, startSocialLogin, type AuthProvider } from '@/lib/oauth';
 import { ProviderLogo } from '@/components/ProviderLogo';
 import { useOnce, useYoyo } from '@/components/onboarding/anim';
+import { WarpStars } from '@/components/WarpStars';
 
 const SPARKS: Array<{ top: number; left?: number; right?: number; size: number; color: string; dur: number; delay: number }> = [
   { top: 140, left: 52, size: 5, color: '#FFD27A', dur: 2600, delay: 0 },
@@ -75,16 +76,21 @@ function AmbientGlow({ width }: { width: number }) {
 }
 
 /** obIn — 등장(0.5s, 14px 위로). */
-function FadeUp({ delay, style, children }: { delay: number; style?: object; children: React.ReactNode }) {
+function FadeUp({ delay, style, onLayout, children }: { delay: number; style?: object; onLayout?: (e: LayoutChangeEvent) => void; children: React.ReactNode }) {
   const v = useOnce(500, delay);
   const translateY = v.interpolate({ inputRange: [0, 1], outputRange: [14, 0] });
-  return <Animated.View style={[style, { opacity: v, transform: [{ translateY }] }]}>{children}</Animated.View>;
+  return <Animated.View onLayout={onLayout} style={[style, { opacity: v, transform: [{ translateY }] }]}>{children}</Animated.View>;
 }
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [busy, setBusy] = useState(false);
+  // 워프 스타필드 소실점 — 히어로 문구('내 컬렉션의 가치를 한눈에') 중앙.
+  // 히어로 블록의 y(루트 기준) + 그 안의 문구 y·높이로 계산. 레이아웃 전엔 화면 40% 지점.
+  const [heroY, setHeroY] = useState<number | null>(null);
+  const [headline, setHeadline] = useState<{ y: number; h: number } | null>(null);
+  const focusY = heroY != null && headline ? heroY + headline.y + headline.h / 2 : height * 0.4;
   // /login?callback=/event/cardshow — 로그인 후 원래 화면으로 복귀 (웹 callbackUrl 패리티).
   const { callback } = useLocalSearchParams<{ callback?: string }>();
   const callbackPath = typeof callback === 'string' ? callback : null;
@@ -153,6 +159,7 @@ export default function LoginScreen() {
         <Rect x={width / 2 - 280} y={height - 180} width={560} height={320} rx={160} fill="url(#lgGlowBottom)" />
       </Svg>
       <AmbientGlow width={width} />
+      <WarpStars cx={width / 2} cy={focusY} width={width} height={height} />
       {SPARKS.map((s, n) => (
         <Spark key={n} {...s} />
       ))}
@@ -168,13 +175,18 @@ export default function LoginScreen() {
       </View>
 
       {/* 히어로 */}
-      <FadeUp delay={50} style={styles.hero}>
+      <FadeUp delay={50} style={styles.hero} onLayout={(e) => setHeroY(e.nativeEvent.layout.y)}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
           <Text style={styles.brand}>ARVO</Text>
           {/* 그라디언트 텍스트 — SVG 마스크 대신 골드 단색(#FFB55E, #FFD27A↔#FF9A4D 중간값). */}
           <Text style={[styles.brand, { color: '#FFB55E' }]}> TCG</Text>
         </View>
-        <Text style={styles.headline}>내 컬렉션의 가치를{'\n'}한눈에</Text>
+        <Text
+          style={styles.headline}
+          onLayout={(e) => setHeadline({ y: e.nativeEvent.layout.y, h: e.nativeEvent.layout.height })}
+        >
+          내 컬렉션의 가치를{'\n'}한눈에
+        </Text>
         <Text style={styles.sub}>시세 · 컬렉션 · 커뮤니티{'\n'}간편 로그인으로 3초 만에 시작하세요</Text>
       </FadeUp>
 
