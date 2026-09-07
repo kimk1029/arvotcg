@@ -6,6 +6,7 @@ import { AdScripts } from '@/components/ads/AdScripts';
 import { GoogleAnalytics } from '@/components/GoogleAnalytics';
 import { PostHogAnalytics } from '@/components/PostHogAnalytics';
 import { UgcTermsGateHost } from '@/components/UgcTermsGate';
+import { EntryGate } from '@/components/EntryGate';
 import { InAppBrowserNotice } from '@/components/InAppBrowserNotice';
 import { InventoryProvider } from '@/components/InventoryProvider';
 import { JsonLd } from '@/components/JsonLd';
@@ -164,6 +165,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <ActionTracker />
                 <InAppBrowserNotice />
                 <UgcTermsGateHost />
+                {/* 진입 게이트 — 온보딩 미열람 → /onboarding, 미로그인 → /login (앱 EntryGate 페어). */}
+                <Suspense fallback={null}>
+                  <EntryGate />
+                </Suspense>
                 <PhoneShell>{children}</PhoneShell>
                   </UnreadProvider>
                 </InventoryProvider>

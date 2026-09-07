@@ -29,16 +29,18 @@ export function PhoneShell({ children }: Props) {
   const floating = navStyle === 'floating';
   const insets = useSafeAreaInsets();
   const c = useThemeColors();
-  // 로그인/OAuth WebView 는 전체화면 — status/tabbar 숨김.
+  // 로그인/OAuth WebView/온보딩은 전체화면 — status/tabbar 숨김.
   const isLogin = pathname?.startsWith('/login') || pathname?.startsWith('/oauth');
-  const isFullscreen = isLogin || hidden;
+  const isOnboarding = pathname?.startsWith('/onboarding') ?? false;
+  const isFullscreen = isLogin || isOnboarding || hidden;
   // 테마와 무관하게 항상 어두운 배경인 화면(로그인·카드쇼 WebView·카메라 스캔) — 시스템
   // 상태바 글자를 흰색으로. 그 외에는 테마 페이퍼색 기준(다크 테마 → 흰 글자, 라이트 → 검정).
   // OS 상태바 스타일을 정하는 곳은 여기 한 군데뿐이다 — 개별 화면에서 StatusBar 를 두지 말 것.
   const isDarkChrome = pathname?.startsWith('/event/cardshow') ?? false;
   const forceLightBar = pathname?.startsWith('/login') || isDarkChrome || hidden;
-  const systemBarStyle: 'light' | 'dark' = forceLightBar || theme === 'dark' ? 'light' : 'dark';
-  const shellPaper = isDarkChrome ? DARK_CHROME_BG : c.paper;
+  // 온보딩은 테마 무관 흰 배경 → 상태바 글자 검정.
+  const systemBarStyle: 'light' | 'dark' = isOnboarding ? 'dark' : forceLightBar || theme === 'dark' ? 'light' : 'dark';
+  const shellPaper = isDarkChrome ? DARK_CHROME_BG : isOnboarding ? '#ffffff' : c.paper;
   // 클린·다크(모던 플랫) 테마는 픽셀 골드 상단 밴드를 쓰지 않는다 — 각 화면이
   // 자체 헤더를 갖고, SafeArea top 인셋만 페이퍼색으로 남긴다.
   const showStatusBand = !isFullscreen && !isFlatTheme(theme);

@@ -4455,3 +4455,49 @@ html[data-embed="1"] .screen--floatnav .addbar-sticky{bottom:0;border-bottom:0;}
 html[data-embed="1"] .page-wrap{padding:0;min-height:100dvh;background:var(--paper);background-image:none;}
 html[data-embed="1"] .phone{width:100vw;max-width:none;height:100dvh;border:0;border-radius:0;box-shadow:none;outline:none;}
 
+
+/* ---- 온보딩 (첫 방문 슬라이드) — 앱 app/onboarding.tsx 페어, 정본 shared/onboarding.ts ---- */
+.ob-screen{position:absolute;inset:0;z-index:30;background:#ffffff;display:flex;flex-direction:column;
+  font-family:'Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;padding-top:env(safe-area-inset-top,0px);}
+.ob-art{position:relative;width:250px;height:250px;flex:none;}
+@media(max-height:700px){.ob-art{transform:scale(.82);margin:-22px 0;}}
+.ob-skip{font-size:13.5px;font-weight:700;color:#9A9AA0;cursor:pointer;padding:6px 4px;white-space:nowrap;border:none;background:none;font-family:inherit;}
+@keyframes obIn{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:none;}}
+@keyframes obFloat{0%,100%{transform:translateY(0) rotate(-3deg);}50%{transform:translateY(-13px) rotate(2deg);}}
+@keyframes obFloat2{0%,100%{transform:translateY(-6px) rotate(4deg);}50%{transform:translateY(8px) rotate(-2deg);}}
+@keyframes obSpin{from{transform:rotate(0);}to{transform:rotate(360deg);}}
+@keyframes obPulse{0%,100%{transform:scale(1);opacity:.35;}50%{transform:scale(1.16);opacity:.12;}}
+@keyframes obDraw{from{stroke-dashoffset:420;}to{stroke-dashoffset:0;}}
+@keyframes obRise{0%{transform:scaleY(.25);opacity:.5;}100%{transform:scaleY(1);opacity:1;}}
+@keyframes obPing{0%{transform:scale(.5);opacity:.9;}100%{transform:scale(2.4);opacity:0;}}
+@keyframes obSweep{0%{transform:translateY(-46px);opacity:0;}15%{opacity:1;}85%{opacity:1;}100%{transform:translateY(46px);opacity:0;}}
+@keyframes obBob{0%,100%{transform:translateY(0);}50%{transform:translateY(-7px);}}
+@keyframes obGlow{0%,100%{opacity:.5;}50%{opacity:1;}}
+
+/* ---- 로그인 (Claude Design 'ARVO 로그인') — 앱 app/login.tsx 페어 ---- */
+.lg-screen{position:absolute;inset:0;z-index:30;overflow:hidden;display:flex;flex-direction:column;
+  background:linear-gradient(180deg,#0B1024 0%,#0A0D1F 55%,#07091A 100%);
+  font-family:'Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;padding-top:env(safe-area-inset-top,0px);}
+.lg-glow-top{position:absolute;top:70px;left:50%;width:420px;height:420px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(255,168,36,.22),rgba(255,168,36,0) 62%);animation:lgGlow 5s ease-in-out infinite;}
+.lg-glow-bottom{position:absolute;bottom:-140px;left:50%;transform:translateX(-50%);width:560px;height:320px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(60,90,220,.14),rgba(60,90,220,0) 65%);}
+.lg-spark{position:absolute;border-radius:50%;pointer-events:none;}
+.lg-top{height:52px;display:flex;align-items:center;padding:0 8px;z-index:2;flex:none;}
+.lg-back{display:flex;align-items:center;padding:8px;text-decoration:none;}
+.lg-hero{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 32px;z-index:2;min-height:0;animation:obIn .5s .05s both;}
+.lg-grad-text{background:linear-gradient(90deg,#FFD27A,#FF9A4D);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.lg-btns{padding:0 28px;display:flex;flex-direction:column;gap:10px;z-index:2;flex:none;animation:obIn .5s .2s both;}
+.lg-btn{height:54px;border-radius:16px;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;
+  font-family:inherit;font-size:15px;font-weight:800;white-space:nowrap;padding:0;width:100%;}
+.lg-btn:active{transform:scale(.985);}
+.lg-btn:disabled{cursor:default;}
+.lg-btn-off{opacity:.45;cursor:not-allowed!important;}
+.lg-btn-ic{position:absolute;left:20px;top:0;bottom:0;display:flex;align-items:center;}
+.lg-btn-ic svg{width:20px;height:20px;}
+.lg-footer{flex:none;padding:0 28px;margin:26px 0 calc(34px + env(safe-area-inset-bottom,0px));text-align:center;font-size:11.5px;color:rgba(255,255,255,.38);font-weight:500;line-height:1.6;z-index:2;}
+.lg-footer-link{color:rgba(255,255,255,.7);font-weight:600;text-decoration:none;}
+.lg-pending{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;animation:pf-fade-in 150ms linear;}
+.lg-spinner{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.15);border-top-color:#FFD27A;animation:obSpin .8s linear infinite;}
+@keyframes lgGlow{0%,100%{opacity:.7;transform:translateX(-50%) scale(1);}50%{opacity:1;transform:translateX(-50%) scale(1.08);}}
+@keyframes lgSpark{0%,100%{opacity:.15;transform:scale(.5);}50%{opacity:1;transform:scale(1);}}

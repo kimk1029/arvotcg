@@ -36,6 +36,7 @@ import { ThemeProvider } from '@/components/ThemeProvider';
 import { ToastProvider } from '@/components/ToastProvider';
 import { UgcTermsGateHost } from '@/components/UgcTermsGate';
 import { ForceUpdateGate } from '@/components/ForceUpdateGate';
+import { EntryGate } from '@/components/EntryGate';
 import { extractOAuthToken, persistTokenAndGoHome } from '@/lib/oauth';
 import { applyPendingOtaOnBoot } from '@/lib/otaUpdate';
 import { colors } from '@/theme/tokens';
@@ -157,6 +158,8 @@ export default function RootLayout() {
               <GamePrefsProvider>
               <NavPrefsProvider>
               <PriceModeProvider>
+                {/* 진입 게이트 — 온보딩/로그인 안 됐으면 PhoneShell 전체(탭바 포함)를 가리고 보낸다. */}
+                <EntryGate>
                 <PhoneShell>
                 <ActionTracker>
             {/*
@@ -174,6 +177,7 @@ export default function RootLayout() {
                 <UgcTermsGateHost />
                 </ActionTracker>
                 </PhoneShell>
+                </EntryGate>
                 {/* 강제 업데이트 — PhoneShell 바깥에 둬야 상단 밴드·플로팅 탭바까지 덮는다. */}
                 <ForceUpdateGate />
               </PriceModeProvider>

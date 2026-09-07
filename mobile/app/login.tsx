@@ -1,29 +1,89 @@
 /**
- * 로그인 화면.
- *
- * 소셜 로그인 버튼을 누르면 웹 OAuth 시작 URL을 시스템 브라우저로 연다.
- * OAuth 콜백이 끝나면 서버가 `pokefesta30://auth?token=<jwt>` 로 리다이렉트하고,
- * 루트 레이아웃의 딥링크 핸들러가 토큰을 저장한다.
+ * 로그인 화면 — Claude Design 'ARVO 로그인' (웹 LoginScreen.tsx 와 동일 디자인).
+ * 다크 네이비 그라디언트 + 앰비언트 글로우 + 스파크, 히어로 문구, 소셜 버튼.
+ *  · 카카오 / 구글: 앱 내부 WebView OAuth (startSocialLogin) → 토큰 저장 → callback 복귀.
+ *  · 네이버: 준비 중 — 비활성.
+ *  · Apple: iOS 전용 네이티브 시트 (심사 지침 4.8).
+ * 뒤로가기 화살표는 온보딩으로. '둘러보기' 는 로그인 필수 정책으로 없음 (shared/onboarding.ts).
  */
 import { useState } from 'react';
-import { Alert, Platform, View, ScrollView, Pressable } from 'react-native';
+import { Alert, Animated, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { api } from '@/lib/apiClient';
-import { persistTokenAndGoHome } from '@/lib/oauth';
 import { router, useLocalSearchParams } from 'expo-router';
-import { PixelText } from '@/components/PixelText';
-import { PixelPress } from '@/components/cv/PixelPress';
-import { PixelBall } from '@/components/PixelBall';
+import Svg, { Circle, Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { api } from '@/lib/apiClient';
+import { persistTokenAndGoHome, startSocialLogin, type AuthProvider } from '@/lib/oauth';
 import { ProviderLogo } from '@/components/ProviderLogo';
-import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
-import { colors } from '@/theme/tokens';
-import { getApiBaseUrl } from '@/lib/apiClient';
-import { isAuthenticated } from '@/lib/session';
-import { startSocialLogin, type AuthProvider } from '@/lib/oauth';
+import { useOnce, useYoyo } from '@/components/onboarding/anim';
+
+const SPARKS: Array<{ top: number; left?: number; right?: number; size: number; color: string; dur: number; delay: number }> = [
+  { top: 140, left: 52, size: 5, color: '#FFD27A', dur: 2600, delay: 0 },
+  { top: 112, right: 66, size: 4, color: '#FFD27A', dur: 3100, delay: 800 },
+  { top: 342, right: 44, size: 3, color: '#7CE0FF', dur: 2200, delay: 400 },
+  { top: 318, left: 38, size: 3, color: '#B27CFF', dur: 2900, delay: 1200 },
+  { top: 400, left: 120, size: 3, color: '#FFD27A', dur: 3400, delay: 600 },
+];
+
+/** lgSpark — 반짝임(opacity .15↔1, scale .5↔1). */
+function Spark({ top, left, right, size, color, dur, delay }: (typeof SPARKS)[number]) {
+  const v = useYoyo(dur, delay);
+  const opacity = v.interpolate({ inputRange: [0, 1], outputRange: [0.15, 1] });
+  const scale = v.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        top,
+        left,
+        right,
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: color,
+        opacity,
+        transform: [{ scale }],
+        shadowColor: color,
+        shadowOpacity: 1,
+        shadowRadius: size * 2,
+        shadowOffset: { width: 0, height: 0 },
+      }}
+    />
+  );
+}
+
+/** lgGlow — 상단 앰비언트 글로우(opacity .7↔1, scale 1↔1.08). */
+function AmbientGlow({ width }: { width: number }) {
+  const v = useYoyo(5000);
+  const opacity = v.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
+  const scale = v.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
+  return (
+    <Animated.View pointerEvents="none" style={{ position: 'absolute', top: 70, left: width / 2 - 210, width: 420, height: 420, opacity, transform: [{ scale }] }}>
+      <Svg width={420} height={420} viewBox="0 0 100 100">
+        <Defs>
+          <RadialGradient id="lgGlowTop" cx="50%" cy="50%" r="50%">
+            <Stop offset="0" stopColor="#FFA824" stopOpacity="0.22" />
+            <Stop offset="0.62" stopColor="#FFA824" stopOpacity="0" />
+            <Stop offset="1" stopColor="#FFA824" stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Circle cx="50" cy="50" r="50" fill="url(#lgGlowTop)" />
+      </Svg>
+    </Animated.View>
+  );
+}
+
+/** obIn — 등장(0.5s, 14px 위로). */
+function FadeUp({ delay, style, children }: { delay: number; style?: object; children: React.ReactNode }) {
+  const v = useOnce(500, delay);
+  const translateY = v.interpolate({ inputRange: [0, 1], outputRange: [14, 0] });
+  return <Animated.View style={[style, { opacity: v, transform: [{ translateY }] }]}>{children}</Animated.View>;
+}
 
 export default function LoginScreen() {
-  const tc = useThemeColors();
-  const txt = useThemeTextVariant();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const [busy, setBusy] = useState(false);
   // /login?callback=/event/cardshow — 로그인 후 원래 화면으로 복귀 (웹 callbackUrl 패리티).
   const { callback } = useLocalSearchParams<{ callback?: string }>();
@@ -73,205 +133,103 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0F172A' }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 28, paddingBottom: 40, paddingTop: 80 }}>
-        {/* Hero — 브랜드 픽셀 마크 + 타이틀 */}
-        <View style={{ alignItems: 'center', gap: 20, marginBottom: 40 }}>
-          <View
-            style={{
-              padding: 14,
-              backgroundColor: 'rgba(255,255,255,0.04)',
-              borderColor: tc.gold,
-              borderWidth: 3,
-            }}
-          >
-            <PixelBall size={72} />
-          </View>
-          <PixelText variant={txt} size={17} color={tc.gold} style={{ letterSpacing: 2 }} numberOfLines={1}>
-            ARVOTCG
-          </PixelText>
-          <PixelText
-            variant="ko"
-            size={12}
-            color="rgba(255,255,255,0.65)"
-            style={{ textAlign: 'center', lineHeight: 20 }}
-          >
-            트레이딩 카드를 스마트하게{'\n'}스캔 · 아카이빙 · 거래 · 그레이딩
-          </PixelText>
-        </View>
+    <View style={styles.root}>
+      {/* 배경 그라디언트 */}
+      <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
+        <Defs>
+          <LinearGradient id="lgBg" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#0B1024" />
+            <Stop offset="0.55" stopColor="#0A0D1F" />
+            <Stop offset="1" stopColor="#07091A" />
+          </LinearGradient>
+          <RadialGradient id="lgGlowBottom" cx="50%" cy="50%" r="50%">
+            <Stop offset="0" stopColor="#3C5ADC" stopOpacity="0.14" />
+            <Stop offset="0.65" stopColor="#3C5ADC" stopOpacity="0" />
+            <Stop offset="1" stopColor="#3C5ADC" stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Rect x="0" y="0" width={width} height={height} fill="url(#lgBg)" />
+        {/* 하단 파란 글로우 (560×320 타원, 화면 아래로 140 내려감) */}
+        <Rect x={width / 2 - 280} y={height - 180} width={560} height={320} rx={160} fill="url(#lgGlowBottom)" />
+      </Svg>
+      <AmbientGlow width={width} />
+      {SPARKS.map((s, n) => (
+        <Spark key={n} {...s} />
+      ))}
 
-        {isAuthenticated() ? (
-          <View
-            style={{
-              marginBottom: 24,
-              padding: 14,
-              backgroundColor: tc.grnDk,
-              borderColor: tc.ink,
-              borderWidth: 3,
-            }}
-          >
-            <PixelText variant={txt} size={10} color={tc.white} style={{ textAlign: 'center' }}>
-              ✓ 이미 로그인되어 있어요
-            </PixelText>
-          </View>
-        ) : null}
-
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 10,
-            marginVertical: 18,
-          }}
-        >
-          <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.15)' }} />
-          <PixelText variant={txt} size={8} color="rgba(255,255,255,0.4)" style={{ letterSpacing: 1 }}>
-            소셜 로그인
-          </PixelText>
-          <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.15)' }} />
-        </View>
-
-        {/* 프로바이더 브랜드색은 테마와 무관하게 리터럴 고정 — tc.white/tc.ink 는 clean·dark
-            에서 뒤집혀(overload) 배경↔글자 대비가 깨진다(다크에서 글자가 안 보이던 버그). */}
-        <View style={{ gap: 12 }}>
-          {Platform.OS === 'ios' ? (
-            <LoginBtn
-              bg="#000000"
-              fg="#FFFFFF"
-              provider="apple"
-              name="Apple로 로그인"
-              desc="Apple 계정으로 간편 로그인"
-              onPress={startAppleLogin}
-            />
-          ) : null}
-          <LoginBtn
-            // '#FFF': PixelPress 가 colors.white('#FFFFFF') 와 같은 문자열이면 테마 white 로
-            // 치환(다크에선 어두운색)하므로 3자리 hex 로 우회해 항상 흰 배경 유지.
-            bg="#FFF"
-            fg="#1F1F1F"
-            provider="google"
-            name="구글로 시작하기"
-            desc="Google 계정으로 간편 로그인"
-            onPress={() => startLogin('google')}
-          />
-          <LoginBtn
-            bg="#FEE500"
-            fg="#3A1D00"
-            provider="kakao"
-            name="카카오로 시작하기"
-            desc="카카오 계정으로 간편 로그인"
-            onPress={() => startLogin('kakao')}
-          />
-          {/* 네이버 — 현재 비활성(준비 중). 순서상 맨 아래. */}
-          <LoginBtn
-            bg="#03C75A"
-            fg="#FFFFFF"
-            provider="naver"
-            name="네이버로 시작하기"
-            desc="준비 중입니다"
-            disabled
-            onPress={() => {}}
-          />
-        </View>
-
-        <Pressable
-          style={{ marginTop: 28, padding: 10, alignItems: 'center' }}
-          onPress={() => router.replace('/' as never)}
-        >
-          <PixelText variant={txt} size={9} color="rgba(255,255,255,0.35)" style={{ letterSpacing: 1 }}>
-            로그인 없이 둘러보기 →
-          </PixelText>
+      {/* 뒤로 (온보딩) */}
+      <View style={[styles.top, { marginTop: insets.top }]}>
+        <Pressable onPress={() => router.replace('/onboarding' as never)} hitSlop={8} style={styles.back} accessibilityLabel="온보딩으로">
+          <Svg width={24} height={24} viewBox="0 0 24 24">
+            <Path d="M19 12H5" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            <Path d="m12 19-7-7 7-7" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          </Svg>
         </Pressable>
+      </View>
 
-        <PixelText
-          variant="ko"
-          size={9}
-          color="rgba(255,255,255,0.35)"
-          style={{ marginTop: 24, textAlign: 'center', lineHeight: 16, paddingHorizontal: 14 }}
-        >
-          로그인 시{' '}
-          <PixelText variant="ko" size={9} color={tc.gold}>이용약관</PixelText>
-          {' · '}
-          <PixelText variant="ko" size={9} color={tc.gold}>개인정보처리방침</PixelText>
-          에{'\n'}동의한 것으로 간주됩니다.
-        </PixelText>
+      {/* 히어로 */}
+      <FadeUp delay={50} style={styles.hero}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
+          <Text style={styles.brand}>ARVO</Text>
+          {/* 그라디언트 텍스트 — SVG 마스크 대신 골드 단색(#FFB55E, #FFD27A↔#FF9A4D 중간값). */}
+          <Text style={[styles.brand, { color: '#FFB55E' }]}> TCG</Text>
+        </View>
+        <Text style={styles.headline}>내 컬렉션의 가치를{'\n'}한눈에</Text>
+        <Text style={styles.sub}>시세 · 컬렉션 · 커뮤니티{'\n'}간편 로그인으로 3초 만에 시작하세요</Text>
+      </FadeUp>
 
-        <PixelText
-          variant={txt}
-          size={7}
-          color="rgba(255,255,255,0.18)"
-          style={{ marginTop: 24, textAlign: 'center', lineHeight: 12 }}
-        >
-          API: {getApiBaseUrl()}
-        </PixelText>
-      </ScrollView>
+      {/* 소셜 버튼 */}
+      <FadeUp delay={200} style={styles.btns}>
+        <SocialBtn bg="#FEE500" fg="#191919" label="카카오로 계속하기" icon={<ProviderLogo provider="kakao" size={20} />} onPress={() => startLogin('kakao')} disabled={busy} />
+        {/* 네이버 — 준비 중(서버 프로바이더 미설정). 디자인 자리는 유지하고 비활성. */}
+        <SocialBtn bg="#03C75A" fg="#fff" label="네이버로 계속하기 · 준비 중" icon={<Text style={{ fontSize: 17, fontWeight: '900', color: '#fff' }}>N</Text>} onPress={() => {}} off />
+        <SocialBtn bg="#fff" fg="#16161a" label="Google로 계속하기" icon={<ProviderLogo provider="google" size={19} />} onPress={() => startLogin('google')} disabled={busy} />
+        {Platform.OS === 'ios' ? (
+          <SocialBtn bg="rgba(255,255,255,0.08)" fg="#fff" label="Apple로 계속하기" icon={<ProviderLogo provider="apple" size={18} />} onPress={startAppleLogin} disabled={busy} glass />
+        ) : null}
+      </FadeUp>
+
+      {/* 푸터 */}
+      <Text style={[styles.footer, { marginBottom: Math.max(insets.bottom, 12) + 22 }]}>
+        계속하면{' '}
+        <Text style={styles.footerLink} onPress={() => router.push('/legal?doc=terms' as never)}>이용약관</Text>
+        {' · '}
+        <Text style={styles.footerLink} onPress={() => router.push('/legal?doc=privacy' as never)}>개인정보 처리방침</Text>
+        에 동의하게 됩니다
+      </Text>
     </View>
   );
 }
 
-interface BtnProps {
-  bg: string;
-  fg: string;
-  provider: AuthProvider | 'apple';
-  name: string;
-  desc: string;
-  onPress: () => void;
-  /** 준비 중인 프로바이더 — 흐리게 + 누름 차단. */
-  disabled?: boolean;
-}
-
-function LoginBtn({ bg, fg, provider, name, desc, onPress, disabled }: BtnProps) {
-  const txt = useThemeTextVariant();
+function SocialBtn({ bg, fg, label, icon, onPress, disabled, off, glass }: { bg: string; fg: string; label: string; icon: React.ReactNode; onPress: () => void; disabled?: boolean; off?: boolean; glass?: boolean }) {
   return (
-    <PixelPress
+    <Pressable
       onPress={onPress}
-      disabled={disabled}
-      // 비활성은 전체 opacity 로 낮추지 않는다 — 픽셀 베벨의 흰 하이라이트가 남아
-      // 텍스트 영역이 흰 박스처럼 뜬다. 면·글자색 자체를 중성 회색으로 바꾼다.
-      bg={disabled ? colors.btnOffBg : bg}
-      borderWidth={4}
-      shadow={7}
-      hi={disabled ? null : 'rgba(255,255,255,0.4)'}
-      lo={disabled ? 'rgba(0,0,0,0.10)' : 'rgba(0,0,0,0.18)'}
-      inner={3}
+      disabled={disabled || off}
+      style={({ pressed }) => [
+        styles.btn,
+        { backgroundColor: bg, opacity: off ? 0.45 : pressed ? 0.9 : 1 },
+        glass ? { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)' } : null,
+      ]}
     >
-      <View
-        style={{
-          paddingHorizontal: 18,
-          paddingVertical: 16,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 14,
-        }}
-      >
-        <View
-          style={{
-            width: 42,
-            height: 42,
-            backgroundColor: 'rgba(0,0,0,0.1)',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderColor: 'rgba(0,0,0,0.15)',
-            borderWidth: 1,
-            opacity: disabled ? 0.5 : 1,
-          }}
-        >
-          <ProviderLogo provider={provider} size={24} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <PixelText variant={txt} size={11} color={disabled ? colors.btnOffFg : fg} style={{ letterSpacing: 1 }}>
-            {name}
-          </PixelText>
-          <PixelText
-            variant={txt}
-            size={9}
-            color={disabled ? colors.btnOffFg : fg}
-            style={{ marginTop: 5, opacity: 0.65, letterSpacing: 0.3 }}
-          >
-            {desc}
-          </PixelText>
-        </View>
-      </View>
-    </PixelPress>
+      <View style={styles.btnIc}>{icon}</View>
+      <Text style={[styles.btnTxt, { color: fg }]} numberOfLines={1}>{label}</Text>
+    </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#0B1024', overflow: 'hidden' },
+  top: { height: 52, justifyContent: 'center', paddingHorizontal: 8, zIndex: 2 },
+  back: { padding: 8, alignSelf: 'flex-start' },
+  hero: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, zIndex: 2 },
+  brand: { fontSize: 34, fontWeight: '900', color: '#fff', letterSpacing: -1, lineHeight: 36 },
+  headline: { fontSize: 26, fontWeight: '900', color: '#fff', letterSpacing: -0.8, marginTop: 30, textAlign: 'center', lineHeight: 26 * 1.3 },
+  sub: { fontSize: 14, color: 'rgba(255,255,255,0.55)', fontWeight: '500', marginTop: 12, textAlign: 'center', lineHeight: 14 * 1.6 },
+  btns: { paddingHorizontal: 28, gap: 10, zIndex: 2 },
+  btn: { height: 54, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  btnIc: { position: 'absolute', left: 20, top: 0, bottom: 0, justifyContent: 'center' },
+  btnTxt: { fontSize: 15, fontWeight: '800' },
+  footer: { marginTop: 26, paddingHorizontal: 28, textAlign: 'center', fontSize: 11.5, color: 'rgba(255,255,255,0.38)', fontWeight: '500', lineHeight: 11.5 * 1.6, zIndex: 2 },
+  footerLink: { color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
+});
