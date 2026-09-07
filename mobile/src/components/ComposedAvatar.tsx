@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Text, View } from 'react-native';
-import { useThemeColors } from '@/components/ThemeProvider';
 import { RAINBOW_CYCLE, frameRings, frameThickness } from '@/lib/avatarPixels';
 import { isAvatarId } from '@/data/shopCatalog';
 import { PixelAvatar } from './PixelAvatar';
@@ -22,7 +21,6 @@ interface Props {
  * 링 색·두께는 shared/avatarPixels.ts(FRAME_RINGS)가 정본(웹 .frm-* CSS 와 같은 배색).
  */
 export function ComposedAvatar({ avatar, bg, frame, size = 44, fallback = '🐣', radius = 0 }: Props) {
-  const tc = useThemeColors();
   const rings = frameRings(frame);
   const isRainbow = frame === 'rainbow';
   const [tick, setTick] = useState(0);
@@ -50,9 +48,7 @@ export function ComposedAvatar({ avatar, bg, frame, size = 44, fallback = '🐣'
   let r = radius;
   for (let i = rings.length - 1; i >= 0; i -= 1) {
     const ring = rings[i];
-    const color = ring.color === 'ink'
-      ? tc.ink
-      : isRainbow && i === 1 ? RAINBOW_CYCLE[tick] : ring.color;
+    const color = isRainbow && i === 1 ? RAINBOW_CYCLE[tick] : ring.color;
     r += ring.width;
     node = (
       <View style={{ borderWidth: ring.width, borderColor: color, borderRadius: r }}>

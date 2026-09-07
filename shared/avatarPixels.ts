@@ -636,19 +636,22 @@ export function backgroundScene(id: string | null | undefined): BgShape[] {
 
 /* ------------------------------------------------------------------ */
 /* 테두리 링 — 바깥→안쪽 순 [색, 두께]. 웹 CSS(.frm-*)와 같은 배색.      */
-/* 'ink' 는 테마 잉크색으로 치환.                                        */
+/* 외곽선은 테마 잉크색이 아니라 고정 진한 색(FRAME_INK) — 다크 테마는     */
+/* ink 가 거의 흰색이라 흰 배경 프로필 카드 위에서 테두리가 사라졌음(2026-09-07). */
 /* ------------------------------------------------------------------ */
 
-export type FrameRing = { color: string | 'ink'; width: number };
+export const FRAME_INK = '#1A1A2E';
+
+export type FrameRing = { color: string; width: number };
 
 export const FRAME_RINGS: Record<string, FrameRing[]> = {
   none: [],
-  simple: [{ color: 'ink', width: 2 }],
-  gold: [{ color: 'ink', width: 2 }, { color: '#FFD23F', width: 2 }, { color: '#8B6B0B', width: 2 }],
-  leaf: [{ color: 'ink', width: 2 }, { color: '#7FCE92', width: 2 }, { color: '#2E5A1B', width: 2 }],
-  ice: [{ color: 'ink', width: 2 }, { color: '#9BC5E5', width: 2 }, { color: '#1B4B6B', width: 2 }],
-  fire: [{ color: 'ink', width: 2 }, { color: '#FB923C', width: 2 }, { color: '#8F1620', width: 2 }],
-  rainbow: [{ color: 'ink', width: 2 }, { color: '#FF6470', width: 4 }, { color: 'ink', width: 2 }],
+  simple: [{ color: FRAME_INK, width: 2 }],
+  gold: [{ color: FRAME_INK, width: 2 }, { color: '#FFD23F', width: 2 }, { color: '#8B6B0B', width: 2 }],
+  leaf: [{ color: FRAME_INK, width: 2 }, { color: '#7FCE92', width: 2 }, { color: '#2E5A1B', width: 2 }],
+  ice: [{ color: FRAME_INK, width: 2 }, { color: '#9BC5E5', width: 2 }, { color: '#1B4B6B', width: 2 }],
+  fire: [{ color: FRAME_INK, width: 2 }, { color: '#FB923C', width: 2 }, { color: '#8F1620', width: 2 }],
+  rainbow: [{ color: FRAME_INK, width: 2 }, { color: '#FF6470', width: 4 }, { color: FRAME_INK, width: 2 }],
 };
 
 /** 무지개 테두리가 순환하는 색 (웹 keyframes 와 동일 순서). */

@@ -15,7 +15,7 @@ import { SectHd } from '@/components/cv/SectHd';
 import { EmptyState, ErrorView, LoadingState } from '@/components/cv/ListState';
 import { AVATARS, BACKGROUNDS, FRAMES } from '@/data/shopCatalog';
 import { fetchInventory, buyOrPick, type ShopKind, type InventorySnapshot } from '@/lib/myApi';
-import { useSWR } from '@/lib/swr';
+import { swrInvalidate, useSWR } from '@/lib/swr';
 import { colors } from '@/theme/tokens';
 import { useTheme, useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
@@ -50,6 +50,8 @@ export default function ShopScreen() {
       const r = await buyOrPick(owned ? 'pick' : 'buy', kind, id, price);
       if (r.ok) {
         refresh();
+        // 마이페이지 프로필(아바타×배경×테두리)은 me:summary 캐시(TTL 2분)를 쓰므로 즉시 무효화 — 돌아가면 새 값.
+        swrInvalidate('me:summary');
         Alert.alert(owned ? '적용 완료' : '구매 완료', owned ? `${labelOf(kind, id)} 적용됨` : `${labelOf(kind, id)} 획득!`);
       } else {
         Alert.alert('실패', r.error ?? '알 수 없는 오류');
