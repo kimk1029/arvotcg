@@ -169,9 +169,17 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
     />
   ) : null;
 
+  // 담긴 카드도 같은 팝업으로 추가 등록할 수 있음을 버튼 아래 작게 안내 (웹 동일).
+  const addMoreHint = isCollected ? (
+    <Pressable onPress={openRegisterSheet} hitSlop={6} style={styles.hint}>
+      <PixelText variant="ko" size={10} weight="bold" color={tc.ink3}>＋ 카드 추가 등록</PixelText>
+    </Pressable>
+  ) : null;
+
   if (flat) {
     // 클린·다크: 라운드 + 라인보더 (웹 그대로).
     return (
+      <View style={styles.wrap}>
       <View style={styles.row}>
         {registerSheet}
         <Pressable onPress={openRegisterSheet} style={[styles.flatWide, { backgroundColor: collectBg }]}>
@@ -189,11 +197,14 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
           <PixelText variant={txt} size={17} color={tc.orn}>{isFav ? '★' : '☆'}</PixelText>
         </Pressable>
       </View>
+      {addMoreHint}
+      </View>
     );
   }
 
   // 픽셀: 3D PixelPress 박스 — 동일 레이아웃(넓은 버튼 + 정사각 2개).
   return (
+    <View style={styles.wrap}>
     <View style={styles.row}>
       {registerSheet}
       <View style={styles.flex}>
@@ -209,18 +220,22 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
         <Text style={[styles.icon, { color: colors.orn }]}>{isFav ? '★' : '☆'}</Text>
       </PixelPress>
     </View>
+    {addMoreHint}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrap: { marginBottom: 12 },
   row: {
     flexDirection: 'row',
     gap: 8,
     marginHorizontal: 14,
     marginTop: 7,
-    marginBottom: 12,
     alignItems: 'stretch',
   },
+  // 넓은 버튼 아래 '카드 추가 등록' — 정사각 버튼 2개(48+8)*2 폭을 뺀 넓은 버튼 영역에 가운데 정렬.
+  hint: { marginHorizontal: 14, marginRight: 14 + (48 + 8) * 2, marginTop: 4, alignItems: 'center' },
   flex: { flex: 1 },
   // 클린: 라운드 버튼.
   flatWide: {
