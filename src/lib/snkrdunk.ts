@@ -13,7 +13,7 @@ import {
   SNKRDUNK_USER_AGENT,
   SNKRDUNK_BROWSE_KEYWORD,
   classifySnkrdunkItem,
-  isSingleUnitSale,
+  toUnitPriceSale,
   parseSnkrdunkSearchHtml,
   toSnkrdunkApparel,
   type RawApparel,
@@ -161,7 +161,8 @@ export async function fetchSnkrdunkSalesHistory(
     `/v1/apparels/${apparelId}/sales-history?size_id=0&page=1&per_page=20`,
   );
   if (!data) return null;
-  return { ...data, history: data.history.filter(isSingleUnitSale) };
+  // 묶음 체결(2個 등)은 버리지 않고 1개 단가로 환산 — 체결가·헤드라인 모두 1개 기준(정본 shared/snkrdunk.ts).
+  return { ...data, history: data.history.map(toUnitPriceSale) };
 }
 
 export async function fetchSnkrdunkSalesChart(

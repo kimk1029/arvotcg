@@ -25,6 +25,8 @@ export interface TradeRow {
   price: number;
   date: string; // 한국어로 현지화된 거래일
   badge: string; // 등급/상태 라벨 (원문 기준 — 등급 필터에 사용)
+  /** 묶음 수량 — 2 이상이면 price 는 1개 단가로 환산된 값. */
+  units?: number;
 }
 
 interface Props {
@@ -475,8 +477,12 @@ export function CardDetailView({
                   >
                     {t.badge || '일반'}
                   </span>
-                  <span style={{ flex: 1, fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 800, color: i === 0 ? 'var(--red)' : 'var(--ink)' }}>
+                  <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 800, color: i === 0 ? 'var(--red)' : 'var(--ink)' }}>
                     <Price jpy={t.price} empty="—" />
+                    {(t.units ?? 1) > 1 && (
+                      // 묶음 체결 — 표시 금액은 1개 단가(수량으로 나눈 값).
+                      <span style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--ink3)', background: 'var(--pap2)', padding: '2px 5px', borderRadius: 'var(--r-sm)' }}>{t.units}개 묶음 · 1개 단가</span>
+                    )}
                   </span>
                   <span style={{ flex: 'none', fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink3)' }}>{t.date}</span>
                 </div>

@@ -104,6 +104,7 @@ export default async function Page({ params, searchParams }: PageProps) {
     price: h.price,
     date: localizeSnkrdunkText(h.date),
     badge: (h.condition || localizeSnkrdunkText(h.label) || '').trim(),
+    units: h.units ?? 1,
   }));
 
   const minPrice = apparel.minPrice ?? 0;
