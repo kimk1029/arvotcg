@@ -376,6 +376,8 @@ export interface MyCardPriceRow {
   /** currentPriceJpy 의 등급 기준 — MyCardRow.priceBasis 와 같은 값. */
   priceBasis?: string | null;
   trend: number[];
+  /** 서버 최신 박스 판정 — 캐시의 옛 값을 덮어쓴다 (구서버 응답엔 없을 수 있음). */
+  itemKind?: 'single' | 'box';
 }
 
 /**
@@ -406,6 +408,8 @@ export async function fetchMyCardsSmart(): Promise<MyCardRow[]> {
         currentPriceJpy: p.currentPriceJpy > 0 ? p.currentPriceJpy : c.currentPriceJpy,
         priceBasis: p.currentPriceJpy > 0 ? p.priceBasis : c.priceBasis,
         trend: p.trend.length > 0 ? p.trend : c.trend,
+        // 박스 판정은 캐시가 아니라 서버 최신값 — '박스 제외' 필터가 옛 오판을 물고 있지 않게 (웹 mergeCardPrices 동일).
+        itemKind: p.itemKind ?? c.itemKind,
       };
     });
     swrSet(SWR_MY_CARDS, merged, { persist: true });
