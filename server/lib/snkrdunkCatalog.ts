@@ -256,8 +256,9 @@ export async function loadCatalogEntries(ids: number[]): Promise<Map<number, Cat
         packCode: c.packCode ?? null,
         setCode: c.setCode ?? null,
         game: c.game || null,
-        // 검색결과 경유로만 적재된 행은 itemKind 기본값('single')이라 이름 분류로 보강.
-        itemKind: c.itemKind === 'box' || classifySnkrdunkName(c.localizedName || c.name) === 'box' ? 'box' : 'single',
+        // 검색결과 경유로만 적재된 행은 itemKind 기본값('single')이라 이름·품번 분류로 보강.
+        // (품번을 같이 넘겨야 팩명 꼬리표가 붙은 싱글을 박스로 오판하지 않는다)
+        itemKind: c.itemKind === 'box' || classifySnkrdunkName(c.localizedName || c.name, c.productNumber) === 'box' ? 'box' : 'single',
         snapshot: s
           ? {
               minPrice: Number(s.minPrice),

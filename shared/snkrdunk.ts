@@ -113,6 +113,9 @@ export function classifySnkrdunkItem(raw: RawApparel): SnkrdunkItemKind {
     .join(' ');
 
   if (/trading-card-single|シングルカード|single/i.test(names)) return 'single';
+  // 카드 번호 [세트 번호/총수] 또는 `-tcg-` 품번은 싱글 확정 (classifySnkrdunkName 과 동일 규칙).
+  if (/\[[^\]]*\d{1,3}\s*\/\s*\d{1,3}[^\]]*\]/.test(names)) return 'single';
+  if (SINGLE_PRODUCT_NUMBER_RE.test(raw.productNumber ?? '')) return 'single';
   if (/ボックス|BOX|Box|デッキビルド|スターターセット|ポケモンセンターセット|シュリンク|trading_card/i.test(names)) {
     return 'box';
   }
@@ -125,12 +128,23 @@ export function classifySnkrdunkItem(raw: RawApparel): SnkrdunkItemKind {
  * 없어 name 으로만 판별해야 할 때 사용. 박스 마커가 보이면 box, 아니면 single.
  * (DashboardScreen 클라이언트의 BOX_NAME_RE 와 마커를 일치시킬 것 — 변경 시 양쪽 수정)
  */
-export function classifySnkrdunkName(name: string | null | undefined): SnkrdunkItemKind {
+export function classifySnkrdunkName(
+  name: string | null | undefined,
+  productNumber?: string | null,
+): SnkrdunkItemKind {
   const n = name ?? '';
   if (/シングルカード|trading-card-single/i.test(n)) return 'single';
+  // 싱글 카드명은 소속 팩명을 꼬리표로 달고 온다 — 「リザードンV SR [S9 103/100](拡張パック「スターバース」)」.
+  // 팩 마커(拡張パック 등)보다 카드 번호 [세트 번호/총수] 가 우선 — 이걸 먼저 보지 않으면
+  // 싱글 전부가 박스로 오판되어 컬렉션 '박스 제외'에서 카드까지 빠진다 (2026-09-07 실측).
+  if (/\[[^\]]*\d{1,3}\s*\/\s*\d{1,3}[^\]]*\]/.test(n)) return 'single';
+  if (SINGLE_PRODUCT_NUMBER_RE.test(productNumber ?? '')) return 'single';
   if (/ボックス|box|booster|ブースター|デッキビルド|スターター|拡張パック|ハイクラスパック|ポケモンセンターセット|シュリンク/i.test(n)) return 'box';
   return 'single';
 }
+
+/** 스니덩 싱글 카드 품번 — `pkmn-tcg-SV10-109` 처럼 `-tcg-` 세그먼트를 가진다(박스는 `pkmn-12`). */
+const SINGLE_PRODUCT_NUMBER_RE = /-tcg-/i;
 
 /** raw 응답 → 통합 SnkrdunkApparel. 싱글카드는 중고(usedMinPrice) 시장만 있어 활성 쪽 노출. */
 export function toSnkrdunkApparel(raw: RawApparel, itemKind?: SnkrdunkItemKind): SnkrdunkApparel {
