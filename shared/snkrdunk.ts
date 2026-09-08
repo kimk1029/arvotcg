@@ -254,7 +254,8 @@ export function toHalfWidthDigits(text: string): string {
  * (전각 숫자·セット/組/パック 접미까지 허용 — 못 잡으면 화면에 일본어 수량이 그대로 남고 단가 환산도 빠진다.)
  */
 export function parseUnitLabel(label: string | null | undefined): number | null {
-  const m = /^(\d+)\s*(個|枚)(?:\s*(?:セット|組|パック|set))?$/i.exec(toHalfWidthDigits((label ?? '').trim()));
+  // 단위: 個(박스)·枚(카드)·パック(낱개 팩)·箱/BOX·セット/組. 팩 상품은 '100パック' 처럼 title 쪽에 온다(2026-09-08 실측).
+  const m = /^(\d+)\s*(個|枚|パック|箱|ボックス|BOX|セット|組)(?:\s*(?:セット|組|パック|set))?$/i.exec(toHalfWidthDigits((label ?? '').trim()));
   const n = m ? Number(m[1]) : NaN;
   return Number.isFinite(n) && n >= 1 ? n : null;
 }
@@ -290,9 +291,12 @@ export function tradingHistoryToSales(raw: RawTradingHistory | null | undefined,
       // (상태 칸에 '2枚' 가 일본어 그대로 뜨던 원인). 화면은 condition 을 localizeSnkrdunkText 로 한글화한다.
       const fromLabel = parseUnitLabel(t.label);
       const fromTitle = parseUnitLabel(t.title);
-      const units = fromLabel ?? fromTitle ?? 1;
-      const condition = (fromLabel != null ? t.title : fromTitle != null ? t.label : t.title) ?? '';
-      const sizeText = fromLabel != null ? t.label : fromTitle != null ? t.title : '';
+      // 둘 다 수량이면 큰 쪽(예: title '100パック' vs label '1個')이 실제 체결 수량. 나머지가 상태.
+      const useTitle = fromTitle != null && (fromLabel == null || fromTitle > fromLabel);
+      const units = useTitle ? fromTitle! : fromLabel ?? 1;
+      const other = (useTitle ? t.label : t.title) ?? '';
+      const condition = parseUnitLabel(other) != null ? '' : other;
+      const sizeText = useTitle ? t.title : fromLabel != null ? t.label : '';
       return {
         price: units > 1 ? Math.round(t.price / units) : t.price,
         date: formatSnkrdunkSoldAt(t.soldAt, now),
@@ -378,6 +382,8 @@ export function localizeSnkrdunkText(value: string | null | undefined): string {
   // 수량 단위
   v = v.replace(/(\d+)\s*個/g, '$1개');
   v = v.replace(/(\d+)\s*枚/g, '$1장');
+  v = v.replace(/(\d+)\s*パック/g, '$1팩');
+  v = v.replace(/新品/g, '신품');
   v = v.replace(/(\d+)\s*点/g, '$1점');
   v = v.replace(/(\d+)\s*件/g, '$1건');
   v = v.replace(/(\d+)\s*回/g, '$1회');
