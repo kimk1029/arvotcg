@@ -20,11 +20,12 @@ export function CardImageZoom({ src, kind = 'card', onClose }: { src: string; ki
           accessibilityLabel="카드 이미지 확대"
           style={{ width: L.width, height: L.height, borderRadius: L.radius, overflow: 'hidden', backgroundColor: '#111', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}
         >
+          {/* 컨테이너 크기로 contain 한 뒤 scale 로 키움 — 프레임 투명 여백이 밖으로 밀려나 카드만 꽉 참 (웹 동일). */}
           <Image
             source={shotSource(src)}
             resizeMode="contain"
             resizeMethod="scale"
-            style={{ position: 'absolute', left: L.imageLeft, top: L.imageTop, width: L.imageWidth, height: L.imageHeight }}
+            style={{ width: L.width, height: L.height, transform: [{ scale: L.imageScale }] }}
           />
         </View>
         <Text style={{ position: 'absolute', bottom: 28, color: 'rgba(255,255,255,0.6)', fontSize: 10, letterSpacing: 0.5 }}>{cardZoomCaption(kind)}</Text>

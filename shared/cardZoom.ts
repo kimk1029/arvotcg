@@ -26,6 +26,11 @@ export interface CardZoomLayout {
   imageHeight: number;
   imageLeft: number;
   imageTop: number;
+  /**
+   * 컨테이너 크기(contain)로 그린 이미지를 가운데 기준으로 키울 배율 — 프레임 투명 여백을 밖으로
+   * 밀어내 카드가 컨테이너를 꽉 채운다. (절대배치 대신 transform scale — 플랫폼별 클리핑 차이 없음)
+   */
+  imageScale: number;
 }
 
 export function cardZoomLayout(opts: {
@@ -47,7 +52,7 @@ export function cardZoomLayout(opts: {
     const aspect = SNKRDUNK_CARD_FRAME.aspect;
     const width = Math.min(maxW, maxH * aspect);
     const height = width / aspect;
-    return { width, height, radius: Math.round(width * 0.02), imageWidth: width, imageHeight: height, imageLeft: 0, imageTop: 0 };
+    return { width, height, radius: Math.round(width * 0.02), imageWidth: width, imageHeight: height, imageLeft: 0, imageTop: 0, imageScale: 1 };
   }
 
   const ratio = TCG_CARD.widthMm / TCG_CARD.heightMm;
@@ -58,7 +63,11 @@ export function cardZoomLayout(opts: {
   // 카드 높이(= 컨테이너 높이)가 프레임 높이의 cardHeightFrac 이 되도록 이미지를 키우고 가운데 정렬.
   const imageHeight = height / SNKRDUNK_CARD_FRAME.cardHeightFrac;
   const imageWidth = imageHeight * SNKRDUNK_CARD_FRAME.aspect;
-  return { width, height, radius, imageWidth, imageHeight, imageLeft: (width - imageWidth) / 2, imageTop: (height - imageHeight) / 2 };
+  // contain 으로 컨테이너(세로 카드 비율)에 넣으면 가로 프레임은 폭에 맞고(drawnH = W/aspect),
+  // 그 안의 카드 높이 = frac·drawnH → 컨테이너 높이까지 키우는 배율.
+  const drawnH = Math.min(height, width / SNKRDUNK_CARD_FRAME.aspect);
+  const imageScale = height / (SNKRDUNK_CARD_FRAME.cardHeightFrac * drawnH);
+  return { width, height, radius, imageWidth, imageHeight, imageLeft: (width - imageWidth) / 2, imageTop: (height - imageHeight) / 2, imageScale };
 }
 
 /** 확대 보기 하단 안내문 (웹·앱 동일) */

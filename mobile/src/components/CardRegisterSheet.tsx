@@ -78,8 +78,9 @@ export function CardRegisterSheet({
         onPress={onClose}
         style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }}
       >
-        <Pressable onPress={() => undefined} style={{ maxHeight: '88%' }}>
-          <View style={{ backgroundColor: MP.pageBg, borderTopLeftRadius: 18, borderTopRightRadius: 18, overflow: 'hidden' }}>
+        {/* 시트 높이 상한 안에서 폼이 스크롤되도록 flexShrink — 등급 입력이 펼쳐져 길어져도 하단 '컬렉션에 등록' 이 잘리지 않는다 (웹 max-height+overflow 동일). */}
+        <Pressable onPress={() => undefined} style={{ maxHeight: '88%', flexShrink: 1 }}>
+          <View style={{ flexShrink: 1, backgroundColor: MP.pageBg, borderTopLeftRadius: 18, borderTopRightRadius: 18, overflow: 'hidden' }}>
             {/* 헤더 */}
             <View
               style={{
@@ -109,7 +110,7 @@ export function CardRegisterSheet({
               </View>
             </View>
 
-            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 26 }} keyboardShouldPersistTaps="handled">
+            <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
               <CardRegisterForm
                 key={card.apparelId}
                 card={formCard}
