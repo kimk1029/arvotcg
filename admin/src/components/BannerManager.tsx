@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { HERO_AUTOPLAY_MAX_MS, HERO_AUTOPLAY_MIN_MS } from '../../../shared/heroBanner';
 
 export interface BannerData {
   id: number;
@@ -46,12 +47,36 @@ const EMPTY_DRAFT: Draft = {
   active: true,
 };
 
-export function BannerManager({ initialBanners }: { initialBanners: BannerData[] }) {
+export function BannerManager({ initialBanners, initialAutoplayMs }: { initialBanners: BannerData[]; initialAutoplayMs: number }) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<number | 'new' | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  // 슬라이드 자동 전환 간격(초) — 슬라이더로 고르고 저장하면 홈(웹·앱) 히어로 배너에 바로 반영.
+  // 값은 SiteSetting hero.autoplayMs (정본 shared/heroBanner.ts, /api/banners/settings).
+  const [autoplaySec, setAutoplaySec] = useState<number>(Math.round(initialAutoplayMs / 100) / 10);
+  const [savedSec, setSavedSec] = useState<number>(Math.round(initialAutoplayMs / 100) / 10);
+  const [savingInterval, setSavingInterval] = useState(false);
+  const saveInterval = async () => {
+    setBusy(true); setMsg(null); setSavingInterval(true);
+    try {
+      const res = await fetch('/api/banners/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoplayMs: Math.round(autoplaySec * 1000) }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
+      const sec = Math.round(Number(body?.autoplayMs ?? autoplaySec * 1000) / 100) / 10;
+      setAutoplaySec(sec); setSavedSec(sec);
+      setMsg({ type: 'ok', text: `전환 간격 ${sec}초 저장됨 — 홈(웹·앱) 배너에 바로 반영됩니다` });
+      router.refresh();
+    } catch (e) {
+      setMsg({ type: 'err', text: e instanceof Error ? e.message : '전환 간격 저장 실패' });
+    } finally { setBusy(false); setSavingInterval(false); }
+  };
 
   const startEdit = (b: BannerData) => { setEditingId(b.id); setDraft({ ...b }); setMsg(null); };
   const startNew = () => { setEditingId('new'); setDraft({ ...EMPTY_DRAFT }); setMsg(null); };
@@ -147,6 +172,44 @@ export function BannerManager({ initialBanners }: { initialBanners: BannerData[]
           {msg.type === 'ok' ? '✓ ' : '⚠ '}{msg.text}
         </div>
       )}
+
+      {/* 표시 설정 — 슬라이드 자동 전환 간격 슬라이더 (홈 웹·앱 공통, 순서는 정렬값 순) */}
+      <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>슬라이드 전환 간격</div>
+            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+              배너가 다음 장으로 넘어가는 시간 ({HERO_AUTOPLAY_MIN_MS / 1000}~{HERO_AUTOPLAY_MAX_MS / 1000}초). 현재 적용값 {savedSec}초
+            </div>
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: autoplaySec !== savedSec ? '#1D4ED8' : '#0F172A' }}>
+            {autoplaySec.toFixed(1)}<span style={{ fontSize: 12, fontWeight: 600, marginLeft: 2 }}>초</span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 11, color: '#94A3B8', flex: 'none' }}>{HERO_AUTOPLAY_MIN_MS / 1000}초</span>
+          <input
+            type="range"
+            min={HERO_AUTOPLAY_MIN_MS / 1000}
+            max={HERO_AUTOPLAY_MAX_MS / 1000}
+            step={0.5}
+            value={autoplaySec}
+            onChange={(e) => setAutoplaySec(Number(e.target.value))}
+            disabled={savingInterval}
+            aria-label="슬라이드 전환 간격(초)"
+            style={{ flex: 1, accentColor: '#2563EB', cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: 11, color: '#94A3B8', flex: 'none' }}>{HERO_AUTOPLAY_MAX_MS / 1000}초</span>
+          <button
+            type="button"
+            onClick={saveInterval}
+            disabled={savingInterval || autoplaySec === savedSec}
+            style={{ ...primaryBtn, opacity: autoplaySec === savedSec ? 0.5 : 1 }}
+          >
+            {savingInterval ? '저장 중…' : '간격 저장'}
+          </button>
+        </div>
+      </section>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 12, color: '#64748B' }}>총 {initialBanners.length}개</span>

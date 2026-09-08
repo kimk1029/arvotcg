@@ -256,16 +256,18 @@ export function AdminBannerList({ initialBanners, initialAutoplayMs }: Props) {
           </span>
         </label>
         <input
-          type="number"
+          type="range"
           min={HERO_AUTOPLAY_MIN_MS / 1000}
           max={HERO_AUTOPLAY_MAX_MS / 1000}
           step={0.5}
           value={autoplaySec}
           onChange={(e) => setAutoplaySec(e.target.value)}
-          style={{ ...inputStyle, width: 72 }}
+          style={{ flex: '1 1 140px', minWidth: 120, accentColor: 'var(--grn-dk)', cursor: 'pointer' }}
           aria-label="슬라이드 전환 간격(초)"
         />
-        <span style={{ fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink2)' }}>초</span>
+        <span style={{ fontFamily: 'var(--f1)', fontSize: 12, fontWeight: 800, color: 'var(--ink)', minWidth: 44, textAlign: 'right' }}>
+          {Number(autoplaySec).toFixed(1)}초
+        </span>
         <button type="button" onClick={saveInterval} disabled={savingInterval || pending} style={btnStyle('var(--grn-dk)')}>
           {savingInterval ? '저장 중…' : '간격 저장'}
         </button>
