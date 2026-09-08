@@ -12,6 +12,8 @@
  *   - 모바일: mobile/src/services/snkrdunk.ts (직접 호출 + timeout)
  */
 
+import { gameFromKeywords, gameFromSnkrdunkBrand, type CardGame } from './cardStatics';
+
 export const SNKRDUNK_ORIGIN = 'https://snkrdunk.com';
 
 export const SNKRDUNK_USER_AGENT =
@@ -42,6 +44,8 @@ export interface SnkrdunkApparel {
   packCode?: string | null;
   /** 스니덩크 상품 카탈로그 id — v3 trading-history(수량별 체결) 조회 키. 없으면 구형 sales-history 폴백. */
   productCatalogId?: number | null;
+  /** 작품 — raw brands(ONE PIECE·YU-GI-OH·Pokemon Card Game)에서 판정, 없으면 이름 키워드. 모르면 null(카탈로그가 이름 파싱 폴백). */
+  game?: CardGame | null;
 }
 
 export interface SnkrdunkSaleEntry {
@@ -75,6 +79,7 @@ export interface SnkrdunkApparelGroupPage {
 export interface RawApparel {
   id: number;
   productCatalogId?: number;
+  brands?: Array<{ name?: string; localizedName?: string }>;
   name?: string;
   localizedName?: string;
   primaryMedia?: { imageUrl?: string };
@@ -190,7 +195,17 @@ export function toSnkrdunkApparel(raw: RawApparel, itemKind?: SnkrdunkItemKind):
     releasedAt: raw.releasedAt ?? null,
     productNumber: raw.productNumber ?? '',
     productCatalogId: raw.productCatalogId ?? null,
+    game: snkrdunkGameFromRaw(raw),
   };
+}
+
+/** raw apparel 의 작품 판정 — brands 우선(정확), 없으면 이름 키워드. 모르면 null. */
+export function snkrdunkGameFromRaw(raw: Pick<RawApparel, 'brands' | 'name' | 'localizedName'>): CardGame | null {
+  for (const b of raw.brands ?? []) {
+    const g = gameFromSnkrdunkBrand(b.name) ?? gameFromSnkrdunkBrand(b.localizedName);
+    if (g) return g;
+  }
+  return gameFromKeywords(`${raw.localizedName ?? ''} ${raw.name ?? ''}`);
 }
 
 /* ── v3 trading-history (수량별 체결) ─────────────────────────────── */
