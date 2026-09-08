@@ -1,5 +1,6 @@
+import { CardImageZoom } from '@/components/CardImageZoom';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Modal, Pressable, ScrollView, View, Text, useWindowDimensions } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, View, Text } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { CardActions } from '@/components/CardActions';
@@ -106,9 +107,6 @@ export default function SnkrdunkDetail() {
   const [zoomOpen, setZoomOpen] = useState(false);
   const [gradeKey, setGradeKey] = useState<string | null>(null);
   const [region, setRegion] = useState('일본판');
-  // 확대 보기 카드 폭 — 실물 63mm(397dp)를 넘지 않고, 화면 폭·높이(82%)에도 맞춘다.
-  const win = useWindowDimensions();
-  const zoomW = Math.min(397, win.width - 40, (win.height * 0.82) * (63 / 88));
   const [rangeIdx, setRangeIdx] = useState(4); // 전체
 
   useEffect(() => {
@@ -590,20 +588,7 @@ export default function SnkrdunkDetail() {
         </ScrollView>
       )}
 
-      <Modal visible={zoomOpen} transparent animationType="fade" onRequestClose={() => setZoomOpen(false)}>
-        <Pressable onPress={() => setZoomOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          {apparel?.imageUrl ? (
-            // 실제 카드 크기(63×88mm ≈ 397×554dp, 160dp = 1in) — 화면이 더 작으면 폭/높이에 맞춘다(웹 동일 규칙).
-            <View style={{ width: zoomW, height: zoomW * (88 / 63), borderRadius: zoomW * (3 / 63), overflow: 'hidden', backgroundColor: '#111', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}>
-              <Image source={shotSource(apparel.imageUrl)} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
-            </View>
-          ) : null}
-          <Text style={{ position: 'absolute', bottom: 28, color: 'rgba(255,255,255,0.6)', fontSize: 10, letterSpacing: 0.5 }}>실제 카드 크기 63 × 88mm · 탭하면 닫힘</Text>
-          <View style={{ position: 'absolute', top: 40, right: 20, backgroundColor: tc.ink, paddingHorizontal: 10, paddingVertical: 6, borderColor: tc.gold, borderWidth: 2 }}>
-            <PixelText variant={txt} size={11} color={tc.gold}>✕ 닫기</PixelText>
-          </View>
-        </Pressable>
-      </Modal>
+      {zoomOpen && apparel?.imageUrl ? <CardImageZoom src={apparel.imageUrl} kind={isBox ? 'box' : 'card'} onClose={() => setZoomOpen(false)} /> : null}
     </View>
   );
 }
