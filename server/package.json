@@ -8,7 +8,8 @@
     "start": "tsx index.js",
     "typecheck": "tsc -p .",
     "prisma:generate": "prisma generate --schema=../prisma/schema.prisma",
-    "postinstall": "rm -rf node_modules/@prisma/client node_modules/.prisma"
+    "postinstall": "rm -rf node_modules/@prisma/client node_modules/.prisma",
+    "test:security": "tsx --test security.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

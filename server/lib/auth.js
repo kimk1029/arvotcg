@@ -24,7 +24,7 @@ export async function signSession(payload) {
 }
 
 export async function verifySession(token) {
-  const { payload } = await jwtVerify(token, SECRET, { issuer: ISSUER });
+  const { payload } = await jwtVerify(token, SECRET, { issuer: ISSUER, algorithms: ['HS256'], requiredClaims: ['sub', 'iat', 'exp'] });
   if (!payload.sub) throw new Error('missing sub');
   return {
     userId: String(payload.sub),

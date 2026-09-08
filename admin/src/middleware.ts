@@ -19,6 +19,15 @@ export async function middleware(req: NextRequest) {
   }
 
   const { pathname } = req.nextUrl;
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    const origin = req.headers.get('origin');
+    const allowed = new Set(['https://admin.arvotcg.com']);
+    if (process.env.ADMIN_BASE_URL) allowed.add(new URL(process.env.ADMIN_BASE_URL).origin);
+    if (process.env.NODE_ENV !== 'production') allowed.add(req.nextUrl.origin);
+    if (!origin || !allowed.has(origin)) {
+      return NextResponse.json({ error: 'invalid_origin' }, { status: 403 });
+    }
+  }
   if (PUBLIC_PATHS.has(pathname)) {
     // 이미 로그인된 상태로 /login 접근 → 대시보드로
     if (pathname === '/login' && (await verifySessionToken(req.cookies.get(ADMIN_COOKIE)?.value))) {

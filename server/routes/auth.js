@@ -9,6 +9,11 @@ import { defaultNameFor } from '../lib/defaultName.js';
 import { isAdminUser } from '../lib/admin.js';
 
 const router = Router();
+router.use((_req, res, next) => {
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  next();
+});
 
 const WEB_BASE_URL = process.env.WEB_BASE_URL ?? 'http://localhost:3000';
 // 어드민 사이트(별도 도메인) — 소셜 로그인 성공 후 세션 교환 경로로 돌려보낸다.

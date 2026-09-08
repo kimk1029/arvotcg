@@ -5,13 +5,12 @@
  * 판정 규칙 정본은 shared/onboarding.ts (앱 EntryGate 와 동일). 웹은 온보딩 단계를
  * 건너뛴다(platform: 'web', 2026-09-08 사용자 지시) — 앱만 첫 실행에 온보딩을 띄운다.
  *
- *  · 앱 인앱 WebView(임베드)는 앱이 이미 게이트를 통과한 뒤 여는 화면이므로 제외.
+ *  · 앱 WebView도 서버에서 토큰을 검증·쿠키 교환한 뒤 동일한 세션 검사를 받는다.
  *  · 세션 판정(/auth/me) 이 끝나기 전엔 SSR 콘텐츠를 그대로 두고, 미로그인이 확정되면 보낸다.
  *  · 리다이렉트 대기 중엔 전면 오버레이로 본 화면을 가려 깜빡임을 막는다.
  */
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { isEmbedded } from '@/lib/embed';
 import { isOnboardingSeen, resolveEntryGate, type EntryGateTarget } from '@/lib/onboarding';
 import { useSession } from '@/lib/session';
 
@@ -22,10 +21,6 @@ export function EntryGate() {
   const [target, setTarget] = useState<EntryGateTarget>(null);
 
   useEffect(() => {
-    if (isEmbedded()) {
-      setTarget(null);
-      return;
-    }
     const seen = isOnboardingSeen();
     // 세션 미확정 상태에선 '로그인' 게이트를 걸지 않는다(온보딩 게이트는 로컬 플래그만 보므로 즉시).
     const authed = status !== 'unauthenticated';

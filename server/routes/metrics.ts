@@ -12,9 +12,8 @@ export type MetricSource = 'web' | 'mobile' | 'webview';
 const ALLOWED_NETWORKS = new Set(['adsense', 'adfit', 'house', 'offerwall']);
 
 function clientIp(req: Request): string | null {
-  const fwd = (req.headers['x-forwarded-for'] as string | undefined) ?? '';
-  const ip = (fwd.split(',')[0] ?? '').trim().slice(0, 64);
-  return ip || null;
+  // Express의 trust proxy 정책을 사용한다. 외부가 넣은 X-Forwarded-For 첫 값을 믿지 않는다.
+  return req.ip?.slice(0, 64) || null;
 }
 
 function ua(req: Request): string | null {

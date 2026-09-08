@@ -26,8 +26,9 @@ import { matchSnkrdunkForCard } from './lib/snkrdunkMatch.js';
 import { prisma } from './lib/prisma.js';
 import { CARD_CDN_DIR, startCardImageWarmer } from './lib/cardImageCache.js';
 import { fetchApparelSingleJpy } from '@/lib/snkrdunkPrice';
-import { buildCors } from './middleware/cors.js';
+import { buildCors, protectCookieWrites } from './middleware/cors.js';
 import { requireAdmin } from './middleware/requireAdmin.js';
+import { apiAccess } from './middleware/apiAccess.ts';
 import { requireAuth } from './middleware/requireAuth.js';
 import { rateLimit } from './middleware/rateLimit.js';
 import authRouter from './routes/auth.js';
@@ -70,8 +71,16 @@ await mkdir(DEBUG_DIR, { recursive: true }).catch(() => {});
 const PORT = Number(process.env.PORT ?? 3030);
 const app = express();
 app.set('trust proxy', 1);
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  if (process.env.NODE_ENV === 'production') res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+  next();
+});
 app.use(buildCors());
 app.use(cookieParser());
+app.use(protectCookieWrites);
+app.use('/api', apiAccess);
 app.use(express.json({ limit: '20mb' }));
 app.use('/auth', authRouter);
 app.use('/api/card-packs', cardPacksRouter);
@@ -127,14 +136,20 @@ app.get('/api/navercafe/img', async (req, res) => {
         'User-Agent': NAVER_IMAGE_UA,
         Accept: 'image/avif,image/webp,image/png,image/jpeg,*/*',
       },
+      redirect: 'error',
       signal: AbortSignal.timeout(10000),
     });
     if (!upstream.ok || !upstream.body) {
       return res.status(502).send(`upstream ${upstream.status}`);
     }
 
+    const contentType = upstream.headers.get('content-type')?.split(';')[0].trim().toLowerCase() ?? '';
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(contentType)) {
+      await upstream.body.cancel();
+      return res.status(502).send('unsupported image');
+    }
     res.status(200);
-    res.setHeader('Content-Type', upstream.headers.get('content-type') ?? 'image/jpeg');
+    res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800');
 
     const buf = Buffer.from(await upstream.arrayBuffer());
@@ -796,7 +811,8 @@ app.post('/api/cards/scan', requireAuth, scanRateLimit, upload.single('image'), 
 app.use((err, _req, res, _next) => {
   console.error('[express.error]', err);
   if (res.headersSent) return;
-  res.status(500).json({ error: 'internal' });
+  const status = [400, 403, 413].includes(err.status) ? err.status : 500;
+  res.status(status).json({ error: status === 403 ? 'forbidden' : 'internal' });
 });
 
 /**

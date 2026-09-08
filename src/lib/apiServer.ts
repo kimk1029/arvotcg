@@ -2,7 +2,7 @@
  * Server Component / Server-side fetch wrapper.
  * - dev: Next 가 `/api/*`, `/auth/*` 를 Express 로 rewrite 하지만 Server Component
  *   에서는 절대 URL 이 필요. 직접 Express 서버 (`API_INTERNAL_URL`) 로 호출한다.
- * - 인증이 필요한 호출에는 `pf30_session` 쿠키를 `Cookie:` 헤더로 포워딩.
+ * - 내부 API 호출에는 `pf30_session` 쿠키를 Bearer 헤더로 전달.
  */
 import { resolveApiOrigin } from '../../shared/apiEndpoints';
 import { cookies } from 'next/headers';
@@ -24,7 +24,7 @@ function baseUrl(): string {
 interface ServerFetchOpts {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
-  /** 인증 쿠키 포워딩 여부 (기본 true). */
+  /** @deprecated 모든 내부 API 호출은 인증 쿠키를 전달한다. */
   auth?: boolean;
   cache?: RequestCache;
   /**
@@ -48,10 +48,9 @@ export async function serverFetch<T>(
   const url = `${baseUrl()}${path}`;
   const headers: Record<string, string> = {};
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
-  if (opts.auth !== false) {
-    const session = cookies().get(SESSION_COOKIE);
-    if (session) headers['Cookie'] = `${session.name}=${session.value}`;
-  }
+  const session = cookies().get(SESSION_COOKIE);
+  // 서버 간 호출은 Bearer로 전달한다. 브라우저 Origin이 없는 서버 액션도 CSRF 검사와 구분된다.
+  if (session) headers['Authorization'] = `Bearer ${session.value}`;
 
   const method = opts.method ?? 'GET';
   const retries = method === 'GET' ? Math.max(0, opts.retries ?? 1) : 0;
@@ -64,7 +63,7 @@ export async function serverFetch<T>(
         headers,
         body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
         signal: controller.signal,
-        ...(typeof opts.revalidate === 'number'
+        ...(session ? { cache: 'no-store' as const } : typeof opts.revalidate === 'number'
           ? { next: { revalidate: opts.revalidate } }
           : { cache: opts.cache ?? 'no-store' }),
       });

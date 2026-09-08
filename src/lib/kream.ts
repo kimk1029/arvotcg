@@ -96,11 +96,12 @@ export function kreamRouteState(): { relay: boolean; directBlocked: boolean } {
   return { relay: KREAM_RELAY_ORIGIN !== '', directBlocked: Date.now() < directBlockedUntil };
 }
 
-async function fetchKreamViaRelay(q: string): Promise<KreamItem[]> {
+async function fetchKreamViaRelay(q: string, token?: string): Promise<KreamItem[]> {
+  if (!token || !KREAM_RELAY_ORIGIN.startsWith('https://')) return [];
   try {
     const res = await fetch(
       `${KREAM_RELAY_ORIGIN}/api/kream/search?q=${encodeURIComponent(q)}`,
-      { signal: AbortSignal.timeout(12_000) },
+      { headers: { Authorization: `Bearer ${token}` }, redirect: 'error', signal: AbortSignal.timeout(12_000) },
     );
     if (!res.ok) return [];
     const body = (await res.json()) as { items?: KreamItem[] };
@@ -136,7 +137,7 @@ async function fetchKreamDirect(q: string): Promise<{ items: KreamItem[]; blocke
   }
 }
 
-async function fetchKreamRaw(q: string): Promise<KreamItem[]> {
+async function fetchKreamRaw(q: string, token?: string): Promise<KreamItem[]> {
   // ① 직접 — 최근 차단 표시가 없을 때만.
   if (Date.now() >= directBlockedUntil) {
     const direct = await fetchKreamDirect(q);
@@ -150,7 +151,7 @@ async function fetchKreamRaw(q: string): Promise<KreamItem[]> {
     // OK 인데 빈 결과: 실제로 검색 결과가 없거나 안티봇이 빈 페이지를 준 경우 → 릴레이가 있으면 한 번 더.
   }
   // ② 릴레이(NAS) 폴백.
-  if (KREAM_RELAY_ORIGIN) return fetchKreamViaRelay(q);
+  if (KREAM_RELAY_ORIGIN) return fetchKreamViaRelay(q, token);
   return [];
 }
 
@@ -172,7 +173,7 @@ const inflight = new Map<string, Promise<KreamItem[]>>();
  * KREAM 검색 (캐시됨). 같은 검색어는 TTL 동안 KREAM에 재요청하지 않고,
  * 동시 요청은 in-flight 하나로 합친다. 실패/차단 시 빈 배열.
  */
-export async function fetchKreamSearch(query: string): Promise<KreamItem[]> {
+export async function fetchKreamSearch(query: string, token?: string): Promise<KreamItem[]> {
   const q = query.trim();
   if (!q) return [];
   const now = Date.now();
@@ -185,7 +186,7 @@ export async function fetchKreamSearch(query: string): Promise<KreamItem[]> {
 
   const p = (async () => {
     try {
-      const items = await fetchKreamRaw(q);
+      const items = await fetchKreamRaw(q, token);
       cache.set(q, { ts: Date.now(), ttl: items.length > 0 ? SUCCESS_TTL : EMPTY_TTL, items });
       // 오래된 항목 정리 (메모리 상한)
       if (cache.size > MAX_ENTRIES) {

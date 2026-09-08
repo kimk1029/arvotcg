@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server';
 //
 // 보안: 화이트리스트 2개 GET 엔드포인트만 통과 + 호출자가 자기 PSA 토큰을
 // x-psa-token 으로 제공해야 동작(토큰 없인 무용지물). PSA_RELAY_KEY 를
-// Vercel 환경변수로 설정하면 x-relay-key 일치까지 요구.
+// Vercel과 서버에 같은 값을 설정해야 하며 미설정 시 요청을 거부한다.
 export const dynamic = 'force-dynamic';
 
 const PSA_ORIGIN = 'https://api.psacard.com/publicapi';
@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   }
 
   const relayKey = process.env.PSA_RELAY_KEY;
-  if (relayKey && req.headers.get('x-relay-key') !== relayKey) {
+  if (!relayKey || req.headers.get('x-relay-key') !== relayKey) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 

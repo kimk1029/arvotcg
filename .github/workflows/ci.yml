@@ -12,6 +12,8 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - 'shared/**'
+      - 'tests/**'
       - 'prisma/**'
       - 'server/**'
       - 'mobile/**'
@@ -42,6 +44,9 @@ jobs:
 
       - name: Prisma generate
         run: npx prisma generate
+
+      - name: Security regression tests
+        run: npm run test:security
 
       - name: Lint
         run: npm run lint -- --max-warnings 100
@@ -81,6 +86,10 @@ jobs:
       - name: Install server deps
         working-directory: server
         run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Security regression tests
+        working-directory: server
+        run: npm run test:security
 
       - name: Typecheck
         working-directory: server

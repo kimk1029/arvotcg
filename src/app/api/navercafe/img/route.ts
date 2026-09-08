@@ -30,18 +30,24 @@ export async function GET(req: Request) {
       // Referer 미전송이 핵심(핫링크 차단 우회). UA/Accept 만 전달.
       headers: { 'User-Agent': UA, Accept: 'image/avif,image/webp,image/png,image/jpeg,*/*' },
       cache: 'no-store',
+      redirect: 'error',
       signal: AbortSignal.timeout(10000),
     });
     if (!upstream.ok || !upstream.body) {
       return new NextResponse(`upstream ${upstream.status}`, { status: 502 });
     }
-    const contentType = upstream.headers.get('content-type') ?? 'image/jpeg';
+    const contentType = upstream.headers.get('content-type')?.split(';')[0].trim().toLowerCase() ?? '';
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(contentType)) {
+      await upstream.body.cancel();
+      return new NextResponse('unsupported image', { status: 502 });
+    }
     return new NextResponse(upstream.body, {
       status: 200,
       headers: {
         'Content-Type': contentType,
+        'X-Content-Type-Options': 'nosniff',
         // CDN/브라우저 캐시 — 이미지는 불변에 가까움.
-        'Cache-Control': 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800',
+        'Cache-Control': 'private, no-store',
       },
     });
   } catch {

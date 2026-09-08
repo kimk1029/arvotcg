@@ -1,38 +1,65 @@
-/**
- * 웹 로그인 필수 게이트 — 서버(엣지) 단계.
- *
- * 클라이언트 EntryGate(src/components/EntryGate.tsx)만으로는 세션 판정 전 SSR 본문이 그대로
- * 노출되고(JS 꺼짐·크롤러·판정 지연) 로그인 없이 화면을 볼 수 있었다(2026-09-09 확인).
- * 여기서 세션 쿠키가 없는 요청을 비면제 경로에서 /login 으로 먼저 돌려보낸다.
- * 판정 규칙(면제 경로·임베드)은 shared/onboarding.ts·shared/embed.ts 정본을 그대로 쓴다.
- *
- *  · 쿠키 존재만 본다(서명 검증은 /auth/me 가 담당) — 만료·위조 토큰은 클라이언트 EntryGate 가 마무리.
- *  · 앱 인앱 WebView(UA 토큰 ARVOTCG-App 또는 ?embed=1)는 앱이 이미 게이트를 통과한 뒤이므로 면제.
- *  · /api·/auth(Express 프록시)·정적 파일·SEO 메타 파일은 matcher 에서 제외.
- * 앱 페어: mobile/src/components/EntryGate.tsx (앱은 네이티브 게이트만으로 충분).
- */
 import { NextResponse, type NextRequest } from 'next/server';
 import { isEntryGateExempt } from '../shared/onboarding';
-import { hasEmbedQuery, isEmbedUserAgent } from '../shared/embed';
+import { resolveApiOrigin } from '../shared/apiEndpoints';
+import { isPublicApi, hasIndependentApiAuth } from '../shared/accessPolicy';
 
 const SESSION_COOKIE = process.env.SESSION_COOKIE_NAME ?? 'pf30_session';
+const PUBLIC_ASSETS = new Set([
+  '/favicon.ico', '/icon.svg', '/apple-icon.png', '/manifest.webmanifest', '/robots.txt', '/sitemap.xml',
+  '/snkrdunk-icon.png', '/app-icon.png', '/meta.png', '/promo/cardshow.png',
+  '/grading/ars.webp', '/grading/sgc.webp', '/grading/bgs.webp', '/grading/cgc.webp', '/grading/psa.webp',
+]);
 
-export function middleware(req: NextRequest) {
-  const { pathname, search } = req.nextUrl;
-  if (isEntryGateExempt(pathname)) return NextResponse.next();
-  if (hasEmbedQuery(search) || isEmbedUserAgent(req.headers.get('user-agent'))) return NextResponse.next();
-  if (req.cookies.get(SESSION_COOKIE)?.value) return NextResponse.next();
+/** 쿠키 존재나 앱 표시값을 신뢰하지 않고 서버에서 서명·만료·회원 존재를 확인한다. */
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  const api = pathname === '/api' || pathname.startsWith('/api/');
+  if (PUBLIC_ASSETS.has(pathname) || (!api && isEntryGateExempt(pathname))
+    || isPublicApi(pathname, req.method) || hasIndependentApiAuth(pathname, req.method)) {
+    return NextResponse.next();
+  }
 
-  const login = req.nextUrl.clone();
-  login.pathname = '/login';
-  login.search = '';
-  login.searchParams.set('callbackUrl', `${pathname}${search}`);
-  return NextResponse.redirect(login);
+  // 구버전 앱 WebView의 쿼리 토큰은 검증 후 HttpOnly 쿠키로 교환하고 URL에서 제거한다.
+  const authorization = req.headers.get('authorization');
+  const bridgeToken = !api && req.method === 'GET' && pathname.startsWith('/event/')
+    ? req.nextUrl.searchParams.get('token') || (authorization?.startsWith('Bearer ') ? authorization.slice(7).trim() : null) : null;
+  const token = bridgeToken || (authorization?.startsWith('Bearer ') ? authorization.slice(7).trim() : req.cookies.get(SESSION_COOKIE)?.value);
+  let authenticated = false;
+  if (token) {
+    const origin = resolveApiOrigin({
+      explicitOverride: process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_ORIGIN,
+      appEnv: process.env.NEXT_PUBLIC_APP_ENV,
+      productionOrigin: process.env.API_ORIGIN_PROD,
+    });
+    try {
+      const response = await fetch(`${origin}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(5000),
+      });
+      const body = response.ok ? await response.json() : null;
+      authenticated = typeof body?.user?.id === 'string' && body.user.id.length > 0;
+    } catch { /* 인증 서버 장애 시에도 보호 화면은 열지 않는다. */ }
+  }
+
+  const cleanUrl = req.nextUrl.clone();
+  cleanUrl.searchParams.delete('token');
+  if (!authenticated) {
+    if (api) return NextResponse.json({ error: 'unauthorized' }, { status: 401, headers: { 'Cache-Control': 'private, no-store' } });
+    const login = new URL('/login', req.url);
+    login.searchParams.set('callbackUrl', `${cleanUrl.pathname}${cleanUrl.search}`);
+    return NextResponse.redirect(login, { headers: { 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' } });
+  }
+  const exchange = bridgeToken && (req.nextUrl.searchParams.has('token') || req.cookies.get(SESSION_COOKIE)?.value !== bridgeToken);
+  const response = exchange ? NextResponse.redirect(cleanUrl) : NextResponse.next();
+  if (exchange) response.cookies.set(SESSION_COOKIE, bridgeToken, {
+    httpOnly: true, secure: req.nextUrl.protocol === 'https:', sameSite: 'lax', path: '/',
+  });
+  response.headers.set('Cache-Control', 'private, no-store');
+  response.headers.set('Referrer-Policy', 'no-referrer');
+  return response;
 }
 
 export const config = {
-  // 페이지 요청만 — API/인증 프록시, Next 내부 자산, 파비콘·매니페스트·robots·sitemap, 확장자 있는 정적 파일 제외.
-  matcher: [
-    '/((?!api|auth|_next/static|_next/image|favicon\\.ico|icon\\.svg|apple-icon\\.png|manifest\\.webmanifest|robots\\.txt|sitemap\\.xml|.*\\.[a-zA-Z0-9]+$).*)',
-  ],
+  // 확장자·API·RSC 요청도 검사한다. 정적 자산 이외의 광범위한 경로 예외를 두지 않는다.
+  matcher: ['/((?!_next/static/|_next/image).*)'],
 };

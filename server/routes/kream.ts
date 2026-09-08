@@ -1,6 +1,8 @@
 import { Router, type Request, type Response } from 'express';
 import { fetchKreamSearch, kreamRouteState } from '@/lib/kream';
 
+import { extractToken } from '../lib/auth.js';
+
 const router = Router();
 
 /**
@@ -14,7 +16,7 @@ const router = Router();
 router.get('/search', async (req: Request, res: Response) => {
   const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   if (!q) return res.json({ items: [] });
-  const items = await fetchKreamSearch(q);
+  const items = await fetchKreamSearch(q, extractToken(req) ?? undefined);
   res.json({ items, meta: kreamRouteState() });
 });
 
