@@ -103,7 +103,7 @@ export default async function Page({ params, searchParams }: PageProps) {
   const trades: TradeRow[] = history.slice(0, 40).map((h) => ({
     price: h.price,
     date: localizeSnkrdunkText(h.date),
-    badge: (h.condition || localizeSnkrdunkText(h.label) || '').trim(),
+    badge: (localizeSnkrdunkText(h.condition) || localizeSnkrdunkText(h.label) || '').trim(),
     units: h.units ?? 1,
   }));
 

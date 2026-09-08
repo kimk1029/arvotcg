@@ -183,6 +183,8 @@ export function CardDetailView({
     const m = trades.filter((t) => pred(t.badge));
     return (m.length > 0 ? m : trades).slice(0, 20);
   }, [trades, gradeKey, isBox]);
+  // 헤드라인 옆 수량 배지 — 선택 등급의 최근 체결이 묶음이면 그 장수, 아니면 묶음뿐일 때의 최소 장수(앱 동일).
+  const headlineUnits = isBox ? 1 : ((filteredTrades[0]?.units ?? 1) > 1 ? (filteredTrades[0]?.units ?? 1) : bundleUnits);
 
   // 거래가 있는 등급만 — 거래내역 등급 토글 노출용(PSA10·RAW 등 전환).
   const tradeGrades = useMemo(() => grades.filter((g) => g.count > 0), [grades]);
@@ -261,9 +263,9 @@ export function CardDetailView({
           </div>
           <div style={{ fontFamily: 'var(--f1)', fontSize: 28, fontWeight: 900, color: 'var(--ink)', letterSpacing: 0.2, marginTop: 4, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
             <Price jpy={headlinePrice} empty="—" autoSizeBase={28} autoSizeMin={16} />
-            {bundleUnits > 1 && (
-              // 1장 체결이 없어 묶음 체결의 1장 단가만 있는 카드 — 장수를 작게 명시 (앱 동일).
-              <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--ink3)', background: 'var(--pap2)', padding: '2px 6px', borderRadius: 'var(--r-sm)', letterSpacing: 0 }}>{bundleUnits}장 묶음 단가 기준</span>
+            {headlineUnits > 1 && (
+              // 최근 체결이 묶음이면 장수를 작게 명시 — 표시 금액은 1개 단가 (앱 동일).
+              <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--ink3)', background: 'var(--pap2)', padding: '2px 6px', borderRadius: 'var(--r-sm)', letterSpacing: 0 }}>{headlineUnits}개 묶음 체결 · 1개 단가</span>
             )}
           </div>
           <div style={{ display: 'flex', gap: 20, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--pap3)' }}>

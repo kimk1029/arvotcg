@@ -218,6 +218,8 @@ export default function SnkrdunkDetail() {
     const matched = historyList.filter((h) => pred((h.condition || h.label || '').trim()));
     return (matched.length > 0 ? matched : historyList).slice(0, 20);
   }, [historyList, effectiveGrade, isBox]);
+  // 헤드라인 옆 수량 배지 — 선택 등급의 최근 체결이 묶음이면 그 장수, 아니면 묶음뿐일 때의 최소 장수(웹 동일).
+  const headlineUnits = isBox ? 1 : ((filteredTrades[0]?.units ?? 1) > 1 ? (filteredTrades[0]?.units ?? 1) : bundleUnits);
 
   // 거래가 있는 등급만 — 거래내역 등급 토글 노출용(PSA10·RAW 등 전환, 웹 동일).
   const tradeGrades = useMemo(() => grades.filter((g) => g.count > 0), [grades]);
@@ -324,10 +326,10 @@ export default function SnkrdunkDetail() {
                       <PixelText variant={txt} size={26} weight="bold" color={tc.ink} numberOfLines={1} adjustsFontSizeToFit style={{ flexShrink: 1 }}>
                         {fmtYen(headlinePrice)}
                       </PixelText>
-                      {bundleUnits > 1 ? (
-                        // 1장 체결이 없어 묶음 체결의 1장 단가만 있는 카드 — 장수를 작게 명시 (웹 동일).
+                      {headlineUnits > 1 ? (
+                        // 최근 체결이 묶음이면 장수를 작게 명시 — 표시 금액은 1개 단가 (웹 동일).
                         <View style={{ backgroundColor: tc.pap2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
-                          <PixelText variant="ko" size={10} weight="bold" color={tc.ink3}>{bundleUnits}장 묶음 단가 기준</PixelText>
+                          <PixelText variant="ko" size={10} weight="bold" color={tc.ink3}>{headlineUnits}개 묶음 체결 · 1개 단가</PixelText>
                         </View>
                       ) : null}
                     </View>
@@ -516,7 +518,7 @@ export default function SnkrdunkDetail() {
                   {filteredTrades.length > 0 ? (
                     filteredTrades.map((h, i, arr) => {
                       const date = localizeSnkrdunkText(h.date);
-                      const badge = h.condition || localizeSnkrdunkText(h.label) || '일반';
+                      const badge = localizeSnkrdunkText(h.condition) || localizeSnkrdunkText(h.label) || '일반';
                       const isPsa = PSA_ANY_RE.test(badge);
                       const divider = flat ? tc.pap3 : 'rgba(255,255,255,0.08)';
                       // 플랫(클린·다크): 흰 패널 + 웹 행 스타일 / 픽셀: 다크 로그 스타일.
