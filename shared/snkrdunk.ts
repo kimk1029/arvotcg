@@ -278,12 +278,18 @@ export function tradingHistoryToSales(raw: RawTradingHistory | null | undefined,
   return (raw?.trades ?? [])
     .filter((t) => Number.isFinite(t.price) && t.price > 0)
     .map((t) => {
-      const units = parseUnitLabel(t.label) ?? 1;
+      // title/label 중 어느 쪽이 수량("2枚")인지 응답마다 다를 수 있어 파싱되는 쪽을 수량, 나머지를 상태로 쓴다
+      // (상태 칸에 '2枚' 가 일본어 그대로 뜨던 원인). 화면은 condition 을 localizeSnkrdunkText 로 한글화한다.
+      const fromLabel = parseUnitLabel(t.label);
+      const fromTitle = parseUnitLabel(t.title);
+      const units = fromLabel ?? fromTitle ?? 1;
+      const condition = (fromLabel != null ? t.title : fromTitle != null ? t.label : t.title) ?? '';
+      const sizeText = fromLabel != null ? t.label : fromTitle != null ? t.title : '';
       return {
         price: units > 1 ? Math.round(t.price / units) : t.price,
         date: formatSnkrdunkSoldAt(t.soldAt, now),
-        size: units > 1 ? t.label.trim() : '',
-        condition: (t.title ?? '').trim(),
+        size: units > 1 ? sizeText.trim() : '',
+        condition: condition.trim(),
         label: '中古',
         units,
         soldAt: t.soldAt,
@@ -359,6 +365,9 @@ export function localizeSnkrdunkText(value: string | null | undefined): string {
   v = v.replace(/たった今/g, '방금');
   v = v.replace(/今日/g, '오늘');
   v = v.replace(/昨日/g, '어제');
+  // 상태 표기 (PSA8以下 등)
+  v = v.replace(/以下/g, ' 이하');
+  v = v.replace(/以上/g, ' 이상');
   // 수량 단위
   v = v.replace(/(\d+)\s*個/g, '$1개');
   v = v.replace(/(\d+)\s*枚/g, '$1장');
