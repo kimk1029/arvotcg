@@ -289,7 +289,8 @@ router.get('/apparels/:id', async (req: Request, res: Response) => {
 router.get('/apparels/:id/sales-history', async (req: Request, res: Response) => {
   const apparelId = parseApparelId(req.params.id, res);
   if (apparelId === null) return;
-  const data = await fetchSnkrdunkSalesHistory(apparelId);
+  // 시세상세용 — 1枚 체결 + 2·3枚 묶음 체결(1개 단가·units) 까지. 배치/카탈로그는 1枚만 쓴다.
+  const data = await fetchSnkrdunkSalesHistory(apparelId, { bundles: true });
   if (!data) {
     return res
       .status(502)

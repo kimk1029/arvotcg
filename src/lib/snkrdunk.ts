@@ -16,8 +16,12 @@ import {
   toUnitPriceSale,
   parseSnkrdunkSearchHtml,
   toSnkrdunkApparel,
+  tradingHistoryToSales,
+  mergeTradingHistories,
+  pickBundleVariantIds,
   type RawApparel,
   type RawApparelGroupPage,
+  type RawTradingHistory,
   type SnkrdunkApparel,
   type SnkrdunkApparelGroupPage,
   type SnkrdunkSalesChart,
@@ -152,16 +156,39 @@ export async function fetchAllSnkrdunkApparelGroup(
     .slice(0, total);
 }
 
+/**
+ * 체결 이력 — 스니덩크 사이트와 같은 v3 trading-history(수량별) 를 정본으로 쓴다.
+ * 기본은 1枚(사이트 기본값)만이라 헤드라인·등급 집계가 묶음 체결에 오염되지 않고,
+ * `bundles` 면 2·3枚 묶음 체결도 받아 1개 단가(units 표시)로 합쳐 준다(시세상세용).
+ * productCatalogId 가 없거나 v3 가 비면 구형 sales-history 로 폴백(수량 미상 → 단품 취급).
+ */
 export async function fetchSnkrdunkSalesHistory(
   apparelId: number,
+  opts: { bundles?: boolean } = {},
 ): Promise<SnkrdunkSalesHistory | null> {
   if (!Number.isInteger(apparelId) || apparelId <= 0) return null;
-  // 싱글카드는 size_id/page/per_page 가 필수, 박스도 이 형태에서 정상 응답.
+  const raw = await fetchJson<RawApparel>(`/v1/apparels/${apparelId}`);
+  const catalogId = raw?.productCatalogId ?? 0;
+  if (catalogId > 0) {
+    const base = await fetchJson<RawTradingHistory>(`/v3/products/${catalogId}/trading-history`);
+    if (base && (base.trades?.length ?? 0) > 0) {
+      const now = Date.now();
+      const lists = [tradingHistoryToSales(base, now)];
+      if (opts.bundles) {
+        const variants = pickBundleVariantIds(base);
+        const extra = await Promise.all(
+          variants.map((v) => fetchJson<RawTradingHistory>(`/v3/products/${catalogId}/trading-history?variant_id=${v.id}`).catch(() => null)),
+        );
+        for (const r of extra) lists.push(tradingHistoryToSales(r, now));
+      }
+      return { history: mergeTradingHistories(lists) };
+    }
+  }
+  // 폴백 — 싱글카드는 size_id/page/per_page 가 필수, 박스도 이 형태에서 정상 응답.
   const data = await fetchJson<SnkrdunkSalesHistory>(
     `/v1/apparels/${apparelId}/sales-history?size_id=0&page=1&per_page=20`,
   );
   if (!data) return null;
-  // 묶음 체결(2個 등)은 버리지 않고 1개 단가로 환산 — 체결가·헤드라인 모두 1개 기준(정본 shared/snkrdunk.ts).
   return { ...data, history: data.history.map(toUnitPriceSale) };
 }
 
