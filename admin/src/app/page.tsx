@@ -256,7 +256,7 @@ async function loadStats() {
     }));
 
   // ── 운영(모더레이션·활동) 지표 — 2차 배치 (기존 튜플 건드리지 않음) ──
-  const [reportsByStatusRaw, blocksCount, cardsCount, scansToday, searchesToday, tradeByStatusRaw, recentReports] =
+  const [reportsByStatusRaw, blocksCount, cardsCount, scansToday, searchesToday, tradeByStatusRaw, recentReports, onlineRaw] =
     await Promise.all([
       one(prisma.contentReport.groupBy({ by: ['status'], _count: { _all: true } }),
         [] as Array<{ status: string; _count: { _all: number } }>),
@@ -272,7 +272,14 @@ async function loadStats() {
         take: 5,
         select: { id: true, targetType: true, targetId: true, reason: true, snapshot: true, createdAt: true },
       }), [] as Array<{ id: number; targetType: string; targetId: string; reason: string; snapshot: string | null; createdAt: Date }>),
+      // 지금 활동중 — 최근 5분 내 행동 로그가 있는 사람 (/online 과 같은 기준)
+      one(prisma.$queryRaw<Array<{ total: bigint; members: bigint }>>`
+        SELECT count(DISTINCT COALESCE("userId", 'anon:' || COALESCE("anonId", ip, '?'))) AS total,
+               count(DISTINCT "userId") AS members
+          FROM action_logs WHERE "createdAt" > now() - interval '5 minutes'
+      `, []),
     ]);
+  const online = { total: Number(onlineRaw[0]?.total ?? 0), members: Number(onlineRaw[0]?.members ?? 0) };
   const countOf = (rows: Array<{ status: string; _count: { _all: number } }>, s: string) =>
     rows.find((r) => r.status === s)?._count._all ?? 0;
 
@@ -312,7 +319,7 @@ async function loadStats() {
       reportsOpen: countOf(reportsByStatusRaw, 'open'),
       reportsResolved: countOf(reportsByStatusRaw, 'resolved'),
       reportsDismissed: countOf(reportsByStatusRaw, 'dismissed'),
-      blocksCount, cardsCount, scansToday, searchesToday,
+      blocksCount, cardsCount, scansToday, searchesToday, online,
       tradeOpen: countOf(tradeByStatusRaw, 'open'),
       tradeReserved: countOf(tradeByStatusRaw, 'reserved'),
       tradeDone: countOf(tradeByStatusRaw, 'done'),
@@ -386,6 +393,9 @@ export default async function Page() {
 
       <h2 style={{ fontSize: 14, color: '#475569', margin: '4px 0 10px', letterSpacing: 0.3 }}>🟢 오늘 현황 <span style={{ fontSize: 11, color: '#94A3B8' }}>(어제 대비)</span></h2>
       <div className="grid-stats">
+        <Link href="/online" style={{ display: 'contents' }}>
+          <Stat label="🟢 지금 활동중" value={ops.online.total} sub={`최근 5분 · 회원 ${ops.online.members.toLocaleString()} · 비회원 ${(ops.online.total - ops.online.members).toLocaleString()}`} />
+        </Link>
         <DeltaStat label="오늘 가입자" value={stats.signupsToday} prev={stats.signupsYesterday} accent="#2563EB" sub="신규 회원" />
         <DeltaStat label="오늘 접속자" value={stats.uniqueIpsToday} prev={stats.visitorsYesterday} accent="#0EA5E9" sub={`고유 IP · ${splitText(stats.visitSplit)}`} />
         <DeltaStat label="오늘 로그인" value={stats.uniqueUsersToday} prev={stats.loginsYesterday} accent="#10B981" sub={`고유 유저 · ${splitText(stats.loginSplit)}`} />

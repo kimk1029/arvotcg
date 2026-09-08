@@ -13,7 +13,8 @@ export function fmtDate(d: Date | string | null | undefined): string {
 /** UA 한 줄 요약 — 'iOS' | 'Android' | 'PC' (+ ' 웹뷰'), 방문 기록 기기 열. */
 export function deviceOf(ua: string | null | undefined): string {
   if (!ua) return '-';
-  const os = /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : 'PC';
+  // 앱 네이티브 UA: iOS 는 'CFNetwork/… Darwin/…', Android 는 'okhttp/…'
+  const os = /iPhone|iPad|iPod|CFNetwork|Darwin/.test(ua) ? 'iOS' : /Android|okhttp/.test(ua) ? 'Android' : 'PC';
   return isEmbedUserAgent(ua) ? `${os} 웹뷰` : os;
 }
 
