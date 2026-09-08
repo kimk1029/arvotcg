@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { homeRanking } from '@/lib/homeRanking';
 import { HOME_PORT_CACHE_KEY } from '@/lib/collectionCache';
 import { peekHomeState, patchHomeState } from '@/lib/homeScreenState';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
@@ -276,7 +277,7 @@ interface Props {
  * sessionStorage 백업으로 새로고침(F5)에도 즉시 페인트 — 앱 디스크 캐시와 동일 역할. */
 const HOME_TTL_MS = 5 * 60_000;
 type MoverTab = 'surge' | 'snkr' | 'collection';
-type RankRow = SnkrdunkRow & { holders?: number; qty?: number };
+type RankRow = SnkrdunkRow & { holders?: number; qty?: number }; // = HomeRankRow(src/lib/homeRanking)
 const MOVER_TABS: { id: MoverTab; label: string; title: string }[] = [
   { id: 'surge', label: '실시간 급등', title: '실시간 급등 카드' },
   { id: 'snkr', label: 'SNKR 최고가', title: '스니덩크 체결가 TOP 10' },
@@ -621,10 +622,14 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
   // 실패/빈 결과는 백오프 재시도 — 한 번 실패해도 섹션이 영영 비지 않게 (앱과 동일).
   const [gameRows, setGameRows] = useState<Record<string, SnkrdunkRow[]>>(() => rowsFromCache(hotCache));
   const hotRows = useMemo(() => gameRows[homeGame] ?? [], [gameRows, homeGame]);
+  // HOT 조회가 끝났는지(성공·재시도 소진 모두) — 하단 '실시간 급등' 탭 스피너/실패 안내용 (앱 동일).
+  const [hotSettled, setHotSettled] = useState(false);
+  const [hotRetry, setHotRetry] = useState(0);
   useEffect(() => {
     const cached = hotCache[homeGame];
-    if (cached && Date.now() - cached.t < HOME_TTL_MS) return; // 신선 — 재조회 생략
+    if (cached && Date.now() - cached.t < HOME_TTL_MS) { setHotSettled(true); return; } // 신선 — 재조회 생략
     let alive = true;
+    setHotSettled(false);
     (async () => {
       for (let attempt = 0; alive && attempt < 3; attempt++) {
         if (attempt > 0) await sleep(2500 * attempt);
@@ -691,10 +696,10 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
         saveHomeCache();
         return;
       }
-    })();
+    })().finally(() => { if (alive) setHotSettled(true); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [homeGame]);
+  }, [homeGame, hotRetry]);
 
   // '더보기'(/cards/snkrdunk) 목록이 홈 캐러셀과 동일하게 뜨도록 노출 목록을 공유 저장.
   useEffect(() => {
@@ -815,20 +820,28 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
   useEffect(() => {
     patchHomeState({ homeGame, moverTab, rankRows });
   }, [homeGame, moverTab, rankRows]);
+  const [rankErrors, setRankErrors] = useState<Record<string, boolean>>({});
+  const [rankRetry, setRankRetry] = useState(0);
+  const moverTouch = useRef<{ x: number; y: number } | null>(null);
   useEffect(() => {
-    if (moverTab === 'surge' || rankRows[rankKey]) return;
     let alive = true;
-    (async () => {
-      const kind = moverTab === 'snkr' ? 'snkr' : 'collection';
-      const j = await fetch(`/api/snkrdunk/ranking?game=${homeGame}&kind=${kind}&limit=10`)
-        .then((r) => (r.ok ? (r.json() as Promise<{ data?: RankRow[] }>) : null))
-        .catch(() => null);
-      if (alive) setRankRows((p) => ({ ...p, [rankKey]: j?.data ?? [] }));
-    })();
+    for (const kind of ['snkr', 'collection'] as const) {
+      const key = `${kind}:${homeGame}`;
+      const cached = homeRanking.peek(homeGame, kind);
+      if (cached) setRankRows(p => ({ ...p, [key]: cached }));
+      setRankErrors(p => ({ ...p, [key]: false }));
+      homeRanking.load(homeGame, kind).then(rows => { if (alive) setRankRows(p => ({ ...p, [key]: rows })); })
+        .catch(() => { if (alive) setRankErrors(p => ({ ...p, [key]: true })); });
+    }
     return () => { alive = false; };
-  }, [moverTab, homeGame, rankKey, rankRows]);
-  const listRows: RankRow[] = moverTab === 'surge' ? moverRows : (rankRows[rankKey] ?? []);
-  const rankLoading = moverTab !== 'surge' && rankRows[rankKey] === undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [homeGame, moverTab, rankRetry]);
+  const ranking = rankRows[rankKey] ?? homeRanking.peek(homeGame, moverTab);
+  const listRows: RankRow[] = moverTab === 'surge' ? moverRows : (ranking ?? []);
+  // 스피너: 급등=HOT 조회 중, 랭킹=캐시도 응답도 아직. 실패는 별도 '다시 시도' 안내.
+  const rankLoading = moverTab === 'surge' ? hotRows.length === 0 && !hotSettled : ranking === undefined && !rankErrors[rankKey];
+  const rankFailed = moverTab === 'surge' ? hotRows.length === 0 && hotSettled : !!rankErrors[rankKey];
+  const retryRank = () => (moverTab === 'surge' ? setHotRetry((n) => n + 1) : setRankRetry((n) => n + 1));
 
   // HOT / 박스 캐러셀 자동 슬라이딩(카드를 두 벌 이어붙여 끊김 없이 루프).
   const hotRef = useRef<HTMLDivElement>(null);
@@ -989,8 +1002,12 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
       )}
 
       {/* realtime movers / rankings */}
-      {(hotRows.length > 0 || moverTab !== 'surge') && (
-        <div style={{ padding: '0 20px 30px' }}>
+      {/* 항상 렌더 — 데이터 전이라도 탭·스피너를 보여 섹션이 사라졌다 나타나지 않게. 좌우 스와이프로 탭 전환(앱 동일). */}
+      {(
+        <div style={{ padding: '0 20px 30px', minHeight: 240, touchAction: 'pan-y' }}
+          onTouchStart={e => { if (e.touches.length === 1) moverTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+          onTouchCancel={() => { moverTouch.current = null; }}
+          onTouchEnd={e => { const start = moverTouch.current; moverTouch.current = null; if (!start) return; const dx = e.changedTouches[0].clientX - start.x, dy = e.changedTouches[0].clientY - start.y; if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.5) setMoverTab(tab => MOVER_TABS[Math.max(0, Math.min(MOVER_TABS.length - 1, MOVER_TABS.findIndex(t => t.id === tab) + (dx < 0 ? 1 : -1)))].id); }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 18, fontWeight: 800, color: P.ink }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={P.rise} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1021,8 +1038,13 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
               );
             })}
           </div>
-          {rankLoading && <div style={{ padding: '18px 0', fontSize: 12.5, color: P.ink3 }}>불러오는 중…</div>}
-          {!rankLoading && moverTab !== 'surge' && listRows.length === 0 && (
+          {rankLoading && <div role="status" aria-label="랭킹 불러오는 중" style={{ padding: 28, display: 'flex', justifyContent: 'center' }}><span className="pf-pokeball-spinner pf-pokeball-spinner--sm" /></div>}
+          {rankFailed && (
+            <button type="button" onClick={retryRank} style={{ display: 'block', padding: '16px 0', border: 'none', background: 'none', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: P.ink3, cursor: 'pointer' }}>
+              불러오지 못했어요 · 다시 시도
+            </button>
+          )}
+          {!rankLoading && !rankFailed && moverTab !== 'surge' && listRows.length === 0 && (
             <div style={{ padding: '18px 0', fontSize: 12.5, color: P.ink3 }}>{moverTab === 'collection' ? '아직 등록된 컬렉션 카드가 없어요' : '랭킹 데이터가 아직 없어요'}</div>
           )}
           {listRows.map((m, i) => {

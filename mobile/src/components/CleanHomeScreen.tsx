@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { View, ScrollView, Pressable, Text, TextInput, Image, Animated, Easing, Modal, PanResponder } from 'react-native';
 import Svg, { Path, Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { homeRanking } from '@/lib/homeRanking';
+import { Spinner } from '@/components/Spinner';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { HeroBanner, type HeroSlideData } from '@/components/HeroBanner';
@@ -550,9 +552,13 @@ export function CleanHomeScreen() {
   // 실패/빈 결과는 백오프 재시도 — 한 번 실패해도 섹션이 영영 비지 않게.
   const [gameRows, setGameRows] = useState<Record<string, SnkrRow[]>>(() => rowsFromCache(HOT_PREFIX));
   const snkrRows = useMemo(() => gameRows[homeGame] ?? [], [gameRows, homeGame]);
+  // HOT 조회가 끝났는지(성공·재시도 소진 모두) — 하단 '실시간 급등' 탭 스피너/실패 안내용 (웹 동일).
+  const [hotSettled, setHotSettled] = useState(false);
+  const [hotRetry, setHotRetry] = useState(0);
   useEffect(() => {
-    if (swrAge(hotKey(homeGame)) < HOME_TTL_MS) return; // 신선 — 재조회 생략
+    if (swrAge(hotKey(homeGame)) < HOME_TTL_MS) { setHotSettled(true); return; } // 신선 — 재조회 생략
     let alive = true;
+    setHotSettled(false);
     const paint = (rows: SnkrRow[], confirmed: boolean) => {
       if (!alive || rows.length === 0) return;
       setGameRows((p) => ({ ...p, [homeGame]: rows }));
@@ -623,19 +629,19 @@ export function CleanHomeScreen() {
         // 성공(검색·상세 모두 응답)이면 종료, 아니면 재시도.
         if (fromSearch && gotDetails) return;
       }
-    })();
+    })().finally(() => { if (alive) setHotSettled(true); });
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [homeGame]);
+  }, [homeGame, hotRetry]);
 
   // 등락률 + 대표 시세 — 표시된 인기 카드의 판매 차트/거래내역을 받아 채움(렌더 후 점진).
   // 대표 시세 = 시세상세 헤드라인과 동일(거래 많은 등급의 최근 체결가). 없으면 minPrice 폴백.
-  const [changeById, setChangeById] = useState<Record<number, number>>(() => restored?.changeById ?? {});
-  const [priceById, setPriceById] = useState<Record<number, number>>(() => restored?.priceById ?? {});
+  const [changeById, setChangeById] = useState<Record<number, number>>(() => restored?.changeById ?? swrPeek<Record<number, number>>('home:change:v2') ?? {});
+  const [priceById, setPriceById] = useState<Record<number, number>>(() => restored?.priceById ?? swrPeek<Record<number, number>>('home:price:v2') ?? {});
   // 대표 시세의 등급 기준('PSA 10' 이면 우하단에 PSA10 마크 표시).
-  const [basisById, setBasisById] = useState<Record<number, string>>(() => restored?.basisById ?? {});
+  const [basisById, setBasisById] = useState<Record<number, string>>(() => restored?.basisById ?? swrPeek<Record<number, string>>('home:basis:v2') ?? {});
   /**
    * 목록 → 시세상세 이동. 목록이 보여준 등급 기준(basis)을 `?grade=` 로 실어 보내
    * 상세 첫 화면 헤드라인이 목록 가격과 같아지게 한다.
@@ -649,23 +655,40 @@ export function CleanHomeScreen() {
   // 스냅샷 갱신 — 값이 바뀔 때마다(얕은 병합, 메모리 전용). 스크롤은 언마운트 시 별도 저장.
   useEffect(() => {
     patchHomeState({ homeGame, moverTab, rankRows, priceById, changeById, basisById });
+    swrSet('home:price:v2', priceById, { persist: true });
+    swrSet('home:change:v2', changeById, { persist: true });
+    swrSet('home:basis:v2', basisById, { persist: true });
   }, [homeGame, moverTab, rankRows, priceById, changeById, basisById]);
+  const [rankErrors, setRankErrors] = useState<Record<string, boolean>>({});
+  const [rankRetry, setRankRetry] = useState(0);
   useEffect(() => {
-    if (moverTab === 'surge' || rankRows[rankKey]) return;
     let alive = true;
-    (async () => {
-      const kind = moverTab === 'snkr' ? 'snkr' : 'collection';
-      let rows: RankRow[] = [];
-      try {
-        const r = await api<{ data?: RankRow[] }>(`/api/snkrdunk/ranking?game=${homeGame}&kind=${kind}&limit=10`, { auth: false });
-        rows = Array.isArray(r?.data) ? r.data : [];
-      } catch { /* 빈 목록으로 확정 */ }
-      if (alive) setRankRows((p) => ({ ...p, [rankKey]: rows }));
-    })();
+    // Fetch both tabs before the user opens them. Cache survives app restarts.
+    for (const kind of ['snkr', 'collection'] as const) {
+      const key = `${kind}:${homeGame}`;
+      const cached = homeRanking.peek(homeGame, kind);
+      if (cached) setRankRows(p => ({ ...p, [key]: cached }));
+      setRankErrors(p => ({ ...p, [key]: false }));
+      homeRanking.load(homeGame, kind).then(rows => {
+        if (alive) setRankRows(p => ({ ...p, [key]: rows }));
+      }).catch(() => { if (alive) setRankErrors(p => ({ ...p, [key]: true })); });
+    }
     return () => { alive = false; };
-  }, [moverTab, homeGame, rankKey, rankRows]);
-  const rankList = rankRows[rankKey];
-  const rankLoading = moverTab !== 'surge' && rankList === undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [homeGame, moverTab, rankRetry]);
+  const rankList = rankRows[rankKey] ?? homeRanking.peek(homeGame, moverTab);
+  // 스피너: 급등=HOT 조회 중, 랭킹=캐시도 응답도 아직. 실패는 별도 '다시 시도' 안내 (웹 동일).
+  const rankLoading = moverTab === 'surge' ? snkrRows.length === 0 && !hotSettled : rankList === undefined && !rankErrors[rankKey];
+  const rankFailed = moverTab === 'surge' ? snkrRows.length === 0 && hotSettled : !!rankErrors[rankKey];
+  const retryRank = () => (moverTab === 'surge' ? setHotRetry((n) => n + 1) : setRankRetry((n) => n + 1));
+  const moverSwipe = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 18 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+    onPanResponderRelease: (_, g) => {
+      if (Math.abs(g.dx) < 45) return;
+      setMoverTab(tab => MOVER_TABS[Math.max(0, Math.min(MOVER_TABS.length - 1, MOVER_TABS.findIndex(t => t.id === tab) + (g.dx < 0 ? 1 : -1)))].id);
+    },
+  }), []);
+
 
   const openDetail = (apparelId: number) => {
     const b = basisById[apparelId];
@@ -678,6 +701,14 @@ export function CleanHomeScreen() {
     (async () => {
       await Promise.all(
         snkrRows.map(async ({ seed, data }) => {
+          const cacheKey = 'home:enrich:v2:' + seed.apparelId;
+          const cached = swrPeek<{ price: number; basis: string; pct?: number }>(cacheKey);
+          if (cached && swrAge(cacheKey) < HOME_TTL_MS) {
+            setPriceById(p => ({ ...p, [seed.apparelId]: cached.price }));
+            setBasisById(p => ({ ...p, [seed.apparelId]: cached.basis }));
+            if (cached.pct != null) setChangeById(p => ({ ...p, [seed.apparelId]: cached.pct! }));
+            return;
+          }
           const [chart, history] = await Promise.all([
             fetchSnkrdunkSalesChart(seed.apparelId).catch(() => null),
             fetchSnkrdunkSalesHistory(seed.apparelId).catch(() => null),
@@ -686,6 +717,7 @@ export function CleanHomeScreen() {
           const pct = chart ? trendChangePct(chart.points) : undefined;
           if (pct != null) setChangeById((prev) => ({ ...prev, [seed.apparelId]: pct }));
           const { price, basis } = headlineFromHistory(history, data?.minPrice ?? 0);
+          if (chart && history && price > 0) swrSet(cacheKey, { price, basis, pct }, { persist: true });
           if (price > 0) setPriceById((prev) => ({ ...prev, [seed.apparelId]: price }));
           setBasisById((prev) => ({ ...prev, [seed.apparelId]: basis }));
         }),
@@ -1085,8 +1117,9 @@ export function CleanHomeScreen() {
         ) : null}
 
         {/* realtime movers / rankings */}
-        {snkrRows.length > 0 || moverTab !== 'surge' ? (
-          <View style={{ paddingHorizontal: 20, paddingBottom: 30 }}>
+        {/* 항상 렌더 — 데이터 전이라도 탭·스피너를 보여 섹션이 사라졌다 나타나지 않게. 좌우 스와이프로 탭 전환(웹 동일). */}
+        {(
+          <View {...moverSwipe.panHandlers} style={{ paddingHorizontal: 20, paddingBottom: 30, minHeight: 240 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
                 <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={P.rise} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
@@ -1107,8 +1140,9 @@ export function CleanHomeScreen() {
                 );
               })}
             </View>
-            {rankLoading ? <Text style={[ts(12.5, '400', P.ink3), { paddingVertical: 18 }]}>불러오는 중…</Text> : null}
-            {!rankLoading && moverTab !== 'surge' && (rankList?.length ?? 0) === 0 ? (
+            {rankLoading ? <View accessibilityLabel="랭킹 불러오는 중" style={{ alignItems: 'center', paddingVertical: 28 }}><Spinner size={28} /></View> : null}
+            {rankFailed ? <Pressable onPress={retryRank} style={{ paddingVertical: 16 }}><Text style={ts(12, '600', P.ink3)}>불러오지 못했어요 · 다시 시도</Text></Pressable> : null}
+            {!rankLoading && !rankFailed && moverTab !== 'surge' && (rankList?.length ?? 0) === 0 ? (
               <Text style={[ts(12.5, '400', P.ink3), { paddingVertical: 18 }]}>{moverTab === 'collection' ? '아직 등록된 컬렉션 카드가 없어요' : '랭킹 데이터가 아직 없어요'}</Text>
             ) : null}
             {moverTab !== 'surge' && rankList ? rankList.map((m, i) => {
@@ -1157,7 +1191,7 @@ export function CleanHomeScreen() {
                 );
               }) : null}
           </View>
-        ) : null}
+        )}
       </ScrollView>
 
       {/* side drawer — 사이트맵형 섹션 메뉴. 패널 스프링 슬라이드(튀어나옴) + 항목 스태거.
