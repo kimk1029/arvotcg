@@ -53,8 +53,8 @@ export interface EventPageConfig {
   showSlotMeta: boolean;
   /** 요약 카드 세 번째 통계. */
   thirdStat: { label: string; value: string };
-  /** 예약·입장 안내(카드쇼 전용 동반 입장 규칙)를 보일지. */
-  showVisitNotice: boolean;
+  /** 예약·입장 안내 박스(불릿 + 맺음 강조줄). null 이면 숨김. */
+  visitNotice: { bullets: string[]; footer: string } | null;
   /** 요약 카드 바로 아래 안내 박스. */
   topNotice: EventNoticeBox | null;
   /** 타임테이블 맨 아래 안내 박스. */
@@ -77,7 +77,16 @@ export const EVENT_PAGES: Record<EventKey, EventPageConfig> = {
     sessions: [],
     showSlotMeta: true,
     thirdStat: { label: '입장 인원', value: '1인 + 동반 1인' },
-    showVisitNotice: true,
+    visitNotice: {
+      bullets: [
+        '1인 예약 시 동반 1인까지 함께 입장 가능합니다.',
+        '자녀는 동반 1인 인원과 별도로 함께 입장 가능합니다.',
+        '예약 시간에 방문하셔도 현장 상황에 따라 대기가 발생할 수 있습니다.',
+        '사전 예약 없이 현장 방문도 가능합니다.',
+        '현장 방문 고객은 도착 순서대로 순차 입장 안내드립니다.',
+      ],
+      footer: '원활한 이용을 위해 예약 후 방문을 권장드립니다.',
+    },
     topNotice: null,
     bottomNotice: null,
     partyLine: '1인 + 동반 1인',
@@ -101,7 +110,16 @@ export const EVENT_PAGES: Record<EventKey, EventPageConfig> = {
     ],
     showSlotMeta: false,
     thirdStat: { label: '회차 정원', value: '30명' },
-    showVisitNotice: false,
+    // 카드쇼 블록과 같은 형식 — 동반 1인 규칙은 트레이드 데이(회차 정원제)에 없어 제외.
+    visitNotice: {
+      bullets: [
+        '예약 시간에 방문하셔도 현장 상황에 따라 대기가 발생할 수 있습니다.',
+        '사전 예약 없이 현장 방문도 가능합니다.',
+        '현장 방문 고객은 도착 순서대로 순차 입장 안내드립니다.',
+        '회차별 정원(30명) 초과 시 1부 / 2부 교대로 입장이 진행됩니다.',
+      ],
+      footer: '원활한 이용을 위해 예약 후 방문을 권장드립니다.',
+    },
     topNotice: {
       title: '시간표 운영안내',
       intro: '행사 운영 상황에 따라 1부(11:00 ~ 15:00) / 2부(15:00 ~ 20:00)로 구분하여 운영됩니다.',
