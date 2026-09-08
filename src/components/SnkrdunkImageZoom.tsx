@@ -116,10 +116,11 @@ export function SnkrdunkImageZoom({ src, alt, width = 96, height = 96, kind = 'c
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
+            {/* 컨테이너 크기로 contain 한 뒤 scale 로 키움 — 프레임 투명 여백이 밖으로 밀려나 카드만 꽉 참 (앱 동일). */}
             <img
               src={src}
               alt={alt}
-              style={{ position: 'absolute', left: L.imageLeft, top: L.imageTop, width: L.imageWidth, height: L.imageHeight, objectFit: 'contain', display: 'block' }}
+              style={{ width: '100%', height: '100%', maxWidth: 'none', maxHeight: 'none', objectFit: 'contain', display: 'block', transform: `scale(${L.imageScale})`, transformOrigin: 'center center' }}
             />
           </div>
           <div style={{ position: 'fixed', left: 0, right: 0, bottom: 'calc(18px + env(safe-area-inset-bottom, 0px))', textAlign: 'center', fontFamily: 'var(--f1)', fontSize: 10, letterSpacing: 0.5, color: 'rgba(255,255,255,.6)', pointerEvents: 'none' }}>

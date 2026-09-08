@@ -215,7 +215,7 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
         )}
         <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
           <span style={{ whiteSpace: 'nowrap' }}>{isCollected ? '내 컬렉션에 담김' : '내 컬렉션에 추가'}</span>
-          {isCollected && <span style={{ fontSize: 10, fontWeight: 500 }}>＋ 카드 추가 등록</span>}
+          {isCollected && <span style={{ display: 'block', fontSize: 10, fontWeight: 500, lineHeight: 1.2, whiteSpace: 'nowrap', opacity: 0.92 }}>＋ 카드 추가 등록</span>}
         </span>
       </button>
 

@@ -155,6 +155,7 @@ export default async function Page({ params, searchParams }: PageProps) {
         grades={grades}
         initialGrade={searchParams?.grade ?? null}
         chartPoints={chartPoints}
+        chartUnits={isBox ? 1 : (salesChart?.units ?? 1)}
         trades={trades}
         kreamCardNumber={kreamHints.cardNumber}
         kreamSetCode={kreamHints.setCode}

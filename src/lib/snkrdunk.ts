@@ -17,6 +17,7 @@ import {
   parseSnkrdunkSearchHtml,
   toSnkrdunkApparel,
   tradingHistoryToSales,
+  tradingHistoryToChart,
   mergeTradingHistories,
   pickBundleVariantIds,
   type RawApparel,
@@ -192,10 +193,29 @@ export async function fetchSnkrdunkSalesHistory(
   return { ...data, history: data.history.map(toUnitPriceSale) };
 }
 
+/**
+ * 시세 차트 — 싱글카드는 v3 trading-history 의 1枚 차트(사이트와 동일, 묶음 체결 미혼입).
+ * 1枚 차트가 비면 2·3枚 묶음 차트를 1장 단가로 나눠 쓰고 units 에 장수를 남긴다(화면이 'N장 묶음 기준' 표시).
+ * 박스/팩과 v3 실패는 구형 /sales-chart(/used) 폴백 — 구형은 모든 수량이 섞여 있다.
+ */
 export async function fetchSnkrdunkSalesChart(
   apparelId: number,
 ): Promise<SnkrdunkSalesChart | null> {
   if (!Number.isInteger(apparelId) || apparelId <= 0) return null;
+  const raw = await fetchJson<RawApparel>(`/v1/apparels/${apparelId}`);
+  const catalogId = raw?.productCatalogId ?? 0;
+  if (raw && catalogId > 0 && classifySnkrdunkItem(raw) === 'single') {
+    const base = await fetchJson<RawTradingHistory>(`/v3/products/${catalogId}/trading-history`);
+    const single = tradingHistoryToChart(base, 1);
+    if (single) return single;
+    if (base) {
+      for (const v of pickBundleVariantIds(base)) {
+        const r = await fetchJson<RawTradingHistory>(`/v3/products/${catalogId}/trading-history?variant_id=${v.id}`).catch(() => null);
+        const bundle = tradingHistoryToChart(r, v.units);
+        if (bundle) return bundle;
+      }
+    }
+  }
   // 박스/팩: /sales-chart. 싱글카드: /sales-chart/used. 둘 다 시도해서 데이터 있는 쪽 반환.
   const main = await fetchJson<SnkrdunkSalesChart>(`/v1/apparels/${apparelId}/sales-chart`);
   if (main && main.points && main.points.length > 0) return main;

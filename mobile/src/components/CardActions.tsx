@@ -180,7 +180,7 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
           <PixelText variant={txt} size={14} weight="bold" color={tc.white}>{isCollected ? '✓' : '＋'}</PixelText>
           <View style={{ alignItems: 'center', flexShrink: 1 }}>
             <PixelText variant="ko" size={13} weight="bold" color={tc.white} numberOfLines={1}>{collectLabel}</PixelText>
-            {isCollected ? <PixelText variant="ko" size={10} color={tc.white}>＋ 카드 추가 등록</PixelText> : null}
+            {isCollected ? <PixelText variant="ko" size={10} color={tc.white} numberOfLines={1} style={{ opacity: 0.92 }}>＋ 카드 추가 등록</PixelText> : null}
           </View>
         </Pressable>
         <Pressable onPress={openSnkrdunk} style={[styles.flatSquare, { backgroundColor: tc.white, borderColor: tc.pap3 }]}>
@@ -208,7 +208,7 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
           <Text style={[styles.icon, { color: colors.white }]}>{isCollected ? '✓' : '＋'}</Text>
           <View style={{ alignItems: 'center', flexShrink: 1 }}>
             <Text style={[styles.label, { color: colors.white }]} numberOfLines={1}>{collectLabel}</Text>
-            {isCollected ? <Text style={{ fontSize: 10, color: colors.white, marginTop: 2 }}>＋ 카드 추가 등록</Text> : null}
+            {isCollected ? <Text numberOfLines={1} style={{ fontFamily: fonts.ko, fontSize: 10, lineHeight: 13, color: colors.white, marginTop: 2, opacity: 0.92 }}>＋ 카드 추가 등록</Text> : null}
           </View>
         </PixelPress>
       </View>

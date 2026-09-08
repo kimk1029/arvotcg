@@ -10,7 +10,9 @@ import { KreamCompare } from '@/components/cards/KreamCompare';
 import { MultiSourceKoPrice } from '@/components/cards/MultiSourceKoPrice';
 import { PsaPopPanel } from '@/components/cards/PsaPopPanel';
 import { BoxHitCards } from '@/components/cards/BoxHitCards';
-import { downsamplePricePoints, isGradedSnkrdunkBadge } from '@/lib/snkrdunk';
+import { downsamplePricePoints, isGradedSnkrdunkBadge,
+  bundleOnlyUnits,
+} from '@/lib/snkrdunk';
 import { BOX_RANGE_MAX_DAYS, boxHeadlineFromHistory, defaultGradeKey, gradeDisplayJpy, gradeUplift, priceChangeFromPoints, type SnkrGradeAgg } from '@/lib/snkrdunkPrice';
 
 /**
@@ -52,6 +54,8 @@ interface Props {
    */
   initialGrade?: string | null;
   chartPoints: Array<[number, number]>;
+  /** 차트 수량 기준(1=1장 체결). 1장 체결이 없어 묶음 차트를 1장 단가로 나눠 쓴 경우 그 장수. */
+  chartUnits?: number;
   trades: TradeRow[];
   /** KREAM 매칭 힌트 — 콜렉터 번호. */
   kreamCardNumber?: string | null;
@@ -118,6 +122,7 @@ export function CardDetailView({
   grades,
   initialGrade,
   chartPoints,
+  chartUnits = 1,
   trades,
   kreamCardNumber,
   kreamSetCode,
@@ -157,6 +162,8 @@ export function CardDetailView({
 
   // 전일/주간 변동 — 전체 차트 기준 (정본 shared priceChangeFromPoints, 앱 동일).
   const change = useMemo(() => priceChangeFromPoints(chartPoints), [chartPoints]);
+  // 체결이 묶음뿐이면(1장 체결 없음) 헤드라인 단가 옆에 장수 표시.
+  const bundleUnits = useMemo(() => (isBox ? 1 : bundleOnlyUnits(trades)), [trades, isBox]);
 
   // 차트 — 기간 필터 후 다운샘플.
   const chartData = useMemo(() => {
@@ -252,8 +259,12 @@ export function CardDetailView({
               </div>
             )}
           </div>
-          <div style={{ fontFamily: 'var(--f1)', fontSize: 28, fontWeight: 900, color: 'var(--ink)', letterSpacing: 0.2, marginTop: 4 }}>
+          <div style={{ fontFamily: 'var(--f1)', fontSize: 28, fontWeight: 900, color: 'var(--ink)', letterSpacing: 0.2, marginTop: 4, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
             <Price jpy={headlinePrice} empty="—" autoSizeBase={28} autoSizeMin={16} />
+            {bundleUnits > 1 && (
+              // 1장 체결이 없어 묶음 체결의 1장 단가만 있는 카드 — 장수를 작게 명시 (앱 동일).
+              <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--ink3)', background: 'var(--pap2)', padding: '2px 6px', borderRadius: 'var(--r-sm)', letterSpacing: 0 }}>{bundleUnits}장 묶음 단가 기준</span>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 20, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--pap3)' }}>
             <div style={{ flex: 1 }}>
@@ -420,6 +431,11 @@ export function CardDetailView({
         </div>
         <Panel style={{ padding: 14 }}>
           <MiniChart points={chartData} />
+          {chartUnits > 1 && (
+            <div style={{ marginTop: 8, fontFamily: 'var(--f1)', fontSize: 9, fontWeight: 700, color: 'var(--ink3)', textAlign: 'center' }}>
+              {chartUnits}장 묶음 체결 기준 · 1장 단가로 환산 (1장 체결 없음)
+            </div>
+          )}
         </Panel>
       </div>
 

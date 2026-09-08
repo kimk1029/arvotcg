@@ -2422,7 +2422,8 @@ a{color:inherit;text-decoration:none;}
 /* 카드등록 시트 모달 (시세 상세 → 내 컬렉션) */
 .cv-sheet-overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.5);
   display:flex;align-items:flex-end;justify-content:center;padding:0;}
-.cv-sheet-modal{width:100%;max-width:440px;max-height:90vh;overflow-y:auto;background:var(--white);padding:16px;
+.cv-sheet-modal{width:100%;max-width:440px;max-height:90vh;max-height:min(90vh,90dvh);overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--white);padding:16px;
+  padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));
   box-shadow:0 -4px 0 var(--ink);animation:cv-sheet-up .18s ease;}
 @keyframes cv-sheet-up{from{transform:translateY(30px);opacity:.6;}to{transform:translateY(0);opacity:1;}}
 .cv-sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
