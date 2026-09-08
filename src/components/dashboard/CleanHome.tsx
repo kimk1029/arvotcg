@@ -822,7 +822,6 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
   }, [homeGame, moverTab, rankRows]);
   const [rankErrors, setRankErrors] = useState<Record<string, boolean>>({});
   const [rankRetry, setRankRetry] = useState(0);
-  const moverTouch = useRef<{ x: number; y: number } | null>(null);
   useEffect(() => {
     let alive = true;
     for (const kind of ['snkr', 'collection'] as const) {
@@ -836,12 +835,57 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeGame, moverTab, rankRetry]);
-  const ranking = rankRows[rankKey] ?? homeRanking.peek(homeGame, moverTab);
-  const listRows: RankRow[] = moverTab === 'surge' ? moverRows : (ranking ?? []);
-  // 스피너: 급등=HOT 조회 중, 랭킹=캐시도 응답도 아직. 실패는 별도 '다시 시도' 안내.
-  const rankLoading = moverTab === 'surge' ? hotRows.length === 0 && !hotSettled : ranking === undefined && !rankErrors[rankKey];
-  const rankFailed = moverTab === 'surge' ? hotRows.length === 0 && hotSettled : !!rankErrors[rankKey];
-  const retryRank = () => (moverTab === 'surge' ? setHotRetry((n) => n + 1) : setRankRetry((n) => n + 1));
+  // 탭별 상태 — 페이저가 3개 탭을 나란히 그리므로 모든 탭의 로딩/실패/목록을 계산한다 (앱 동일).
+  const paneState = (tab: MoverTab): { loading: boolean; failed: boolean; rows: RankRow[] } => {
+    if (tab === 'surge') return { loading: hotRows.length === 0 && !hotSettled, failed: hotRows.length === 0 && hotSettled, rows: moverRows };
+    const key = `${tab}:${homeGame}`;
+    const list = rankRows[key] ?? homeRanking.peek(homeGame, tab);
+    return { loading: list === undefined && !rankErrors[key], failed: !!rankErrors[key], rows: list ?? [] };
+  };
+  const retryTab = (tab: MoverTab) => (tab === 'surge' ? setHotRetry((n) => n + 1) : setRankRetry((n) => n + 1));
+  // 페이저 — 3개 탭을 가로로 이어 붙이고 손가락을 따라 움직이다 놓으면 트랜지션으로 넘어간다 (앱 동일).
+  const moverIdx = Math.max(0, MOVER_TABS.findIndex((t) => t.id === moverTab));
+  const [dragX, setDragX] = useState<number | null>(null);
+  const dragRef = useRef<{ x: number; y: number; w: number; lock: 'h' | 'v' | null } | null>(null);
+  const paneRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const pagerRef = useRef<HTMLDivElement>(null);
+  const [paneH, setPaneH] = useState<number | undefined>(undefined);
+  const goTab = (idx: number) => setMoverTab(MOVER_TABS[Math.max(0, Math.min(MOVER_TABS.length - 1, idx))].id);
+  // 현재 탭 내용 높이로 페이저 높이 맞춤(옆 탭이 더 길어도 아래로 삐져나오지 않게). 내용이 바뀔 때마다 재측정.
+  const activePaneEl = paneRefs.current[moverTab];
+  useEffect(() => {
+    const el = paneRefs.current[moverTab];
+    if (!el) return;
+    const measure = () => setPaneH(el.offsetHeight);
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [moverTab, activePaneEl]);
+  const onPagerTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    dragRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, w: pagerRef.current?.offsetWidth ?? 0, lock: null };
+  };
+  const onPagerTouchMove = (e: React.TouchEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.touches[0].clientX - d.x, dy = e.touches[0].clientY - d.y;
+    if (!d.lock) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      d.lock = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'h' : 'v';
+    }
+    if (d.lock !== 'h') return;
+    const atEdge = (moverIdx === 0 && dx > 0) || (moverIdx === MOVER_TABS.length - 1 && dx < 0);
+    setDragX(atEdge ? dx * 0.3 : dx); // 끝 탭에선 고무줄
+  };
+  const onPagerTouchEnd = (e: React.TouchEvent) => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d || d.lock !== 'h') { setDragX(null); return; }
+    const dx = e.changedTouches[0].clientX - d.x;
+    if (Math.abs(dx) > Math.max(48, d.w * 0.28)) goTab(moverIdx + (dx < 0 ? 1 : -1));
+    setDragX(null);
+  };
 
   // HOT / 박스 캐러셀 자동 슬라이딩(카드를 두 벌 이어붙여 끊김 없이 루프).
   const hotRef = useRef<HTMLDivElement>(null);
@@ -1004,10 +1048,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
       {/* realtime movers / rankings */}
       {/* 항상 렌더 — 데이터 전이라도 탭·스피너를 보여 섹션이 사라졌다 나타나지 않게. 좌우 스와이프로 탭 전환(앱 동일). */}
       {(
-        <div style={{ padding: '0 20px 30px', minHeight: 240, touchAction: 'pan-y' }}
-          onTouchStart={e => { if (e.touches.length === 1) moverTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
-          onTouchCancel={() => { moverTouch.current = null; }}
-          onTouchEnd={e => { const start = moverTouch.current; moverTouch.current = null; if (!start) return; const dx = e.changedTouches[0].clientX - start.x, dy = e.changedTouches[0].clientY - start.y; if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.5) setMoverTab(tab => MOVER_TABS[Math.max(0, Math.min(MOVER_TABS.length - 1, MOVER_TABS.findIndex(t => t.id === tab) + (dx < 0 ? 1 : -1)))].id); }}>
+        <div style={{ padding: '0 20px 30px', minHeight: 240 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 18, fontWeight: 800, color: P.ink }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={P.rise} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1030,7 +1071,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
                 <button
                   key={t.id}
                   type="button"
-                  onClick={() => setMoverTab(t.id)}
+                  onClick={() => goTab(MOVER_TABS.findIndex((x) => x.id === t.id))}
                   style={{ border: 'none', cursor: 'pointer', padding: '6px 11px', borderRadius: 999, fontSize: 12, fontWeight: 700, fontFamily: 'inherit', background: on ? P.ink : P.tileBg, color: on ? P.bg : P.ink3 }}
                 >
                   {t.label}
@@ -1038,22 +1079,43 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
               );
             })}
           </div>
-          {rankLoading && <div role="status" aria-label="랭킹 불러오는 중" style={{ padding: 28, display: 'flex', justifyContent: 'center' }}><span className="pf-pokeball-spinner pf-pokeball-spinner--sm" /></div>}
-          {rankFailed && (
-            <button type="button" onClick={retryRank} style={{ display: 'block', padding: '16px 0', border: 'none', background: 'none', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: P.ink3, cursor: 'pointer' }}>
-              불러오지 못했어요 · 다시 시도
-            </button>
-          )}
-          {!rankLoading && !rankFailed && moverTab !== 'surge' && listRows.length === 0 && (
-            <div style={{ padding: '18px 0', fontSize: 12.5, color: P.ink3 }}>{moverTab === 'collection' ? '아직 등록된 컬렉션 카드가 없어요' : '랭킹 데이터가 아직 없어요'}</div>
-          )}
-          {listRows.map((m, i) => {
-            const sub = moverTab === 'collection'
+          {/* 페이저: 3개 탭 나란히 — 드래그를 따라오다 놓으면 트랜지션으로 스냅. 높이는 현재 탭 내용 높이. */}
+          <div
+            ref={pagerRef}
+            onTouchStart={onPagerTouchStart}
+            onTouchMove={onPagerTouchMove}
+            onTouchEnd={onPagerTouchEnd}
+            onTouchCancel={() => { dragRef.current = null; setDragX(null); }}
+            style={{ overflow: 'hidden', height: paneH, touchAction: 'pan-y', transition: dragX == null ? 'height .2s ease' : 'none' }}
+          >
+            <div
+              style={{
+                display: 'flex', alignItems: 'flex-start', width: `${MOVER_TABS.length * 100}%`,
+                transform: `translateX(calc(${(-moverIdx * 100) / MOVER_TABS.length}% + ${dragX ?? 0}px))`,
+                transition: dragX == null ? 'transform .3s cubic-bezier(.22,.61,.36,1)' : 'none',
+                willChange: 'transform',
+              }}
+            >
+              {MOVER_TABS.map((t) => {
+                const st = paneState(t.id);
+                return (
+                  <div key={t.id} ref={(el) => { paneRefs.current[t.id] = el; }} style={{ width: `${100 / MOVER_TABS.length}%`, flex: 'none' }}>
+                    {st.loading && <div role="status" aria-label="랭킹 불러오는 중" style={{ padding: 28, display: 'flex', justifyContent: 'center' }}><span className="pf-pokeball-spinner pf-pokeball-spinner--sm" /></div>}
+                    {st.failed && (
+                      <button type="button" onClick={() => retryTab(t.id)} style={{ display: 'block', padding: '16px 0', border: 'none', background: 'none', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: P.ink3, cursor: 'pointer' }}>
+                        불러오지 못했어요 · 다시 시도
+                      </button>
+                    )}
+                    {!st.loading && !st.failed && t.id !== 'surge' && st.rows.length === 0 && (
+                      <div style={{ padding: '18px 0', fontSize: 12.5, color: P.ink3 }}>{t.id === 'collection' ? '아직 등록된 컬렉션 카드가 없어요' : '랭킹 데이터가 아직 없어요'}</div>
+                    )}
+                    {st.rows.map((m, i) => {
+            const sub = t.id === 'collection'
               ? `보유 ${m.holders ?? 0}명 · ${m.qty ?? 0}장${m.basis ? ` · ${m.basis}` : ''}`
-              : moverTab === 'snkr'
+              : t.id === 'snkr'
                 ? `${m.localizedName && m.localizedName !== m.shortName ? m.localizedName : '스니덩크 체결가'}${m.basis ? ` · ${m.basis}` : ''}`
                 : (m.localizedName && m.localizedName !== m.shortName ? m.localizedName : m.category ?? '카드');
-            const pc = moverTab === 'surge' ? pctInfo(m.changePct, P) : null;
+            const pc = t.id === 'surge' ? pctInfo(m.changePct, P) : null;
             return (
               <Link
                 key={m.apparelId}
@@ -1073,6 +1135,11 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
               </Link>
             );
           })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
