@@ -2,6 +2,7 @@ node_modules/
 .expo/
 dist/
 dist-android/
+dist-ota/
 web-build/
 *.log
 .DS_Store
