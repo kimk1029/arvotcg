@@ -244,9 +244,17 @@ export function bundleOnlyUnits(history: ReadonlyArray<Pick<SnkrdunkSaleEntry, '
   return Number.isFinite(min) ? min : 1;
 }
 
-/** "2枚" / "3個" → 2 / 3. 다른 형식이면 null. */
+/** 전각 숫자(０-９) → 반각. 스니덩크 문구엔 전각 숫자가 섞여 정규식 \d 에 안 잡히는 경우가 있다. */
+export function toHalfWidthDigits(text: string): string {
+  return text.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0));
+}
+
+/**
+ * "2枚" / "3個" / "２枚" / "3枚セット" → 2 / 3 / 2 / 3. 다른 형식이면 null.
+ * (전각 숫자·セット/組/パック 접미까지 허용 — 못 잡으면 화면에 일본어 수량이 그대로 남고 단가 환산도 빠진다.)
+ */
 export function parseUnitLabel(label: string | null | undefined): number | null {
-  const m = /^(\d+)\s*(個|枚)$/.exec((label ?? '').trim());
+  const m = /^(\d+)\s*(個|枚)(?:\s*(?:セット|組|パック|set))?$/i.exec(toHalfWidthDigits((label ?? '').trim()));
   const n = m ? Number(m[1]) : NaN;
   return Number.isFinite(n) && n >= 1 ? n : null;
 }
@@ -318,9 +326,7 @@ export function pickBundleVariantIds(raw: RawTradingHistory | null | undefined, 
 
 /** 묶음 수량 — size "2個" / "3枚" → 2 / 3. 비어 있거나 다른 형식이면 1(단품). */
 export function saleUnitCount(entry: Pick<SnkrdunkSaleEntry, 'size'>): number {
-  const m = /^(\d+)\s*(個|枚)$/.exec((entry.size ?? '').trim());
-  const n = m ? Number(m[1]) : 1;
-  return Number.isFinite(n) && n >= 1 ? n : 1;
+  return parseUnitLabel(entry.size) ?? 1;
 }
 
 /**
@@ -349,7 +355,8 @@ export function isSingleUnitSale(entry: SnkrdunkSaleEntry): boolean {
  */
 export function localizeSnkrdunkText(value: string | null | undefined): string {
   if (!value) return '';
-  let v = String(value);
+  // 전각 숫자를 먼저 반각으로 — 아래 \d 규칙(수량·상대시간)이 '２枚' 같은 표기를 놓치지 않게.
+  let v = toHalfWidthDigits(String(value));
   // 일본식 날짜 → 점 표기
   v = v.replace(/(\d{4})年(\d{1,2})月(\d{1,2})日/g, '$1.$2.$3');
   v = v.replace(/(\d{1,2})月(\d{1,2})日/g, '$1.$2');
