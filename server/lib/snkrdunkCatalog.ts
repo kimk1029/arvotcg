@@ -42,6 +42,8 @@ export async function upsertCatalogCard(
   try {
     const jp = a.localizedName || a.name || '';
     const statics = parseCardStatics(jp, a.productNumber);
+    // 작품: 스니덩크 브랜드(a.game, 정확) > 이름 파싱. 이름만으론 원피스·유희왕 대부분이 'other' 였다(2026-09-08).
+    const game = a.game && a.game !== 'other' ? a.game : statics.game;
     const base = {
       name: a.name ?? '',
       localizedName: jp,
@@ -59,7 +61,7 @@ export async function upsertCatalogCard(
       create: {
         apparelId: a.id,
         ...base,
-        game: statics.game,
+        game,
         setCode: statics.setCode,
         cardNumber: statics.cardNumber,
         rarity: statics.rarity,
@@ -67,7 +69,7 @@ export async function upsertCatalogCard(
       // 파싱 성공한 필드만 갱신 — 이전에 채워진 세트코드/카드번호를 null 로 덮지 않게.
       update: {
         ...base,
-        ...(statics.game !== 'other' ? { game: statics.game } : {}),
+        ...(game !== 'other' ? { game } : {}),
         ...(statics.setCode ? { setCode: statics.setCode } : {}),
         ...(statics.cardNumber ? { cardNumber: statics.cardNumber } : {}),
         ...(statics.rarity ? { rarity: statics.rarity } : {}),
