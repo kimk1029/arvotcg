@@ -3,11 +3,12 @@
  * 것을 스니덩크 상품 브랜드(ONE PIECE·YU-GI-OH·Pokemon Card Game)로 다시 판정해 저장한다.
  * 이름 파싱만으로는 원피스·유희왕 대부분이 'other' 라 내 컬렉션 '자산 구성' 파이에 기타 작품으로 뭉쳤다(2026-09-08).
  *
- *   cd server && npx tsx scripts/backfillCatalogGame.ts            # 컬렉션 카드만(기본)
- *   cd server && ALL=1 npx tsx scripts/backfillCatalogGame.ts      # 카탈로그 전체(느림)
+ *   cd server && node --env-file=.env --import tsx scripts/backfillCatalogGame.ts         # 컬렉션 카드만(기본)
+ *   cd server && ALL=1 node --env-file=.env --import tsx scripts/backfillCatalogGame.ts   # 카탈로그 전체(느림)
  */
 import { prisma } from '../lib/prisma.js';
-import { fetchSnkrdunkApparel } from '@/lib/snkrdunk';
+// '@/lib/*' 별칭은 서버 본체(index.js 경유)에서만 동작 — 단독 스크립트는 상대경로.
+import { fetchSnkrdunkApparel } from '../../src/lib/snkrdunk';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
