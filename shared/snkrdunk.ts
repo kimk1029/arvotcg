@@ -40,6 +40,8 @@ export interface SnkrdunkApparel {
   setCode?: string | null;
   /** DB 카탈로그 보강 — 소속 팩 코드(CARD_PACKS.code). 없으면 null. */
   packCode?: string | null;
+  /** 스니덩크 상품 카탈로그 id — v3 trading-history(수량별 체결) 조회 키. 없으면 구형 sales-history 폴백. */
+  productCatalogId?: number | null;
 }
 
 export interface SnkrdunkSaleEntry {
@@ -70,6 +72,7 @@ export interface SnkrdunkApparelGroupPage {
 
 export interface RawApparel {
   id: number;
+  productCatalogId?: number;
   name?: string;
   localizedName?: string;
   primaryMedia?: { imageUrl?: string };
@@ -182,7 +185,86 @@ export function toSnkrdunkApparel(raw: RawApparel, itemKind?: SnkrdunkItemKind):
     listingCountText: useUsed ? (raw.usedListingCountText ?? totalListingCountText) : totalListingCountText,
     releasedAt: raw.releasedAt ?? null,
     productNumber: raw.productNumber ?? '',
+    productCatalogId: raw.productCatalogId ?? null,
   };
+}
+
+/* ── v3 trading-history (수량별 체결) ─────────────────────────────── */
+
+/**
+ * 스니덩크 사이트가 시세상세에 쓰는 `/v3/products/{productCatalogId}/trading-history` 응답.
+ * 구형 `/v1/apparels/{id}/sales-history` 는 모든 수량(1枚·2枚…)의 체결을 수량 표시 없이 섞어 줘서
+ * 묶음 체결이 1장 체결처럼 보였다(2026-09-08 실측). v3 는 variant(수량)별로만 주며 기본은 1枚.
+ */
+export interface RawTradingHistory {
+  filters?: { variants?: { title?: string; options?: Array<{ id: number; name: string }>; showAllOption?: boolean } };
+  trades?: Array<{ price: number; soldAt: string; title: string; label: string }>;
+}
+
+/** "2枚" / "3個" → 2 / 3. 다른 형식이면 null. */
+export function parseUnitLabel(label: string | null | undefined): number | null {
+  const m = /^(\d+)\s*(個|枚)$/.exec((label ?? '').trim());
+  const n = m ? Number(m[1]) : NaN;
+  return Number.isFinite(n) && n >= 1 ? n : null;
+}
+
+/** 시세상세에 묶음 체결도 보여줄 수량 — 2·3장 묶음까지(요청 2건 추가). 그 이상은 드물어 생략. */
+export const BUNDLE_UNITS_TO_FETCH: readonly number[] = [2, 3];
+
+/**
+ * ISO 체결 시각 → 구형 API 의 date 문구와 같은 형식("16分前"·"3時間前"·"1日前"·"2026/08/29").
+ * 화면은 localizeSnkrdunkText 로 한글화하므로 일본어 형식을 유지한다. 날짜는 JST 기준.
+ */
+export function formatSnkrdunkSoldAt(iso: string, now = Date.now()): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return iso;
+  const diff = now - t;
+  const min = Math.floor(diff / 60_000), hour = Math.floor(diff / 3_600_000), day = Math.floor(diff / 86_400_000);
+  if (min < 60) return `${Math.max(0, min)}分前`;
+  if (hour < 24) return `${hour}時間前`;
+  if (day < 2) return '1日前';
+  const jst = new Date(t + 9 * 3_600_000);
+  return `${jst.getUTCFullYear()}/${String(jst.getUTCMonth() + 1).padStart(2, '0')}/${String(jst.getUTCDate()).padStart(2, '0')}`;
+}
+
+/**
+ * v3 trades → SnkrdunkSaleEntry(1개 단가 + units). label 이 수량("2枚"), title 이 상태(PSA10·A…).
+ * 여러 수량의 목록을 합칠 때는 soldAt 내림차순으로 병합(mergeTradingHistories).
+ */
+export function tradingHistoryToSales(raw: RawTradingHistory | null | undefined, now = Date.now()): Array<SnkrdunkSaleEntry & { soldAt: string }> {
+  return (raw?.trades ?? [])
+    .filter((t) => Number.isFinite(t.price) && t.price > 0)
+    .map((t) => {
+      const units = parseUnitLabel(t.label) ?? 1;
+      return {
+        price: units > 1 ? Math.round(t.price / units) : t.price,
+        date: formatSnkrdunkSoldAt(t.soldAt, now),
+        size: units > 1 ? t.label.trim() : '',
+        condition: (t.title ?? '').trim(),
+        label: '中古',
+        units,
+        soldAt: t.soldAt,
+      };
+    });
+}
+
+/** 수량별 목록 병합 — 최신 체결 순, 상한 limit. */
+export function mergeTradingHistories(lists: Array<Array<SnkrdunkSaleEntry & { soldAt: string }>>, limit = 60): SnkrdunkSaleEntry[] {
+  return lists
+    .flat()
+    .sort((a, b) => Date.parse(b.soldAt) - Date.parse(a.soldAt))
+    .slice(0, limit)
+    .map(({ soldAt: _soldAt, ...entry }) => entry);
+}
+
+/** v3 filters 에서 원하는 수량(2枚·3枚…)의 variant id 를 고른다. */
+export function pickBundleVariantIds(raw: RawTradingHistory | null | undefined, units: readonly number[] = BUNDLE_UNITS_TO_FETCH): Array<{ id: number; units: number }> {
+  const out: Array<{ id: number; units: number }> = [];
+  for (const o of raw?.filters?.variants?.options ?? []) {
+    const n = parseUnitLabel(o.name);
+    if (n != null && units.includes(n)) out.push({ id: o.id, units: n });
+  }
+  return out;
 }
 
 /** 묶음 수량 — size "2個" / "3枚" → 2 / 3. 비어 있거나 다른 형식이면 1(단품). */
@@ -198,6 +280,8 @@ export function saleUnitCount(entry: Pick<SnkrdunkSaleEntry, 'size'>): number {
  * 남은 값과 화면의 "가격" 이 어긋났다. units 에 수량을 남겨 화면이 'N개 단가' 를 표시할 수 있다.
  */
 export function toUnitPriceSale(entry: SnkrdunkSaleEntry): SnkrdunkSaleEntry {
+  // 이미 단가 환산된 항목(v3 경로, units 채워짐)은 그대로 — 두 번 나누지 않는다(멱등).
+  if (typeof entry.units === 'number' && entry.units >= 1) return entry;
   const units = saleUnitCount(entry);
   if (units <= 1) return entry.units === 1 ? entry : { ...entry, units: 1 };
   return { ...entry, price: Math.round(entry.price / units), units };
