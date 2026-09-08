@@ -32,7 +32,7 @@ import { jaToKoBatch, jaToKoCached } from '@/lib/cardLang';
 import { useScanToSearch } from '@/lib/useScanToSearch';
 import { peekHomeState, patchHomeState } from '@/lib/homeScreenState';
 import { api } from '@/lib/apiClient';
-import { fetchMySummary, fetchNotifUnreadCount, fetchPortfolio, fetchUnreadCount, peekPortfolio, type MySummary } from '@/lib/myApi';
+import { absApiUrl, fetchMySummary, fetchNotifUnreadCount, fetchPortfolio, fetchUnreadCount, peekPortfolio, type MySummary } from '@/lib/myApi';
 import { isAuthenticated } from '@/lib/session';
 import { setHomeHotRows } from '@/lib/homeHotStore';
 import { swrAge, swrKeys, swrPeek, swrSet } from '@/lib/swr';
@@ -254,7 +254,7 @@ function CardArt({
   return (
     <View style={{ position: 'relative', width, height }}>
       {imageUrl ? (
-        <Image source={shotSource(imageUrl)} style={{ width, height, borderRadius: radius, ...shadow }} resizeMode="cover" />
+        <Image source={shotSource(absApiUrl(imageUrl) ?? imageUrl)} style={{ width, height, borderRadius: radius, ...shadow }} resizeMode="cover" />
       ) : (
         <View style={{ width, height, borderRadius: radius, backgroundColor: FALLBACK_BG[fallbackIdx % FALLBACK_BG.length], alignItems: 'center', justifyContent: 'center', ...shadow }}>
           <Text style={{ fontSize: 40 }}>🃏</Text>
@@ -651,7 +651,6 @@ export function CleanHomeScreen() {
   const [rankRows, setRankRows] = useState<Record<string, RankRow[]>>(
     () => (restored?.rankRows as Record<string, RankRow[]> | undefined) ?? {},
   );
-  const rankKey = `${moverTab}:${homeGame}`;
   // 스냅샷 갱신 — 값이 바뀔 때마다(얕은 병합, 메모리 전용). 스크롤은 언마운트 시 별도 저장.
   useEffect(() => {
     patchHomeState({ homeGame, moverTab, rankRows, priceById, changeById, basisById });
@@ -676,19 +675,47 @@ export function CleanHomeScreen() {
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeGame, moverTab, rankRetry]);
-  const rankList = rankRows[rankKey] ?? homeRanking.peek(homeGame, moverTab);
-  // 스피너: 급등=HOT 조회 중, 랭킹=캐시도 응답도 아직. 실패는 별도 '다시 시도' 안내 (웹 동일).
-  const rankLoading = moverTab === 'surge' ? snkrRows.length === 0 && !hotSettled : rankList === undefined && !rankErrors[rankKey];
-  const rankFailed = moverTab === 'surge' ? snkrRows.length === 0 && hotSettled : !!rankErrors[rankKey];
-  const retryRank = () => (moverTab === 'surge' ? setHotRetry((n) => n + 1) : setRankRetry((n) => n + 1));
+  // 탭별 상태 — 페이저가 3개 탭을 나란히 그리므로 현재 탭뿐 아니라 모든 탭의 로딩/실패/목록을 계산한다.
+  const paneState = (tab: MoverTab) => {
+    if (tab === 'surge') {
+      return { loading: snkrRows.length === 0 && !hotSettled, failed: snkrRows.length === 0 && hotSettled, list: undefined as RankRow[] | undefined };
+    }
+    const key = `${tab}:${homeGame}`;
+    const list = rankRows[key] ?? homeRanking.peek(homeGame, tab);
+    return { loading: list === undefined && !rankErrors[key], failed: !!rankErrors[key], list };
+  };
+  const retryTab = (tab: MoverTab) => (tab === 'surge' ? setHotRetry((n) => n + 1) : setRankRetry((n) => n + 1));
+  // 페이저 — 3개 탭을 가로로 이어 붙이고 손가락을 따라 움직이다 놓으면 스프링으로 넘어간다 (웹 동일).
+  const moverIdx = Math.max(0, MOVER_TABS.findIndex((t) => t.id === moverTab));
+  const [paneW, setPaneW] = useState(0);
+  const [paneH, setPaneH] = useState<Record<string, number>>({});
+  const pagerX = useRef(new Animated.Value(0)).current;
+  const pagerRef = useRef({ idx: moverIdx, w: paneW });
+  pagerRef.current = { idx: moverIdx, w: paneW };
+  const goTab = useCallback((idx: number, animated = true) => {
+    const i = Math.max(0, Math.min(MOVER_TABS.length - 1, idx));
+    const { w } = pagerRef.current;
+    setMoverTab(MOVER_TABS[i].id);
+    if (animated) Animated.spring(pagerX, { toValue: -i * w, useNativeDriver: true, damping: 22, stiffness: 220, mass: 0.8 }).start();
+    else pagerX.setValue(-i * w);
+  }, [pagerX]);
+  useEffect(() => { pagerX.setValue(-moverIdx * paneW); }, [paneW, pagerX]); // 폭 확정/회전 시 현재 탭 위치로
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const moverSwipe = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 18 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
-    onPanResponderRelease: (_, g) => {
-      if (Math.abs(g.dx) < 45) return;
-      setMoverTab(tab => MOVER_TABS[Math.max(0, Math.min(MOVER_TABS.length - 1, MOVER_TABS.findIndex(t => t.id === tab) + (g.dx < 0 ? 1 : -1)))].id);
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.4,
+    onPanResponderMove: (_, g) => {
+      const { idx, w } = pagerRef.current;
+      const atEdge = (idx === 0 && g.dx > 0) || (idx === MOVER_TABS.length - 1 && g.dx < 0);
+      pagerX.setValue(-idx * w + (atEdge ? g.dx * 0.3 : g.dx)); // 끝 탭에선 고무줄
     },
-  }), []);
-
+    onPanResponderRelease: (_, g) => {
+      const { idx, w } = pagerRef.current;
+      const flick = Math.abs(g.vx) > 0.45;
+      const far = Math.abs(g.dx) > Math.max(48, w * 0.28);
+      goTab(idx + (flick || far ? (g.dx < 0 ? 1 : -1) : 0));
+    },
+    onPanResponderTerminate: () => goTab(pagerRef.current.idx),
+  }), [goTab, pagerX]);
 
   const openDetail = (apparelId: number) => {
     const b = basisById[apparelId];
@@ -1119,7 +1146,7 @@ export function CleanHomeScreen() {
         {/* realtime movers / rankings */}
         {/* 항상 렌더 — 데이터 전이라도 탭·스피너를 보여 섹션이 사라졌다 나타나지 않게. 좌우 스와이프로 탭 전환(웹 동일). */}
         {(
-          <View {...moverSwipe.panHandlers} style={{ paddingHorizontal: 20, paddingBottom: 30, minHeight: 240 }}>
+          <View style={{ paddingHorizontal: 20, paddingBottom: 30, minHeight: 240 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
                 <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={P.rise} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
@@ -1134,62 +1161,74 @@ export function CleanHomeScreen() {
               {MOVER_TABS.map((t) => {
                 const on = t.id === moverTab;
                 return (
-                  <Pressable key={t.id} onPress={() => setMoverTab(t.id)} style={{ paddingVertical: 6, paddingHorizontal: 11, borderRadius: 999, backgroundColor: on ? P.ink : P.tileBg }}>
+                  <Pressable key={t.id} onPress={() => goTab(MOVER_TABS.findIndex((x) => x.id === t.id))} style={{ paddingVertical: 6, paddingHorizontal: 11, borderRadius: 999, backgroundColor: on ? P.ink : P.tileBg }}>
                     <Text style={ts(12, '700', on ? P.bg : P.ink3)}>{t.label}</Text>
                   </Pressable>
                 );
               })}
             </View>
-            {rankLoading ? <View accessibilityLabel="랭킹 불러오는 중" style={{ alignItems: 'center', paddingVertical: 28 }}><Spinner size={28} /></View> : null}
-            {rankFailed ? <Pressable onPress={retryRank} style={{ paddingVertical: 16 }}><Text style={ts(12, '600', P.ink3)}>불러오지 못했어요 · 다시 시도</Text></Pressable> : null}
-            {!rankLoading && !rankFailed && moverTab !== 'surge' && (rankList?.length ?? 0) === 0 ? (
-              <Text style={[ts(12.5, '400', P.ink3), { paddingVertical: 18 }]}>{moverTab === 'collection' ? '아직 등록된 컬렉션 카드가 없어요' : '랭킹 데이터가 아직 없어요'}</Text>
-            ) : null}
-            {moverTab !== 'surge' && rankList ? rankList.map((m, i) => {
-              const sub = moverTab === 'collection'
-                ? `보유 ${m.holders ?? 0}명 · ${m.qty ?? 0}장${m.basis ? ` · ${m.basis}` : ''}`
-                : `${m.localizedName && m.localizedName !== m.shortName ? m.localizedName : '스니덩크 체결가'}${m.basis ? ` · ${m.basis}` : ''}`;
-              return (
-                <Pressable
-                  key={m.apparelId}
-                  onPress={() => openDetail(m.apparelId)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: P.line }}
-                >
-                  <Text style={[ts(15, '800', i < 3 ? P.rise : P.ink), { width: 14, textAlign: 'center' }]}>{i + 1}</Text>
-                  <CardArt imageUrl={m.imageUrl} fallbackIdx={i} width={46} height={46} radius={9} />
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text numberOfLines={1} style={ts(14, '700', P.ink)}>{m.shortName}</Text>
-                    <Text numberOfLines={1} style={[ts(12, '400', P.ink3), { marginTop: 2 }]}>{sub}</Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={ts(14.5, '900', P.ink)}>{fmtPrice(m.recentPrice ?? m.minPrice)}</Text>
-                  </View>
-                </Pressable>
-              );
-            }) : null}
-            {moverTab === 'surge' ? [...snkrRows]
-              .sort((a, b) => (changeById[b.seed.apparelId] ?? -Infinity) - (changeById[a.seed.apparelId] ?? -Infinity))
-              .map(({ seed, data }, i) => {
-                const pc = pctInfo(changeById[seed.apparelId], P);
-                return (
-                  <Pressable
-                    key={seed.apparelId}
-                    onPress={() => openDetail(seed.apparelId)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: P.line }}
-                  >
-                    <Text style={[ts(15, '800', i < 3 ? P.rise : P.ink), { width: 14, textAlign: 'center' }]}>{i + 1}</Text>
-                    <CardArt imageUrl={data?.imageUrl ?? seed.imageUrl ?? null} fallbackIdx={i} width={46} height={46} radius={9} />
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text numberOfLines={1} style={ts(14, '700', P.ink)}>{seed.shortName}</Text>
-                      <Text numberOfLines={1} style={[ts(12, '400', P.ink3), { marginTop: 2 }]}>{seed.category ?? '카드'}</Text>
+            {/* 페이저: 3개 탭 나란히 — 드래그를 따라오다 놓으면 스프링으로 스냅. 높이는 현재 탭 내용 높이. */}
+            <View onLayout={(e) => setPaneW(Math.round(e.nativeEvent.layout.width))} style={{ overflow: 'hidden', height: paneH[moverTab] || undefined }}>
+              <Animated.View {...moverSwipe.panHandlers} style={{ flexDirection: 'row', alignItems: 'flex-start', width: paneW > 0 ? paneW * MOVER_TABS.length : undefined, transform: [{ translateX: pagerX }] }}>
+                {MOVER_TABS.map((t) => {
+                  const st = paneState(t.id);
+                  return (
+                    <View key={t.id} style={{ width: paneW || '100%' }} onLayout={(e) => { const h = Math.round(e.nativeEvent.layout.height); setPaneH((p) => (p[t.id] === h ? p : { ...p, [t.id]: h })); }}>
+                      {st.loading ? <View accessibilityLabel="랭킹 불러오는 중" style={{ alignItems: 'center', paddingVertical: 28 }}><Spinner size={28} /></View> : null}
+                      {st.failed ? <Pressable onPress={() => retryTab(t.id)} style={{ paddingVertical: 16 }}><Text style={ts(12, '600', P.ink3)}>불러오지 못했어요 · 다시 시도</Text></Pressable> : null}
+                      {!st.loading && !st.failed && t.id !== 'surge' && (st.list?.length ?? 0) === 0 ? (
+                        <Text style={[ts(12.5, '400', P.ink3), { paddingVertical: 18 }]}>{t.id === 'collection' ? '아직 등록된 컬렉션 카드가 없어요' : '랭킹 데이터가 아직 없어요'}</Text>
+                      ) : null}
+                      {t.id !== 'surge' && st.list ? st.list.map((m, i) => {
+                        const sub = t.id === 'collection'
+                          ? `보유 ${m.holders ?? 0}명 · ${m.qty ?? 0}장${m.basis ? ` · ${m.basis}` : ''}`
+                          : `${m.localizedName && m.localizedName !== m.shortName ? m.localizedName : '스니덩크 체결가'}${m.basis ? ` · ${m.basis}` : ''}`;
+                        return (
+                          <Pressable
+                            key={m.apparelId}
+                            onPress={() => openDetail(m.apparelId)}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: P.line }}
+                          >
+                            <Text style={[ts(15, '800', i < 3 ? P.rise : P.ink), { width: 14, textAlign: 'center' }]}>{i + 1}</Text>
+                            <CardArt imageUrl={m.imageUrl} fallbackIdx={i} width={46} height={46} radius={9} />
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <Text numberOfLines={1} style={ts(14, '700', P.ink)}>{m.shortName}</Text>
+                              <Text numberOfLines={1} style={[ts(12, '400', P.ink3), { marginTop: 2 }]}>{sub}</Text>
+                            </View>
+                            <View style={{ alignItems: 'flex-end' }}>
+                              <Text style={ts(14.5, '900', P.ink)}>{fmtPrice(m.recentPrice ?? m.minPrice)}</Text>
+                            </View>
+                          </Pressable>
+                        );
+                      }) : null}
+                      {t.id === 'surge' ? [...snkrRows]
+                        .sort((a, b) => (changeById[b.seed.apparelId] ?? -Infinity) - (changeById[a.seed.apparelId] ?? -Infinity))
+                        .map(({ seed, data }, i) => {
+                          const pc = pctInfo(changeById[seed.apparelId], P);
+                          return (
+                            <Pressable
+                              key={seed.apparelId}
+                              onPress={() => openDetail(seed.apparelId)}
+                              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: P.line }}
+                            >
+                              <Text style={[ts(15, '800', i < 3 ? P.rise : P.ink), { width: 14, textAlign: 'center' }]}>{i + 1}</Text>
+                              <CardArt imageUrl={data?.imageUrl ?? seed.imageUrl ?? null} fallbackIdx={i} width={46} height={46} radius={9} />
+                              <View style={{ flex: 1, minWidth: 0 }}>
+                                <Text numberOfLines={1} style={ts(14, '700', P.ink)}>{seed.shortName}</Text>
+                                <Text numberOfLines={1} style={[ts(12, '400', P.ink3), { marginTop: 2 }]}>{seed.category ?? '카드'}</Text>
+                              </View>
+                              <View style={{ alignItems: 'flex-end' }}>
+                                <Text style={ts(14.5, '900', P.ink)}>{fmtPrice(priceById[seed.apparelId] ?? data?.minPrice ?? 0)}</Text>
+                                {pc ? <Text numberOfLines={1} style={[ts(flat ? 12.5 : 9.5, '800', pc.color), { marginTop: 3 }]}>{pc.text}</Text> : null}
+                              </View>
+                            </Pressable>
+                          );
+                        }) : null}
                     </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={ts(14.5, '900', P.ink)}>{fmtPrice(priceById[seed.apparelId] ?? data?.minPrice ?? 0)}</Text>
-                      {pc ? <Text numberOfLines={1} style={[ts(flat ? 12.5 : 9.5, '800', pc.color), { marginTop: 3 }]}>{pc.text}</Text> : null}
-                    </View>
-                  </Pressable>
-                );
-              }) : null}
+                  );
+                })}
+              </Animated.View>
+            </View>
           </View>
         )}
       </ScrollView>
