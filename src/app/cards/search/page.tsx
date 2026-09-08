@@ -1,9 +1,8 @@
 import Link from 'next/link';
-import { CardThumb } from '@/components/CardThumb';
 import { TranslationTicker, type SearchRankItem } from '@/components/TranslationTicker';
 import { PIXEL_BORDER } from '@/components/pixelBorder';
 import { AppBar } from '@/components/ui/AppBar';
-import { Panel } from '@/components/ui/Panel';
+import { IllustratorCardTile, type IllustratorCard } from '@/components/cards/IllustratorCardTile';
 import { ListAdRow } from '@/components/ListAdRow';
 import { autoPriceSize } from '../../../../shared/util/autoPriceSize';
 import { StatusBar } from '@/components/ui/StatusBar';
@@ -19,19 +18,6 @@ type SearchMode = 'card' | 'illustrator';
 interface SearchParams {
   q?: string;
   mode?: string;
-}
-
-interface IllustratorCard {
-  id: string;
-  name: string;
-  setName?: string;
-  setCode?: string;
-  number?: string;
-  totalNumber?: string | number;
-  rarity?: string;
-  illustrator?: string;
-  imageSmall?: string | null;
-  imageLarge?: string | null;
 }
 
 interface IllustratorSearchResp {
@@ -463,61 +449,5 @@ function IllustratorResults({
         )}
       </div>
     </>
-  );
-}
-
-function IllustratorCardTile({ c }: { c: IllustratorCard }) {
-  const img = c.imageSmall || c.imageLarge;
-  const num = c.number && c.totalNumber ? `${c.number}/${c.totalNumber}` : c.number ?? '';
-  return (
-    <Panel
-      style={{ overflow: 'hidden' }}
-      pixelShadow="-2px 0 0 var(--ink),2px 0 0 var(--ink),0 -2px 0 var(--ink),0 2px 0 var(--ink),3px 3px 0 var(--ink)"
-    >
-      <CardThumb
-        style={{
-          aspectRatio: '63 / 88',
-          background: 'var(--pap2)',
-          overflow: 'hidden',
-        }}
-        src={img}
-        alt={c.name}
-        loading="lazy"
-        emojiSize={33}
-      />
-      <div className="cv-card-divider" style={{ padding: '6px 8px 8px' }}>
-        <div
-          style={{
-            fontFamily: 'var(--f1)',
-            fontSize: 10,
-            color: 'var(--ink)',
-            letterSpacing: 0.2,
-            lineHeight: 1.4,
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-            minHeight: 28,
-          }}
-          title={c.name}
-        >
-          {c.name}
-        </div>
-        <div
-          style={{
-            marginTop: 4,
-            fontFamily: 'var(--f1)',
-            fontSize: 8,
-            color: 'var(--ink3)',
-            letterSpacing: 0.3,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {[c.setCode?.toUpperCase(), num, c.rarity].filter(Boolean).join(' · ')}
-        </div>
-      </div>
-    </Panel>
   );
 }

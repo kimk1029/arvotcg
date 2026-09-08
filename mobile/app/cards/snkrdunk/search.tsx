@@ -13,6 +13,7 @@ import { useThemeColors, useThemeTextVariant, useInputFont } from '@/components/
 import {
   fetchSnkrdunkApparel,
   searchSnkrdunkByQuery,
+  fetchCardsByCode,
   type SnkrdunkApparel,
   type SnkrdunkSearchResult,
 } from '@/services/snkrdunk';
@@ -28,7 +29,8 @@ import { api } from '@/lib/apiClient';
 import { uploadScanImage, CardScanError } from '@/services/cardScanApi';
 import { useToast } from '@/components/ToastProvider';
 import { fetchEbaySnapshot, type EbaySearchResp } from '@/services/ebay';
-import { searchByIllustrator, type IllustratorSearchResp } from '@/services/illustrator';
+import { searchByIllustrator, type IllustratorCard, type IllustratorSearchResp } from '@/services/illustrator';
+import { illustratorCardCode, illustratorSearchQuery, pickApparelIdByCode } from '../../../../shared/illustratorCard';
 import { ThumbImage } from '@/components/cv/ThumbImage';
 import { translate } from '../../../../shared/cardTranslate';
 
@@ -271,27 +273,27 @@ export default function SnkrdunkSearchScreen() {
   }, [initialQuery]);
 
   // KREAM — 탭을 열 때만 1회 로딩 (안티봇이 IP를 막아, 매 검색마다 호출하면 대부분 차단됨).
-  // 차단/실패 시 빈 배열 → 이동 버튼 폴백. (loading 은 deps 에 넣지 않음 — orphan 방지)
+  // 차단/실패 시 빈 배열 → 이동 버튼 폴백. 진행 중 판정은 state 가 아니라 ref(질의별) — 로딩 중
+  // 질의가 바뀌면 이전 요청은 버리고 새 질의를 바로 받는다(예전엔 loading 이 true 로 남아 스피너가 영영 돌았음). 웹 동일.
+  const kreamReq = useRef<string | null>(null);
   useEffect(() => {
-    if (cat !== 'kream' || !initialQuery || kreamLoaded || kreamLoading) return;
+    if (cat !== 'kream' || !initialQuery || kreamLoaded || kreamReq.current === initialQuery) return;
     let alive = true;
+    kreamReq.current = initialQuery;
     setKreamLoading(true);
     fetchKreamItems(initialQuery)
       .then((items) => {
-        if (!alive) return;
-        setKream(items);
-        setKreamLoaded(true);
-      })
-      .catch(() => {
-        if (alive) setKreamLoaded(true);
+        if (alive) setKream(items);
       })
       .finally(() => {
-        if (alive) setKreamLoading(false);
+        if (!alive) return;
+        setKreamLoaded(true);
+        setKreamLoading(false);
       });
     return () => {
       alive = false;
+      kreamReq.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cat, initialQuery, kreamLoaded]);
 
   // 쿼리 변경 시 eBay 캐시 리셋.
@@ -802,31 +804,68 @@ function IllustratorPanel({
       ) : (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {cards.map((c) => (
-            <View key={c.id} style={{ width: '31.5%' }}>
-              <PixelFrame bg={tc.white} borderWidth={2} shadow={3}>
-                <View style={{ padding: 6, gap: 5 }}>
-                  <ThumbImage
-                    uri={c.imageSmall || c.imageLarge || null}
-                    style={{ width: '100%', aspectRatio: 63 / 88 }}
-                    bg={tc.pap2}
-                    resizeMode="contain"
-                    resizeMethod="resize"
-                  />
-                  <PixelText variant="ko" size={9} numberOfLines={1} color={tc.ink}>
-                    {c.name}
-                  </PixelText>
-                  <PixelText variant={txt} size={7} numberOfLines={1} color={tc.ink3}>
-                    {[c.setCode, c.number ? `${c.number}${c.totalNumber ? `/${c.totalNumber}` : ''}` : '', c.rarity]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </PixelText>
-                </View>
-              </PixelFrame>
-            </View>
+            <IllustratorTile key={c.id} c={c} />
           ))}
         </View>
       )}
     </View>
+  );
+}
+
+/**
+ * 일러스트 카드 타일 — 탭하면 세트코드+번호로 스니덩크 apparelId 를 찾아 시세상세로,
+ * 못 찾으면 코드 검색 목록으로 (웹 IllustratorCardTile 동일, 규칙 shared/illustratorCard.ts).
+ */
+function IllustratorTile({ c }: { c: IllustratorCard }) {
+  const tc = useThemeColors();
+  const txt = useThemeTextVariant();
+  const [busy, setBusy] = useState(false);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+  const code = illustratorCardCode(c);
+  const open = async () => {
+    if (!code || busy) return;
+    setBusy(true);
+    let apparelId: number | null = null;
+    try {
+      const r = await fetchCardsByCode(code.setCode, code.number);
+      apparelId = pickApparelIdByCode(r.cards);
+    } catch {
+      /* 조회 실패 → 검색 목록 폴백 */
+    }
+    if (!alive.current) return;
+    setBusy(false);
+    if (apparelId) router.push(`/cards/snkrdunk/${apparelId}` as never);
+    else router.push(`/cards/snkrdunk/search?q=${encodeURIComponent(illustratorSearchQuery(c))}` as never);
+  };
+  return (
+    <Pressable onPress={open} disabled={!code} accessibilityRole="button" accessibilityLabel={`${c.name} 시세 보기`} style={{ width: '31.5%' }}>
+      <PixelFrame bg={tc.white} borderWidth={2} shadow={3}>
+        <View style={{ padding: 6, gap: 5 }}>
+          <ThumbImage
+            uri={c.imageSmall || c.imageLarge || null}
+            style={{ width: '100%', aspectRatio: 63 / 88 }}
+            bg={tc.pap2}
+            resizeMode="contain"
+            resizeMethod="resize"
+          />
+          <PixelText variant="ko" size={9} numberOfLines={1} color={tc.ink}>
+            {c.name}
+          </PixelText>
+          <PixelText variant={txt} size={7} numberOfLines={1} color={tc.ink3}>
+            {[c.setCode, c.number ? `${c.number}${c.totalNumber ? `/${c.totalNumber}` : ''}` : '', c.rarity]
+              .filter(Boolean)
+              .join(' · ')}
+          </PixelText>
+        </View>
+        {busy ? (
+          <View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.45)' }}>
+            <ActivityIndicator color={tc.white} />
+            <PixelText variant="ko" size={8} color={tc.white}>시세 찾는 중…</PixelText>
+          </View>
+        ) : null}
+      </PixelFrame>
+    </Pressable>
   );
 }
 

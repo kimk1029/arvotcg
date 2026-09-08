@@ -13,6 +13,7 @@
 | `cardTranslate.ts` | 카드명 한/영/일 번역 엔진 (작품별 TERMS_BY_GAME) |
 | `cardZoom.ts` | 시세상세 카드 이미지 확대 보기 레이아웃 — 실물 63×88mm 컨테이너(1in=px 계수) + 스니덩크 프레임 투명 여백 트림(카드 높이 0.838 실측), 웹 SnkrdunkImageZoom ↔ 앱 CardImageZoom |
 | `rankingCache.ts` | 홈 하단 랭킹(SNKR 최고가·컬렉션 TOP) 캐시 — TTL 5분·진행 중 요청 공유·실패 시 기존 캐시 유지, 저장소/전송은 플랫폼 주입(웹 src/lib/homeRanking ↔ 앱 mobile/src/lib/homeRanking) |
+| `illustratorCard.ts` | 일러스트레이터 검색 결과(TCGdex 세트코드·번호) → 스니덩크 by-code 조회 파라미터·검색어·apparelId 선택 규칙, 웹 IllustratorCardTile ↔ 앱 IllustratorTile |
 | `cardStatics.ts` | 카드명/품번 → 게임·세트코드·카드번호·레어도 파싱 (**DB 적재용**) |
 | `cardRarity.ts` | **게임별 등급 사다리**(RARITY_LADDER_BY_GAME — 포켓몬/원피스/유희왕 각각 높은등급순) + 라벨·색 표(RARITY_META) + 상품명에서 등급 토큰 추출 (**화면 표시용**: 필터 칩·배지) |
 | `currency.ts` | 통화 모드(¥/₩)·환율 포맷 formatPrice |

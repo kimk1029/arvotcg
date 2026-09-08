@@ -119,14 +119,17 @@ export function SearchResults({
   }, [q]);
 
   // KREAM — 탭을 열 때만 1회 로딩 (안티봇이 IP를 막아, 매 검색마다 호출하면 대부분 차단됨).
-  // 차단/실패 시 빈 배열 → 이동 버튼 폴백. (loading 은 deps 에 넣지 않음 — orphan 방지)
+  // 차단/실패 시 빈 배열 → 이동 버튼 폴백. 진행 중 판정은 state 가 아니라 ref(질의별) — 로딩 중
+  // 질의가 바뀌면 이전 요청은 버리고 새 질의를 바로 받는다(예전엔 loading 이 true 로 남아 스피너가 영영 돌았음).
+  const krReq = useRef<string | null>(null);
   useEffect(() => {
-    if (cat !== 'kream' || !q || krLoaded || krLoading) return;
+    if (cat !== 'kream' || !q || krLoaded || krReq.current === q) return;
     let alive = true;
+    krReq.current = q;
     setKrLoading(true);
     (async () => {
       try {
-        const res = await fetch(`/api/kream/search?q=${encodeURIComponent(q)}`);
+        const res = await fetch(`/api/kream/search?q=${encodeURIComponent(q)}`, { signal: AbortSignal.timeout(15_000) });
         const data = (await res.json()) as { items?: KreamItem[] };
         if (alive) setKr(data.items ?? []);
       } catch {
@@ -140,8 +143,8 @@ export function SearchResults({
     })();
     return () => {
       alive = false;
+      krReq.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cat, q, krLoaded]);
 
   return (
