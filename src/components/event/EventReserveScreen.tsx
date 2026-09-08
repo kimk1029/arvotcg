@@ -19,6 +19,8 @@ import {
   EVENT_PAGES,
   SLOT_STATE_LABEL,
   sessionIndexFor,
+  slotCapacityLabel,
+  fillEventText,
   type EventKey,
   type EventNoticeBox,
   type EventPageConfig,
@@ -359,7 +361,7 @@ export function EventReserveScreen({ eventKey }: { eventKey: EventKey }) {
     return shell(
       <>
         <SummaryCard config={config} P={P} night={night} info={null} activeDate={config.fallback.date || null} daySlots={[]} box={box} />
-        {config.topNotice ? <NoticeBox P={P} night={night} box={box} n={config.topNotice} /> : null}
+        {config.topNotice ? <NoticeBox P={P} night={night} box={box} n={config.topNotice} capacity={null} /> : null}
         <div style={box({ textAlign: 'center', padding: 40, color: P.sub, marginTop: 12 })}>
           아직 오픈된 예약 시간대가 없어요. 곧 공개됩니다! 🎫
         </div>
@@ -373,6 +375,8 @@ export function EventReserveScreen({ eventKey }: { eventKey: EventKey }) {
     : null;
   const checkedIn = Boolean(data.myReservation?.checkedInAt);
   const selected = selectedId != null ? daySlots.find((s) => s.id === selectedId) ?? null : null;
+  // 정원 라벨 — 어드민이 슬롯에 설정한 capacity 에서. 설정 문구의 {capacity} 토큰을 이 값으로 채운다.
+  const capacity = slotCapacityLabel(daySlots.map((s) => s.capacity));
 
   // 회차(1부/2부) 그룹 — 설정에 회차가 없으면 한 그룹.
   const groups: Array<{ label: string | null; range: string | null; slots: Slot[] }> =
@@ -509,8 +513,8 @@ export function EventReserveScreen({ eventKey }: { eventKey: EventKey }) {
 
       <SummaryCard config={config} P={P} night={night} info={info} activeDate={activeDate} daySlots={daySlots} box={box} />
 
-      {config.topNotice ? <NoticeBox P={P} night={night} box={box} n={config.topNotice} /> : null}
-      {config.visitNotice ? <VisitNotice P={P} box={box} n={config.visitNotice} /> : null}
+      {config.topNotice ? <NoticeBox P={P} night={night} box={box} n={config.topNotice} capacity={capacity} /> : null}
+      {config.visitNotice && config.visitNoticePlacement === 'top' ? <VisitNotice P={P} box={box} n={config.visitNotice} capacity={capacity} /> : null}
 
       {notice ? (
         <div style={{ margin: '12px 0 0', padding: '11px 14px', borderRadius: 12, background: P.accentSoft, border: `1px solid ${P.accent}`, color: P.accentText, fontSize: 13, fontWeight: 700 }}>
@@ -549,7 +553,8 @@ export function EventReserveScreen({ eventKey }: { eventKey: EventKey }) {
         })}
       </div>
 
-      {config.bottomNotice ? <NoticeBox P={P} night={night} box={box} n={config.bottomNotice} /> : null}
+      {config.bottomNotice ? <NoticeBox P={P} night={night} box={box} n={config.bottomNotice} capacity={capacity} /> : null}
+      {config.visitNotice && config.visitNoticePlacement === 'bottom' ? <VisitNotice P={P} box={box} n={config.visitNotice} capacity={capacity} marginTop={12} /> : null}
 
       <p style={{ fontSize: 11, color: P.mute, fontWeight: 600, padding: '12px 4px 0', lineHeight: 1.6, margin: 0 }}>
         · 예약 변경은 원하는 시간대를 고르고 다시 신청하면 자동으로 이동됩니다.<br />
@@ -642,7 +647,7 @@ function SummaryCard({ config, P, night, info, activeDate, daySlots, box }: { co
       <div style={{ display: 'flex', gap: 8, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${P.line2}` }}>
         <Stat P={P} label="전체 잔여석" value={daySlots.length > 0 ? `${dayRemaining}석` : '오픈 예정'} />
         <Stat P={P} label="예약 마감" value={activeDate ? (dDay(activeDate) ?? '종료') : '—'} color={P.red} />
-        <Stat P={P} label={config.thirdStat.label} value={config.thirdStat.value} />
+        <Stat P={P} label={config.thirdStat.label} value={fillEventText(config.thirdStat.value, { capacity: slotCapacityLabel(daySlots.map((s) => s.capacity)) })} />
       </div>
     </section>
   );
@@ -679,51 +684,53 @@ function Stat({ P, label, value, color }: { P: Palette; label: string; value: st
 }
 
 /** 안내 박스 — 제목 · 서문 · 불릿 · 강조 줄 · 인용. 설정(shared/eventPages.ts)에서 내용을 받는다. */
-function NoticeBox({ P, night, box, n }: { P: Palette; night: boolean; box: BoxFn; n: EventNoticeBox }) {
+function NoticeBox({ P, night, box, n, capacity }: { P: Palette; night: boolean; box: BoxFn; n: EventNoticeBox; capacity: string | null }) {
+  const t = (s: string) => fillEventText(s, { capacity });
   return (
     <section style={box({ padding: '15px 16px 14px', borderRadius: 16, marginTop: 12 })}>
       <h2 style={{ margin: 0, fontSize: 13, fontWeight: 900, letterSpacing: 0.3, color: P.ink, display: 'flex', alignItems: 'center', gap: 6 }}>
         <span aria-hidden style={{ width: 4, height: 14, borderRadius: 2, background: P.accent, boxShadow: night ? `0 0 8px ${P.accent}` : undefined }} />
-        {n.title}
+        {t(n.title)}
       </h2>
-      {n.intro ? <p style={{ margin: '10px 0 0', fontSize: 12, fontWeight: 700, color: P.ink, lineHeight: 1.65 }}>{n.intro}</p> : null}
+      {n.intro ? <p style={{ margin: '10px 0 0', fontSize: 12, fontWeight: 700, color: P.ink, lineHeight: 1.65 }}>{t(n.intro)}</p> : null}
       <ul style={{ margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {n.bullets.map((t) => (
-          <li key={t} style={{ display: 'flex', gap: 7, fontSize: 11.5, lineHeight: 1.65, color: P.sub }}>
+        {n.bullets.map((b) => (
+          <li key={b} style={{ display: 'flex', gap: 7, fontSize: 11.5, lineHeight: 1.65, color: P.sub }}>
             <span aria-hidden style={{ flex: 'none', color: P.accent, fontWeight: 900 }}>·</span>
-            <span>{t}</span>
+            <span>{t(b)}</span>
           </li>
         ))}
       </ul>
-      {n.footnotes?.map((t) => (
-        <p key={t} style={{ margin: '12px 0 0', paddingTop: 10, borderTop: `1px solid ${P.line2}`, fontSize: 11.5, fontWeight: 800, color: P.ink, lineHeight: 1.6 }}>
-          ※ {t}
+      {n.footnotes?.map((f) => (
+        <p key={f} style={{ margin: '12px 0 0', paddingTop: 10, borderTop: `1px solid ${P.line2}`, fontSize: 11.5, fontWeight: 800, color: P.ink, lineHeight: 1.6 }}>
+          ※ {t(f)}
         </p>
       ))}
       {n.quote ? (
         <p style={{ margin: '10px 0 0', padding: '9px 12px', borderLeft: `3px solid ${P.accent}`, background: P.accentSoft, borderRadius: '0 10px 10px 0', fontSize: 11.5, fontWeight: 700, color: night ? P.accentText : P.accentText, lineHeight: 1.65 }}>
-          {n.quote}
+          {t(n.quote)}
         </p>
       ) : null}
     </section>
   );
 }
 
-/** 예약·입장 안내 — 문구는 shared/eventPages.ts 의 visitNotice(이벤트별). */
-function VisitNotice({ P, box, n }: { P: Palette; box: BoxFn; n: NonNullable<EventPageConfig['visitNotice']> }) {
+/** 예약·입장 안내 — 문구·위치(visitNoticePlacement)는 shared/eventPages.ts 의 이벤트별 설정. */
+function VisitNotice({ P, box, n, capacity, marginTop }: { P: Palette; box: BoxFn; n: NonNullable<EventPageConfig['visitNotice']>; capacity: string | null; marginTop?: number }) {
+  const t = (s: string) => fillEventText(s, { capacity });
   return (
-    <section style={box({ padding: '15px 16px 14px', borderRadius: 16 })}>
+    <section style={box({ padding: '15px 16px 14px', borderRadius: 16, marginTop })}>
       <h2 style={{ margin: 0, fontSize: 12.5, fontWeight: 900, letterSpacing: 0.3, color: P.ink }}>예약·입장 안내</h2>
       <ul style={{ margin: '10px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {n.bullets.map((t) => (
-          <li key={t} style={{ display: 'flex', gap: 7, fontSize: 11.5, lineHeight: 1.65, color: P.sub }}>
+        {n.bullets.map((b) => (
+          <li key={b} style={{ display: 'flex', gap: 7, fontSize: 11.5, lineHeight: 1.65, color: P.sub }}>
             <span aria-hidden style={{ flex: 'none', color: P.accent, fontWeight: 900 }}>·</span>
-            <span>{t}</span>
+            <span>{t(b)}</span>
           </li>
         ))}
       </ul>
       <p style={{ margin: '12px 0 0', paddingTop: 10, borderTop: `1px solid ${P.line2}`, fontSize: 11.5, fontWeight: 800, color: P.ink, lineHeight: 1.6 }}>
-        {n.footer}
+        {t(n.footer)}
       </p>
     </section>
   );

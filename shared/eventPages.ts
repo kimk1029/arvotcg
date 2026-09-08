@@ -51,10 +51,15 @@ export interface EventPageConfig {
   sessions: EventSession[];
   /** 슬롯 카드에 '정원 N석 · N명 예약' 보조줄을 보일지. 트레이드 데이는 시간/잔여석/상태점만. */
   showSlotMeta: boolean;
-  /** 요약 카드 세 번째 통계. */
+  /**
+   * 요약 카드 세 번째 통계. value 와 안내 문구 안의 `{capacity}` 토큰은 화면에서
+   * 슬롯 정원(DB CardShowSlot.capacity, 어드민 관리)으로 치환된다 — fillEventText 참고.
+   */
   thirdStat: { label: string; value: string };
   /** 예약·입장 안내 박스(불릿 + 맺음 강조줄). null 이면 숨김. */
   visitNotice: { bullets: string[]; footer: string } | null;
+  /** 예약·입장 안내 위치 — top: 요약 카드(·topNotice) 아래, bottom: 타임테이블·bottomNotice 아래. */
+  visitNoticePlacement: 'top' | 'bottom';
   /** 요약 카드 바로 아래 안내 박스. */
   topNotice: EventNoticeBox | null;
   /** 타임테이블 맨 아래 안내 박스. */
@@ -87,6 +92,7 @@ export const EVENT_PAGES: Record<EventKey, EventPageConfig> = {
       ],
       footer: '원활한 이용을 위해 예약 후 방문을 권장드립니다.',
     },
+    visitNoticePlacement: 'top',
     topNotice: null,
     bottomNotice: null,
     partyLine: '1인 + 동반 1인',
@@ -109,22 +115,25 @@ export const EVENT_PAGES: Record<EventKey, EventPageConfig> = {
       { label: '2부', range: '15:00 ~ 20:00', from: '15:00', to: '20:00' },
     ],
     showSlotMeta: false,
-    thirdStat: { label: '회차 정원', value: '30명' },
+    // 정원은 어드민이 슬롯에 설정한 값(2026-09-08 현재 15명)을 화면에서 채운다 — 숫자 하드코딩 금지.
+    thirdStat: { label: '회차 정원', value: '{capacity}' },
     // 카드쇼 블록과 같은 형식 — 동반 1인 규칙은 트레이드 데이(회차 정원제)에 없어 제외.
+    // 위치는 오리파 운영 안내(bottomNotice) 아래 (2026-09-08 사용자 지시).
     visitNotice: {
       bullets: [
         '예약 시간에 방문하셔도 현장 상황에 따라 대기가 발생할 수 있습니다.',
         '사전 예약 없이 현장 방문도 가능합니다.',
         '현장 방문 고객은 도착 순서대로 순차 입장 안내드립니다.',
-        '회차별 정원(30명) 초과 시 1부 / 2부 교대로 입장이 진행됩니다.',
+        '회차별 정원({capacity}) 초과 시 1부 / 2부 교대로 입장이 진행됩니다.',
       ],
       footer: '원활한 이용을 위해 예약 후 방문을 권장드립니다.',
     },
+    visitNoticePlacement: 'bottom',
     topNotice: {
       title: '시간표 운영안내',
       intro: '행사 운영 상황에 따라 1부(11:00 ~ 15:00) / 2부(15:00 ~ 20:00)로 구분하여 운영됩니다.',
       bullets: [
-        '각 회차별 정원은 30명이며, 정원 초과 시 1부 / 2부 교대 운영이 진행됩니다.',
+        '각 회차별 정원은 {capacity}이며, 정원 초과 시 1부 / 2부 교대 운영이 진행됩니다.',
         '1부 회원의 안전 퇴장 안내 후 2부 회원의 입장이 진행됩니다.',
         '모든 회원은 본인 회차 종료 시각까지 자유롭게 교류·교환 하시면 됩니다.',
         '장기 체류로 인한 매점매석 / 무단 판매행위는 제한되며, 참가자 전원이 돌아가며 이용할 수 있도록 운영됩니다.',
@@ -144,6 +153,23 @@ export const EVENT_PAGES: Record<EventKey, EventPageConfig> = {
     partyLine: null,
   },
 };
+
+/**
+ * 슬롯 정원 라벨 — 슬롯들의 capacity 로 '15명' / 서로 다르면 '15~20명', 슬롯이 없으면 null.
+ * 정원 숫자의 단일 출처는 DB 슬롯(어드민)이며 설정 문구에는 `{capacity}` 토큰만 둔다.
+ */
+export function slotCapacityLabel(capacities: number[]): string | null {
+  const caps = capacities.filter((c) => Number.isFinite(c) && c > 0);
+  if (caps.length === 0) return null;
+  const min = Math.min(...caps);
+  const max = Math.max(...caps);
+  return min === max ? `${min}명` : `${min}~${max}명`;
+}
+
+/** 설정 문구의 `{capacity}` 토큰을 정원 라벨로 치환 (라벨이 없으면 '미정'). */
+export function fillEventText(text: string, vars: { capacity: string | null }): string {
+  return text.replace(/\{capacity\}/g, vars.capacity ?? '미정');
+}
 
 /** 슬롯 시작 시각이 속한 회차 인덱스 (-1 = 회차 없음). */
 export function sessionIndexFor(config: EventPageConfig, time: string): number {
