@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { StampRallyModal } from './StampRallyModal';
 import { startRouteTransition } from './RouteProgress';
+import { clampHeroAutoplayMs } from '../../shared/heroBanner';
 
 export type HeroSlideClass = 'slide-a' | 'slide-b' | 'slide-c' | 'slide-d';
 export type HeroOnClick = 'stamp-rally' | 'oripa' | null;
@@ -73,7 +74,6 @@ const FALLBACK_SLIDES: HeroSlideData[] = [
   // 오리파 슬라이드는 서비스 숨김 상태(2026-07)라 폴백에서 제외.
 ];
 
-const AUTOPLAY_MS = 3500;
 
 function renderVisual(s: HeroSlideData): ReactNode {
   if (s.visualType === 'image') {
@@ -89,9 +89,13 @@ interface HeroSliderProps {
   slides?: HeroSlideData[];
   /** 작게 한 줄로 — 메인(off) 레이아웃의 레벨 아래 컴팩트 배너. */
   compact?: boolean;
+  /** 자동 전환 간격(ms) — /api/banners autoplayMs(어드민 설정). 없으면 shared 기본 7초. */
+  autoplayMs?: number;
 }
 
-export function HeroSlider({ slides, compact = false }: HeroSliderProps = {}) {
+export function HeroSlider({ slides, compact = false, autoplayMs }: HeroSliderProps = {}) {
+  // 슬라이드 순서 = 서버(sortOrder→id) 순 그대로. 여기서 재정렬·셔플하지 않는다.
+  const AUTOPLAY_MS = clampHeroAutoplayMs(autoplayMs);
   const router = useRouter();
   const { status } = useSession();
   const source = slides && slides.length > 0 ? slides : FALLBACK_SLIDES;
@@ -118,14 +122,14 @@ export function HeroSlider({ slides, compact = false }: HeroSliderProps = {}) {
   const reset = useCallback(() => {
     if (tmr.current) clearInterval(tmr.current);
     tmr.current = setInterval(() => setCur((c) => (c + 1) % n), AUTOPLAY_MS);
-  }, [n]);
+  }, [n, AUTOPLAY_MS]);
 
   useEffect(() => {
     tmr.current = setInterval(() => setCur((c) => (c + 1) % n), AUTOPLAY_MS);
     return () => {
       if (tmr.current) clearInterval(tmr.current);
     };
-  }, [n]);
+  }, [n, AUTOPLAY_MS]);
 
   const handleSlideClick = (slide: Slide) => {
     if (dragged.current) {

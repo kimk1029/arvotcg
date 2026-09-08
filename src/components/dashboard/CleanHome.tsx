@@ -266,6 +266,8 @@ async function enrichRow(row: SnkrdunkRow): Promise<SnkrdunkRow> {
 
 interface Props {
   heroBanners?: HeroSlideData[];
+  /** 히어로 슬라이드 자동 전환 간격(ms) — 어드민 설정, 기본 7초. */
+  heroAutoplayMs?: number;
   isLoggedIn: boolean;
   snkrdunkRows?: SnkrdunkRow[];
   snkrdunkBoxRows?: SnkrdunkRow[];
@@ -481,7 +483,7 @@ function CardArt({
 
 // snkrdunkRows/snkrdunkBoxRows prop 은 레거시 경로용으로 Props 에만 남음 —
 // CleanHome 의 HOT/박스는 앱과 동일하게 클라이언트에서 직접 조회한다 (홈 서버 렌더 블로킹 제거).
-export function CleanHome({ heroBanners, isLoggedIn }: Props) {
+export function CleanHome({ heroBanners, heroAutoplayMs, isLoggedIn }: Props) {
   const { format } = useCurrency();
   const { count: unread } = useUnread();
   const { theme } = useTheme();
@@ -926,7 +928,7 @@ export function CleanHome({ heroBanners, isLoggedIn }: Props) {
       </div>
 
       {/* promo banner — 실제 배너 데이터(HeroSlider). 비면 컴포넌트 내장 폴백 슬라이드. */}
-      <HeroSlider slides={heroBanners} compact />
+      <HeroSlider slides={heroBanners} autoplayMs={heroAutoplayMs} compact />
 
       {/* search — 직접 타이핑 검색(Enter/▶ → /cards/snkrdunk/search?q=). 카메라 스캔은 인풋 내장. */}
       <div style={{ padding: '14px 20px' }}>

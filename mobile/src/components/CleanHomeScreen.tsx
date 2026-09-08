@@ -121,6 +121,7 @@ const MOVER_TABS: { id: MoverTab; label: string; title: string }[] = [
 const HOT_PREFIX = 'home:hot:';
 const BOX_PREFIX = 'home:box:';
 const BANNERS_KEY = 'home:banners';
+const BANNER_AUTOPLAY_KEY = 'home:bannerAutoplayMs';
 const hotKey = (g: string) => `${HOT_PREFIX}${g}`;
 const boxKey = (g: string) => `${BOX_PREFIX}${g}`;
 
@@ -826,6 +827,10 @@ export function CleanHomeScreen() {
   // 타임아웃(8초)+재시도 1회 — 요청이 매달리면 회색 플레이스홀더가 영영 남던 문제 방지.
   // 최종 실패 시 []로 확정해 HeroBanner 내장 폴백 슬라이드라도 뜨게 한다. 세션 캐시로 재진입 즉시.
   const [banners, setBanners] = useState<HeroSlideData[] | null>(() => swrPeek<HeroSlideData[]>(BANNERS_KEY));
+  // 슬라이드 자동 전환 간격 — 어드민 설정(/api/banners autoplayMs). 캐시 없으면 HeroBanner 기본(7초).
+  const [bannerAutoplayMs, setBannerAutoplayMs] = useState<number | undefined>(
+    () => swrPeek<number>(BANNER_AUTOPLAY_KEY) ?? undefined,
+  );
   useEffect(() => {
     // 배너는 어드민이 수시로 바꾸므로 TTL 을 두지 않는다 — 캐시로 즉시 그리고(위 swrPeek),
     // 홈 진입마다 항상 재조회해 갱신한다(웹 SSR 도 no-store). 응답 한 건이라 비용은 미미.
@@ -834,10 +839,14 @@ export function CleanHomeScreen() {
       for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt > 0) await sleep(1500);
         try {
-          const r = await api<{ data: HeroSlideData[] }>('/api/banners', { auth: false, signal: homeAbort() });
+          const r = await api<{ data: HeroSlideData[]; autoplayMs?: number }>('/api/banners', { auth: false, signal: homeAbort() });
           const v = Array.isArray(r?.data) ? r.data : [];
           swrSet(BANNERS_KEY, v, { persist: true });
-          if (alive) setBanners(v);
+          if (typeof r?.autoplayMs === 'number') swrSet(BANNER_AUTOPLAY_KEY, r.autoplayMs, { persist: true });
+          if (alive) {
+            setBanners(v);
+            if (typeof r?.autoplayMs === 'number') setBannerAutoplayMs(r.autoplayMs);
+          }
           return;
         } catch {
           // 재시도 후에도 실패하면 아래 폴백 확정.
@@ -993,7 +1002,7 @@ export function CleanHomeScreen() {
           // 배너 로딩 플레이스홀더 — 실배너와 같은 높이(176+dots)로 레이아웃 점프 방지.
           <View style={{ height: 176, marginBottom: 8, backgroundColor: tc.pap2 }} />
         ) : (
-          <HeroBanner slides={banners} />
+          <HeroBanner slides={banners} autoplayMs={bannerAutoplayMs} />
         )}
 
         {/* search — 픽셀: 직각 PixelFrame 박스 / 플랫: 둥근 소프트 타일 */}

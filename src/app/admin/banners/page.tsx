@@ -2,6 +2,7 @@ import { AdminBannerList } from '@/components/admin/AdminBannerList';
 import { AppBar } from '@/components/ui/AppBar';
 import { StatusBar } from '@/components/ui/StatusBar';
 import { serverFetch } from '@/lib/apiServer';
+import { HERO_AUTOPLAY_DEFAULT_MS } from '../../../../shared/heroBanner';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,15 +22,19 @@ interface BannerRow {
 }
 
 export default async function AdminBannersPage() {
-  const r = await serverFetch<{ banners: BannerRow[] }>('/api/admin/banners');
+  const [r, st] = await Promise.all([
+    serverFetch<{ banners: BannerRow[] }>('/api/admin/banners'),
+    serverFetch<{ autoplayMs: number }>('/api/admin/banners/settings'),
+  ]);
   const banners = r.data?.banners ?? [];
+  const autoplayMs = st.data?.autoplayMs ?? HERO_AUTOPLAY_DEFAULT_MS;
 
   return (
     <>
       <StatusBar />
       <AppBar title="히어로 배너 관리" showBack backHref="/admin" />
       <div style={{ height: 14 }} />
-      <AdminBannerList initialBanners={banners} />
+      <AdminBannerList initialBanners={banners} initialAutoplayMs={autoplayMs} />
       <div className="bggap" />
     </>
   );

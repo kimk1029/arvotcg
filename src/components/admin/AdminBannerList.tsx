@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
+import { HERO_AUTOPLAY_MAX_MS, HERO_AUTOPLAY_MIN_MS } from '../../../shared/heroBanner';
 
 export interface BannerData {
   id: number;
@@ -62,15 +63,49 @@ const EMPTY_DRAFT: Draft = {
 
 interface Props {
   initialBanners: BannerData[];
+  /** 슬라이드 자동 전환 간격(ms) — /api/admin/banners/settings. */
+  initialAutoplayMs: number;
 }
 
-export function AdminBannerList({ initialBanners }: Props) {
+export function AdminBannerList({ initialBanners, initialAutoplayMs }: Props) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<number | 'new' | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  // 슬라이드 전환 간격(초) — 저장하면 홈(웹·앱) 히어로 배너 자동 회전 속도에 바로 반영.
+  const [autoplaySec, setAutoplaySec] = useState<string>(String(Math.round(initialAutoplayMs / 100) / 10));
+  const [savingInterval, setSavingInterval] = useState(false);
+  const saveInterval = async () => {
+    setErr(null);
+    setMsg(null);
+    const ms = Math.round(Number(autoplaySec) * 1000);
+    if (!Number.isFinite(ms) || ms < HERO_AUTOPLAY_MIN_MS || ms > HERO_AUTOPLAY_MAX_MS) {
+      setErr(`전환 간격은 ${HERO_AUTOPLAY_MIN_MS / 1000}~${HERO_AUTOPLAY_MAX_MS / 1000}초 사이로 입력해 주세요`);
+      return;
+    }
+    setSavingInterval(true);
+    try {
+      const res = await fetch('/api/admin/banners/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoplayMs: ms }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error ?? `HTTP ${res.status}`);
+      }
+      setMsg('✓ 전환 간격 저장됨');
+      router.refresh();
+      setTimeout(() => setMsg(null), 1600);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '저장 실패');
+    } finally {
+      setSavingInterval(false);
+    }
+  };
 
   const startEdit = (b: BannerData) => {
     setEditingId(b.id);
@@ -81,7 +116,10 @@ export function AdminBannerList({ initialBanners }: Props) {
 
   const startNew = () => {
     setEditingId('new');
-    setDraft({ ...EMPTY_DRAFT });
+    // 새 배너는 항상 맨 뒤(최대 sortOrder + 10) — 기본 50 고정이면 동점이 생겨 id 순으로 밀리며
+    // 어드민이 의도한 순서가 지켜지지 않았다.
+    const maxSort = initialBanners.reduce((m, b) => Math.max(m, b.sortOrder), 0);
+    setDraft({ ...EMPTY_DRAFT, sortOrder: maxSort + 10 });
     setErr(null);
     setMsg(null);
   };
@@ -209,9 +247,33 @@ export function AdminBannerList({ initialBanners }: Props) {
         </div>
       )}
 
+      {/* 표시 설정 — 슬라이드 자동 전환 간격 (홈 웹·앱 공통) */}
+      <div style={{ ...editorBoxStyle, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <label style={{ fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink2)', letterSpacing: 0.5, flex: '1 1 auto' }}>
+          슬라이드 전환 간격
+          <span style={{ marginLeft: 6, color: 'var(--ink3, var(--ink2))' }}>
+            ({HERO_AUTOPLAY_MIN_MS / 1000}~{HERO_AUTOPLAY_MAX_MS / 1000}초 · 순서는 아래 정렬값 순)
+          </span>
+        </label>
+        <input
+          type="number"
+          min={HERO_AUTOPLAY_MIN_MS / 1000}
+          max={HERO_AUTOPLAY_MAX_MS / 1000}
+          step={0.5}
+          value={autoplaySec}
+          onChange={(e) => setAutoplaySec(e.target.value)}
+          style={{ ...inputStyle, width: 72 }}
+          aria-label="슬라이드 전환 간격(초)"
+        />
+        <span style={{ fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink2)' }}>초</span>
+        <button type="button" onClick={saveInterval} disabled={savingInterval || pending} style={btnStyle('var(--grn-dk)')}>
+          {savingInterval ? '저장 중…' : '간격 저장'}
+        </button>
+      </div>
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <div style={{ fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink2)', letterSpacing: 0.5 }}>
-          총 {initialBanners.length}개 · 비활성 배너는 홈에서 노출되지 않습니다
+          총 {initialBanners.length}개 · 정렬값(#) 작은 순으로 노출 · 비활성 배너는 홈에서 노출되지 않습니다
         </div>
         <button
           type="button"

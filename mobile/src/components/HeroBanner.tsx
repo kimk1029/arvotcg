@@ -19,6 +19,7 @@ import { useRouter } from 'expo-router';
 import { PixelText } from '@/components/PixelText';
 import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider';
 import { shotSource } from '@/lib/shotMode';
+import { clampHeroAutoplayMs } from '../../../shared/heroBanner';
 
 export interface HeroSlideData {
   cls: 'slide-a' | 'slide-b' | 'slide-c' | 'slide-d';
@@ -88,7 +89,7 @@ function hrefOf(s: HeroSlideData): string | null {
   return null;
 }
 
-export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
+export function HeroBanner({ slides, autoplayMs }: { slides: HeroSlideData[]; autoplayMs?: number }) {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
   // 웹 홈과 동일: 모든 테마에서 컨테이너 보더 없이 좌우 풀블리드 + 세로로 큰 배너
@@ -107,21 +108,25 @@ export function HeroBanner({ slides }: { slides: HeroSlideData[] }) {
   const HERO_RATIO = 2.4;
   const slideHeight = Math.round(width / HERO_RATIO);
 
-  // 자동 회전 (4초). 슬라이드 1개면 미적용.
+  // 자동 회전 — 간격은 어드민 설정(/api/banners autoplayMs, 기본 7초, 웹 HeroSlider 동일).
+  // 순서는 서버(sortOrder→id) 순 그대로 idx 0→1→2… 로만 진행한다. 슬라이드 1개면 미적용.
+  // idx 는 단일 진실: 타이머는 idx 만 올리고, 실제 스크롤은 idx 변화 효과에서만 한다 —
+  // 예전엔 타이머 안에서 scrollTo 하고 momentum-end 가 다시 idx 를 계산해 둘이 엇갈리면
+  // 슬라이드를 건너뛰거나 되돌아가 순서가 깨졌다.
+  const AUTOPLAY_MS = clampHeroAutoplayMs(autoplayMs);
   useEffect(() => {
     if (data.length <= 1) return;
-    const t = setInterval(() => {
-      setIdx((prev) => {
-        const next = (prev + 1) % data.length;
-        scrollRef.current?.scrollTo({ x: next * width, animated: true });
-        return next;
-      });
-    }, 4000);
+    const t = setInterval(() => setIdx((prev) => (prev + 1) % data.length), AUTOPLAY_MS);
     return () => clearInterval(t);
-  }, [data.length, width]);
+  }, [data.length, AUTOPLAY_MS]);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ x: idx * width, animated: true });
+  }, [idx, width]);
 
+  // 사용자가 직접 넘긴 경우만 idx 동기화(프로그램 스크롤이 끝나서 온 이벤트는 같은 값이라 no-op).
   const onEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    setIdx(Math.round(e.nativeEvent.contentOffset.x / width));
+    const i = Math.max(0, Math.min(data.length - 1, Math.round(e.nativeEvent.contentOffset.x / width)));
+    setIdx((prev) => (prev === i ? prev : i));
   };
 
   const go = (s: HeroSlideData) => {

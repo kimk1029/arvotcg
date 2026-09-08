@@ -730,6 +730,16 @@ model HeroBanner {
   @@map("hero_banners")
 }
 
+/// 사이트 전역 설정(키-값) — 어드민이 바꾸는 소수의 런타임 옵션.
+/// 예: `hero.autoplayMs` = 히어로 배너 슬라이드 전환 간격(ms, shared/heroBanner.ts 기본 7000).
+model SiteSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
 /// 이벤트 게시판 글 — 어드민 공지 + 회원 작성 글, 웹 /events 에 노출.
 /// startsAt/endsAt 은 'YYYY-MM-DD' 문자열. 둘 다 비우면 상시 이벤트.
 model EventPost {

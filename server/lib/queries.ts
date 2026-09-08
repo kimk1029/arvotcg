@@ -24,6 +24,7 @@ import type {
 import { fetchSnkrdunkApparel } from '@/lib/snkrdunk';
 import { registerBasisJpy } from '../../shared/snkrdunkPrice';
 import { translateKnownCardNameToKo } from '../../shared/cardTranslate';
+import { clampHeroAutoplayMs, HERO_AUTOPLAY_SETTING_KEY } from '../../shared/heroBanner';
 import { getCardPackMeta } from '@/lib/cardPacks';
 import { getCachedJpyKrw } from './fxRate.js';
 import {
@@ -1056,4 +1057,26 @@ export async function getActiveHeroBanners(): Promise<HeroSlideRow[]> {
     console.error('[getActiveHeroBanners]', err);
     return [];
   }
+}
+
+/** 히어로 배너 자동 전환 간격(ms) — SiteSetting `hero.autoplayMs`, 없으면 기본(7초). */
+export async function getHeroAutoplayMs(): Promise<number> {
+  try {
+    const row = await prisma.siteSetting.findUnique({ where: { key: HERO_AUTOPLAY_SETTING_KEY } });
+    return clampHeroAutoplayMs(row?.value);
+  } catch (err) {
+    console.error('[getHeroAutoplayMs]', err);
+    return clampHeroAutoplayMs(undefined);
+  }
+}
+
+/** 어드민 저장 — 범위 밖 값은 클램프해서 저장하고 저장된 값을 돌려준다. */
+export async function setHeroAutoplayMs(input: unknown): Promise<number> {
+  const ms = clampHeroAutoplayMs(input);
+  await prisma.siteSetting.upsert({
+    where: { key: HERO_AUTOPLAY_SETTING_KEY },
+    create: { key: HERO_AUTOPLAY_SETTING_KEY, value: String(ms) },
+    update: { value: String(ms) },
+  });
+  return ms;
 }

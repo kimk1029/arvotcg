@@ -8,6 +8,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import { warmCatalogImages, getWarmState, CARD_CDN_DIR } from '../lib/cardImageCache.js';
+import { getHeroAutoplayMs, setHeroAutoplayMs } from '../lib/queries.js';
+import { HERO_AUTOPLAY_MAX_MS, HERO_AUTOPLAY_MIN_MS } from '../../shared/heroBanner';
 
 const SLIDE_CLASSES = ['slide-a', 'slide-b', 'slide-c', 'slide-d'] as const;
 const VISUAL_TYPES = ['emoji', 'image'] as const;
@@ -193,6 +195,31 @@ router.post('/banners', async (req: Request, res: Response) => {
     res.status(201).json({ banner: created });
   } catch (err) {
     console.error('[admin.banners.POST]', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+/* 히어로 배너 표시 설정 — 슬라이드 자동 전환 간격. `/banners/:id` 보다 먼저 선언(경로 충돌 방지). */
+router.get('/banners/settings', async (_req: Request, res: Response) => {
+  try {
+    res.json({ autoplayMs: await getHeroAutoplayMs(), minMs: HERO_AUTOPLAY_MIN_MS, maxMs: HERO_AUTOPLAY_MAX_MS });
+  } catch (err) {
+    console.error('[admin.banners.settings.GET]', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+router.put('/banners/settings', async (req: Request, res: Response) => {
+  const raw = (req.body ?? {}) as { autoplayMs?: unknown };
+  const n = typeof raw.autoplayMs === 'string' ? Number(raw.autoplayMs) : raw.autoplayMs;
+  if (typeof n !== 'number' || !Number.isFinite(n)) return res.status(400).json({ error: 'autoplayMs 숫자 필요' });
+  if (n < HERO_AUTOPLAY_MIN_MS || n > HERO_AUTOPLAY_MAX_MS) {
+    return res.status(400).json({ error: `autoplayMs 는 ${HERO_AUTOPLAY_MIN_MS}~${HERO_AUTOPLAY_MAX_MS} 사이` });
+  }
+  try {
+    res.json({ autoplayMs: await setHeroAutoplayMs(n) });
+  } catch (err) {
+    console.error('[admin.banners.settings.PUT]', err);
     res.status(500).json({ error: 'internal' });
   }
 });

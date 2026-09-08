@@ -13,13 +13,14 @@ export const dynamic = 'force-dynamic';
 export default async function Page() {
   const [user, bannersResp] = await Promise.all([
     getServerUser(),
-    serverFetch<{ data: HeroSlideData[] }>('/api/banners', { auth: false }),
+    serverFetch<{ data: HeroSlideData[]; autoplayMs?: number }>('/api/banners', { auth: false }),
   ]);
 
   return (
     <HomeRouter
       cards={[]}
       heroBanners={bannersResp.data?.data ?? []}
+      heroAutoplayMs={bannersResp.data?.autoplayMs}
       isLoggedIn={Boolean(user?.id)}
       snkrdunkRows={[]}
       snkrdunkBoxRows={[]}

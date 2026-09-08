@@ -10,6 +10,8 @@ import type { MvcAuctionItem } from '@/lib/navercafe';
 interface Props {
   cards: MyCardWithPrice[];
   heroBanners?: HeroSlideData[];
+  /** 히어로 슬라이드 자동 전환 간격(ms) — /api/banners autoplayMs (어드민 설정). */
+  heroAutoplayMs?: number;
   isLoggedIn: boolean;
   snkrdunkRows?: SnkrdunkRow[];
   snkrdunkBoxRows?: SnkrdunkRow[];
@@ -26,6 +28,7 @@ export function HomeRouter(props: Props) {
       <StatusBar />
       <CleanHome
         heroBanners={props.heroBanners}
+        heroAutoplayMs={props.heroAutoplayMs}
         isLoggedIn={props.isLoggedIn}
         snkrdunkRows={props.snkrdunkRows}
         snkrdunkBoxRows={props.snkrdunkBoxRows}
