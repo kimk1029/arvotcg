@@ -103,7 +103,8 @@ export default async function Page({ params, searchParams }: PageProps) {
   const trades: TradeRow[] = history.slice(0, 40).map((h) => ({
     price: h.price,
     date: localizeSnkrdunkText(h.date),
-    badge: (localizeSnkrdunkText(h.condition) || localizeSnkrdunkText(h.label) || '').trim(),
+    // 상태 배지 — 수량 문구('3장'·'2개')가 상태 자리에 오면 숨긴다(수량은 옆 칩 하나로만, 앱 동일).
+    badge: (() => { const b = (localizeSnkrdunkText(h.condition) || localizeSnkrdunkText(h.label) || '').trim(); return /^\d+\s*(장|개)$/.test(b) ? '' : b; })(),
     units: h.units ?? 1,
   }));
 

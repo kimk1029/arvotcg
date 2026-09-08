@@ -520,7 +520,9 @@ export default function SnkrdunkDetail() {
                   {filteredTrades.length > 0 ? (
                     filteredTrades.map((h, i, arr) => {
                       const date = localizeSnkrdunkText(h.date);
-                      const badge = localizeSnkrdunkText(h.condition) || localizeSnkrdunkText(h.label) || '일반';
+                      // 상태 배지 — 수량 문구('3장'·'2개')가 상태 자리에 오면 숨긴다(수량은 옆 칩 하나로만, 웹 동일).
+                      const rawBadge = (localizeSnkrdunkText(h.condition) || localizeSnkrdunkText(h.label) || '').trim();
+                      const badge = /^\d+\s*(장|개)$/.test(rawBadge) ? '일반' : rawBadge || '일반';
                       const isPsa = PSA_ANY_RE.test(badge);
                       const divider = flat ? tc.pap3 : 'rgba(255,255,255,0.08)';
                       // 플랫(클린·다크): 흰 패널 + 웹 행 스타일 / 픽셀: 다크 로그 스타일.
