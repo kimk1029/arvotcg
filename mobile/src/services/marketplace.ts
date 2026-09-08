@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '@/lib/apiClient';
+import { api, getApiBaseUrl } from '@/lib/apiClient';
 import { isSameKstDay, kstDateParts } from '../../../shared/kst';
 
 const NAVER_API = 'https://apis.naver.com';
@@ -695,52 +695,20 @@ export function kreamSearchUrl(query: string): string {
 }
 
 /** KREAM 검색 SSR HTML 파서 — 카드는 data-sdui-id="product_card/<id>", 이름은 img alt, 가격은 `숫자원`. */
-function parseKreamSearchHtml(html: string): KreamItem[] {
-  const noc = html.replace(/<!--[\s\S]*?-->/g, '');
-  const segs = noc.split('product_card/');
-  const seen = new Set<string>();
-  const out: KreamItem[] = [];
-  for (let i = 1; i < segs.length; i++) {
-    const seg = segs[i];
-    const id = (seg.match(/^(\d+)/) || [])[1];
-    if (!id || seen.has(id)) continue;
-    const alt = decodeHtmlEntities((seg.match(/alt="([^"]*)"/) || [])[1] || '');
-    const name = alt
-      .replace(/\s+/g, ' ')
-      .replace(/^포켓몬\s?TCG\s*/i, '')
-      .replace(/^Pokemon\s?TCG\s*/i, '')
-      .replace(/\s*\([A-Za-z0-9][^()]*\)\s*$/, '')
-      .trim();
-    const text = seg.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
-    const pm = text.match(/([\d,]{2,})\s*원/);
-    const price = pm ? Number(pm[1].replace(/,/g, '')) : 0;
-    const rawImg = (seg.match(/srcset="(https:\/\/kream-phinf[^" ]+)"/) || [])[1] || '';
-    const imageUrl = rawImg ? decodeHtmlEntities(rawImg) : null;
-    if (!name && !price) continue;
-    seen.add(id);
-    out.push({ id, name: name || '(이름 없음)', price, imageUrl, productUrl: `${KREAM_ORIGIN}/products/${id}` });
-    if (out.length >= 40) break;
-  }
-  return out;
-}
-
-/** KREAM 검색. 차단/실패 시 빈 배열(호출부는 'KREAM에서 검색' 이동 버튼을 항상 노출). */
+/**
+ * KREAM 검색 — 서버 /api/kream/search (웹 동일). 기기에서 kream.co.kr 을 직접 받으면
+ * 2MB 대 SSR HTML 을 JS 스레드에서 파싱하느라 화면 전체가 멈췄다(2026-09-08 실측, 결과도 1건뿐).
+ * 스크레이핑은 국내 IP 서버가 하고 앱은 결과만 받는다. 실패·타임아웃은 빈 배열(이동 버튼 폴백).
+ */
 export async function fetchKreamItems(query: string): Promise<KreamItem[]> {
   const q = query.trim();
   if (!q) return [];
   try {
-    const res = await fetch(kreamSearchUrl(q), {
-      headers: {
-        'User-Agent': USER_AGENT,
-        'Accept-Language': 'ko',
-        Accept: 'text/html',
-        Referer: `${KREAM_ORIGIN}/`,
-      },
-      // KREAM 차단 시 연결을 늘어뜨림 → 6초면 끊고 폴백(이동 버튼).
-      signal: abortAfter(6000),
+    const r = await api<{ items?: KreamItem[] }>(`/api/kream/search?q=${encodeURIComponent(q)}`, {
+      auth: false,
+      signal: abortAfter(15000),
     });
-    if (!res.ok) return [];
-    return parseKreamSearchHtml(await res.text());
+    return Array.isArray(r?.items) ? r.items : [];
   } catch {
     return [];
   }
