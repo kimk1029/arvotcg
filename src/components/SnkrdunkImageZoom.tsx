@@ -4,6 +4,29 @@ import { useEffect, useState } from 'react';
 import { CardThumb } from '@/components/CardThumb';
 import { useTheme } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
+import { cardZoomCaption, cardZoomLayout, type CardZoomKind } from '../../shared/cardZoom';
+
+/**
+ * 1in 당 CSS px — 터치 기기(폰·태블릿)는 CSS px ≈ Android dp / iOS pt(160/in)라 실물에 가깝고,
+ * 데스크톱은 CSS 표준 96px/in. (앱 CardImageZoom 은 dp 160 고정)
+ */
+function cssPxPerInch(): number {
+  if (typeof window === 'undefined') return 96;
+  return window.matchMedia?.('(pointer: coarse)').matches ? 160 : 96;
+}
+
+function useViewport(active: boolean) {
+  const read = () => (typeof window === 'undefined' ? { w: 390, h: 800 } : { w: window.innerWidth, h: window.innerHeight });
+  const [vp, setVp] = useState(read);
+  useEffect(() => {
+    if (!active) return;
+    const on = () => setVp(read());
+    on();
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, [active]);
+  return vp;
+}
 
 interface Props {
   src: string | null;
@@ -11,12 +34,17 @@ interface Props {
   /** 썸네일 크기. 기본 96x96 (기존 호출부 유지). 상세 히어로는 크게 지정. */
   width?: number;
   height?: number;
+  /** box 면 카드 비율·실물 크기 강제 없이 이미지 비율대로 화면에 맞춤 */
+  kind?: CardZoomKind;
 }
 
-export function SnkrdunkImageZoom({ src, alt, width = 96, height = 96 }: Props) {
+export function SnkrdunkImageZoom({ src, alt, width = 96, height = 96, kind = 'card' }: Props) {
   const [open, setOpen] = useState(false);
   const { theme } = useTheme();
   const isClean = isFlatTheme(theme);
+  const vp = useViewport(open);
+  // 실물 63×88mm 컨테이너에 카드가 꽉 차게 — 레이아웃 정본 shared/cardZoom.ts (앱 CardImageZoom 동일).
+  const L = cardZoomLayout({ viewportWidth: vp.w, viewportHeight: vp.h, pxPerInch: cssPxPerInch(), kind });
 
   useEffect(() => {
     if (!open) return;
@@ -69,19 +97,18 @@ export function SnkrdunkImageZoom({ src, alt, width = 96, height = 96 }: Props) 
             zIndex: 1000,
             display: 'grid',
             placeItems: 'center',
-            padding: 20,
+            padding: 12,
             cursor: 'zoom-out',
             backdropFilter: 'blur(6px)',
           }}
         >
-          {/* 실제 카드 크기(63×88mm) — CSS mm 단위는 화면에서 대략 실물 치수. 화면이 더 작으면 폭/높이에 맞춘다.
-              (앱 [id].tsx 줌 모달과 같은 규칙: 63mm ↔ 397dp) */}
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              width: 'min(63mm, 92vw, calc(82vh * 63 / 88))',
-              aspectRatio: '63 / 88',
-              borderRadius: '3mm',
+              position: 'relative',
+              width: L.width,
+              height: L.height,
+              borderRadius: L.radius,
               overflow: 'hidden',
               background: '#111',
               boxShadow: '0 24px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.12)',
@@ -89,10 +116,14 @@ export function SnkrdunkImageZoom({ src, alt, width = 96, height = 96 }: Props) 
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+            <img
+              src={src}
+              alt={alt}
+              style={{ position: 'absolute', left: L.imageLeft, top: L.imageTop, width: L.imageWidth, height: L.imageHeight, objectFit: 'contain', display: 'block' }}
+            />
           </div>
           <div style={{ position: 'fixed', left: 0, right: 0, bottom: 'calc(18px + env(safe-area-inset-bottom, 0px))', textAlign: 'center', fontFamily: 'var(--f1)', fontSize: 10, letterSpacing: 0.5, color: 'rgba(255,255,255,.6)', pointerEvents: 'none' }}>
-            실제 카드 크기 63 × 88mm · 탭하면 닫힘
+            {cardZoomCaption(kind)}
           </div>
           <button
             type="button"

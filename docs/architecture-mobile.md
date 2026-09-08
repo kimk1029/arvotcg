@@ -34,11 +34,17 @@ eas build --profile production --platform android   # → 운영
 
 ```bash
 cd mobile
-eas update --channel production --message "fix: ..."   # JS/에셋만 바뀐 배포 → 스토어 없이 반영
+npx expo export --platform android --platform ios --source-maps --clear --output-dir dist-ota
+node scripts/verify-ota-export.mjs dist-ota android ios
+eas update --channel production --input-dir dist-ota --skip-bundler --message "fix: ..."
 eas update --channel stage      --message "..."        # 내부 stage APK
 ```
 
 - OTA 로 갈 수 있는 것: `mobile/src`·`mobile/app`·`/shared` 의 TS/TSX, 이미지 등 번들 에셋.
+- 운영 배포는 위 검사를 통과한 산출물을 `--skip-bundler`로 올린다. 환경 변수도 export 시 운영 값으로 설정한다.
+  2026-09-08: 1.1.3 작업 폴더의 캐시된 Android 번들에서 앱 라우트 전체가 누락됐지만
+  EAS 업로드는 성공했다. `--clear` 재번들링으로 복구했으며, 소스맵의 모든 라우트가
+  현재 작업 폴더의 소스와 일치하는지 검사해 누락·오래된 코드 배포를 차단한다.
 - **스토어 빌드가 필요한 것**: 네이티브 의존성 추가/버전 변경, app.json 의 plugins·permissions·
   splash·icon 변경, expo SDK 업그레이드. 이때 `expo.version` 을 올리면 런타임이 갈라져
   구버전 앱은 새 OTA 를 받지 않는다(안전). 버전을 안 올리고 네이티브를 바꾸면 크래시 위험.

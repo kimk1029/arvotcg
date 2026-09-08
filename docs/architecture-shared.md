@@ -11,6 +11,7 @@
 | `snkrdunk.ts` | 스니덩크 타입, raw→Apparel 변환, 싱글/박스 분류, **검색 SSR HTML 파서**, 일→한 로컬라이즈, 등급배지 판정, 차트 다운샘플 |
 | `snkrdunkPrice.ts` | **시세 계산 규칙 전부** — computeApparelPrices(최근 7건 중앙값+등급오염 2.5배 컷), registerBasisJpy(등록가), headlinePriceFromHistory, trendChangePct |
 | `cardTranslate.ts` | 카드명 한/영/일 번역 엔진 (작품별 TERMS_BY_GAME) |
+| `cardZoom.ts` | 시세상세 카드 이미지 확대 보기 레이아웃 — 실물 63×88mm 컨테이너(1in=px 계수) + 스니덩크 프레임 투명 여백 트림(카드 높이 0.838 실측), 웹 SnkrdunkImageZoom ↔ 앱 CardImageZoom |
 | `cardStatics.ts` | 카드명/품번 → 게임·세트코드·카드번호·레어도 파싱 (**DB 적재용**) |
 | `cardRarity.ts` | **게임별 등급 사다리**(RARITY_LADDER_BY_GAME — 포켓몬/원피스/유희왕 각각 높은등급순) + 라벨·색 표(RARITY_META) + 상품명에서 등급 토큰 추출 (**화면 표시용**: 필터 칩·배지) |
 | `currency.ts` | 통화 모드(¥/₩)·환율 포맷 formatPrice |

@@ -187,7 +187,7 @@ export function CardDetailView({
       {/* ── HERO ───────────────────────────────────────────── */}
       <div style={{ padding: '4px var(--gap) 0' }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
-          <SnkrdunkImageZoom src={imageUrl} alt={koName} width={188} height={262} />
+          <SnkrdunkImageZoom src={imageUrl} alt={koName} width={188} height={262} kind={isBox ? 'box' : 'card'} />
         </div>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontFamily: 'var(--f1)', fontSize: 18, fontWeight: 900, color: 'var(--ink)', letterSpacing: 0.3, lineHeight: 1.3, wordBreak: 'keep-all' }}>
