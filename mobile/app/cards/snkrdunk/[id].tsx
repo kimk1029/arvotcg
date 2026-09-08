@@ -326,10 +326,12 @@ export default function SnkrdunkDetail() {
                       <PixelText variant={txt} size={26} weight="bold" color={tc.ink} numberOfLines={1} adjustsFontSizeToFit style={{ flexShrink: 1 }}>
                         {fmtYen(headlinePrice)}
                       </PixelText>
-                      {headlineUnits > 1 ? (
-                        // 최근 체결이 묶음이면 장수를 작게 명시 — 표시 금액은 1개 단가 (웹 동일).
+                      {!isBox ? (
+                        // 체결 수량 — 항상 표시. 최근 체결이 묶음이면 장수를 명시, 표시 금액은 1개 단가 (웹 동일).
                         <View style={{ backgroundColor: tc.pap2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
-                          <PixelText variant="ko" size={10} weight="bold" color={tc.ink3}>{headlineUnits}개 묶음 체결 · 1개 단가</PixelText>
+                          <PixelText variant="ko" size={10} weight="bold" color={tc.ink3} numberOfLines={1}>
+                            {headlineUnits > 1 ? `${headlineUnits}개 묶음 체결 · 1개 단가` : '1개 기준'}
+                          </PixelText>
                         </View>
                       ) : null}
                     </View>
@@ -533,12 +535,12 @@ export default function SnkrdunkDetail() {
                           </View>
                           <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                             <PixelText variant={txt} size={flat ? 13 : 10} weight={flat ? 'bold' : 'normal'} color={priceColor} numberOfLines={1}>{fmtYen(h.price)}</PixelText>
-                            {(h.units ?? 1) > 1 ? (
-                              // 묶음 체결 — 표시 금액은 1개 단가(수량으로 나눈 값, 웹 동일).
-                              <View style={{ backgroundColor: flat ? tc.pap2 : 'rgba(255,255,255,0.12)', paddingHorizontal: 5, paddingVertical: 2 }}>
-                                <PixelText variant={txt} size={7} weight="bold" color={flat ? tc.ink3 : 'rgba(255,255,255,0.7)'}>{h.units}개 묶음 · 1개 단가</PixelText>
-                              </View>
-                            ) : null}
+                            {/* 체결 수량 — 항상 표시. 묶음이면 표시 금액은 1개 단가(수량으로 나눈 값, 웹 동일). */}
+                            <View style={{ backgroundColor: flat ? tc.pap2 : 'rgba(255,255,255,0.12)', paddingHorizontal: 5, paddingVertical: 2 }}>
+                              <PixelText variant="ko" size={8} weight="bold" color={flat ? tc.ink3 : 'rgba(255,255,255,0.7)'} numberOfLines={1}>
+                                {(h.units ?? 1) > 1 ? `${h.units}개 묶음 · 1개 단가` : '1개'}
+                              </PixelText>
+                            </View>
                           </View>
                           <PixelText variant={txt} size={flat ? 10 : 8} color={dateColor}>{date}</PixelText>
                         </View>

@@ -263,9 +263,11 @@ export function CardDetailView({
           </div>
           <div style={{ fontFamily: 'var(--f1)', fontSize: 28, fontWeight: 900, color: 'var(--ink)', letterSpacing: 0.2, marginTop: 4, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
             <Price jpy={headlinePrice} empty="—" autoSizeBase={28} autoSizeMin={16} />
-            {headlineUnits > 1 && (
-              // 최근 체결이 묶음이면 장수를 작게 명시 — 표시 금액은 1개 단가 (앱 동일).
-              <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--ink3)', background: 'var(--pap2)', padding: '2px 6px', borderRadius: 'var(--r-sm)', letterSpacing: 0 }}>{headlineUnits}개 묶음 체결 · 1개 단가</span>
+            {!isBox && (
+              // 체결 수량 — 항상 표시. 최근 체결이 묶음이면 장수를 명시, 표시 금액은 1개 단가 (앱 동일).
+              <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--ink3)', background: 'var(--pap2)', padding: '2px 6px', borderRadius: 'var(--r-sm)', letterSpacing: 0, whiteSpace: 'nowrap' }}>
+                {headlineUnits > 1 ? `${headlineUnits}개 묶음 체결 · 1개 단가` : '1개 기준'}
+              </span>
             )}
           </div>
           <div style={{ display: 'flex', gap: 20, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--pap3)' }}>
@@ -497,10 +499,10 @@ export function CardDetailView({
                   </span>
                   <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 800, color: i === 0 ? 'var(--red)' : 'var(--ink)' }}>
                     <Price jpy={t.price} empty="—" />
-                    {(t.units ?? 1) > 1 && (
-                      // 묶음 체결 — 표시 금액은 1개 단가(수량으로 나눈 값).
-                      <span style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--ink3)', background: 'var(--pap2)', padding: '2px 5px', borderRadius: 'var(--r-sm)' }}>{t.units}개 묶음 · 1개 단가</span>
-                    )}
+                    {/* 체결 수량 — 항상 표시. 묶음이면 표시 금액은 1개 단가(수량으로 나눈 값). */}
+                    <span style={{ fontSize: 8.5, fontWeight: 700, color: 'var(--ink3)', background: 'var(--pap2)', padding: '2px 5px', borderRadius: 'var(--r-sm)', whiteSpace: 'nowrap' }}>
+                      {(t.units ?? 1) > 1 ? `${t.units}개 묶음 · 1개 단가` : '1개'}
+                    </span>
                   </span>
                   <span style={{ flex: 'none', fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink3)' }}>{t.date}</span>
                 </div>
