@@ -42,7 +42,7 @@ import {
   type DailyPriceStat,
   type SnkrGradeAgg,
 } from '../../../../shared/snkrdunkPrice';
-import { isGradedSnkrdunkBadge } from '../../../../shared/snkrdunk';
+import { bundleOnlyUnits, isGradedSnkrdunkBadge } from '../../../../shared/snkrdunk';
 import { shotSetCode, shotSource, shotText } from '@/lib/shotMode';
 import { BoxHitCards } from '@/components/cards/BoxHitCards';
 
@@ -167,6 +167,9 @@ export default function SnkrdunkDetail() {
   const boxPackCode = apparel?.packCode ?? null;
 
   const historyList = history?.history ?? [];
+  // 차트 수량 기준(1=1장 체결) · 체결이 묶음뿐이면 헤드라인 옆에 장수 표시 (웹 동일).
+  const chartUnits = isBox ? 1 : (chart?.units ?? 1);
+  const bundleUnits = useMemo(() => (isBox ? 1 : bundleOnlyUnits(historyList)), [historyList, isBox]);
   const grades = useMemo<GradeAgg[]>(() => gradeAggsFromHistory(historyList), [historyList]);
   // 목록에서 `?grade=` 로 넘어온 등급이 있으면 그 탭으로 연다 — 목록에 보이던 가격과
   // 상세 첫 화면 가격이 같아진다. 그 등급에 체결이 없으면 기본(최다거래 등급).
@@ -317,9 +320,17 @@ export default function SnkrdunkDetail() {
                         </View>
                       ) : null}
                     </View>
-                    <PixelText variant={txt} size={26} weight="bold" color={tc.ink} numberOfLines={1} adjustsFontSizeToFit style={{ marginTop: 5 }}>
-                      {fmtYen(headlinePrice)}
-                    </PixelText>
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginTop: 5 }}>
+                      <PixelText variant={txt} size={26} weight="bold" color={tc.ink} numberOfLines={1} adjustsFontSizeToFit style={{ flexShrink: 1 }}>
+                        {fmtYen(headlinePrice)}
+                      </PixelText>
+                      {bundleUnits > 1 ? (
+                        // 1장 체결이 없어 묶음 체결의 1장 단가만 있는 카드 — 장수를 작게 명시 (웹 동일).
+                        <View style={{ backgroundColor: tc.pap2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                          <PixelText variant="ko" size={10} weight="bold" color={tc.ink3}>{bundleUnits}장 묶음 단가 기준</PixelText>
+                        </View>
+                      ) : null}
+                    </View>
                     <View style={{ flexDirection: 'row', gap: 20, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: tc.pap3 }}>
                       <View style={{ flex: 1 }}>
                         <PixelText variant={txt} size={10} color={tc.ink3}>전일 대비</PixelText>
@@ -459,6 +470,11 @@ export default function SnkrdunkDetail() {
               <PixelFrame bg={tc.white}>
                 <View style={{ padding: 14 }}>
                   <SnkrdunkPriceChart points={chartData} unitLabel={chartUnitLabel} rawCount={allPoints.length} />
+                  {chartUnits > 1 ? (
+                    <PixelText variant="ko" size={9} weight="bold" color={tc.ink3} style={{ marginTop: 8, textAlign: 'center' }}>
+                      {`${chartUnits}장 묶음 체결 기준 · 1장 단가로 환산 (1장 체결 없음)`}
+                    </PixelText>
+                  ) : null}
                 </View>
               </PixelFrame>
             </View>

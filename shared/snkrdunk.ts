@@ -63,6 +63,8 @@ export interface SnkrdunkSalesHistory {
 export interface SnkrdunkSalesChart {
   points: Array<[number, number]>;
   rangeKeys?: Array<{ key: string; text: string; enabled: boolean }>;
+  /** 차트 수량 기준 — 1 이면 1장 체결. 1장 체결이 없어 묶음(2·3장) 차트를 쓴 경우 그 장수(가격은 1장 단가로 나눔). */
+  units?: number;
 }
 
 export interface SnkrdunkApparelGroupPage {
@@ -201,6 +203,32 @@ export function toSnkrdunkApparel(raw: RawApparel, itemKind?: SnkrdunkItemKind):
 export interface RawTradingHistory {
   filters?: { variants?: { title?: string; options?: Array<{ id: number; name: string }>; showAllOption?: boolean } };
   trades?: Array<{ price: number; soldAt: string; title: string; label: string }>;
+  chart?: { lines?: Array<{ labelName?: string | null; points?: Array<{ timestamp: number; price: number }> }>; ranges?: string[] };
+}
+
+/** v3 chart → 시세 차트 포인트([ts, 1장 단가]) 오름차순. 묶음 variant 차트면 units 로 나눈다. */
+export function tradingHistoryToChart(raw: RawTradingHistory | null | undefined, units = 1): SnkrdunkSalesChart | null {
+  const pts = (raw?.chart?.lines ?? [])
+    .flatMap((l) => l.points ?? [])
+    .filter((p) => Number.isFinite(p.timestamp) && Number.isFinite(p.price) && p.price > 0)
+    .map((p): [number, number] => [p.timestamp, units > 1 ? Math.round(p.price / units) : p.price])
+    .sort((a, b) => a[0] - b[0]);
+  return pts.length > 0 ? { points: pts, units } : null;
+}
+
+/**
+ * 체결 목록이 묶음뿐일 때(1장 체결 없음) 화면이 "N장 묶음 단가 기준" 을 표시하도록 — 가장 작은 묶음 장수.
+ * 1장 체결이 하나라도 있거나 목록이 비면 1.
+ */
+export function bundleOnlyUnits(history: ReadonlyArray<Pick<SnkrdunkSaleEntry, 'units'>>): number {
+  if (history.length === 0) return 1;
+  let min = Infinity;
+  for (const h of history) {
+    const u = h.units ?? 1;
+    if (u <= 1) return 1;
+    if (u < min) min = u;
+  }
+  return Number.isFinite(min) ? min : 1;
 }
 
 /** "2枚" / "3個" → 2 / 3. 다른 형식이면 null. */
