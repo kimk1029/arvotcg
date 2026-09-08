@@ -45,8 +45,25 @@ const POKEMON_SETNUM_RE = /\b([A-Za-z]{1,4}\d{1,3}[A-Za-z]?)[\s-]+(\d{1,4}\/\d{1
 // 번호 단독: "199/165"
 const FRACTION_RE = /\b(\d{1,4}\/\d{1,4})\b/;
 
+/** 스니덩크 브랜드명(raw apparel.brands[].name / localizedName) → 게임. 이름 파싱보다 신뢰도가 높다(2026-09-08 실측: 'ONE PIECE'·'YU-GI-OH'·'Pokemon Card Game'). */
+export function gameFromSnkrdunkBrand(brand: string | null | undefined): CardGame | null {
+  if (!brand) return null;
+  return gameFromKeywords(brand);
+}
+
+/**
+ * 저장값 정규화 — 'pokemon' 같은 id 외에 앱 로컬 카드의 한글 라벨('포켓몬'·'원피스'·'유희왕')도 받는다.
+ * 모르는 값(MTG·빈 문자열)은 null → 호출측이 이름 파싱/기타로 폴백.
+ */
+export function normalizeCardGame(value: string | null | undefined): CardGame | null {
+  const v = (value ?? '').trim();
+  if (!v) return null;
+  if (v === 'pokemon' || v === 'onepiece' || v === 'yugioh' || v === 'other') return v;
+  return gameFromKeywords(v);
+}
+
 /** 이름 키워드 기반 게임 분류 — 코드 패턴보다 우선 적용. */
-function gameFromKeywords(src: string): CardGame | null {
+export function gameFromKeywords(src: string): CardGame | null {
   if (/ワンピース|ONE\s*PIECE|원피스/i.test(src)) return 'onepiece';
   if (/遊戯王|YU-?GI-?OH|유희왕/i.test(src)) return 'yugioh';
   if (/ポケモン|ポケカ|POKEMON|포켓몬/i.test(src)) return 'pokemon';

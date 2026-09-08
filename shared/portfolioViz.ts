@@ -1,3 +1,5 @@
+import { normalizeCardGame } from './cardStatics';
+
 /**
  * 포트폴리오 인포그래픽 — 집계·레이아웃 정본 (웹·모바일 공유).
  *
@@ -121,12 +123,12 @@ const GAME_LABEL: Record<string, string> = {
   other: '기타 작품',
 };
 
-/** 게임(작품)별 구성. */
+/** 게임(작품)별 구성 — 저장값이 id('onepiece')든 한글 라벨('원피스')이든 같은 조각으로 합친다. */
 export function compositionByGame(cards: VizCard[], topN = 5): VizSlice[] {
   return compositionBy(
     cards,
     (c) => {
-      const g = c.game ?? 'other';
+      const g = normalizeCardGame(c.game) ?? (c.game === 'sports' ? 'sports' : 'other');
       return { key: g, label: GAME_LABEL[g] ?? g };
     },
     topN,
