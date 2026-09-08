@@ -1,13 +1,31 @@
+import { KST_OFFSET_MS } from '../../../shared/kst';
+import { isEmbedUserAgent } from '../../../shared/embed';
+
+/** KST 'YYYY-MM-DD HH:mm' — 운영 어드민은 UTC 서버라 로컬 시간을 쓰면 9시간 어긋난다. */
 export function fmtDate(d: Date | string | null | undefined): string {
   if (!d) return '-';
   const dt = typeof d === 'string' ? new Date(d) : d;
   if (Number.isNaN(dt.getTime())) return '-';
-  const y = dt.getFullYear();
-  const m = String(dt.getMonth() + 1).padStart(2, '0');
-  const day = String(dt.getDate()).padStart(2, '0');
-  const hh = String(dt.getHours()).padStart(2, '0');
-  const mm = String(dt.getMinutes()).padStart(2, '0');
-  return `${y}-${m}-${day} ${hh}:${mm}`;
+  const k = new Date(dt.getTime() + KST_OFFSET_MS);
+  return `${k.toISOString().slice(0, 10)} ${k.toISOString().slice(11, 16)}`;
+}
+
+/** UA 한 줄 요약 — 'iOS' | 'Android' | 'PC' (+ ' 웹뷰'), 방문 기록 기기 열. */
+export function deviceOf(ua: string | null | undefined): string {
+  if (!ua) return '-';
+  const os = /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : 'PC';
+  return isEmbedUserAgent(ua) ? `${os} 웹뷰` : os;
+}
+
+/** referer 의 호스트만 (자기 도메인·없음은 '-'). */
+export function refererHost(ref: string | null | undefined): string {
+  if (!ref) return '-';
+  try {
+    const h = new URL(ref).hostname.replace(/^www\./, '');
+    return /arvotcg\.com$|poke-30\.com$/.test(h) ? '-' : h;
+  } catch {
+    return '-';
+  }
 }
 
 export function trunc(s: string, n: number): string {

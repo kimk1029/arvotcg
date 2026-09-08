@@ -5,7 +5,8 @@ import { SignupSparkline } from '@/components/SignupSparkline';
 import { RankBars } from '@/components/RankBars';
 import { DonutChart } from '@/components/DonutChart';
 import { prisma } from '@/lib/prisma';
-import { fmtDate } from '@/lib/format';
+import Link from 'next/link';
+import { deviceOf, fmtDate } from '@/lib/format';
 import { KST_OFFSET_MS, kstDateKey, kstDateKeyShifted, kstDayStart } from '../../../shared/kst';
 
 const DAY_MS = 86_400_000;
@@ -90,9 +91,9 @@ async function loadStats() {
       prisma.pageView.findMany({
         orderBy: { createdAt: 'desc' },
         take: 20,
-        select: { id: true, path: true, ip: true, country: true, userId: true, source: true, createdAt: true },
+        select: { id: true, path: true, ip: true, ua: true, country: true, userId: true, source: true, createdAt: true },
       }),
-      [] as Array<{ id: number; path: string; ip: string | null; country: string | null; userId: string | null; source: string; createdAt: Date }>,
+      [] as Array<{ id: number; path: string; ip: string | null; ua: string | null; country: string | null; userId: string | null; source: string; createdAt: Date }>,
     ),
     one(
       // 방문자: (ip, day) 유니크 테이블이므로 count(*) = 일별 고유 방문자(웹+앱).
@@ -572,17 +573,19 @@ export default async function Page() {
         </section>
 
         <section className="card">
-          <h2>최근 방문 (20)</h2>
+          <h2>최근 방문 (20) <Link href="/visitors" style={{ fontSize: 12, fontWeight: 400, marginLeft: 8 }}>전체 방문 기록 →</Link></h2>
           {recentVisits.length === 0 ? (
             <div className="muted">방문 없음</div>
           ) : (
             <table className="tbl">
-              <thead><tr><th>경로</th><th>출처</th><th>IP</th><th>국가</th><th>시각</th></tr></thead>
+              <thead><tr><th>경로</th><th>출처</th><th>기기</th><th>회원</th><th>IP</th><th>국가</th><th>시각(KST)</th></tr></thead>
               <tbody>
                 {recentVisits.map((v) => (
                   <tr key={v.id}>
                     <td className="mono">{v.path}</td>
                     <td><span className="tag">{SOURCE_LABEL[v.source] ?? v.source}</span></td>
+                    <td>{deviceOf(v.ua)}</td>
+                    <td>{v.userId ? <Link href={`/users?q=${encodeURIComponent(v.userId)}`}>{v.userId.slice(0, 10)}</Link> : <span className="muted">비회원</span>}</td>
                     <td className="mono">{v.ip ?? '-'}</td>
                     <td className="mono">{v.country ?? '-'}</td>
                     <td className="mono muted">{fmtDate(v.createdAt)}</td>

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { fmtDate, parseIntParam, trunc } from '@/lib/format';
+import { Chip, Pager } from '@/components/Filters';
 
 export const dynamic = 'force-dynamic';
 
@@ -162,37 +163,5 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
 
       <Pager mkHref={mkHref} page={page} totalPages={totalPages} />
     </>
-  );
-}
-
-function Chip({ href, on, children }: { href: string; on: boolean; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      style={{
-        padding: '6px 12px',
-        fontSize: 12,
-        border: '1px solid #CBD5E1',
-        borderRadius: 5,
-        background: on ? '#3B82F6' : '#fff',
-        color: on ? '#fff' : '#334155',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {children}
-    </Link>
-  );
-}
-
-function Pager({
-  mkHref, page, totalPages,
-}: { mkHref: (over: Partial<SearchParams>) => string; page: number; totalPages: number }) {
-  if (totalPages <= 1) return null;
-  return (
-    <div className="pager">
-      {page > 1 ? <Link href={mkHref({ page: String(page - 1) })}>← 이전</Link> : <span className="disabled">← 이전</span>}
-      <span className="disabled">{page} / {totalPages}</span>
-      {page < totalPages ? <Link href={mkHref({ page: String(page + 1) })}>다음 →</Link> : <span className="disabled">다음 →</span>}
-    </div>
   );
 }
