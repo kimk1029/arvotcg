@@ -165,7 +165,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <ActionTracker />
                 <InAppBrowserNotice />
                 <UgcTermsGateHost />
-                {/* 진입 게이트 — 온보딩 미열람 → /onboarding, 미로그인 → /login (앱 EntryGate 페어). */}
+                {/* 진입 게이트 — 미로그인 → /login (앱 EntryGate 페어; 웹은 온보딩 생략). */}
                 <Suspense fallback={null}>
                   <EntryGate />
                 </Suspense>

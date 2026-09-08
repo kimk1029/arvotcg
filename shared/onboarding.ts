@@ -11,6 +11,9 @@
  *
  * '열람' 플래그는 기기 로컬(웹 localStorage / 앱 kvStore) — 로그아웃해도 온보딩은
  * 다시 안 보이고 로그인만 요구한다.
+ *
+ * 플랫폼 예외(2026-09-08 사용자 지시): 웹은 온보딩을 띄우지 않는다 — 웹 첫 방문은 바로
+ * 로그인 게이트. 온보딩 페이지(/onboarding) 자체는 남겨 직접 열면 볼 수 있다.
  */
 
 /** 온보딩 열람 플래그 키 (웹 localStorage · 앱 kvStore 동일). */
@@ -116,9 +119,11 @@ export function resolveEntryGate(input: {
   authed: boolean;
   onboardingSeen: boolean;
   pathname: string | null | undefined;
+  /** 'web' 은 온보딩 단계를 건너뛴다(웹 예외). */
+  platform: 'web' | 'app';
 }): EntryGateTarget {
   if (isEntryGateExempt(input.pathname)) return null;
-  if (!input.onboardingSeen) return 'onboarding';
+  if (input.platform === 'app' && !input.onboardingSeen) return 'onboarding';
   if (!input.authed) return 'login';
   return null;
 }

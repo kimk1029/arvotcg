@@ -19,7 +19,7 @@ export function EntryGate({ children }: { children: ReactNode }) {
   const authed = useAuthed();
   const seen = useOnboardingSeen();
   const c = useThemeColors();
-  const target = SHOT || process.env.EXPO_PUBLIC_SHOT_ROUTE ? null : resolveEntryGate({ authed, onboardingSeen: seen, pathname });
+  const target = SHOT || process.env.EXPO_PUBLIC_SHOT_ROUTE ? null : resolveEntryGate({ authed, onboardingSeen: seen, pathname, platform: 'app' });
 
   useEffect(() => {
     if (!target) return;

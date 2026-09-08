@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * 진입 게이트 — 온보딩 미열람이면 /onboarding, 로그인 안 됐으면 /login 으로 보낸다.
- * 판정 규칙 정본은 shared/onboarding.ts (앱 EntryGate 와 동일).
+ * 진입 게이트 — 로그인 안 됐으면 /login 으로 보낸다.
+ * 판정 규칙 정본은 shared/onboarding.ts (앱 EntryGate 와 동일). 웹은 온보딩 단계를
+ * 건너뛴다(platform: 'web', 2026-09-08 사용자 지시) — 앱만 첫 실행에 온보딩을 띄운다.
  *
  *  · 앱 인앱 WebView(임베드)는 앱이 이미 게이트를 통과한 뒤 여는 화면이므로 제외.
  *  · 세션 판정(/auth/me) 이 끝나기 전엔 SSR 콘텐츠를 그대로 두고, 미로그인이 확정되면 보낸다.
@@ -28,7 +29,7 @@ export function EntryGate() {
     const seen = isOnboardingSeen();
     // 세션 미확정 상태에선 '로그인' 게이트를 걸지 않는다(온보딩 게이트는 로컬 플래그만 보므로 즉시).
     const authed = status !== 'unauthenticated';
-    const next = resolveEntryGate({ authed, onboardingSeen: seen, pathname });
+    const next = resolveEntryGate({ authed, onboardingSeen: seen, pathname, platform: 'web' });
     setTarget(next);
     if (next === 'onboarding') router.replace('/onboarding');
     else if (next === 'login') router.replace(`/login?callbackUrl=${encodeURIComponent(pathname || '/')}`);
