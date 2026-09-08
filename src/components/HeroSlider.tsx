@@ -79,7 +79,7 @@ function renderVisual(s: HeroSlideData): ReactNode {
   if (s.visualType === 'image') {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={s.visualValue} alt={s.badge} className="hero-promo-card" />
+      <img src={s.visualValue} alt={s.badge || s.title || '배너'} className="hero-promo-card" />
     );
   }
   return <div style={{ fontSize: 69, lineHeight: 1 }}>{s.visualValue}</div>;
@@ -202,10 +202,11 @@ export function HeroSlider({ slides, compact = false, autoplayMs }: HeroSliderPr
               {sl.fullImage ? (
                 // 이미지 슬라이드 — 어드민 업로드 이미지가 배너 전체를 꽉 채운다(문구는 이미지 안에).
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={sl.fullImage} alt={sl.badge} className="hero-bg" draggable={false} />
+                <img src={sl.fullImage} alt={sl.badge || sl.title || '배너'} className="hero-bg" draggable={false} />
               ) : (
               <>
-              <span className="hero-badge">{sl.badge}</span>
+              {/* 뱃지·설명은 선택 항목 — 비어 있으면 요소 자체를 그리지 않는다(어드민 검증 규칙과 페어). */}
+              {sl.badge ? <span className="hero-badge">{sl.badge}</span> : null}
               {sl.ctaHint && <span className="hero-cta-hint">{sl.ctaHint}</span>}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ flex: 1 }}>
@@ -217,14 +218,16 @@ export function HeroSlider({ slides, compact = false, autoplayMs }: HeroSliderPr
                       </span>
                     ))}
                   </h1>
-                  <p>
-                    {sl.sub.split('\n').map((line, j) => (
-                      <span key={j}>
-                        {line}
-                        <br />
-                      </span>
-                    ))}
-                  </p>
+                  {sl.sub ? (
+                    <p>
+                      {sl.sub.split('\n').map((line, j) => (
+                        <span key={j}>
+                          {line}
+                          <br />
+                        </span>
+                      ))}
+                    </p>
+                  ) : null}
                 </div>
                 {sl.visual}
               </div>

@@ -135,7 +135,7 @@ export function HeroBanner({ slides, autoplayMs }: { slides: HeroSlideData[]; au
     if (/^https?:\/\//i.test(href)) {
       // http(s) 링크는 범용 인앱 웹뷰(/web)로 — 어드민이 배너에 URL 만 넣으면
       // 앱 업데이트 없이 새 이벤트 페이지를 열 수 있다 (우리 도메인엔 토큰 자동 첨부).
-      router.push({ pathname: '/web', params: { url: href, title: s.badge ?? '이벤트' } } as never);
+      router.push({ pathname: '/web', params: { url: href, title: s.badge || s.title || '이벤트' } } as never);
     } else {
       router.push(href as never);
     }
@@ -183,11 +183,13 @@ export function HeroBanner({ slides, autoplayMs }: { slides: HeroSlideData[]; au
                 />
               ) : (
               <>
-              {/* badge */}
+              {/* badge — 선택 항목: 비어 있으면 칩을 그리지 않는다(웹 HeroSlider 와 페어). */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <View style={{ alignSelf: 'flex-start', backgroundColor: 'rgba(0,0,0,0.22)', paddingHorizontal: 7, paddingVertical: 3, marginBottom: 9, borderRadius: 6 }}>
-                  <PixelText variant={txt} size={10} weight="bold" color="#FFFFFF">{s.badge}</PixelText>
-                </View>
+                {s.badge ? (
+                  <View style={{ alignSelf: 'flex-start', backgroundColor: 'rgba(0,0,0,0.22)', paddingHorizontal: 7, paddingVertical: 3, marginBottom: 9, borderRadius: 6 }}>
+                    <PixelText variant={txt} size={10} weight="bold" color="#FFFFFF">{s.badge}</PixelText>
+                  </View>
+                ) : <View />}
                 {s.ctaHint ? (
                   <PixelText variant={txt} size={10} weight="bold" color="rgba(255,255,255,0.9)">{s.ctaHint}</PixelText>
                 ) : null}
@@ -197,9 +199,11 @@ export function HeroBanner({ slides, autoplayMs }: { slides: HeroSlideData[]; au
                   <PixelText variant={txt} size={18} weight="bold" color="#FFFFFF" numberOfLines={2} style={{ lineHeight: 24 }}>
                     {s.title.replace(/\n/g, ' ')}
                   </PixelText>
-                  <PixelText variant={txt} size={12} color="rgba(255,255,255,0.85)" numberOfLines={2} style={{ marginTop: 7, lineHeight: 18 }}>
-                    {s.sub.replace(/\n/g, ' ')}
-                  </PixelText>
+                  {s.sub ? (
+                    <PixelText variant={txt} size={12} color="rgba(255,255,255,0.85)" numberOfLines={2} style={{ marginTop: 7, lineHeight: 18 }}>
+                      {s.sub.replace(/\n/g, ' ')}
+                    </PixelText>
+                  ) : null}
                 </View>
                 <Text style={{ fontSize: 64, lineHeight: 72 }}>{s.visualValue}</Text>
               </View>

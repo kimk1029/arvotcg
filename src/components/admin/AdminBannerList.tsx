@@ -429,7 +429,12 @@ function BannerForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) =>
         </select>
       </Field>
 
-      <Field label="뱃지 (예: ★ 팬 프로젝트)">
+      {draft.visualType === 'image' && (
+        <div style={{ fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink2)', padding: '8px 10px', background: 'var(--pap2)', lineHeight: 1.6 }}>
+          이미지 배너는 이미지가 배너 전체를 덮고 문구를 그리지 않습니다. 뱃지·제목·설명은 선택(관리용 메모)입니다.
+        </div>
+      )}
+      <Field label="뱃지 (선택 · 예: ★ 팬 프로젝트)">
         <input
           type="text"
           value={draft.badge}
@@ -438,7 +443,7 @@ function BannerForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) =>
         />
       </Field>
 
-      <Field label="제목 (줄바꿈은 ⏎ 키)">
+      <Field label={draft.visualType === 'image' ? '제목 (선택 · 관리용 메모)' : '제목 (필수 · 줄바꿈은 ⏎ 키)'}>
         <textarea
           value={draft.title}
           onChange={(e) => setDraft({ ...draft, title: e.target.value })}
@@ -447,7 +452,7 @@ function BannerForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) =>
         />
       </Field>
 
-      <Field label="설명 (줄바꿈은 ⏎ 키)">
+      <Field label="설명 (선택 · 줄바꿈은 ⏎ 키)">
         <textarea
           value={draft.sub}
           onChange={(e) => setDraft({ ...draft, sub: e.target.value })}

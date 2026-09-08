@@ -275,6 +275,7 @@ function BannerForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) =>
   };
 
   const hasPreview = draft.visualValue && /^(https?:\/\/|\/)/.test(draft.visualValue);
+  const isImg = draft.visualType === 'image';
   const [dim, setDim] = useState<{ w: number; h: number } | null>(null);
 
   return (
@@ -290,13 +291,18 @@ function BannerForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) =>
         </Field>
       </div>
 
-      <Field label="뱃지 (예: ★ 팬 프로젝트)">
+      {isImg && (
+        <div style={{ fontSize: 11, color: '#64748B', background: '#F1F5F9', padding: '8px 10px', borderRadius: 6 }}>
+          이미지 배너는 이미지가 배너 전체를 덮고 문구를 그리지 않습니다. 아래 뱃지·제목·설명은 선택(관리용 메모)입니다.
+        </div>
+      )}
+      <Field label="뱃지 (선택 · 예: ★ 팬 프로젝트)">
         <input type="text" value={draft.badge} onChange={(e) => setDraft({ ...draft, badge: e.target.value })} style={inp} />
       </Field>
-      <Field label="제목 (줄바꿈 ⏎)">
+      <Field label={isImg ? '제목 (선택 · 관리용 메모)' : '제목 (필수 · 줄바꿈 ⏎)'}>
         <textarea value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} rows={2} style={{ ...inp, resize: 'vertical' }} />
       </Field>
-      <Field label="설명 (줄바꿈 ⏎)">
+      <Field label="설명 (선택 · 줄바꿈 ⏎)">
         <textarea value={draft.sub} onChange={(e) => setDraft({ ...draft, sub: e.target.value })} rows={2} style={{ ...inp, resize: 'vertical' }} />
       </Field>
       <Field label="CTA 힌트 (예: 👉 TAP, 비우면 숨김)">

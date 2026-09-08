@@ -41,6 +41,15 @@ function validateBanner(
   partial: boolean,
 ): { ok: true; data: BannerInput } | { ok: false; error: string } {
   const out: BannerInput = {};
+  // 문구 필수 여부는 비주얼 타입에 달렸으므로 먼저 판정한다 (admin/src/lib/banners.ts 와 동일 규칙).
+  if (input.visualType !== undefined) {
+    if (!(VISUAL_TYPES as readonly string[]).includes(input.visualType)) {
+      return { ok: false, error: `visualType must be one of ${VISUAL_TYPES.join(',')}` };
+    }
+    out.visualType = input.visualType;
+  } else if (!partial) out.visualType = 'emoji';
+  const isImage = out.visualType === 'image';
+
   if (input.slideClass !== undefined) {
     if (!(SLIDE_CLASSES as readonly string[]).includes(input.slideClass)) {
       return { ok: false, error: `slideClass must be one of ${SLIDE_CLASSES.join(',')}` };
@@ -48,39 +57,24 @@ function validateBanner(
     out.slideClass = input.slideClass;
   } else if (!partial) return { ok: false, error: 'slideClass is required' };
 
-  if (input.badge !== undefined) {
-    if (typeof input.badge !== 'string' || !input.badge.trim()) {
-      return { ok: false, error: 'badge required' };
-    }
-    out.badge = input.badge;
-  } else if (!partial) return { ok: false, error: 'badge required' };
-
-  if (input.title !== undefined) {
-    if (typeof input.title !== 'string' || !input.title.trim()) {
-      return { ok: false, error: 'title required' };
-    }
-    out.title = input.title;
-  } else if (!partial) return { ok: false, error: 'title required' };
-
-  if (input.sub !== undefined) {
-    if (typeof input.sub !== 'string' || !input.sub.trim()) {
-      return { ok: false, error: 'sub required' };
-    }
-    out.sub = input.sub;
-  } else if (!partial) return { ok: false, error: 'sub required' };
+  // 이미지 배너는 이미지가 배너 전체를 덮고 문구를 그리지 않으므로 뱃지·제목·설명 모두 선택(2026-09-08).
+  // 이모지 배너는 제목만 필수. 뱃지·설명은 항상 선택.
+  for (const key of ['badge', 'title', 'sub'] as const) {
+    const v = input[key];
+    if (v !== undefined && v !== null) {
+      if (typeof v !== 'string') return { ok: false, error: `${key} must be a string` };
+      out[key] = v;
+    } else if (!partial) out[key] = '';
+  }
+  if (!partial && !isImage && !(out.title ?? '').trim()) {
+    return { ok: false, error: 'title required for emoji banner' };
+  }
 
   if (input.ctaHint !== undefined) out.ctaHint = input.ctaHint || null;
 
-  if (input.visualType !== undefined) {
-    if (!(VISUAL_TYPES as readonly string[]).includes(input.visualType)) {
-      return { ok: false, error: `visualType must be one of ${VISUAL_TYPES.join(',')}` };
-    }
-    out.visualType = input.visualType;
-  } else if (!partial) out.visualType = 'emoji';
-
   if (input.visualValue !== undefined) {
     if (typeof input.visualValue !== 'string' || !input.visualValue.trim()) {
-      return { ok: false, error: 'visualValue required' };
+      return { ok: false, error: isImage ? 'image url required' : 'emoji required' };
     }
     out.visualValue = input.visualValue;
   } else if (!partial) out.visualValue = '✨';
