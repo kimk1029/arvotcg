@@ -4,7 +4,9 @@ import { HourlyChart } from '@/components/HourlyChart';
 import { SignupSparkline } from '@/components/SignupSparkline';
 import { RankBars } from '@/components/RankBars';
 import { DonutChart } from '@/components/DonutChart';
+import { AutoRefresh } from '@/components/AutoRefresh';
 import { prisma } from '@/lib/prisma';
+import { getOnlineUsers } from '@/lib/online';
 import Link from 'next/link';
 import { deviceOf, fmtDate } from '@/lib/format';
 import { KST_OFFSET_MS, kstDateKey, kstDateKeyShifted, kstDayStart } from '../../../shared/kst';
@@ -273,13 +275,9 @@ async function loadStats() {
         select: { id: true, targetType: true, targetId: true, reason: true, snapshot: true, createdAt: true },
       }), [] as Array<{ id: number; targetType: string; targetId: string; reason: string; snapshot: string | null; createdAt: Date }>),
       // 지금 활동중 — 최근 5분 내 행동 로그가 있는 사람 (/online 과 같은 기준)
-      one(prisma.$queryRaw<Array<{ total: bigint; members: bigint }>>`
-        SELECT count(DISTINCT COALESCE("userId", 'anon:' || COALESCE("anonId", ip, '?'))) AS total,
-               count(DISTINCT "userId") AS members
-          FROM action_logs WHERE "createdAt" > now() - interval '5 minutes'
-      `, []),
+      getOnlineUsers(5),
     ]);
-  const online = { total: Number(onlineRaw[0]?.total ?? 0), members: Number(onlineRaw[0]?.members ?? 0) };
+  const online = { total: onlineRaw.length, members: onlineRaw.filter((row) => row.userId).length };
   const countOf = (rows: Array<{ status: string; _count: { _all: number } }>, s: string) =>
     rows.find((r) => r.status === s)?._count._all ?? 0;
 
@@ -388,14 +386,21 @@ export default async function Page() {
 
   return (
     <>
-      <h1 className="admin-h1">대시보드</h1>
+      <AutoRefresh seconds={15} />
+      <div className="dashboard-heading">
+        <h1 className="admin-h1">대시보드</h1>
+        <Link href="/online" className="online-indicator" title="최근 5분 내 활동 기준 · 15초마다 갱신 · 클릭하면 접속자 목록으로 이동">
+          <span className="online-indicator-dot" aria-hidden="true" />
+          <span>현재 접속중</span>
+          <span>전체 <b>{ops.online.total.toLocaleString()}</b></span>
+          <span>회원 <b>{ops.online.members.toLocaleString()}</b></span>
+          <span>비회원 <b>{(ops.online.total - ops.online.members).toLocaleString()}</b></span>
+        </Link>
+      </div>
       <p className="admin-sub">오늘 가입·접속 현황 + 전체 운영 통계 · 오늘/어제는 KST 00시 기준, 접속자·로그인은 웹+앱 합산</p>
 
       <h2 style={{ fontSize: 14, color: '#475569', margin: '4px 0 10px', letterSpacing: 0.3 }}>🟢 오늘 현황 <span style={{ fontSize: 11, color: '#94A3B8' }}>(어제 대비)</span></h2>
       <div className="grid-stats">
-        <Link href="/online" style={{ display: 'contents' }}>
-          <Stat label="🟢 지금 활동중" value={ops.online.total} sub={`최근 5분 · 회원 ${ops.online.members.toLocaleString()} · 비회원 ${(ops.online.total - ops.online.members).toLocaleString()}`} />
-        </Link>
         <DeltaStat label="오늘 가입자" value={stats.signupsToday} prev={stats.signupsYesterday} accent="#2563EB" sub="신규 회원" />
         <DeltaStat label="오늘 접속자" value={stats.uniqueIpsToday} prev={stats.visitorsYesterday} accent="#0EA5E9" sub={`고유 IP · ${splitText(stats.visitSplit)}`} />
         <DeltaStat label="오늘 로그인" value={stats.uniqueUsersToday} prev={stats.loginsYesterday} accent="#10B981" sub={`고유 유저 · ${splitText(stats.loginSplit)}`} />
