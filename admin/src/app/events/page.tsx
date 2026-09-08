@@ -21,11 +21,18 @@ const TYPE_LABEL: Record<string, string> = {
   tap: '탭',
 };
 
+/** 출처 — 'mobile' 앱 네이티브, 'webview' 앱 인앱 WebView 안의 웹, 그 외 브라우저 웹. */
+const SOURCE_LABEL: Record<string, string> = {
+  web: '웹',
+  mobile: '앱',
+  webview: '앱(웹뷰)',
+};
+
 export default async function Page({ searchParams }: { searchParams: SearchParams }) {
   const type = (searchParams.type ?? '').trim();
   const pathQ = (searchParams.path ?? '').trim();
   const who = searchParams.who === 'member' || searchParams.who === 'guest' ? searchParams.who : null;
-  const source = searchParams.source === 'web' || searchParams.source === 'mobile' ? searchParams.source : null;
+  const source = searchParams.source === 'web' || searchParams.source === 'mobile' || searchParams.source === 'webview' ? searchParams.source : null;
   const uid = (searchParams.uid ?? '').trim();
   const page = parseIntParam(searchParams.page, 1);
   const skip = (page - 1) * PAGE_SIZE;
@@ -92,6 +99,7 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
         <Chip href={mkHref({ source: '' })} on={!source}>전체 출처</Chip>
         <Chip href={mkHref({ source: 'web' })} on={source === 'web'}>웹</Chip>
         <Chip href={mkHref({ source: 'mobile' })} on={source === 'mobile'}>앱</Chip>
+        <Chip href={mkHref({ source: 'webview' })} on={source === 'webview'}>앱(웹뷰)</Chip>
         <span style={{ width: 1, background: '#E2E8F0', margin: '0 4px' }} />
         <Chip href={mkHref({ who: '' })} on={!who}>회원+비회원</Chip>
         <Chip href={mkHref({ who: 'member' })} on={who === 'member'}>회원만</Chip>
@@ -143,7 +151,7 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
                       <span className="muted" title={r.anonId ?? ''}>익명{r.anonId ? ` · ${r.anonId.slice(0, 8)}` : ''}</span>
                     )}
                   </td>
-                  <td><span className="tag">{r.source === 'mobile' ? '앱' : '웹'}</span></td>
+                  <td><span className="tag">{SOURCE_LABEL[r.source] ?? r.source}</span></td>
                   <td className="mono muted">{r.ip ?? '-'}</td>
                 </tr>
               );

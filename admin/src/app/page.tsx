@@ -6,6 +6,21 @@ import { RankBars } from '@/components/RankBars';
 import { DonutChart } from '@/components/DonutChart';
 import { prisma } from '@/lib/prisma';
 import { fmtDate } from '@/lib/format';
+import { KST_OFFSET_MS, kstDateKey, kstDateKeyShifted, kstDayStart } from '../../../shared/kst';
+
+const DAY_MS = 86_400_000;
+
+/** 접속 출처 라벨 — 행동 로그 페이지와 동일. */
+const SOURCE_LABEL: Record<string, string> = { web: '웹', mobile: '앱', webview: '앱(웹뷰)' };
+
+type SourceSplit = { web: number; mobile: number; webview: number };
+function splitOf(rows: Array<{ source: string; n: bigint }>): SourceSplit {
+  const get = (k: string) => Number(rows.find((r) => r.source === k)?.n ?? 0);
+  return { web: get('web'), mobile: get('mobile'), webview: get('webview') };
+}
+function splitText(sp: SourceSplit): string {
+  return `웹 ${sp.web.toLocaleString()} · 앱 ${sp.mobile.toLocaleString()} · 앱(웹뷰) ${sp.webview.toLocaleString()}`;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -14,16 +29,12 @@ async function one<T>(p: Promise<T>, fb: T): Promise<T> {
 }
 
 async function loadStats() {
-  const startToday = new Date();
-  startToday.setHours(0, 0, 0, 0);
-  const startYesterday = new Date(startToday);
-  startYesterday.setDate(startYesterday.getDate() - 1);
-  const start7d = new Date();
-  start7d.setDate(start7d.getDate() - 6);
-  start7d.setHours(0, 0, 0, 0);
-  const start14d = new Date();
-  start14d.setDate(start14d.getDate() - 13);
-  start14d.setHours(0, 0, 0, 0);
+  // '오늘' 은 KST 달력일 기준 — 운영 서버(Vultr)는 UTC 라 setHours(0) 이면 09:00 KST 부터 하루로 잡혔다(2026-09-09 수정).
+  const startToday = kstDayStart();
+  const startYesterday = new Date(startToday.getTime() - DAY_MS);
+  const start7d = new Date(startToday.getTime() - 6 * DAY_MS);
+  const start14d = new Date(startToday.getTime() - 13 * DAY_MS);
+  const start14dKey = kstDateKeyShifted(13);
   const yesterdayRange = { gte: startYesterday, lt: startToday };
 
   // 각 쿼리를 개별 try/catch — 하나 실패해도 나머지는 보여줌 (page_views/oripa_packs 테이블 미생성 시 graceful)
@@ -36,6 +47,7 @@ async function loadStats() {
     visitorsYesterday, loginsYesterday, viewsYesterday,
     todayPageViews, signupRows,
     topClicksRaw, topSearchesRaw, topPages7dRaw, topActorsRaw,
+    visitSplitRaw, loginSplitRaw, hourlyLoginsRaw,
   ] = await Promise.all([
     one(prisma.user.count(), 0),
     one(prisma.feed.count(), 0),
@@ -52,12 +64,13 @@ async function loadStats() {
       }).then((r) => r.length),
       0,
     ),
+    // 오늘 로그인 = 오늘 행동 로그(웹+앱)에 찍힌 고유 회원. page_views 는 (ip,day) 1행이라 첫 방문이
+    // 익명(로그인 화면)이면 userId 가 비어 실제의 1% 수준으로 나왔다(2026-09-09 수정).
     one(
-      prisma.pageView.findMany({
-        where: { createdAt: { gte: startToday }, userId: { not: null } },
-        distinct: ['userId'],
-        select: { userId: true },
-      }).then((r) => r.length),
+      prisma.$queryRaw<Array<{ n: bigint }>>`
+        SELECT count(DISTINCT "userId") AS n FROM action_logs
+         WHERE "createdAt" >= ${startToday} AND "userId" IS NOT NULL
+      `.then((r) => Number(r[0]?.n ?? 0)),
       0,
     ),
     one(
@@ -77,19 +90,26 @@ async function loadStats() {
       prisma.pageView.findMany({
         orderBy: { createdAt: 'desc' },
         take: 20,
-        select: { id: true, path: true, ip: true, country: true, userId: true, createdAt: true },
+        select: { id: true, path: true, ip: true, country: true, userId: true, source: true, createdAt: true },
       }),
-      [] as Array<{ id: number; path: string; ip: string | null; country: string | null; userId: string | null; createdAt: Date }>,
+      [] as Array<{ id: number; path: string; ip: string | null; country: string | null; userId: string | null; source: string; createdAt: Date }>,
     ),
     one(
-      // (ip, day) 유니크 테이블이므로 count(*) = 일별 고유 방문자
+      // 방문자: (ip, day) 유니크 테이블이므로 count(*) = 일별 고유 방문자(웹+앱).
+      // 로그인: 행동 로그의 KST 일별 고유 회원.
       prisma.$queryRaw<Array<{ day: Date; visitors: bigint; logins: bigint }>>`
-        SELECT "day" AS day,
-               count(*) AS visitors,
-               count(DISTINCT "userId") FILTER (WHERE "userId" IS NOT NULL) AS logins
-          FROM page_views
-         WHERE "day" >= ${start14d}
-         GROUP BY 1 ORDER BY 1 ASC
+        WITH pv AS (
+          SELECT "day" AS day, count(*) AS visitors
+            FROM page_views WHERE "day" >= ${start14dKey}::date GROUP BY 1
+        ), al AS (
+          SELECT ("createdAt" + interval '9 hours')::date AS day, count(DISTINCT "userId") AS logins
+            FROM action_logs WHERE "createdAt" >= ${start14d} AND "userId" IS NOT NULL GROUP BY 1
+        )
+        SELECT COALESCE(pv.day, al.day) AS day,
+               COALESCE(pv.visitors, 0)::bigint AS visitors,
+               COALESCE(al.logins, 0)::bigint AS logins
+          FROM pv FULL OUTER JOIN al ON al.day = pv.day
+         ORDER BY 1 ASC
       `,
       [] as Array<{ day: Date; visitors: bigint; logins: bigint }>,
     ),
@@ -122,11 +142,10 @@ async function loadStats() {
       0,
     ),
     one(
-      prisma.pageView.findMany({
-        where: { createdAt: yesterdayRange, userId: { not: null } },
-        distinct: ['userId'],
-        select: { userId: true },
-      }).then((r) => r.length),
+      prisma.$queryRaw<Array<{ n: bigint }>>`
+        SELECT count(DISTINCT "userId") AS n FROM action_logs
+         WHERE "createdAt" >= ${startYesterday} AND "createdAt" < ${startToday} AND "userId" IS NOT NULL
+      `.then((r) => Number(r[0]?.n ?? 0)),
       0,
     ),
     one(prisma.pageView.count({ where: { createdAt: yesterdayRange } }), 0),
@@ -190,6 +209,30 @@ async function loadStats() {
         take: 12,
       }) as unknown as Promise<Array<{ userId: string | null; _count: { _all: number } }>>,
       [] as Array<{ userId: string | null; _count: { _all: number } }>,
+    ),
+    // 오늘 접속자 출처 분리 (page_views.source: web/mobile/webview)
+    one(
+      prisma.$queryRaw<Array<{ source: string; n: bigint }>>`
+        SELECT "source", count(*) AS n FROM page_views
+         WHERE "createdAt" >= ${startToday} AND ip IS NOT NULL GROUP BY 1
+      `,
+      [] as Array<{ source: string; n: bigint }>,
+    ),
+    // 오늘 로그인 출처 분리 (한 회원이 웹·앱 둘 다 쓰면 양쪽에 셈)
+    one(
+      prisma.$queryRaw<Array<{ source: string; n: bigint }>>`
+        SELECT "source", count(DISTINCT "userId") AS n FROM action_logs
+         WHERE "createdAt" >= ${startToday} AND "userId" IS NOT NULL GROUP BY 1
+      `,
+      [] as Array<{ source: string; n: bigint }>,
+    ),
+    // 오늘 시간대별(KST) 로그인 고유 회원
+    one(
+      prisma.$queryRaw<Array<{ h: number; n: bigint }>>`
+        SELECT extract(hour FROM ("createdAt" + interval '9 hours'))::int AS h, count(DISTINCT "userId") AS n
+          FROM action_logs WHERE "createdAt" >= ${startToday} AND "userId" IS NOT NULL GROUP BY 1
+      `,
+      [] as Array<{ h: number; n: bigint }>,
     ),
   ]);
 
@@ -277,9 +320,10 @@ async function loadStats() {
     recentReports,
     stats: { users, feedsAll, feedsToday, trades, messagesAll, unread,
       viewsToday, uniqueIpsToday, uniqueUsersToday,
-      signupsToday, signupsYesterday, visitorsYesterday, loginsYesterday, viewsYesterday },
+      signupsToday, signupsYesterday, visitorsYesterday, loginsYesterday, viewsYesterday,
+      visitSplit: splitOf(visitSplitRaw), loginSplit: splitOf(loginSplitRaw) },
     topPaths, recentVisits, dailySeries, recentFeeds, recentUsers,
-    hourly: buildHourly(todayPageViews),
+    hourly: buildHourly(todayPageViews, hourlyLoginsRaw),
     signups14: buildSignups14(signupRows),
     topClicks: topClicksRaw.map((r) => ({ label: r.target, value: r._count._all })),
     topSearches: topSearchesRaw.map((r) => ({ label: r.query, value: r._count._all })),
@@ -288,21 +332,23 @@ async function loadStats() {
   };
 }
 
-/** 오늘 페이지뷰를 로컬 시간대 24시간 버킷으로 — 시간대별 고유 IP/유저/PV. */
-function buildHourly(rows: Array<{ ip: string | null; userId: string | null; createdAt: Date }>) {
+/** 오늘 페이지뷰를 KST 24시간 버킷으로 — 시간대별 고유 IP/PV, 로그인은 행동 로그 고유 회원. */
+function buildHourly(
+  rows: Array<{ ip: string | null; userId: string | null; createdAt: Date }>,
+  logins: Array<{ h: number; n: bigint }>,
+) {
   const ipSets = Array.from({ length: 24 }, () => new Set<string>());
-  const userSets = Array.from({ length: 24 }, () => new Set<string>());
   const views = new Array(24).fill(0);
   for (const r of rows) {
-    const h = new Date(r.createdAt).getHours();
+    const h = new Date(r.createdAt.getTime() + KST_OFFSET_MS).getUTCHours();
     views[h] += 1;
     if (r.ip) ipSets[h].add(r.ip);
-    if (r.userId) userSets[h].add(r.userId);
   }
+  const loginAt = new Map(logins.map((l) => [Number(l.h), Number(l.n)]));
   return Array.from({ length: 24 }, (_, hour) => ({
     hour,
     visitors: ipSets[hour].size,
-    logins: userSets[hour].size,
+    logins: loginAt.get(hour) ?? 0,
     views: views[hour],
   }));
 }
@@ -311,20 +357,13 @@ function buildHourly(rows: Array<{ ip: string | null; userId: string | null; cre
 function buildSignups14(rows: Array<{ createdAt: Date }>) {
   const map = new Map<string, number>();
   for (const r of rows) {
-    const d = new Date(r.createdAt);
-    d.setHours(0, 0, 0, 0);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const key = kstDateKey(r.createdAt);
     map.set(key, (map.get(key) ?? 0) + 1);
   }
   const out: Array<{ day: string; signups: number }> = [];
   for (let i = 13; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    d.setHours(0, 0, 0, 0);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    out.push({ day: `${mm}-${dd}`, signups: map.get(key) ?? 0 });
+    const key = kstDateKeyShifted(i);
+    out.push({ day: key.slice(5), signups: map.get(key) ?? 0 });
   }
   return out;
 }
@@ -342,13 +381,13 @@ export default async function Page() {
   return (
     <>
       <h1 className="admin-h1">대시보드</h1>
-      <p className="admin-sub">오늘 가입·접속 현황 + 전체 운영 통계</p>
+      <p className="admin-sub">오늘 가입·접속 현황 + 전체 운영 통계 · 오늘/어제는 KST 00시 기준, 접속자·로그인은 웹+앱 합산</p>
 
       <h2 style={{ fontSize: 14, color: '#475569', margin: '4px 0 10px', letterSpacing: 0.3 }}>🟢 오늘 현황 <span style={{ fontSize: 11, color: '#94A3B8' }}>(어제 대비)</span></h2>
       <div className="grid-stats">
         <DeltaStat label="오늘 가입자" value={stats.signupsToday} prev={stats.signupsYesterday} accent="#2563EB" sub="신규 회원" />
-        <DeltaStat label="오늘 접속자" value={stats.uniqueIpsToday} prev={stats.visitorsYesterday} accent="#0EA5E9" sub="고유 IP" />
-        <DeltaStat label="오늘 로그인" value={stats.uniqueUsersToday} prev={stats.loginsYesterday} accent="#10B981" sub="고유 유저" />
+        <DeltaStat label="오늘 접속자" value={stats.uniqueIpsToday} prev={stats.visitorsYesterday} accent="#0EA5E9" sub={`고유 IP · ${splitText(stats.visitSplit)}`} />
+        <DeltaStat label="오늘 로그인" value={stats.uniqueUsersToday} prev={stats.loginsYesterday} accent="#10B981" sub={`고유 유저 · ${splitText(stats.loginSplit)}`} />
         <DeltaStat label="오늘 페이지뷰" value={stats.viewsToday} prev={stats.viewsYesterday} sub="전체 PV" />
         <Stat label="오늘 검색" value={ops.searchesToday} sub="카드 검색 실행" />
         <Stat label="오늘 스캔" value={ops.scansToday} sub="카드 카메라 인식" />
@@ -538,11 +577,12 @@ export default async function Page() {
             <div className="muted">방문 없음</div>
           ) : (
             <table className="tbl">
-              <thead><tr><th>경로</th><th>IP</th><th>국가</th><th>시각</th></tr></thead>
+              <thead><tr><th>경로</th><th>출처</th><th>IP</th><th>국가</th><th>시각</th></tr></thead>
               <tbody>
                 {recentVisits.map((v) => (
                   <tr key={v.id}>
                     <td className="mono">{v.path}</td>
+                    <td><span className="tag">{SOURCE_LABEL[v.source] ?? v.source}</span></td>
                     <td className="mono">{v.ip ?? '-'}</td>
                     <td className="mono">{v.country ?? '-'}</td>
                     <td className="mono muted">{fmtDate(v.createdAt)}</td>
@@ -618,14 +658,9 @@ function build14Days(rows: Array<{ day: Date; visitors: bigint; logins: bigint }
   }
   const out: Array<{ day: string; visitors: number; logins: number }> = [];
   for (let i = 13; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    d.setHours(0, 0, 0, 0);
-    const key = d.toISOString().slice(0, 10);
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
+    const key = kstDateKeyShifted(i);
     const v = map.get(key) ?? { visitors: 0, logins: 0 };
-    out.push({ day: `${mm}-${dd}`, visitors: v.visitors, logins: v.logins });
+    out.push({ day: key.slice(5), visitors: v.visitors, logins: v.logins });
   }
   return out;
 }

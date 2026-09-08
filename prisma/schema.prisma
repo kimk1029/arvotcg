@@ -406,6 +406,10 @@ model OripaPackHistory {
 /// 페이지뷰 로그 — path 분석용.
 /// (ip, day) 쌍마다 별도 row 로 dedupe 되어 하루 1 IP = 1 방문자 로 집계 (전통적 UV).
 /// day 는 서버 UTC 기준 자정 (YYYY-MM-DD 00:00:00). 삽입 시 onConflict 로 중복 무시.
+/// 일별 고유 방문(ip, day) 1행. 웹 비콘(/api/metrics/pageview)과 앱·웹 행동로그의
+/// pageview 이벤트(/api/metrics/action) 양쪽에서 upsert — 같은 IP 가 나중에 로그인하면
+/// userId 를 채운다(첫 방문이 로그인 화면이라 익명으로 굳던 문제, 2026-09-09).
+/// day 는 KST 달력 날짜.
 model PageView {
   id        Int      @id @default(autoincrement())
   path      String
@@ -414,6 +418,8 @@ model PageView {
   userId    String?
   referer   String?
   country   String?
+  /// 'web' | 'mobile'(앱 네이티브) | 'webview'(앱 인앱 WebView 안의 웹)
+  source    String   @default("web")
   day       DateTime @db.Date
   createdAt DateTime @default(now())
 
@@ -824,7 +830,7 @@ model ActionLog {
   path      String   @default("")
   /// 클릭/탭 대상 설명 (예: "a:상세보기", "button:구매"). pageview 면 빈 값.
   target    String   @default("")
-  /// 'web' | 'mobile'
+  /// 'web' | 'mobile'(앱 네이티브) | 'webview'(앱 인앱 WebView 안의 웹 — UA 토큰으로 서버가 판별)
   source    String   @default("web")
   /// 로그인 사용자 id. 비회원은 null.
   userId    String?
