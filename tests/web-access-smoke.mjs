@@ -27,6 +27,11 @@ try {
     await delay(100);
   }
   assert.equal(ready, true, 'production web server started');
+  const ads = await fetch(`${base}/app-ads.txt`, { redirect: 'manual', headers: { 'User-Agent': 'Google-adstxt' } });
+  assert.equal(ads.status, 200);
+  assert.match(ads.headers.get('content-type') ?? '', /^text\/plain\b/);
+  assert.equal(await ads.text(), 'google.com, pub-8606099213555265, DIRECT, f08c47fec0942fa0\n');
+  console.log('AdMob app-ads.txt: anonymous crawler gets exact publisher record as text/plain');
   const cases = [
     ['/', {}, 307], ['/?embed=1', {}, 307],
     ['/event/cardshow?embed=1', {}, 307],

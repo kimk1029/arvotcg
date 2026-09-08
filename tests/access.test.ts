@@ -56,6 +56,8 @@ test('old and new app tokens exchange for HttpOnly cookies without redirect loop
 });
 
 test('public exceptions are narrow and method-specific', async () => {
+  assert.equal((await middleware(request('/app-ads.txt'))).status, 200);
+  assert.equal((await middleware(request('/app-ads.txt/private'))).status, 307);
   assert.equal((await middleware(request('/login'))).status, 200);
   assert.equal((await middleware(request('/privacy'))).status, 200);
   assert.equal(isPublicApi('/api/app-release', 'GET'), true);
