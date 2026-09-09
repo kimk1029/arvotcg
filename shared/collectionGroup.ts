@@ -38,6 +38,10 @@ export interface CardGroup<R> {
   value: number;
   /** 그룹 손익률(%) — Σ(현재가×수량) vs Σ(기준가×수량). 기준가 있는 장만. */
   profitPct: number | null;
+  /** Σ(기준가×수량) — 기준가 있는 장만. */
+  investedJpy: number;
+  /** 평가액 − 매입액(기준가 있는 장만). 기준가가 하나도 없으면 null. */
+  profitAbsJpy: number | null;
 }
 
 /** 같은 카드·같은 등급이면 같은 키. 상품 식별자가 없으면 자기 자신(묶이지 않음). */
@@ -62,7 +66,10 @@ export function groupDuplicates<C extends GroupableCard, R extends GroupableRow<
       g.value += r.value;
       continue;
     }
-    const next: CardGroup<R> = { key, head: r, items: [r], qty: r.qty, value: r.value, profitPct: null };
+    const next: CardGroup<R> = {
+      key, head: r, items: [r], qty: r.qty, value: r.value,
+      profitPct: null, investedJpy: 0, profitAbsJpy: null,
+    };
     byKey.set(key, next);
     out.push(next);
   }
@@ -75,6 +82,8 @@ export function groupDuplicates<C extends GroupableCard, R extends GroupableRow<
         current += r.value;
       }
     }
+    g.investedJpy = invested;
+    g.profitAbsJpy = invested > 0 ? current - invested : null;
     g.profitPct = invested > 0 ? ((current - invested) / invested) * 100 : null;
   }
   return out;
