@@ -32,6 +32,7 @@ export interface RegisterCardInfo {
 export function CardRegisterSheet({
   visible,
   card,
+  item,
   onClose,
   onSaved,
   alreadyCollected = false,
@@ -39,6 +40,8 @@ export function CardRegisterSheet({
 }: {
   visible: boolean;
   card: RegisterCardInfo;
+  /** 이미 완성된 카드(검색 결과·직접입력) — 세트/번호까지 그대로 등록해야 하는 '내 카드 등록' 경로용. */
+  item?: CardItem | null;
   onClose: () => void;
   onSaved?: () => void;
   /** 이미 컬렉션에 있는 카드 — 헤더를 '추가 등록'으로 바꾸고 제거 버튼을 보여준다. */
@@ -49,8 +52,8 @@ export function CardRegisterSheet({
   const MP = useManualPalette();
   const toast = useToast();
 
-  // RegisterCardInfo → 공용 폼이 받는 CardItem.
-  const formCard: CardItem = useMemo(
+  // RegisterCardInfo → 공용 폼이 받는 CardItem. item 이 오면 그대로 쓴다.
+  const builtCard: CardItem = useMemo(
     () => ({
       id: Date.now(),
       name: card.name || '카드',
@@ -70,6 +73,7 @@ export function CardRegisterSheet({
     }),
     [card.apparelId, card.name, card.imageUrl, card.currentPriceJpy],
   );
+  const formCard = item ?? builtCard;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -112,7 +116,7 @@ export function CardRegisterSheet({
 
             <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
               <CardRegisterForm
-                key={card.apparelId}
+                key={formCard.id}
                 card={formCard}
                 onSaved={() => {
                   toast.success(alreadyCollected ? '내 컬렉션에 추가 등록되었습니다' : '내 컬렉션에 등록되었습니다');

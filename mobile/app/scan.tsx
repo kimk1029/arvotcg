@@ -32,6 +32,7 @@ import { useFloatNavInset, useNavPrefs } from '@/components/NavPrefsProvider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useScanToSearch } from '@/lib/useScanToSearch';
 import { CardRegisterForm, useManualPalette, type ManualPalette } from '@/components/CardRegisterForm';
+import { CardRegisterSheet } from '@/components/CardRegisterSheet';
 import { parseCardStatics } from '../../shared/cardStatics';
 import { cardCodeQuery } from '../../shared/cardCode';
 
@@ -198,11 +199,12 @@ function ScanScreenInner() {
   const [manSelectedIdx, setManSelectedIdx] = useState<number | null>(null);
   // 검색 기준(지금 입력 중인 항목) + 등록 옵션 패널 — 웹 ManualAddForm 동일.
   const [manField, setManField] = useState<ManFieldKey>('num');
-  const [manOptOpen, setManOptOpen] = useState(false);
+  // 등록은 반드시 '카드 등록' 팝업(CardRegisterSheet)을 채워야 이뤄진다 (웹 ManualAddForm 동일).
+  const [manSheetOpen, setManSheetOpen] = useState(false);
   // 검색에 안 잡혀도 입력값 그대로 등록('직접 입력하기') — 웹 useFallback 페어.
   const [manUseFallback, setManUseFallback] = useState(false);
-  const [manSaving, setManSaving] = useState(false);
-  const manSubmitRef = useRef<null | (() => void)>(null);
+  // '직접 입력하기' 로 만든 카드는 한 번만 만들어 고정 — 매 렌더 새 객체면 등록 팝업이 remount 되어 입력이 날아간다.
+  const [manFallbackCard, setManFallbackCard] = useState<CardItem | null>(null);
   // 거래량많은순 — 카탈로그 스냅샷의 출품수(listingCount). apparelId → count.
   const [manVolumes, setManVolumes] = useState<Record<number, number>>({});
   const manVolFetchedRef = useRef<Set<number>>(new Set());
@@ -481,7 +483,7 @@ function ScanScreenInner() {
   };
   const manFilled = MAN_FIELDS.filter((f) => manValueOf(f.key).trim().length > 0);
   /** 등록 대상 — 선택한 검색 결과, 없으면 '직접 입력하기'로 만든 입력값 카드. */
-  const manTarget = manUseFallback ? buildManualCard() : manSelected;
+  const manTarget = manUseFallback ? manFallbackCard : manSelected;
   const manCur = MAN_FIELDS.find((f) => f.key === manField) ?? MAN_FIELDS[0];
   /** 검색 초기화 — 기준·값·결과·선택을 모두 비운다 (웹 clearSearch). */
   const clearManualSearch = () => {
@@ -489,7 +491,7 @@ function ScanScreenInner() {
     setManField('name');
     setManSearched(false); setManResults([]); setManSelectedIdx(null);
     setManSetFilter(null); setManRarityFilter(null); setManMenu(null);
-    setManErr(null); setManOptOpen(false); setManUseFallback(false);
+    setManErr(null); setManSheetOpen(false); setManUseFallback(false); setManFallbackCard(null);
   };
 
   /** "더보기" — 다음 페이지를 이어서 로드해 append. 새 항목이 없으면 버튼 숨김. */
@@ -893,35 +895,32 @@ function ScanScreenInner() {
 
                 <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4, paddingTop: 12, paddingBottom: 8 }}>
                   <PixelText variant="ko" size={12} weight="bold" color={MP.ink3}>찾는 카드가 없나요?</PixelText>
-                  <Pressable onPress={() => { setManSelectedIdx(null); setManUseFallback(true); setManOptOpen(true); }} hitSlop={6}>
+                  <Pressable onPress={() => { setManSelectedIdx(null); setManFallbackCard(buildManualCard()); setManUseFallback(true); setManSheetOpen(true); }} hitSlop={6}>
                     <PixelText variant="ko" size={12} weight="bold" color={MP.accent}>직접 입력하기</PixelText>
                   </Pressable>
                 </View>
               </>
             ) : null}
 
-            {/* ── 등록 옵션 — 같은 화면의 접이식 패널. 별도 '카드 등록' 화면 없음.
-                 접혀 있어도 마운트해 둬야 하단 바가 submitRef 로 바로 저장할 수 있다. ── */}
-            {manSearched && manTarget ? (
-              <View style={{ display: manOptOpen ? 'flex' : 'none', borderTopWidth: 1, borderTopColor: MP.line, paddingTop: 14, marginTop: 6 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                  <PixelText variant="ko" size={13} weight="bold" color={MP.ink} style={{ flex: 1 }}>등록 옵션</PixelText>
-                  <Pressable onPress={() => setManOptOpen(false)} hitSlop={6}>
-                    <PixelText variant="ko" size={11.5} weight="bold" color={MP.ink3}>접기 ⌄</PixelText>
-                  </Pressable>
-                </View>
-                <CardRegisterForm
-                  key={manTarget.id}
-                  card={manTarget}
-                  hideCta
-                  submitRef={manSubmitRef}
-                  onBusyChange={setManSaving}
-                  onSaved={onRegisterSaved}
-                />
-              </View>
-            ) : null}
           </View>
         )}
+
+        {/* ── 카드 등록 팝업 — 시세상세 '내 컬렉션에 추가' 와 완전히 같은 시트.
+             구매정보·등급·수량을 채우고 저장해야만 컬렉션에 등록된다 (웹 동일). ── */}
+        {manTarget ? (
+          <CardRegisterSheet
+            visible={manSheetOpen}
+            card={{
+              apparelId: manTarget.snkrdunkApparelId ?? 0,
+              name: manTarget.name,
+              imageUrl: manTarget.imageUrl ?? null,
+              currentPriceJpy: manTarget.priceSingle ?? manTarget.price ?? null,
+            }}
+            item={manTarget}
+            onClose={() => setManSheetOpen(false)}
+            onSaved={() => onRegisterSaved(manTarget)}
+          />
+        ) : null}
 
         {/* ── 카드 등록 — 공용 폼(CardRegisterForm). 스캔(촬영) 경로 전용 ── */}
         {mode === 'register' && pendingCard && (
@@ -1057,17 +1056,9 @@ function ScanScreenInner() {
               {manTarget ? displayCardName(manTarget.name) : '선택 안 됨'}
             </PixelText>
           </View>
-          {manTarget ? (
-            <Pressable
-              onPress={() => setManOptOpen((v) => !v)}
-              style={{ height: 50, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1.5, borderColor: MP.fieldBd, backgroundColor: MP.pageBg, alignItems: 'center', justifyContent: 'center' }}
-            >
-              <PixelText variant="ko" size={11.5} weight="bold" color={MP.ink}>{`옵션 ${manOptOpen ? '⌄' : '⌃'}`}</PixelText>
-            </Pressable>
-          ) : null}
           <Pressable
-            disabled={!manTarget || manSaving}
-            onPress={() => manSubmitRef.current?.()}
+            disabled={!manTarget}
+            onPress={() => setManSheetOpen(true)}
             style={{
               flex: 1,
               height: 50,
@@ -1083,7 +1074,7 @@ function ScanScreenInner() {
             }}
           >
             <PixelText variant="ko" size={13} weight="bold" color={manTarget ? MP.btnFg : MP.disFg}>
-              {manSaving ? '등록 중…' : manTarget ? '내 카드로 등록' : '카드를 선택하세요'}
+              {manTarget ? '내 카드로 등록' : '카드를 선택하세요'}
             </PixelText>
           </Pressable>
         </View>
