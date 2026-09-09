@@ -154,6 +154,8 @@ jobs:
               && echo "✓ ensure_snkrdunk_schema.sql applied" \
               || echo "::warning::ensure_snkrdunk_schema.sql failed — check DB"
 
+            npx prisma db execute --file prisma/manual/ensure_current_prices.sql --schema prisma/schema.prisma
+
             # 3) ecosystem.config.cjs 가 단일 진실 소스. exec_mode 같은 구조 변경은
             #    reload 로는 안 잡혀서, 항상 delete → start 로 깨끗하게 재기동.
             pm2 delete pokefesta30-server >/dev/null 2>&1 || true

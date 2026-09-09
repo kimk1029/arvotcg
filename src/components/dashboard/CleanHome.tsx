@@ -284,7 +284,7 @@ type RankRow = SnkrdunkRow & { holders?: number; qty?: number }; // = HomeRankRo
 const MOVER_TABS: { id: MoverTab; label: string; title: string }[] = [
   { id: 'surge', label: '실시간 급등', title: '실시간 급등 카드' },
   { id: 'snkr', label: 'SNKR 최고가', title: '스니덩크 체결가 TOP 10' },
-  { id: 'collection', label: '컬렉션 TOP', title: '회원 컬렉션 TOP 10' },
+  { id: 'collection', label: '많이 모은 카드', title: '많이 등록된 카드 TOP 10' },
 ];
 const HOME_SS_KEY = 'pf30:home-cache:v1';
 const hotCache: Record<string, { t: number; rows: SnkrdunkRow[] }> = {};
@@ -1114,7 +1114,7 @@ export function CleanHome({ heroBanners, heroAutoplayMs, isLoggedIn }: Props) {
                     )}
                     {st.rows.map((m, i) => {
             const sub = t.id === 'collection'
-              ? `보유 ${m.holders ?? 0}명 · ${m.qty ?? 0}장${m.basis ? ` · ${m.basis}` : ''}`
+              ? `보유 회원 ${m.holders ?? 0}명 · 등록 수량 기준`
               : t.id === 'snkr'
                 ? `${m.localizedName && m.localizedName !== m.shortName ? m.localizedName : '스니덩크 체결가'}${m.basis ? ` · ${m.basis}` : ''}`
                 : (m.localizedName && m.localizedName !== m.shortName ? m.localizedName : m.category ?? '카드');
@@ -1132,7 +1132,7 @@ export function CleanHome({ heroBanners, heroAutoplayMs, isLoggedIn }: Props) {
                   <div style={{ fontSize: 12, color: P.ink3, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>
                 </div>
                 <div style={{ textAlign: 'right', flex: 'none' }}>
-                  <div style={{ fontSize: 14.5, fontWeight: 900, color: P.ink, letterSpacing: '-.3px', fontVariantNumeric: 'tabular-nums' }}>{fmtPrice(m.recentPrice ?? m.minPrice)}</div>
+                  <div style={{ fontSize: 14.5, fontWeight: 900, color: P.ink, letterSpacing: '-.3px', fontVariantNumeric: 'tabular-nums' }}>{t.id === 'collection' ? `${(m.qty ?? 0).toLocaleString()}장` : fmtPrice(m.recentPrice ?? m.minPrice)}</div>
                   {pc ? <div style={{ fontSize: pixel ? 9.5 : 12.5, fontWeight: 800, color: pc.color, marginTop: 3, whiteSpace: 'nowrap' }}>{pc.text}</div> : null}
                 </div>
               </Link>

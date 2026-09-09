@@ -527,22 +527,7 @@ export async function getMyCardsWithPrices(
       void Promise.allSettled(backgroundIds.map((id) => refreshApparelPrices(id)));
     }
 
-    // 2) 스냅샷이 전혀 없는 카드만 라이브 조회 → 결과는 카탈로그/스냅샷에 재적재.
-    await Promise.all(
-      blockingIds.map(async (id) => {
-        const r = await refreshApparelPrices(id);
-        if (!r) return;
-        apparelInfo.set(id, {
-          name: r.name,
-          imageUrl: r.imageUrl,
-          priceSingleJpy: r.single,
-          pricePsa10Jpy: r.psa10,
-          pricePsa9Jpy: r.psa9,
-          pricePsa8Jpy: r.psa8,
-          trendJpy: r.trendJpy,
-        });
-      }),
-    );
+    for (const id of blockingIds) void refreshApparelPrices(id);
 
     // 3) 라이브로 안 채운 나머지는 DB 값으로.
     for (const id of apparelIds) {
@@ -869,26 +854,7 @@ export async function getMyFavoritesWithPrices(
       favBlocking.push(id);
     }
   }
-  await Promise.all(
-    favBlocking.map(async (id) => {
-      try {
-        // 풀 스냅샷 경로(refreshApparelPrices) — 예전처럼 minPrice 만 기록하면 그 반쪽
-        // 스냅샷이 30분간 '신선'으로 취급돼 컬렉션·팩 그리드까지 최저매물로 오염됐다.
-        const r = await refreshApparelPrices(id);
-        if (r) {
-          info.set(id, {
-            name: translateKnownCardNameToKo(r.name),
-            imageUrl: r.imageUrl,
-            minPriceJpy: r.headlinePrice > 0 ? r.headlinePrice : r.single > 0 ? r.single : r.minPrice,
-            priceBasis: r.headlinePrice > 0 ? r.headlineBasis : r.single > 0 ? 'RAW' : r.minPrice > 0 ? '최저매물' : null,
-            trend: r.trendJpy ?? [],
-          });
-        }
-      } catch (err) {
-        console.warn('[getMyFavoritesWithPrices] apparel fetch failed', id, err);
-      }
-    }),
-  );
+  for (const id of favBlocking) void refreshApparelPrices(id);
 
   return rows.map((r) => {
     const i = info.get(r.snkrdunkApparelId);

@@ -835,6 +835,7 @@ const SCHEDULERS_ENABLED = SERVER_ROLE !== 'standby';
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`OCR server listening http://localhost:${PORT}  vision=${visionAvailable() ? 'on' : 'off'}  role=${SERVER_ROLE}`);
   if (!SCHEDULERS_ENABLED) {
+    if (process.env.DAILY_PRICE_REFRESH_ENABLED === '1') startDailyPriceSnapshotScheduler();
     console.log('[scheduler] SERVER_ROLE=standby — 주기 작업(가격알림/이미지워밍/일일스냅샷) 미기동');
     return;
   }

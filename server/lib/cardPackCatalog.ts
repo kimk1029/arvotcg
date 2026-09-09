@@ -1,3 +1,5 @@
+import { dailyStaticWrite } from './dailyCache';
+import { saveCurrentPrice, readCurrentPrices } from './currentPrices';
 /**
  * 팩 카탈로그 + 대표 박스 1건 — `GET /api/card-packs?withBox=1` 서빙용.
  *
@@ -24,8 +26,8 @@ export interface PackWithBox extends Omit<CardPackMeta, 'hits'> {
   boxPrice: number;
 }
 
-const TTL_MS = 10 * 60 * 1000;
-const CONCURRENCY = 6;
+const TTL_MS = 24 * 60 * 60 * 1000;
+const CONCURRENCY = 1;
 
 let cache: { data: PackWithBox[]; at: number } | null = null;
 let inFlight: Promise<PackWithBox[]> | null = null;
@@ -58,17 +60,7 @@ async function loadCatalogFromDb(): Promise<PackWithBox[]> {
     const ids = [...byCode.values()].map((row) => row.apparelId);
     const prices = new Map<number, number>();
     if (ids.length > 0) {
-      const snapshots = await prisma.$queryRaw<Array<{ apparelId: number; minPrice: number }>>`
-        SELECT s."apparelId", s."minPrice"
-        FROM unnest(ARRAY[${Prisma.join([...new Set(ids)])}]::int[]) AS requested(id)
-        CROSS JOIN LATERAL (
-          SELECT "apparelId", "minPrice"
-          FROM "snkrdunk_price_snapshots"
-          WHERE "apparelId" = requested.id
-          ORDER BY "fetchedAt" DESC
-          LIMIT 1
-        ) s
-      `;
+      const snapshots = await readCurrentPrices(ids);
       for (const snapshot of snapshots) prices.set(Number(snapshot.apparelId), Number(snapshot.minPrice));
     }
     return data.map((pack) => {
@@ -112,7 +104,7 @@ async function persistBox(
 ): Promise<void> {
   try {
     const koName = translateKnownCardNameToKo(box.name);
-    await prisma.snkrdunkCard.upsert({
+    await dailyStaticWrite(`pack:${box.apparelId}:${pack.code}`, () => prisma.snkrdunkCard.upsert({
       where: { apparelId: box.apparelId },
       create: {
         apparelId: box.apparelId, name: box.name, localizedName: box.name, koName,
@@ -126,11 +118,9 @@ async function persistBox(
         releasedAt: pack.releasedAt ?? null, packCode: pack.code,
         apparelGroupId: pack.apparelGroupId || null,
       },
-    });
+    }));
     if (box.price > 0) {
-      await prisma.snkrdunkPriceSnapshot.create({
-        data: { apparelId: box.apparelId, minPrice: box.price, listingCount: box.listingCount ?? 0 },
-      });
+      await saveCurrentPrice(box.apparelId, { minPrice: box.price, listingCount: box.listingCount ?? 0 });
     }
   } catch (err) {
     console.error('[cardPackCatalog.persistBox]', pack.code, err);

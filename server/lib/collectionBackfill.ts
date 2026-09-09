@@ -29,7 +29,7 @@ async function findGaps(limit: number): Promise<number[]> {
     FROM "user_cards" uc
     WHERE uc."snkrdunkApparelId" IS NOT NULL
       AND NOT EXISTS (
-        SELECT 1 FROM "snkrdunk_price_snapshots" s
+        SELECT 1 FROM "snkrdunk_current_prices" s
         WHERE s."apparelId" = uc."snkrdunkApparelId"
       )
     LIMIT ${limit}

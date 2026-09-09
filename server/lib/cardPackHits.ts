@@ -1,3 +1,5 @@
+import { dailyStaticWrite } from './dailyCache';
+import { saveCurrentPrice, readCurrentPrices } from './currentPrices';
 /**
  * 팩별 힛카드 해석기.
  *
@@ -70,7 +72,7 @@ export interface PackWithHits {
 }
 
 const DEFAULT_LIMIT = 12;
-const CONCURRENCY = 6;
+const CONCURRENCY = 2;
 /** DB 적재 시 가져오는 최대 카드 수 — 호출 limit 과 무관하게 박스 전체를 채우기 위함. */
 const FETCH_LIMIT = 600;
 
@@ -230,18 +232,7 @@ async function latestPrices(ids: number[]): Promise<Map<number, LatestPrice>> {
   const map = new Map<number, LatestPrice>();
   if (ids.length === 0) return map;
   try {
-    const rows = await prisma.$queryRaw<
-      Array<{
-        apparelId: number; minPrice: number; listingCount: number;
-        headlinePrice: number; headlineBasis: string | null;
-      }>
-    >`
-      SELECT DISTINCT ON ("apparelId")
-        "apparelId", "minPrice", "listingCount", "headlinePrice", "headlineBasis"
-      FROM "snkrdunk_price_snapshots"
-      WHERE "apparelId" IN (${Prisma.join(ids)})
-      ORDER BY "apparelId", "fetchedAt" DESC
-    `;
+    const rows = await readCurrentPrices(ids);
     for (const r of rows) {
       map.set(Number(r.apparelId), {
         minPrice: Number(r.minPrice),
@@ -344,17 +335,17 @@ async function persistPackCards(pack: CardPackMeta, hits: PackHitCard[]): Promis
         packCode: pack.code,
         apparelGroupId: pack.apparelGroupId ?? null,
       };
-      await prisma.snkrdunkCard.upsert({
+      await dailyStaticWrite(`pack:${h.apparelId}:${pack.code}`, () => prisma.snkrdunkCard.upsert({
         where: { apparelId: h.apparelId },
         create: { apparelId: h.apparelId, ...data },
         update: data,
-      });
+      }));
     });
     const snaps = hits
       .filter((h) => h.minPrice > 0)
       .map((h) => ({ apparelId: h.apparelId, minPrice: h.minPrice, listingCount: h.listingCount }));
     if (snaps.length > 0) {
-      await prisma.snkrdunkPriceSnapshot.createMany({ data: snaps });
+      for (const snap of snaps) await saveCurrentPrice(snap.apparelId, snap);
     }
   } catch (err) {
     console.error('[cardPackHits.persist]', err);

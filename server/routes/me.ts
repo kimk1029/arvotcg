@@ -1,3 +1,4 @@
+import { DailyCache, DAY_MS } from '../lib/dailyCache';
 import { Router, type Request, type Response } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -447,6 +448,8 @@ router.delete('/price-alerts/:apparelId', async (req: Request, res: Response) =>
  *   - 어제 일자 스냅샷이 있으면 등락 (절대값 + %) 반환
  *   - 최근 30 일 히스토리 반환 (차트용)
  */
+const portfolioHistory = new DailyCache<Array<{ date: string; totalJpy: number }>>(DAY_MS, 2000);
+
 router.get('/portfolio', async (req: Request, res: Response) => {
   const userId = req.user!.userId;
   try {
@@ -527,23 +530,11 @@ router.get('/portfolio', async (req: Request, res: Response) => {
           blockingIds.push(id);
         }
       }
-      await Promise.all(
-        blockingIds.map(async (id: number) => {
-          const r = await refreshApparelPrices(id);
-          if (r) {
-            priceByApparel.set(
-              id,
-              fromTrend({ single: r.single, psa10: r.psa10, psa9: r.psa9, psa8: r.psa8, trend: r.trendJpy }),
-            );
-            return;
-          }
-          // 라이브 조회 실패 — 목록 수집 스냅샷의 최저가(minPrice)라도 쓴다(합계가 0 으로 빠지지 않게).
-          const min = catalog.get(id)?.snapshot?.minPrice ?? 0;
-          if (min > 0) {
-            priceByApparel.set(id, fromTrend({ single: min, psa10: 0, psa9: 0, psa8: 0, trend: [] }));
-          }
-        }),
-      );
+      for (const id of blockingIds) {
+        void refreshApparelPrices(id);
+        const min = catalog.get(id)?.snapshot?.minPrice ?? 0;
+        if (min > 0) priceByApparel.set(id, fromTrend({ single: min, psa10: 0, psa9: 0, psa8: 0, trend: [] }));
+      }
       // 누적 수익률용 환율 — 구매가가 원화인 카드만 JPY 환산에 쓴다(실패 시 등록가로 폴백).
       const jpyKrw = (await getJpyKrwRate().catch(() => null))?.rate ?? 0;
       for (const c of cards) {
@@ -603,31 +594,16 @@ router.get('/portfolio', async (req: Request, res: Response) => {
     let yesterdayJpy: number | null = null;
     let history: Array<{ date: string; totalJpy: number }> = [];
     try {
-      await prisma.portfolioDailySnapshot.upsert({
-        where: { userId_date: { userId, date: today } },
-        update: { totalJpy, pricedCount, totalCount },
-        create: { userId, date: today, totalJpy, pricedCount, totalCount },
+      const rows = await portfolioHistory.get(`${userId}:${today}`, async () => {
+        await prisma.portfolioDailySnapshot.upsert({
+          where: { userId_date: { userId, date: today } }, update: {},
+          create: { userId, date: today, totalJpy, pricedCount, totalCount },
+        });
+        return prisma.portfolioDailySnapshot.findMany({ where: { userId }, orderBy: { date: 'desc' },
+          take: 365, select: { date: true, totalJpy: true } });
       });
-
-      // 어제 일자 스냅샷 — 정확히 어제(yesterday) 키, 없으면 그 이전 가장 가까운 행.
-      const yesterdayKey = kstDateKeyShifted(1);
-      const prev = await prisma.portfolioDailySnapshot.findFirst({
-        where: { userId, date: { lt: today } },
-        orderBy: { date: 'desc' },
-        select: { date: true, totalJpy: true },
-      });
-      if (prev) yesterdayJpy = prev.totalJpy;
-      // (yesterdayKey 는 폴백 라벨용 — 어제 정확한 키가 없어도 동작.)
-      void yesterdayKey;
-
-      // 차트용 히스토리 (오래된 → 최신). 클라이언트에서 일/주/월 단위로 집계한다.
-      const rows = await prisma.portfolioDailySnapshot.findMany({
-        where: { userId },
-        orderBy: { date: 'desc' },
-        take: 365,
-        select: { date: true, totalJpy: true },
-      });
-      history = rows.reverse().map((r) => ({ date: r.date, totalJpy: r.totalJpy }));
+      yesterdayJpy = rows.find(r => r.date < today)?.totalJpy ?? null;
+      history = [...rows].reverse().map(r => ({ date: r.date, totalJpy: r.date === today ? totalJpy : r.totalJpy }));
     } catch (err) {
       console.warn('[me.portfolio] snapshot upsert/read failed', err);
     }

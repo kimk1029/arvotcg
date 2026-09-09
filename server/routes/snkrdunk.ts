@@ -1,3 +1,4 @@
+import { getHomeRanking, RANKING_GAMES } from '../lib/homeRankings';
 import { Router, type Request, type Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
@@ -252,38 +253,8 @@ router.get('/apparels/:id', async (req: Request, res: Response) => {
   // 조회된 카드의 정적 정보를 우리 DB 에 적재 (응답 후, 실패 무시).
   // upsertCatalogCard 내부에서 첫 조회 시 원본→webp 캐싱도 트리거된다.
   void upsertCatalogCard(data);
-  // 최신가 수집 — 싱글(raw 중앙값)/PSA10/추이까지 계산해 풀 스냅샷으로 기록.
-  // (응답 후 백그라운드. 거래이력·차트 추가 조회는 사용자 응답 지연 없음.)
-  void (async () => {
-    try {
-      const [hist, chart] = await Promise.all([
-        fetchSnkrdunkSalesHistory(apparelId).catch(() => null),
-        fetchSnkrdunkSalesChart(apparelId).catch(() => null),
-      ]);
-      const prices = computeApparelPrices(
-        hist?.history ?? [],
-        chart?.points ?? [],
-        data.minPrice ?? 0,
-      );
-      // 목록(박스별 카드)이 상세와 같은 값을 보여주도록 대표 시세도 함께 저장.
-      const headline = headlineFromHistory(hist?.history ?? [], data.minPrice ?? 0);
-      if (data.minPrice > 0 || prices.single > 0 || prices.psa10 > 0) {
-        await recordPriceSnapshot(apparelId, {
-          minPrice: data.minPrice,
-          listingCount: data.listingCount,
-          headlinePrice: headline.price,
-          headlineBasis: headline.basis,
-          priceSingle: prices.single,
-          pricePsa10: prices.psa10,
-          pricePsa9: prices.psa9,
-          pricePsa8: prices.psa8,
-          trend: prices.trendJpy,
-        });
-      }
-    } catch (err) {
-      console.error('[snkrdunk.fullsnapshot]', apparelId, err);
-    }
-  })();
+  // Shared daily refresh; repeated detail views do not create new history rows.
+  void refreshApparelPrices(apparelId);
 });
 
 router.get('/apparels/:id/sales-history', async (req: Request, res: Response) => {
@@ -417,119 +388,21 @@ router.get('/apparels/:id/sales-chart', async (req: Request, res: Response) => {
   res.json({ data });
 });
 
-/**
- * 홈 랭킹 — GET /api/snkrdunk/ranking?game=pokemon&kind=snkr|collection&limit=10
- *  - snkr:       스니덩크 카탈로그 전체(싱글) 중 대표 체결가가 가장 높은 카드 TOP N.
- *                대표가 = headlinePrice(시세상세 헤드라인) → PSA10 → raw 싱글 → 최저가 순 폴백.
- *                최근 RANKING_SNAPSHOT_DAYS 일 내 최신 스냅샷만 사용(오래된 값이 순위를 차지하지 않게).
- *  - collection: 회원 컬렉션(user_cards)에 등록된 카드 중 시세 높은 순 TOP N.
- *                스니덩크 시세 연동 카드(snkrdunkApparelId)만 — 직접 입력/수동 등록 카드는 제외.
- *                holders = 보유 회원 수, qty = 총 등록 수량.
- *  응답 행은 SnkrdunkRow 와 호환(apparelId·shortName·localizedName·imageUrl·recentPrice·basis·minPrice).
- */
-const RANKING_SNAPSHOT_DAYS = 21;
-const RANKING_TTL_MS = 30 * 60 * 1000;
-const rankingCache = new Map<string, { t: number; data: unknown[] }>();
-
-interface RankingRawRow {
-  apparelId: number;
-  shortName: string;
-  name: string;
-  koName: string;
-  localizedName: string;
-  imageUrl: string | null;
-  cdnImageUrl: string | null;
-  minPrice: number;
-  priceSingle: number;
-  pricePsa10: number;
-  headlinePrice: number;
-  headlineBasis: string | null;
-  holders?: number;
-  qty?: number;
-}
-
-function representativePrice(r: RankingRawRow): { price: number; basis: string } {
-  if (r.headlinePrice > 0) return { price: r.headlinePrice, basis: r.headlineBasis || 'RAW' };
-  if (r.pricePsa10 > 0) return { price: r.pricePsa10, basis: 'PSA 10' };
-  if (r.priceSingle > 0) return { price: r.priceSingle, basis: 'RAW' };
-  return { price: r.minPrice, basis: 'RAW' };
-}
-
+/** Daily persisted rankings; pagination sizes share one computation. */
 router.get('/ranking', async (req: Request, res: Response) => {
-  const game = typeof req.query.game === 'string' && /^[a-z]+$/.test(req.query.game) ? req.query.game : 'pokemon';
+  const game = typeof req.query.game === 'string' && RANKING_GAMES.includes(req.query.game) ? req.query.game : 'pokemon';
   const kind = req.query.kind === 'collection' ? 'collection' : 'snkr';
-  const limitRaw = Number(req.query.limit ?? 10);
-  const limit = Math.max(1, Math.min(30, Number.isFinite(limitRaw) ? Math.round(limitRaw) : 10));
-  const key = `${kind}:${game}:${limit}`;
-  const hit = rankingCache.get(key);
-  if (hit && Date.now() - hit.t < RANKING_TTL_MS) {
-    res.setHeader('Cache-Control', 'public, max-age=300');
-    return res.json({ data: hit.data, cachedAt: new Date(hit.t).toISOString() });
-  }
-  const since = new Date(Date.now() - RANKING_SNAPSHOT_DAYS * 86_400_000);
-  // 대표가 SQL 식 — representativePrice() 와 같은 폴백 순서.
-  const priceExpr = Prisma.sql`COALESCE(NULLIF(s."headlinePrice",0), NULLIF(s."pricePsa10",0), NULLIF(s."priceSingle",0), s."minPrice")`;
+  const raw = Number(req.query.limit ?? 10);
+  const limit = Math.max(1, Math.min(30, Number.isFinite(raw) ? Math.round(raw) : 10));
   try {
-    let rows: RankingRawRow[];
-    if (kind === 'snkr') {
-      rows = await prisma.$queryRaw<RankingRawRow[]>`
-        WITH latest AS (
-          SELECT DISTINCT ON ("apparelId") "apparelId", "minPrice", "priceSingle", "pricePsa10", "headlinePrice", "headlineBasis"
-          FROM "snkrdunk_price_snapshots"
-          WHERE "fetchedAt" >= ${since}
-          ORDER BY "apparelId", "fetchedAt" DESC
-        )
-        SELECT c."apparelId", c."shortName", c."name", c."koName", c."localizedName", c."imageUrl", c."cdnImageUrl",
-               s."minPrice", s."priceSingle", s."pricePsa10", s."headlinePrice", s."headlineBasis"
-        FROM latest s JOIN "snkrdunk_cards" c ON c."apparelId" = s."apparelId"
-        WHERE c."itemKind" = 'single' AND c."game" = ${game} AND ${priceExpr} > 0
-        ORDER BY ${priceExpr} DESC
-        LIMIT ${limit}`;
-    } else {
-      rows = await prisma.$queryRaw<RankingRawRow[]>`
-        WITH held AS (
-          SELECT "snkrdunkApparelId" AS "apparelId", COUNT(DISTINCT "userId")::int AS holders, SUM("qty")::int AS qty
-          FROM "user_cards" WHERE "snkrdunkApparelId" IS NOT NULL GROUP BY 1
-        ), latest AS (
-          SELECT DISTINCT ON ("apparelId") "apparelId", "minPrice", "priceSingle", "pricePsa10", "headlinePrice", "headlineBasis"
-          FROM "snkrdunk_price_snapshots"
-          WHERE "apparelId" IN (SELECT "apparelId" FROM held)
-          ORDER BY "apparelId", "fetchedAt" DESC
-        )
-        SELECT c."apparelId", c."shortName", c."name", c."koName", c."localizedName", c."imageUrl", c."cdnImageUrl",
-               s."minPrice", s."priceSingle", s."pricePsa10", s."headlinePrice", s."headlineBasis", h.holders, h.qty
-        FROM held h JOIN latest s ON s."apparelId" = h."apparelId" JOIN "snkrdunk_cards" c ON c."apparelId" = h."apparelId"
-        WHERE c."game" = ${game} AND ${priceExpr} > 0
-        ORDER BY ${priceExpr} DESC
-        LIMIT ${limit}`;
-    }
-    const data = rows.map((r) => {
-      const rep = representativePrice(r);
-      // 표시명은 HOT 카드와 같은 규칙 — 카탈로그 한글명(koName) 우선, 없으면 공용 번역 엔진으로 일본어→한글.
-      const jaName = r.shortName || r.name;
-      // 웹 HOT 카드(searchHitToRow)와 동일: 항상 번역 엔진을 먼저 태우고, '|' 뒤 꼬리를 잘라 22자 제한.
-      const koFull = translateKnownCardNameToKo(jaName) || r.koName || jaName;
-      const koCut = koFull.split(/[|｜]/)[0].trim();
-      const koName = koCut.length > 22 ? koCut.slice(0, 21) + '…' : koCut;
-      return {
-        apparelId: Number(r.apparelId),
-        shortName: koName || jaName,
-        localizedName: jaName && jaName !== koName ? jaName : (r.localizedName || undefined),
-        imageUrl: r.cdnImageUrl || r.imageUrl || null,
-        category: null,
-        minPrice: Number(r.minPrice),
-        recentPrice: rep.price,
-        basis: rep.basis,
-        listingCountText: '',
-        ...(kind === 'collection' ? { holders: Number(r.holders ?? 0), qty: Number(r.qty ?? 0) } : {}),
-      };
-    });
-    rankingCache.set(key, { t: Date.now(), data });
-    res.setHeader('Cache-Control', 'public, max-age=300');
-    res.json({ data, cachedAt: new Date().toISOString() });
+    const result = await getHomeRanking(game, kind);
+    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    res.json({ data: result.data.slice(0, limit), cachedAt: result.cachedAt,
+      rankingBy: kind === 'collection' ? 'quantity' : 'price' });
   } catch (err) {
-    console.error('[snkrdunk.ranking]', err);
-    res.status(500).json({ error: 'ranking failed' });
+    console.warn('[snkrdunk.ranking]', err);
+    res.setHeader('Retry-After', '60');
+    res.status(503).json({ error: 'ranking temporarily unavailable' });
   }
 });
 

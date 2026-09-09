@@ -11,8 +11,9 @@
  * 모든 DB 쓰기는 응답에 영향 주지 않게 삼키고 로깅만 한다.
  */
 import { classifySnkrdunkName } from '../../shared/snkrdunk';
-import { Prisma } from '@prisma/client';
 import { prisma } from './prisma.js';
+import { DailyCache, DAY_MS, WorkQueue, priceWork } from './dailyCache';
+import { readCurrentPrices, saveCurrentPrice, onCurrentPriceChanged } from './currentPrices';
 import { ensureCardImage } from './cardImageCache.js';
 import { translateKnownCardNameToKo } from '../../shared/cardTranslate';
 import { shortenName } from '../../shared/util/shortenName';
@@ -29,13 +30,13 @@ export { parseCardStatics } from '../../shared/cardStatics';
 export type { ParsedCardStatics, CardGame } from '../../shared/cardStatics';
 
 /** 컬렉션/즐겨찾기 시세 신선 기준 — 이 시간 이내 스냅샷이면 라이브 호출 생략. */
-export const CATALOG_PRICE_TTL_MS = 30 * 60 * 1000;
+export const CATALOG_PRICE_TTL_MS = DAY_MS;
 
 
 /* ── 적재 (upsert / append) ──────────────────────────────────────── */
 
 /** apparel 상세 1건의 정적 정보를 카탈로그에 upsert. 실패는 로깅만. */
-export async function upsertCatalogCard(
+async function writeCatalogCard(
   a: SnkrdunkApparel,
   extra: { packCode?: string; apparelGroupId?: number | null } = {},
 ): Promise<void> {
@@ -78,8 +79,19 @@ export async function upsertCatalogCard(
     // 원본 이미지를 자체 CDN(webp)으로 1회 캐싱 — 응답 막지 않음.
     void ensureCardImage(a.id, a.imageUrl);
   } catch (err) {
-    console.error('[snkrdunkCatalog.upsert]', a.id, err);
+    throw err;
   }
+}
+
+const staticWrites = new DailyCache<boolean>(DAY_MS, 25000);
+export async function upsertCatalogCard(a: SnkrdunkApparel, extra: { packCode?: string; apparelGroupId?: number | null } = {}): Promise<void> {
+  try {
+    await staticWrites.get(`${a.id}:${extra.packCode ?? ''}:${extra.apparelGroupId ?? ''}`, () => priceWork.run(async () => {
+      await writeCatalogCard(a, extra);
+      catalogCache.invalidate(key => key.split(',').includes(String(a.id)));
+      return true;
+    }));
+  } catch (err) { console.warn('[snkrdunkCatalog.upsert]', a.id, err); }
 }
 
 /**
@@ -92,6 +104,7 @@ export async function upsertSearchResults(
   try {
     for (const r of results) {
       const statics = parseCardStatics(r.name);
+      await staticWrites.get(`search:${r.apparelId}`, () => priceWork.run(async () => {
       await prisma.snkrdunkCard.upsert({
         where: { apparelId: r.apparelId },
         create: {
@@ -117,6 +130,9 @@ export async function upsertSearchResults(
           ...(statics.rarity ? { rarity: statics.rarity } : {}),
         },
       });
+      catalogCache.invalidate(key => key.split(',').includes(String(r.apparelId)));
+      return true;
+      }));
       // 검색에 노출된 카드 이미지도 자체 CDN 으로 캐싱(있을 때만).
       if (r.imageUrl) void ensureCardImage(r.apparelId, r.imageUrl);
     }
@@ -140,24 +156,13 @@ export async function recordPriceSnapshot(
     headlinePrice?: number;
     headlineBasis?: string;
   },
-): Promise<void> {
+): Promise<boolean> {
   try {
-    await prisma.snkrdunkPriceSnapshot.create({
-      data: {
-        apparelId,
-        minPrice: Math.max(0, Math.round(price.minPrice || 0)),
-        listingCount: price.listingCount ?? 0,
-        priceSingle: Math.max(0, Math.round(price.priceSingle ?? 0)),
-        pricePsa10: Math.max(0, Math.round(price.pricePsa10 ?? 0)),
-        pricePsa9: Math.max(0, Math.round(price.pricePsa9 ?? 0)),
-        pricePsa8: Math.max(0, Math.round(price.pricePsa8 ?? 0)),
-        headlinePrice: Math.max(0, Math.round(price.headlinePrice ?? 0)),
-        headlineBasis: price.headlineBasis ?? null,
-        trend: price.trend && price.trend.length > 0 ? price.trend : Prisma.JsonNull,
-      },
-    });
+    await saveCurrentPrice(apparelId, price);
+    return true;
   } catch (err) {
     console.error('[snkrdunkCatalog.snapshot]', apparelId, err);
+    return false;
   }
 }
 
@@ -170,14 +175,8 @@ export async function ensureCatalogCard(apparelId: number): Promise<void> {
     // 카드 행 + 시세 스냅샷이 **둘 다** 있어야 "우리 DB 에 있다"고 본다.
     // 행만 있고 스냅샷이 없는 카드(검색 결과 적재분이 그렇다)는 컬렉션 조회에서
     // blocking 라이브 조회 대상이 되어 로딩을 잡아먹는다.
-    const [row, snap] = await Promise.all([
-      prisma.snkrdunkCard.findUnique({ where: { apparelId }, select: { apparelId: true } }),
-      prisma.snkrdunkPriceSnapshot.findFirst({
-        where: { apparelId },
-        select: { id: true },
-        orderBy: { fetchedAt: 'desc' },
-      }),
-    ]);
+    const existing = (await loadCatalogEntries([apparelId])).get(apparelId);
+    const row = existing, snap = existing?.snapshot;
     if (row && snap) return;
     // 정적 정보 + 풀 시세(싱글/PSA10/추이)를 한 번에 적재 — 라이브 갱신과 같은 경로.
     await refreshApparelPrices(apparelId);
@@ -217,37 +216,13 @@ export interface CatalogEntry {
 }
 
 /** 카탈로그 행 + apparelId 별 최신 시세 스냅샷을 한 번에 로드. */
-export async function loadCatalogEntries(ids: number[]): Promise<Map<number, CatalogEntry>> {
+async function loadCatalogBatch(ids: number[]): Promise<Map<number, CatalogEntry>> {
   const map = new Map<number, CatalogEntry>();
   if (ids.length === 0) return map;
   try {
     const [cards, snaps] = await Promise.all([
       prisma.snkrdunkCard.findMany({ where: { apparelId: { in: ids } } }),
-      prisma.$queryRaw<
-        Array<{
-          apparelId: number;
-          minPrice: number;
-          listingCount: number;
-          priceSingle: number;
-          pricePsa10: number;
-          pricePsa9: number;
-          pricePsa8: number;
-          headlinePrice: number | null;
-          headlineBasis: string | null;
-          trend: unknown;
-          fetchedAt: Date;
-        }>
-      >`
-        SELECT s.*
-        FROM unnest(ARRAY[${Prisma.join([...new Set(ids)])}]::int[]) AS requested(id)
-        CROSS JOIN LATERAL (
-          SELECT "apparelId", "minPrice", "listingCount", "priceSingle", "pricePsa10", "pricePsa9", "pricePsa8", "headlinePrice", "headlineBasis", "trend", "fetchedAt"
-          FROM "snkrdunk_price_snapshots"
-          WHERE "apparelId" = requested.id
-          ORDER BY "fetchedAt" DESC
-          LIMIT 1
-        ) s
-      `,
+      readCurrentPrices(ids),
     ]);
     const snapById = new Map<number, (typeof snaps)[number]>(
       snaps.map((s) => [Number(s.apparelId), s]),
@@ -282,9 +257,25 @@ export async function loadCatalogEntries(ids: number[]): Promise<Map<number, Cat
       });
     }
   } catch (err) {
-    console.error('[snkrdunkCatalog.load]', err);
+    throw err;
   }
   return map;
+}
+
+const catalogCache = new DailyCache<Map<number, CatalogEntry>>(DAY_MS, 256);
+onCurrentPriceChanged(id => catalogCache.invalidate(key => key.split(',').includes(String(id))));
+const catalogReads = new WorkQueue(1, 100);
+export async function loadCatalogEntries(ids: number[]): Promise<Map<number, CatalogEntry>> {
+  const unique = [...new Set(ids)].filter(id => Number.isInteger(id) && id > 0).sort((a,b) => a-b);
+  const result = new Map<number, CatalogEntry>();
+  for (let i = 0; i < unique.length; i += 100) {
+    const batch = unique.slice(i, i + 100);
+    try {
+      const rows = await catalogCache.get(batch.join(','), () => catalogReads.run(() => loadCatalogBatch(batch)));
+      for (const [id, row] of rows) result.set(id, row);
+    } catch (err) { console.warn('[snkrdunkCatalog.load]', err); }
+  }
+  return result;
 }
 
 /** 스냅샷이 신선하고(시세 TTL 이내) 가격 계산이 있는 엔트리인지. */
@@ -312,7 +303,7 @@ export interface RefreshedApparel extends ApparelPrices {
  * 적재하고 결과를 돌려준다. 컬렉션/포트폴리오가 같은 규칙으로 쓰는 단일 갱신 경로 —
  * 응답을 막는 자리(스냅샷 자체가 없는 카드)와 백그라운드 갱신 자리 모두 이걸 쓴다.
  */
-export async function refreshApparelPrices(apparelId: number): Promise<RefreshedApparel | null> {
+async function fetchApparelPrices(apparelId: number): Promise<RefreshedApparel | null> {
   try {
     const [a, hist, chart] = await Promise.all([
       fetchSnkrdunkApparel(apparelId),
@@ -324,8 +315,8 @@ export async function refreshApparelPrices(apparelId: number): Promise<Refreshed
     // 헤드라인(시세상세 대표가)도 함께 기록 — 빠지면 0 으로 저장돼 최신 스냅샷이
     // /apparels/:id·일별 배치가 남긴 좋은 값을 덮어쓰고 팩 그리드가 최저가로 폴백한다.
     const headline = headlineFromHistory(hist?.history ?? [], a.minPrice ?? 0);
-    void upsertCatalogCard(a);
-    void recordPriceSnapshot(apparelId, {
+    await upsertCatalogCard(a);
+    const saved = await recordPriceSnapshot(apparelId, {
       minPrice: a.minPrice ?? 0,
       listingCount: a.listingCount,
       headlinePrice: headline.price,
@@ -336,6 +327,7 @@ export async function refreshApparelPrices(apparelId: number): Promise<Refreshed
       pricePsa8: prices.psa8,
       trend: prices.trendJpy,
     });
+    if (!saved) throw new Error('Price persistence failed');
     return {
       ...prices,
       headlinePrice: headline.price,
@@ -348,4 +340,23 @@ export async function refreshApparelPrices(apparelId: number): Promise<Refreshed
     console.warn('[snkrdunkCatalog.refresh]', apparelId, err);
     return null;
   }
+}
+
+const refreshCache = new DailyCache<RefreshedApparel>(DAY_MS, 25000);
+const liveRefreshes = new WorkQueue(1, 200);
+export async function refreshApparelPrices(apparelId: number): Promise<RefreshedApparel | null> {
+  try {
+    return await refreshCache.get(String(apparelId), () => liveRefreshes.run(async () => {
+      const [p] = await readCurrentPrices([apparelId]);
+      if (p?.isFull && Date.now() - p.fetchedAt.getTime() < DAY_MS) {
+        const entry = (await loadCatalogEntries([apparelId])).get(apparelId);
+        return { single: p.priceSingle, psa10: p.pricePsa10, psa9: p.pricePsa9, psa8: p.pricePsa8,
+          trendJpy: p.trend ?? [], headlinePrice: p.headlinePrice, headlineBasis: p.headlineBasis,
+          name: entry?.name ?? '', imageUrl: entry?.imageUrl ?? null, minPrice: p.minPrice } as RefreshedApparel;
+      }
+      const fresh = await fetchApparelPrices(apparelId);
+      if (!fresh) throw new Error('Price fetch unavailable');
+      return fresh;
+    }));
+  } catch (err) { console.warn('[snkrdunkCatalog.refresh]', apparelId, err); return null; }
 }

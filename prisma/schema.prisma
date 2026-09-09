@@ -976,3 +976,23 @@ model AppRelease {
 
   @@map("app_releases")
 }
+
+/// Serving cache: at most one current price per card; historical rows are chart-only.
+model SnkrdunkCurrentPrice {
+  apparelId Int @id
+  minPrice Int @default(0)
+  listingCount Int @default(0)
+  priceSingle Int @default(0)
+  pricePsa10 Int @default(0)
+  pricePsa9 Int @default(0)
+  pricePsa8 Int @default(0)
+  headlinePrice Int @default(0)
+  headlineBasis String?
+  trend Json?
+  representativePrice Int @default(0)
+  isFull Boolean @default(false)
+  fetchedAt DateTime @default(now())
+
+  @@index([representativePrice(sort: Desc), apparelId])
+  @@map("snkrdunk_current_prices")
+}

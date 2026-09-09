@@ -35,3 +35,6 @@ store-assets/
 
 # 시장 지표 백필용 tcgcsv 아카이브 캐시 (server/scripts/marketIndexBackfill.ts)
 server/.tcgcsv-archive/
+
+# Runtime caches (persist across deploys)
+server/data/runtime/
