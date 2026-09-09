@@ -11,31 +11,71 @@ const PAGE_SIZE = 30;
 interface SearchParams {
   q?: string;
   page?: string;
+  /** 보유 카드 필터 — 'has'(1장 이상) | 'none'(0장) | 전체(미지정). */
+  cards?: string;
+  /** 가입 플랫폼 / SNS 필터. */
+  platform?: string;
+  provider?: string;
+  /** 정렬 — 'recent'(가입 최신, 기본) | 'cards' | 'points'. */
+  sort?: string;
 }
+
+const CARD_FILTERS = [
+  { k: '', label: '전체' },
+  { k: 'has', label: '컬렉션 1장 이상' },
+  { k: 'none', label: '컬렉션 없음' },
+];
+const PLATFORM_FILTERS = ['', 'web', 'ios', 'android', 'mobile'];
+const PROVIDER_FILTERS = ['', 'google', 'kakao', 'naver', 'apple'];
+const SORTS = [
+  { k: 'recent', label: '가입 최신순' },
+  { k: 'cards', label: '컬렉션 많은순' },
+  { k: 'points', label: '포인트 많은순' },
+];
 
 export default async function Page({ searchParams }: { searchParams: SearchParams }) {
   const q = (searchParams.q ?? '').trim();
   const page = parseIntParam(searchParams.page, 1);
   const skip = (page - 1) * PAGE_SIZE;
 
-  const where = q
-    ? {
-        OR: [
-          { name: { contains: q, mode: 'insensitive' as const } },
-          { email: { contains: q, mode: 'insensitive' as const } },
-          { id: q },
-        ],
-      }
-    : {};
+  const cards = searchParams.cards === 'has' || searchParams.cards === 'none' ? searchParams.cards : '';
+  const platform = PLATFORM_FILTERS.includes(searchParams.platform ?? '') ? (searchParams.platform ?? '') : '';
+  const provider = PROVIDER_FILTERS.includes(searchParams.provider ?? '') ? (searchParams.provider ?? '') : '';
+  const sort = SORTS.some((s) => s.k === searchParams.sort) ? (searchParams.sort as string) : 'recent';
+
+  // 검색어 + 필터(보유 카드·플랫폼·SNS) AND 결합.
+  const where = {
+    ...(q
+      ? {
+          OR: [
+            { name: { contains: q, mode: 'insensitive' as const } },
+            { email: { contains: q, mode: 'insensitive' as const } },
+            { id: q },
+          ],
+        }
+      : {}),
+    // 컬렉션(보유 카드) 유무 — 관계 존재 여부로 필터.
+    ...(cards === 'has' ? { userCards: { some: {} } } : {}),
+    ...(cards === 'none' ? { userCards: { none: {} } } : {}),
+    ...(platform ? { signupPlatform: platform } : {}),
+    ...(provider ? { signupProvider: provider } : {}),
+  };
+
+  const orderBy =
+    sort === 'cards'
+      ? ({ userCards: { _count: 'desc' } } as const)
+      : sort === 'points'
+        ? ({ points: 'desc' } as const)
+        : ({ createdAt: 'desc' } as const);
 
   const [users, total] = await Promise.all([
     prisma.user.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy,
       skip,
       take: PAGE_SIZE,
       select: {
-        id: true, name: true, email: true, avatarId: true, points: true,
+        id: true, name: true, email: true, points: true,
         signupPlatform: true, signupProvider: true, isAdmin: true,
         createdAt: true, updatedAt: true,
         _count: { select: {
@@ -79,7 +119,6 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
     id: u.id,
     name: u.name,
     email: u.email,
-    avatarId: u.avatarId,
     points: u.points,
     signupPlatform: u.signupPlatform,
     signupProvider: u.signupProvider,
@@ -94,6 +133,7 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
       <h1 className="admin-h1">회원 관리</h1>
       <p className="admin-sub">
         총 {total.toLocaleString()}명 · {page} / {totalPages} 페이지
+        {cards === 'has' ? ' · 컬렉션 1장 이상' : cards === 'none' ? ' · 컬렉션 없음' : ''}
       </p>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', margin: '8px 0 12px' }}>
@@ -111,26 +151,57 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
         ))}
       </div>
 
-      <form className="search" method="get">
+      {/* 검색 + 필터 — 모두 쿼리스트링(GET)이라 URL 공유·새로고침에 그대로 유지된다. */}
+      <form className="search" method="get" style={{ flexWrap: 'wrap', gap: 6 }}>
         <input name="q" placeholder="이름 / 이메일 / UID 로 검색" defaultValue={q} />
+        <select name="cards" defaultValue={cards} title="보유 카드(컬렉션)">
+          {CARD_FILTERS.map((f) => (
+            <option key={f.k} value={f.k}>{f.label}</option>
+          ))}
+        </select>
+        <select name="platform" defaultValue={platform} title="가입 플랫폼">
+          {PLATFORM_FILTERS.map((k) => (
+            <option key={k} value={k}>{k ? PLATFORM_LABEL[k] ?? k : '플랫폼 전체'}</option>
+          ))}
+        </select>
+        <select name="provider" defaultValue={provider} title="가입 SNS">
+          {PROVIDER_FILTERS.map((k) => (
+            <option key={k} value={k}>{k ? PROVIDER_LABEL[k as SignupProvider] : 'SNS 전체'}</option>
+          ))}
+        </select>
+        <select name="sort" defaultValue={sort} title="정렬">
+          {SORTS.map((s) => (
+            <option key={s.k} value={s.k}>{s.label}</option>
+          ))}
+        </select>
         <button type="submit">검색</button>
+        {(q || cards || platform || provider || sort !== 'recent') && (
+          <Link className="btn" href="/users">필터 해제</Link>
+        )}
       </form>
 
       <UsersTable rows={rows} />
 
-      <Pager base="/users" q={q} page={page} totalPages={totalPages} />
+      <Pager base="/users" params={{ q, cards, platform, provider, sort }} page={page} totalPages={totalPages} />
     </>
   );
 }
 
-function Pager({ base, q, page, totalPages }: { base: string; q: string; page: number; totalPages: number }) {
+function Pager({
+  base, params, page, totalPages,
+}: { base: string; params: Record<string, string>; page: number; totalPages: number }) {
   if (totalPages <= 1) return null;
-  const qStr = q ? `&q=${encodeURIComponent(q)}` : '';
+  // 검색어·필터·정렬을 그대로 이어간다 (예전엔 q 만 유지돼 다음 페이지에서 필터가 풀렸다).
+  const href = (p: number) => {
+    const sp = new URLSearchParams({ page: String(p) });
+    for (const [k, v] of Object.entries(params)) if (v) sp.set(k, v);
+    return `${base}?${sp.toString()}`;
+  };
   return (
     <div className="pager">
-      {page > 1 ? <Link href={`${base}?page=${page - 1}${qStr}`}>← 이전</Link> : <span className="disabled">← 이전</span>}
+      {page > 1 ? <Link href={href(page - 1)}>← 이전</Link> : <span className="disabled">← 이전</span>}
       <span className="disabled">{page} / {totalPages}</span>
-      {page < totalPages ? <Link href={`${base}?page=${page + 1}${qStr}`}>다음 →</Link> : <span className="disabled">다음 →</span>}
+      {page < totalPages ? <Link href={href(page + 1)}>다음 →</Link> : <span className="disabled">다음 →</span>}
     </div>
   );
 }

@@ -87,6 +87,9 @@ pre.code{background:#0F172A;color:#E2E8F0;border-radius:8px;padding:14px 16px;ma
 form.search{display:flex;gap:8px;margin-bottom:16px;}
 form.search input{flex:1;padding:8px 12px;border:1px solid #CBD5E1;border-radius:5px;font-size:13px;}
 form.search button{padding:8px 16px;background:#3B82F6;color:#fff;border:none;border-radius:5px;cursor:pointer;}
+/* 필터 셀렉트 — 검색 폼 안에서 입력과 같은 높이·테두리 */
+form.search select{padding:8px 10px;border:1px solid #CBD5E1;border-radius:5px;font-size:13px;background:#fff;color:#0F172A;cursor:pointer;}
+form.search a.btn{display:inline-flex;align-items:center;text-decoration:none;}
 
 /* ── 로그인 페이지 (풀스크린 오버레이 — admin-shell 위를 덮음) ── */
 .login-wrap{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;

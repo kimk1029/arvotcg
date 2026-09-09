@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import { UserDetailModal } from './UserDetailModal';
 import { PROVIDER_LABEL, PROVIDER_STYLE, resolveSignupProvider } from '@/lib/signupProvider';
+import { levelFromPoints } from '../../../shared/level';
 
 interface Row {
   id: string;
   name: string;
   email: string | null;
-  avatarId: string;
   points: number;
   /** 'web' | 'ios' | 'android' | 'mobile'(구버전 앱, OS 미상) | null(컬럼 도입 전 가입 — apple_ id 는 iOS 로 추정) */
   signupPlatform: string | null;
@@ -105,7 +105,7 @@ export function UsersTable({ rows }: { rows: Row[] }) {
             <th>가입경로</th>
             <th>SNS</th>
             <th>관리자</th>
-            <th>아바타</th>
+            <th>레벨</th>
             <th style={{ textAlign: 'right' }}>포인트</th>
             <th style={{ textAlign: 'right' }}>컬렉션</th>
             <th style={{ textAlign: 'right' }}>피드</th>
@@ -145,7 +145,10 @@ export function UsersTable({ rows }: { rows: Row[] }) {
                   {busyId === u.id ? '…' : (adminMap[u.id] ?? u.isAdmin) ? '🔑 관리자' : '일반'}
                 </button>
               </td>
-              <td className="mono">{u.avatarId}</td>
+              {/* 레벨 — 포인트 기준(정본 shared/level.ts). 아바타 id 대신 회원 등급을 본다. */}
+              <td className="mono" title={levelFromPoints(u.points).title}>
+                LV.{levelFromPoints(u.points).level}
+              </td>
               <td className="mono" style={{ textAlign: 'right' }}>{u.points.toLocaleString()}</td>
               <td className="mono" style={{ textAlign: 'right', fontWeight: u.counts.userCards > 0 ? 700 : 400 }}>{u.counts.userCards}</td>
               <td className="mono" style={{ textAlign: 'right' }}>{u.counts.feeds}</td>
