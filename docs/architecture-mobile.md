@@ -25,6 +25,29 @@ eas build --profile production --platform android   # → 운영
   전환 순서는 [[migration-order-web-then-app]] 규칙(웹 실측·확정 → 앱)을 따를 것.
 - 웹도 같은 스위치를 쓴다(패리티): `NEXT_PUBLIC_APP_ENV=stage` → NAS, 그 외 `API_ORIGIN_PROD`.
 
+## 로컬 시뮬레이터 빌드 (Apple Silicon)
+
+Google ML Kit(`@react-native-ml-kit/text-recognition` → GoogleMLKit 8.0.0) iOS 프레임워크는
+arm64 슬라이스가 **기기용뿐**이라 팟이 `EXCLUDED_ARCHS[sdk=iphonesimulator*]=arm64` 를 강제한다.
+MLKit 이 링크된 채로는 시뮬레이터 빌드가 x86_64 로만 나와 Apple Silicon 시뮬레이터에 설치가 거부된다.
+로컬 시뮬레이터는 ML Kit 네이티브 모듈을 빼고 빌드한다 (`mobile/react-native.config.js` 스위치,
+스캔 OCR 은 서버 OCR 기본이라 개발 지장 없음):
+
+```bash
+cd mobile
+SIM_NO_MLKIT=1 npx pod-install          # 오토링킹에서 ML Kit 제외
+SIM_NO_MLKIT=1 npx expo run:ios         # 또는 아래 xcodebuild 직접 빌드
+# xcodebuild 가 시뮬레이터 대상을 못 찾을 때(2026-09-09 발생): 기기 지정 없이 빌드 후 simctl 설치
+xcodebuild -workspace ios/TCG.xcworkspace -scheme TCG -configuration Debug \
+  -sdk iphonesimulator -arch arm64 -derivedDataPath ios/build build
+xcrun simctl install booted ios/build/Build/Products/Debug-iphonesimulator/TCG.app
+xcrun simctl launch booted com.arvotcg.app
+xcrun simctl openurl booted "com.arvotcg.app://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+```
+
+- 실기기/EAS 빌드는 env 없이 `pod install` — ML Kit 포함. 실기기로 돌아갈 땐 env 없이 pod install 을 다시 할 것.
+- 앱 코드는 ML Kit 을 지연 `require` 하므로(`src/lib/cardCodeOcr.ts`) 모듈이 없어도 부팅엔 영향 없다.
+
 ## OTA (EAS Update)
 
 `expo-updates` 사용. `runtimeVersion.policy = appVersion` → **`mobile/app.json` 의 `expo.version`**
