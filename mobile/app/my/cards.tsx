@@ -389,7 +389,12 @@ function CardListItem({ group, format, last, onRemove, tc }: { group: CardGroup<
     <View style={{ borderBottomWidth: last ? 0 : 1, borderBottomColor: tc.pap3 }}>
       <View style={{ position: 'relative' }}>
         <Pressable onPress={openDetail} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingRight: 20, paddingLeft: 2 }}>
-          <ThumbImage uri={img} size={48} emojiSize={22} style={{ borderRadius: 8 }} />
+          {/* 썸네일 + 그레이딩 표식 — 표식은 이미지 블록 안(하단에 살짝 겹침).
+              행 전체 기준이면 우측 ⋯ 메뉴와 겹친다 (웹 동일). */}
+          <View style={{ position: 'relative' }}>
+            <ThumbImage uri={img} size={62} emojiSize={28} style={{ borderRadius: 8 }} />
+            {c.graded ? <GradedLabel gold={tc.gold} company={c.gradeCompany} grade={c.gradeValue} height={9} /> : null}
+          </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <PixelText variant="ko" size={13} weight="bold" color={tc.ink} numberOfLines={1} style={{ flexShrink: 1 }}>{cardName(c)}</PixelText>
@@ -425,7 +430,6 @@ function CardListItem({ group, format, last, onRemove, tc }: { group: CardGroup<
             <CardMenu apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} tc={tc} plain />
           )}
         </View>
-        {c.graded ? <GradedLabel gold={tc.gold} company={c.gradeCompany} grade={c.gradeValue} /> : null}
       </View>
 
       {/* 중복 등록분 — 장마다 등록가·손익이 다르므로 각각 보여준다. */}
@@ -465,8 +469,8 @@ function ProfitTag({ pct, size = 11 }: { pct: number | null; size?: number }) {
 }
 
 /** 그레이딩 표식 — 우하단 흰 필 배지(그레이딩사 로고 + 등급). 공통 컴포넌트 GradeMark 사용. */
-function GradedLabel({ gold, company, grade }: { gold: string; company?: string | null; grade?: string | null }) {
-  return <GradeMark company={company} grade={grade} height={12} gold={gold} />;
+function GradedLabel({ gold, company, grade, height = 12 }: { gold: string; company?: string | null; grade?: string | null; height?: number }) {
+  return <GradeMark company={company} grade={grade} height={height} gold={gold} />;
 }
 
 /** 카드 ⋯ 메뉴 — 시세 보기 / 컬렉션에서 제거 (웹 CardMenu 동일). */

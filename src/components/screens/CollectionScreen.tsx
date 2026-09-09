@@ -606,8 +606,8 @@ function ProfitTag({ pct, size = 12 }: { pct: number | null; size?: number }) {
  * 그레이딩 카드 표식 — 부모(position:relative) 우하단에 작게 플로팅.
  * 구현 정본은 공통 GradeMark(src/components/cards/GradeMark) — 여기는 골드 폴백만 고정한 얇은 래퍼.
  */
-function GradedLabel({ company, grade }: { company?: string | null; grade?: string | null }) {
-  return <GradeMark company={company} grade={grade} gold="var(--gold)" />;
+function GradedLabel({ company, grade, height }: { company?: string | null; grade?: string | null; height?: number }) {
+  return <GradeMark company={company} grade={grade} height={height} gold="var(--gold)" />;
 }
 
 /** 카드 더보기(⋯) 메뉴 — 시세 보기 / 컬렉션에서 제거. Link/Panel 바깥에 형제로 배치. */
@@ -762,12 +762,17 @@ function CardListItem({ group, format, last, onRemove }: { group: CardGroup<Row>
     <div style={{ borderBottom: last ? 'none' : '1px solid var(--pap3)' }}>
       <div style={{ position: 'relative' }}>
         <Link href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px 11px 2px', textDecoration: 'none', color: 'inherit' }}>
-          <CardThumb
-            style={{ width: 48, height: 48, flex: 'none', borderRadius: 'var(--r-sm)', overflow: 'hidden', background: 'var(--pap2)', display: 'grid', placeItems: 'center' }}
-            src={img}
-            alt={cardName(c)}
-            emojiSize={22}
-          />
+          {/* 썸네일 + 그레이딩 표식 — 표식은 이미지 좌측 블록 안(하단에 살짝 겹침)에 둔다.
+              행 전체를 기준으로 잡으면 우측 ⋯ 메뉴와 겹친다. */}
+          <div style={{ position: 'relative', flex: 'none' }}>
+            <CardThumb
+              style={{ width: 62, height: 62, borderRadius: 'var(--r-sm)', overflow: 'hidden', background: 'var(--pap2)', display: 'grid', placeItems: 'center' }}
+              src={img}
+              alt={cardName(c)}
+              emojiSize={28}
+            />
+            {c.graded && <GradedLabel company={c.gradeCompany} grade={c.gradeValue} height={9} />}
+          </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
               <span style={{ fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cardName(c)}</span>
@@ -809,7 +814,6 @@ function CardListItem({ group, format, last, onRemove }: { group: CardGroup<Row>
             <CardMenu apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} plain />
           )}
         </div>
-        {c.graded && <GradedLabel company={c.gradeCompany} grade={c.gradeValue} />}
       </div>
 
       {/* 중복 등록분 — 장마다 등록가·손익이 다르므로 각각 보여준다. */}
