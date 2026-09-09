@@ -56,8 +56,11 @@ export async function applyPendingOtaOnBoot(): Promise<void> {
     const check = await withTimeout(mod.checkForUpdateAsync(), CHECK_BUDGET_MS);
     if (check === 'timeout' || !check.isAvailable) return;
     const fetched = await withTimeout(mod.fetchUpdateAsync(), FETCH_BUDGET_MS);
-    if (fetched === 'timeout' || !fetched.isNew) return;
-    console.log('[ota] new update fetched — reloading');
+    if (fetched === 'timeout') return;
+    // isNew=false 여도 reload 한다 — 네이티브 백그라운드 다운로드가 먼저 끝나 이미 DB 에 있으면
+    // isNew 가 false 로 오는데, 그때 건너뛰면 새 번들은 '다음 콜드 스타트'에만 붙고 앱을
+    // 백그라운드로만 보내는 사용자에겐 영영 안 붙는다 (2026-09-09 에뮬레이터 실측).
+    console.log('[ota] update fetched (isNew=' + String(fetched.isNew) + ') — reloading');
     await mod.reload(null);
   } catch (e) {
     // 네트워크 없음·서버 오류 등 — 조용히 현재 번들로 진행.
