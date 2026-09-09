@@ -75,6 +75,36 @@ test('public exceptions are narrow and method-specific', async () => {
   assert.equal(hasIndependentApiAuth('/api/admin-fake', 'GET'), false);
 });
 
+test('client 401 opens the login page once, never from exempt pages or foreign hosts', async () => {
+  const g = globalThis as unknown as Record<string, unknown>;
+  const [originalWindow, originalDocument] = [g.window, g.document];
+  const replaced: string[] = [];
+  const location = { origin: 'https://www.arvotcg.com', pathname: '/login', search: '', replace: (u: string) => { replaced.push(u); } };
+  g.document = { documentElement: { getAttribute: () => null } };
+  g.window = {
+    location,
+    sessionStorage: { getItem: () => null },
+    fetch: async (input: string) => new Response(null, { status: String(input).includes('/deny') ? 401 : 200 }),
+  };
+  try {
+    const { installUnauthorizedRedirect } = await import('../src/lib/authRedirect');
+    installUnauthorizedRedirect();
+    const call = (url: string) => (g.window as { fetch: (u: string) => Promise<Response> }).fetch(url);
+    await call('/api/me/deny');                                  // 로그인 화면에서는 이동하지 않는다
+    assert.deepEqual(replaced, []);
+    location.pathname = '/cards';
+    await call('https://evil.example/api/deny');                 // 우리 API 가 아니면 무시
+    await call('/auth/me/deny');                                 // /api 외 경로도 무시
+    assert.deepEqual(replaced, []);
+    await call('/api/me/deny');
+    await call('/api/feeds/deny');                               // 401 이 몰려도 이동은 한 번
+    assert.deepEqual(replaced, ['/login?callbackUrl=%2Fcards']);
+  } finally {
+    g.window = originalWindow;
+    g.document = originalDocument;
+  }
+});
+
 test('image proxy refuses non-CDN hosts, redirects and active content', async () => {
   const { GET } = await import('../src/app/api/navercafe/img/route');
   const original = globalThis.fetch;

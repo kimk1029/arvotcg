@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '@/lib/apiClient';
+import { getApiBaseUrl, handleUnauthorized } from '@/lib/apiClient';
 import { getAuthHeader } from '@/lib/session';
 
 /**
@@ -19,6 +19,7 @@ async function uploadImages(uris: string[], endpoint: string): Promise<string[]>
     body: form as unknown as BodyInit,
   });
   if (!res.ok) {
+    if (res.status === 401) handleUnauthorized();
     let msg = `업로드 실패 (${res.status})`;
     try {
       const j = (await res.json()) as { error?: string };

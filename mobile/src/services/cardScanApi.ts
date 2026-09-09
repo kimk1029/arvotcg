@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { getApiOrigin } from '@/lib/apiEnv';
 import { getAuthHeader } from '@/lib/session';
+import { handleUnauthorized } from '@/lib/apiClient';
 import type { CardScanResponse, ScanUploadInput } from '@/types/cardScan';
 
 /**
@@ -200,6 +201,7 @@ export async function uploadScanImage(input: ScanUploadInput): Promise<CardScanR
   }
 
   if (res.status === 401) {
+    handleUnauthorized();
     throw new CardScanError('AUTH', '로그인 후 이용 가능합니다');
   }
   if (res.status === 429) {

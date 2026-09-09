@@ -14,7 +14,7 @@
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { setSession } from './session';
-import { getApiBaseUrl } from './apiClient';
+import { getApiBaseUrl, resetUnauthorizedRedirect } from './apiClient';
 
 export type AuthProvider = 'kakao' | 'naver' | 'google';
 
@@ -56,6 +56,7 @@ function safeCallbackPath(p?: string | null): string {
 
 /** 추출한 토큰으로 세션을 저장하고 callback(없으면 홈)으로 이동. */
 export function persistTokenAndGoHome(token: string, callback?: string | null): void {
+  resetUnauthorizedRedirect();
   setSession({
     token,
     expiresAt: Date.now() + SESSION_TTL_MS,
