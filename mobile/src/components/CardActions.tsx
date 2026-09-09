@@ -36,6 +36,7 @@ type Status = 'idle' | 'loading' | 'error';
 export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gradePrices }: Props) {
   const [favStatus, setFavStatus] = useState<Status>('idle');
   const [isCollected, setIsCollected] = useState(false);
+  const [flexBusy, setFlexBusy] = useState(false);
   const [isFav, setIsFav] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [authed, setAuthed] = useState(true);
@@ -147,6 +148,24 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
     Linking.openURL(`https://snkrdunk.com/apparels/${apparelId}`).catch(() => undefined);
   };
 
+  // 수익 인증 — 서버에서 공유 토큰을 받아 포스터 웹페이지를 인앱 웹뷰로 연다(웹과 같은 화면).
+  const openFlex = async () => {
+    if (flexBusy) return;
+    setFlexBusy(true);
+    try {
+      const r = await api<{ data: { token: string } }>('/api/me/flex-link', {
+        method: 'POST',
+        body: { snkrdunkApparelId: apparelId },
+      });
+      const url = `https://www.arvotcg.com/flex/${r.data.token}`;
+      router.push(`/web?url=${encodeURIComponent(url)}&title=${encodeURIComponent('수익 인증')}` as never);
+    } catch {
+      toast.error('수익 인증 페이지를 열지 못했어요');
+    } finally {
+      setFlexBusy(false);
+    }
+  };
+
   // 웹 CardActions 와 동일 레이아웃: 넓은 [내 컬렉션] 버튼 + 정사각 SNKRDUNK·관심 버튼.
   const collectBg = isCollected ? tc.grn : tc.ink;
   const collectLabel = isCollected ? '내 컬렉션에 담김' : '내 컬렉션에 추가';
@@ -183,6 +202,12 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
             {isCollected ? <PixelText variant="ko" size={10} color={tc.white} numberOfLines={1} style={{ opacity: 0.92 }}>＋ 카드 추가 등록</PixelText> : null}
           </View>
         </Pressable>
+        {/* 수익 인증 — 내 컬렉션에 있는 카드만(웹 CardActions 동일) */}
+        {isCollected ? (
+          <Pressable onPress={openFlex} disabled={flexBusy} style={[styles.flatSquare, { width: 'auto', paddingHorizontal: 12, backgroundColor: tc.white, borderColor: tc.blu }]}>
+            <PixelText variant="ko" size={11.5} weight="bold" color={tc.blu} numberOfLines={1}>{flexBusy ? '여는 중…' : '📈 수익 인증'}</PixelText>
+          </Pressable>
+        ) : null}
         <Pressable onPress={openSnkrdunk} style={[styles.flatSquare, { backgroundColor: tc.white, borderColor: tc.pap3 }]}>
           <PixelText variant={txt} size={15} weight="bold" color={tc.ink}>↗</PixelText>
         </Pressable>
@@ -212,6 +237,11 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
           </View>
         </PixelPress>
       </View>
+      {isCollected ? (
+        <PixelPress onPress={openFlex} bg={colors.white} borderWidth={3} shadow={4} hi="rgba(255,255,255,0.6)" lo="rgba(0,0,0,0.2)" innerStyle={[styles.squareFace, { width: 'auto', paddingHorizontal: 10 }]}>
+          <Text numberOfLines={1} style={{ fontFamily: fonts.ko, fontSize: 11.5, fontWeight: '800', color: colors.ink }}>{flexBusy ? '여는 중…' : '📈 수익 인증'}</Text>
+        </PixelPress>
+      ) : null}
       <PixelPress onPress={openSnkrdunk} bg={colors.ink} borderWidth={3} shadow={4} hi="rgba(255,255,255,0.2)" lo="rgba(0,0,0,0.35)" innerStyle={styles.squareFace}>
         <Text style={[styles.icon, styles.gold]}>↗</Text>
       </PixelPress>

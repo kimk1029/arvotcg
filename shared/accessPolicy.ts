@@ -15,6 +15,7 @@ const PUBLIC_READ_PREFIXES = [
   '/api/psa/pop', '/api/card-lang', '/api/banners', '/api/places', '/api/shops',
   '/api/search-log/top',
   '/api/app-release', '/api/navercafe/img', '/api/cdn',
+  '/api/flex',          // 수익 인증 공유 포스터 (서명 토큰이 있어야 열린다)
 ];
 
 /** 무인증 허용 POST — 익명 통계 기록과 부수효과 없는 번역 변환. */
