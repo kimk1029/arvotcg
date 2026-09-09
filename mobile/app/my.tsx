@@ -226,7 +226,8 @@ export default function MyScreen() {
   const tradeCount = summary?.counts.tradeCount ?? 0;
   const savedCount = summary?.counts.savedCount ?? 0;
 
-  const pfUp = (pf?.changePct ?? 0) >= 0;
+  // 등락은 누적 수익률(등록가 대비) — 서버 profitPct. 전일 대비(changePct)는 쓰지 않는다(웹 MyScreen 동일).
+  const pfUp = (pf?.profitPct ?? 0) >= 0;
   const pfColor = pfUp ? P.red : P.blue;
 
   const saveName = async () => {
@@ -374,9 +375,9 @@ export default function MyScreen() {
                   <Text style={{ fontSize: 17, fontWeight: '900', color: P.ink, letterSpacing: -0.4 }}>
                     {pf ? format(pf.totalJpy) : '계산 중…'}
                   </Text>
-                  {pf?.changePct != null ? (
+                  {pf?.profitPct != null ? (
                     <Text style={{ fontSize: 11.5, fontWeight: '800', color: pfColor }}>
-                      {pfUp ? '+' : ''}{pf.changePct.toFixed(1)}% {pfUp ? '▲' : '▼'}
+                      {pfUp ? '+' : ''}{pf.profitPct.toFixed(1)}% {pfUp ? '▲' : '▼'}
                     </Text>
                   ) : null}
                 </View>

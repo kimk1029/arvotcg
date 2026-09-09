@@ -123,6 +123,18 @@ export function PortfolioHero({ totals: totalsProp }: { totals?: HeroTotals | nu
   const profitPct = hasInvested ? (profitJpy / investedJpy) * 100 : null;
   const up = profitJpy >= 0;
 
+  // 자산 요약(7일·30일 변화) — 서버 history(일별 평가액) 델타. 웹 CollectionScreen 히어로 동일.
+  const deltaOver = (days: number): { abs: number; pct: number } | null => {
+    const h = port?.history ?? [];
+    if (h.length < 2) return null;
+    const last = h[h.length - 1].totalJpy;
+    const base = h[Math.max(0, h.length - 1 - days)].totalJpy;
+    if (!base) return null;
+    return { abs: last - base, pct: ((last - base) / base) * 100 };
+  };
+  const d7 = deltaOver(7);
+  const d30 = deltaOver(30);
+
   return (
     <View style={{ marginHorizontal: 14, marginBottom: 6, position: 'relative' }}>
       <View style={authed ? undefined : { opacity: 0.35 }} pointerEvents={authed ? 'auto' : 'none'}>
@@ -184,6 +196,12 @@ export function PortfolioHero({ totals: totalsProp }: { totals?: HeroTotals | nu
               flex={1.2}
             />
           </View>
+
+          {/* 자산 요약 — 7일·30일 변화 (웹 히어로 HeroDelta 동일) */}
+          <View style={{ flexDirection: 'row', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)' }}>
+            <HeroDelta label="7일 변화" delta={d7} format={format} />
+            <HeroDelta label="30일 변화" delta={d30} format={format} />
+          </View>
         </Pressable>
       </View>
 
@@ -216,6 +234,20 @@ function HeroStat({ label, value, color = '#fff', flex = 1 }: { label: string; v
       <PixelText variant="ko" size={10} color="rgba(255,255,255,0.5)">{label}</PixelText>
       <PixelText variant="ko" size={12} weight="bold" color={color} numberOfLines={1} adjustsFontSizeToFit style={{ marginTop: 4 }}>
         {value}
+      </PixelText>
+    </View>
+  );
+}
+
+/** 히어로 안 7일/30일 변화 셀 — 금액 + (등락률). 웹 HeroDelta 동일. */
+function HeroDelta({ label, delta, format }: { label: string; delta: { abs: number; pct: number } | null; format: (jpy: number) => string }) {
+  const up = (delta?.pct ?? 0) >= 0;
+  const color = delta == null ? 'rgba(255,255,255,0.55)' : up ? '#FF6B5E' : '#6FA8FF';
+  return (
+    <View style={{ flex: 1 }}>
+      <PixelText variant="ko" size={10} color="rgba(255,255,255,0.5)">{label}</PixelText>
+      <PixelText variant="ko" size={12} weight="bold" color={color} numberOfLines={1} adjustsFontSizeToFit style={{ marginTop: 4 }}>
+        {delta == null ? '—' : `${delta.abs >= 0 ? '+' : '-'}${format(Math.abs(delta.abs))} (${up ? '+' : ''}${delta.pct.toFixed(2)}%)`}
       </PixelText>
     </View>
   );
