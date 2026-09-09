@@ -48,6 +48,7 @@ let started = false;
  * 프로세스당 1회만 동작.
  */
 export async function applyPendingOtaOnBoot(): Promise<void> {
+  console.log('[ota] boot applier: started=' + String(started) + ' dev=' + String(__DEV__));
   if (started) return;
   started = true;
   if (__DEV__) return;
@@ -57,6 +58,7 @@ export async function applyPendingOtaOnBoot(): Promise<void> {
   } catch {
     mod = null;
   }
+  console.log('[ota] module: ' + (mod ? 'enabled=' + String(mod.isEnabled) + ' embedded=' + String(mod.isEmbeddedLaunch) + ' updateId=' + String(mod.updateId) : 'missing'));
   if (!mod || !mod.isEnabled) {
     console.log('[ota] skip: module ' + (mod ? 'disabled' : 'missing'));
     return;
