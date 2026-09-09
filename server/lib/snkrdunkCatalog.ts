@@ -13,7 +13,6 @@
 import { classifySnkrdunkName } from '../../shared/snkrdunk';
 import { Prisma } from '@prisma/client';
 import { prisma } from './prisma.js';
-import { createBackgroundWriteGate } from './backgroundWriteGate';
 import { ensureCardImage } from './cardImageCache.js';
 import { translateKnownCardNameToKo } from '../../shared/cardTranslate';
 import { shortenName } from '../../shared/util/shortenName';
@@ -36,44 +35,11 @@ export const CATALOG_PRICE_TTL_MS = 30 * 60 * 1000;
 /* ── 적재 (upsert / append) ──────────────────────────────────────── */
 
 /** apparel 상세 1건의 정적 정보를 카탈로그에 upsert. 실패는 로깅만. */
-
-/* ── 쓰기 스로틀 ────────────────────────────────────────────────────────
- * 시세상세를 열 때마다 카탈로그 upsert + 스냅샷 insert 가 돌아 DB 쓰기가 폭주했고,
- * Supabase 풀러가 포화돼 로그인까지 실패했다(2026-09-10 P2024/ECHECKOUTTIMEOUT).
- * 같은 카드의 반복 쓰기는 메모리 타임스탬프로 걸러낸다 — 값은 어차피 몇 분 단위로 변한다.
- */
-const SNAPSHOT_MIN_GAP_MS = 10 * 60_000;
-/** 값이 그대로면 최대 이 간격까지는 아예 기록하지 않는다(같은 행을 또 쌓을 이유가 없다). */
-const SNAPSHOT_SAME_VALUE_GAP_MS = 6 * 60 * 60_000;
-const lastSnapshotSig = new Map<number, { sig: string; at: number }>();
-const CATALOG_MIN_GAP_MS = 30 * 60_000;
-const lastSnapshotAt = new Map<number, number>();
-const lastCatalogAt = new Map<number, number>();
-// Best-effort cache writes must leave pool capacity for login and foreground reads.
-const acquireWrite = createBackgroundWriteGate(2);
-
-function tooSoon(map: Map<number, number>, id: number, gapMs: number): boolean {
-  const at = map.get(id);
-  if (at != null && Date.now() - at < gapMs) return true;
-  map.set(id, Date.now());
-  // 메모리 상한 — 오래된 항목부터 버린다.
-  if (map.size > 5000) {
-    for (const k of map.keys()) {
-      map.delete(k);
-      if (map.size <= 4000) break;
-    }
-  }
-  return false;
-}
-
 export async function upsertCatalogCard(
   a: SnkrdunkApparel,
   extra: { packCode?: string; apparelGroupId?: number | null } = {},
 ): Promise<void> {
-  const release = acquireWrite();
-  if (!release) return;
   try {
-    if (a?.id != null && tooSoon(lastCatalogAt, a.id, CATALOG_MIN_GAP_MS)) return;
     const jp = a.localizedName || a.name || '';
     const statics = parseCardStatics(jp, a.productNumber);
     // 작품: 스니덩크 브랜드(a.game, 정확) > 이름 파싱. 이름만으론 원피스·유희왕 대부분이 'other' 였다(2026-09-08).
@@ -112,10 +78,7 @@ export async function upsertCatalogCard(
     // 원본 이미지를 자체 CDN(webp)으로 1회 캐싱 — 응답 막지 않음.
     void ensureCardImage(a.id, a.imageUrl);
   } catch (err) {
-    lastCatalogAt.delete(a.id);
     console.error('[snkrdunkCatalog.upsert]', a.id, err);
-  } finally {
-    release();
   }
 }
 
@@ -126,14 +89,8 @@ export async function upsertCatalogCard(
 export async function upsertSearchResults(
   results: Array<{ apparelId: number; name: string; imageUrl: string | null }>,
 ): Promise<void> {
-  const release = acquireWrite();
-  if (!release) return;
-  let writingId: number | undefined;
   try {
     for (const r of results) {
-      // 검색할 때마다 결과 수십 건을 upsert 하던 것 — 같은 카드는 30분 내 재기록 생략.
-      if (tooSoon(lastCatalogAt, r.apparelId, CATALOG_MIN_GAP_MS)) continue;
-      writingId = r.apparelId;
       const statics = parseCardStatics(r.name);
       await prisma.snkrdunkCard.upsert({
         where: { apparelId: r.apparelId },
@@ -164,10 +121,7 @@ export async function upsertSearchResults(
       if (r.imageUrl) void ensureCardImage(r.apparelId, r.imageUrl);
     }
   } catch (err) {
-    if (writingId !== undefined) lastCatalogAt.delete(writingId);
     console.error('[snkrdunkCatalog.upsertSearch]', err);
-  } finally {
-    release();
   }
 }
 
@@ -187,23 +141,7 @@ export async function recordPriceSnapshot(
     headlineBasis?: string;
   },
 ): Promise<void> {
-  const release = acquireWrite();
-  if (!release) return;
   try {
-    if (tooSoon(lastSnapshotAt, apparelId, SNAPSHOT_MIN_GAP_MS)) return;
-    // 값이 직전과 동일하면 6시간까지는 기록 생략 — 스냅샷 테이블이 78만 행/462MB 로 불어
-    // INSERT 마다 커넥션을 오래 붙들었다(2026-09-10 장애).
-    const sig = [
-      Math.round(price.minPrice || 0),
-      Math.round(price.priceSingle ?? 0),
-      Math.round(price.pricePsa10 ?? 0),
-      Math.round(price.pricePsa9 ?? 0),
-      Math.round(price.pricePsa8 ?? 0),
-      Math.round(price.headlinePrice ?? 0),
-    ].join(':');
-    const prevSig = lastSnapshotSig.get(apparelId);
-    if (prevSig && prevSig.sig === sig && Date.now() - prevSig.at < SNAPSHOT_SAME_VALUE_GAP_MS) return;
-
     await prisma.snkrdunkPriceSnapshot.create({
       data: {
         apparelId,
@@ -218,13 +156,8 @@ export async function recordPriceSnapshot(
         trend: price.trend && price.trend.length > 0 ? price.trend : Prisma.JsonNull,
       },
     });
-    if (lastSnapshotSig.size > 20_000) lastSnapshotSig.clear();
-    lastSnapshotSig.set(apparelId, { sig, at: Date.now() });
   } catch (err) {
-    lastSnapshotAt.delete(apparelId);
     console.error('[snkrdunkCatalog.snapshot]', apparelId, err);
-  } finally {
-    release();
   }
 }
 
