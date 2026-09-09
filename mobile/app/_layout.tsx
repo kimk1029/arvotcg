@@ -79,8 +79,6 @@ function useOAuthDeepLink() {
 // preventAutoHideAsync 를 호출하지 않음 → splash 가 JS 로드되면 자동으로 사라짐.
 // 폰트는 백그라운드로 로딩되며, 로딩 전엔 시스템 폰트로 폴백.
 
-console.log('[boot] _layout module evaluated');
-
 export default function RootLayout() {
   useOAuthDeepLink();
   // 스토어 스크린샷 모드 전용 — EXPO_PUBLIC_SHOT_ROUTE 로 시작 화면 지정.
@@ -134,7 +132,6 @@ export default function RootLayout() {
   }, [otaDone]);
 
   const proceed = (fontsReady || timedOut || pixelError != null || koError != null) && otaDone;
-  console.log('[boot] render otaDone=' + String(otaDone) + ' proceed=' + String(proceed));
 
   // 안전망: 어떤 경우든 마운트 후 splash 강제 숨김.
   useEffect(() => {

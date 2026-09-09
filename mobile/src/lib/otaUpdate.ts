@@ -14,6 +14,8 @@
  */
 import { AppState } from 'react-native';
 import { requireOptionalNativeModule } from 'expo-modules-core';
+import { getApiOrigin } from './apiEnv';
+const probe = (tag: string) => { fetch(`${getApiOrigin()}/health?probe=${tag}`).catch(() => {}); };
 
 interface ExpoUpdatesNative {
   isEnabled?: boolean;
@@ -69,6 +71,7 @@ function armReloadOnResume(mod: ExpoUpdatesNative) {
  */
 export async function applyPendingOtaOnBoot(): Promise<void> {
   console.log('[ota] applier started=' + String(started) + ' dev=' + String(__DEV__));
+  probe('enter');
   if (started) return;
   started = true;
   if (__DEV__) return;
@@ -79,7 +82,8 @@ export async function applyPendingOtaOnBoot(): Promise<void> {
     mod = null;
   }
   console.log('[ota] module: ' + (mod ? 'enabled=' + String(mod.isEnabled) + ' embedded=' + String(mod.isEmbeddedLaunch) + ' updateId=' + String(mod.updateId) : 'missing'));
-  if (!mod || !mod.isEnabled) return;
+  if (!mod || !mod.isEnabled) { probe(mod ? 'disabled' : 'nomod'); return; }
+  probe('check');
   const m = mod;
   // 확인 → (있으면) 다운로드. isNew=false 여도 true 를 돌려준다 — 네이티브 백그라운드 다운로드가
   // 먼저 끝나 이미 DB 에 있으면 isNew 가 false 로 오는데, 그래도 reload 해야 지금 붙는다.
