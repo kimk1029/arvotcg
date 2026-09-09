@@ -19,24 +19,29 @@ const probe = (tag: string) => { fetch(`${getApiOrigin()}/health?probe=${tag}`).
 console.warn('[ota] module init');
 probe('init');
 let wrapperCalled = false;
-// 진단: RootLayout 의 useState(false)/useEffect([bool]) 호출을 관찰 (React 모듈 객체 패치, 임시).
-import * as ReactNS from 'react';
-const R = ReactNS as unknown as Record<string, (...a: unknown[]) => unknown>;
-const origUseState = R.useState;
-const origUseEffect = R.useEffect;
-let seenState = 0;
-let seenEffect = 0;
-R.useState = function (init: unknown) {
-  const r = origUseState(init) as [unknown, unknown];
-  if (init === false && seenState++ < 8) console.warn('[ota] useState(false) -> ' + String(r[0]));
-  return r;
-};
-R.useEffect = function (fn: unknown, deps: unknown) {
-  if (Array.isArray(deps) && deps.length === 1 && typeof deps[0] === 'boolean' && seenEffect++ < 8) {
-    console.warn('[ota] useEffect([bool]) deps=' + String(deps[0]));
-  }
-  return origUseEffect(fn, deps);
-};
+// 진단: RootLayout 의 useState(false)/useEffect([bool]) 호출을 관찰 (React CJS exports 패치, 임시).
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const R = require('react') as Record<string, (...a: unknown[]) => unknown>;
+  const origUseState = R.useState;
+  const origUseEffect = R.useEffect;
+  let seenState = 0;
+  let seenEffect = 0;
+  R.useState = function (init: unknown) {
+    const r = origUseState(init) as [unknown, unknown];
+    if (init === false && seenState++ < 8) console.warn('[ota] useState(false) -> ' + String(r[0]));
+    return r;
+  };
+  R.useEffect = function (fn: unknown, deps: unknown) {
+    if (Array.isArray(deps) && deps.length === 1 && typeof deps[0] === 'boolean' && seenEffect++ < 8) {
+      console.warn('[ota] useEffect([bool]) deps=' + String(deps[0]));
+    }
+    return origUseEffect(fn, deps);
+  };
+  console.warn('[ota] hook patch installed');
+} catch (e) {
+  console.warn('[ota] hook patch failed', e instanceof Error ? e.message : e);
+}
 setTimeout(() => { console.warn('[ota] 8s after module init: wrapperCalled=' + String(wrapperCalled)); probe('t8-' + String(wrapperCalled)); }, 8000);
 
 interface ExpoUpdatesNative {
