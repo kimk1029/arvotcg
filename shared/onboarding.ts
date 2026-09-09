@@ -104,6 +104,7 @@ export const ENTRY_GATE_EXEMPT_PREFIXES: readonly string[] = [
   '/privacy',
   '/account-deletion',
   '/admin',
+  '/flex',            // 수익 인증 공유 포스터 — 링크를 받은 비회원도 볼 수 있어야 한다
 ];
 
 export function isEntryGateExempt(pathname: string | null | undefined): boolean {

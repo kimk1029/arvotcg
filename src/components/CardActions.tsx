@@ -1,5 +1,7 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { snkrdunkApparelUrl } from '@/lib/snkrdunk';
@@ -27,9 +29,11 @@ type Status = 'idle' | 'loading' | 'done' | 'error';
  * 미로그인 시 클릭하면 `/login` 으로 이동.
  */
 export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gradePrices }: Props) {
+  const router = useRouter();
   const [favStatus, setFavStatus] = useState<Status>('idle');
   const [isFav, setIsFav] = useState<boolean>(false);
   const [isCollected, setIsCollected] = useState<boolean>(false);
+  const [flexBusy, setFlexBusy] = useState(false);
   const [sheetOpen, setSheetOpen] = useState<boolean>(false);
   const [authed, setAuthed] = useState<boolean>(true);
   const toast = useToast();
@@ -144,6 +148,28 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
     }
   };
 
+  // 수익 인증 — 서버에서 공유 토큰을 받아 포스터 페이지로 이동한다(소유자만 발급됨).
+  const openFlex = async () => {
+    if (flexBusy) return;
+    setFlexBusy(true);
+    try {
+      const r = await fetch('/api/me/flex-link', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ snkrdunkApparelId: apparelId }),
+      });
+      if (!r.ok) throw new Error(String(r.status));
+      const j = (await r.json()) as { data?: { token?: string } };
+      if (!j.data?.token) throw new Error('no token');
+      router.push(`/flex/${j.data.token}`);
+    } catch {
+      toast.error('수익 인증 페이지를 열지 못했어요');
+    } finally {
+      setFlexBusy(false);
+    }
+  };
+
   return (
     <>
     {sheetOpen && (
@@ -218,6 +244,24 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
           {isCollected && <span style={{ display: 'block', fontSize: 10, fontWeight: 500, lineHeight: 1.2, whiteSpace: 'nowrap', opacity: 0.92 }}>＋ 카드 추가 등록</span>}
         </span>
       </button>
+
+      {/* 수익 인증 — 내 컬렉션에 있는 카드만. 공유 가능한 포스터 페이지(/flex/:token)로 이동. */}
+      {isCollected && (
+        <button
+          type="button"
+          onClick={openFlex}
+          disabled={flexBusy}
+          aria-label="수익 인증"
+          style={{
+            flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            padding: '13px 12px', border: '1.5px solid var(--blu)', borderRadius: 'var(--r)',
+            background: 'var(--white)', color: 'var(--blu)', fontFamily: 'var(--f1)', fontSize: 12.5,
+            fontWeight: 800, cursor: flexBusy ? 'default' : 'pointer', whiteSpace: 'nowrap',
+          }}
+        >
+          📈 {flexBusy ? '여는 중…' : '수익 인증'}
+        </button>
+      )}
 
       <a
         href={snkrdunkApparelUrl(apparelId)}

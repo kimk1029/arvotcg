@@ -38,6 +38,7 @@ import { getJpyKrwRate } from '../lib/fxRate.js';
 import { runDailyCheckIn } from '../lib/checkIn.js';
 import { logPointChange } from '../lib/pointLog.js';
 import { kstDateKey, kstDateKeyShifted } from '../../shared/kst';
+import { flexToken } from './flex.js';
 import { translateKnownCardNameToKo } from '../../shared/cardTranslate';
 import { UGC_TERMS_VERSION } from '../../shared/ugcTerms';
 
@@ -226,6 +227,24 @@ router.post('/cards', async (req: Request, res: Response) => {
       name: e?.name ?? null,
       message: e?.message ?? null,
     });
+  }
+});
+
+/** 수익 인증 공유 링크 — 내 컬렉션에 있는 카드만, 소유자에게만 토큰을 발급한다. */
+router.post('/flex-link', async (req: Request, res: Response) => {
+  const apparelId = Number((req.body as { snkrdunkApparelId?: unknown } | undefined)?.snkrdunkApparelId);
+  if (!Number.isInteger(apparelId)) return res.status(400).json({ error: 'snkrdunkApparelId required' });
+  try {
+    const card = await prisma.userCard.findFirst({
+      where: { userId: req.user!.userId, snkrdunkApparelId: apparelId },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    if (!card) return res.status(404).json({ error: '내 컬렉션에 없는 카드예요' });
+    res.json({ data: { token: flexToken(card.id) } });
+  } catch (err) {
+    console.error('[me.flex-link]', err);
+    res.status(500).json({ error: 'internal' });
   }
 });
 
