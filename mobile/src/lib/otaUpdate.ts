@@ -18,6 +18,8 @@ import { getApiOrigin } from './apiEnv';
 const probe = (tag: string) => { fetch(`${getApiOrigin()}/health?probe=${tag}`).catch(() => {}); };
 console.warn('[ota] module init');
 probe('init');
+let wrapperCalled = false;
+setTimeout(() => { console.warn('[ota] 8s after module init: wrapperCalled=' + String(wrapperCalled)); probe('t8-' + String(wrapperCalled)); }, 8000);
 
 interface ExpoUpdatesNative {
   isEnabled?: boolean;
@@ -71,7 +73,14 @@ function armReloadOnResume(mod: ExpoUpdatesNative) {
  * 없거나·실패면 resolve → 호출측은 현재 번들로 진행. 예산 초과면 resolve 하되 결과는
  * 계속 기다렸다가 복귀 시 적용. 프로세스당 1회만 동작.
  */
-export async function applyPendingOtaOnBoot(): Promise<void> {
+export function applyPendingOtaOnBoot(): Promise<void> {
+  wrapperCalled = true;
+  console.warn('[ota] wrapper called (sync)');
+  probe('wrapper');
+  return applyPendingOtaOnBootAsync();
+}
+
+async function applyPendingOtaOnBootAsync(): Promise<void> {
   console.warn('[ota] applier enter');
   console.log('[ota] applier started=' + String(started) + ' dev=' + String(__DEV__));
   probe('enter');
