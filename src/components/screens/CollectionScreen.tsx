@@ -12,8 +12,7 @@ import { Panel } from '@/components/ui/Panel';
 import { parseCardStatics } from '../../../shared/cardStatics';
 import { SegmentedTabs, SegIcons } from '@/components/ui/SegmentedTabs';
 import { FavoritesPanel } from '@/components/screens/FavoritesPanel';
-import { CollectionPies } from '@/components/portfolio/CollectionPies';
-import type { VizCard } from '../../../shared/portfolioViz';
+import { groupDuplicates, type CardGroup } from '../../../shared/collectionGroup';
 
 interface HistPoint {
   date: string;
@@ -169,7 +168,8 @@ export function CollectionScreen() {
   const [err, setErr] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [sort, setSort] = useState<SortKey>('value');
-  const [view, setView] = useState<View>('grid');
+  // 기본은 리스트형 — 한 화면에 더 많은 카드와 등록가/손익을 같이 본다.
+  const [view, setView] = useState<View>('list');
   // 박스 제외 — 목록·손익 합계·비중 도넛에서 박스(미개봉 상품)를 뺀다 (앱 my/cards 동일).
   const [excludeBox, setExcludeBox] = useState(false);
 
@@ -291,6 +291,9 @@ export function CollectionScreen() {
     return arr;
   }, [visibleRows, sort]);
 
+  // 중복 등록(같은 카드·같은 등급)은 한 줄로 묶는다 — 정본 shared/collectionGroup (앱 동일).
+  const groups = useMemo(() => groupDuplicates(rows), [rows]);
+
   const totals = useMemo(() => {
     let invested = 0;
     let current = 0;
@@ -316,28 +319,6 @@ export function CollectionScreen() {
     };
     return { d7: over(7), d30: over(30) };
   }, [port]);
-
-  // 자산 구성 파이 입력 — 집계는 전부 정본 shared/portfolioViz (앱과 같은 함수).
-  // 게임(작품)은 저장값 우선, 없으면 카드명 파싱 폴백(테마순 정렬 gameRank 와 같은 규칙).
-  const vizCards = useMemo<VizCard[]>(
-    () =>
-      visibleRows
-        .filter((r) => r.curJpy > 0)
-        .map((r) => ({
-          id: r.c.id,
-          name: cardName(r.c),
-          valueJpy: r.value,
-          basisJpy: r.basisJpy != null ? r.basisJpy * r.qty : null,
-          changePct: r.changePct,
-          graded: !!r.c.graded,
-          gradeLabel:
-            r.c.priceBasis || (r.c.graded ? `${r.c.gradeCompany ?? 'PSA'} ${r.c.gradeValue ?? ''}`.trim() : 'RAW'),
-          game: r.c.game || parseCardStatics(cardName(r.c)).game,
-          series: r.c.series ?? null,
-          selfPulled: !!r.c.selfPulled,
-        })),
-    [visibleRows],
-  );
 
   // 컬렉션에서 카드 제거 — 낙관적으로 목록에서 빼고 DELETE. 실패 시 전체 재조회.
   const handleRemove = useCallback(async (id: number) => {
@@ -470,24 +451,14 @@ export function CollectionScreen() {
               flex={1.2}
             />
           </div>
+
+          {/* 자산 요약(7일·30일 변화) — 총 자산 가치 블록 안에 같이 표시. 앱 PortfolioHero 동일. */}
+          <div style={{ display: 'flex', marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,.12)', position: 'relative', zIndex: 2 }}>
+            <HeroDelta label="7일 변화" delta={summary.d7} format={format} />
+            <HeroDelta label="30일 변화" delta={summary.d30} format={format} />
+          </div>
         </div>
       </div>
-
-      {/* ── 자산 요약 ── */}
-      <Section title="자산 요약">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 9 }}>
-          <SummaryCell label="7일 변화" delta={summary.d7} format={format} />
-          <SummaryCell label="30일 변화" delta={summary.d30} format={format} />
-          <SummaryCell
-            label="누적 수익률"
-            pctOnly={totals.pct}
-            sub={totals.pct != null ? `${totals.profit >= 0 ? '+' : '-'}${format(Math.abs(totals.profit))}` : undefined}
-          />
-        </div>
-      </Section>
-
-      {/* ── 자산 구성 — 카드 종류(작품)·등급별 평가액 비중 파이 (정본 shared/portfolioViz) ── */}
-      <CollectionPies cards={vizCards} format={format} />
 
       {/* ── 내 카드 목록 ── */}
       <div style={{ padding: '0 var(--gap)' }}>
@@ -553,27 +524,27 @@ export function CollectionScreen() {
         )}
         </div>
 
-        {rows.length === 0 ? (
+        {groups.length === 0 ? (
           <div style={{ padding: '30px 0', textAlign: 'center', fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink3)' }}>
             해당 조건의 카드가 없어요
           </div>
         ) : view === 'grid' ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, paddingBottom: 24 }}>
-            {rows.map((r, i) => (
-              <CardGridItem key={r.c.id} row={r} rank={i + 1} format={format} onRemove={handleRemove} />
+            {groups.map((g, i) => (
+              <CardGridItem key={g.key} group={g} rank={i + 1} format={format} onRemove={handleRemove} />
             ))}
           </div>
         ) : (
           <div style={{ paddingBottom: 24 }}>
-            {rows.map((r, i, arr) => (
-              <CardListItem key={r.c.id} row={r} format={format} last={i === arr.length - 1} onRemove={handleRemove} />
+            {groups.map((g, i, arr) => (
+              <CardListItem key={g.key} group={g} format={format} last={i === arr.length - 1} onRemove={handleRemove} />
             ))}
           </div>
         )}
       </div>
 
       <div style={{ fontFamily: 'var(--f1)', fontSize: 9, color: 'var(--ink3)', textAlign: 'center', letterSpacing: 0.3, lineHeight: 1.6, padding: '0 var(--gap)' }}>
-        스니덩크 최근 체결 중앙값 기준 · 관심카드 제외 · 어제(KST 정각) 대비
+        스니덩크 최근 체결 중앙값 기준 · 관심카드 제외 · 등락은 등록가 대비 누적
       </div>
     </div>
   );
@@ -717,8 +688,11 @@ const menuItemStyle: React.CSSProperties = {
   background: 'transparent', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
 };
 
-function CardGridItem({ row, rank, format, onRemove }: { row: Row; rank: number; format: (j: number) => string; onRemove: (id: number) => void }) {
-  const { c, curJpy, qty, basisJpy, profitPct } = row;
+function CardGridItem({ group, rank, format, onRemove }: { group: CardGroup<Row>; rank: number; format: (j: number) => string; onRemove: (id: number) => void }) {
+  const { c, curJpy, basisJpy } = group.head;
+  // 중복 등록은 한 타일로 — 장수는 그룹 합, 손익률도 그룹 합산 기준.
+  const qty = group.qty;
+  const profitPct = group.profitPct;
   const img = c.snkrdunkImageUrl || c.photoUrl || null;
   const href = cardDetailHref(c);
   const body = (
@@ -750,7 +724,7 @@ function CardGridItem({ row, rank, format, onRemove }: { row: Row; rank: number;
         {/* 등록(매입)가 */}
         <div style={{ marginTop: 2 }}>
           <span style={{ fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink3)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            등록 {basisJpy ? format(basisJpy) : '—'}
+            등록 {basisJpy ? format(basisJpy) : '—'}{group.items.length > 1 ? ` 외 ${group.items.length - 1}건` : ''}
           </span>
         </div>
       </div>
@@ -772,40 +746,85 @@ function CardGridItem({ row, rank, format, onRemove }: { row: Row; rank: number;
   );
 }
 
-function CardListItem({ row, format, last, onRemove }: { row: Row; format: (j: number) => string; last: boolean; onRemove: (id: number) => void }) {
-  const { c, curJpy, qty, basisJpy, profitPct } = row;
+function CardListItem({ group, format, last, onRemove }: { group: CardGroup<Row>; format: (j: number) => string; last: boolean; onRemove: (id: number) => void }) {
+  const { c, curJpy } = group.head;
+  const dup = group.items.length > 1;
+  const [open, setOpen] = useState(false);
   const img = c.snkrdunkImageUrl || c.photoUrl || null;
   const href = cardDetailHref(c) ?? '#';
   return (
-    <div style={{ position: 'relative', borderBottom: last ? 'none' : '1px solid var(--pap3)' }}>
-      <Link href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px 11px 2px', textDecoration: 'none', color: 'inherit' }}>
-        <CardThumb
-          style={{ width: 48, height: 48, flex: 'none', borderRadius: 'var(--r-sm)', overflow: 'hidden', background: 'var(--pap2)', display: 'grid', placeItems: 'center' }}
-          src={img}
-          alt={cardName(c)}
-          emojiSize={22}
-        />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cardName(c)}</div>
-          <div style={{ fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>{cardSub(c)}{qty > 1 ? ` · ×${qty}` : ''}</div>
-          {/* 등록(매입)가 */}
-          <div style={{ marginTop: 4 }}>
-            <span style={{ fontFamily: 'var(--f1)', fontSize: 10.5, color: 'var(--ink3)', fontWeight: 600 }}>등록 {basisJpy ? format(basisJpy) : '—'}</span>
+    <div style={{ borderBottom: last ? 'none' : '1px solid var(--pap3)' }}>
+      <div style={{ position: 'relative' }}>
+        <Link href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px 11px 2px', textDecoration: 'none', color: 'inherit' }}>
+          <CardThumb
+            style={{ width: 48, height: 48, flex: 'none', borderRadius: 'var(--r-sm)', overflow: 'hidden', background: 'var(--pap2)', display: 'grid', placeItems: 'center' }}
+            src={img}
+            alt={cardName(c)}
+            emojiSize={22}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <span style={{ fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cardName(c)}</span>
+              {/* 중복 등록 장수 배지 */}
+              {group.qty > 1 && (
+                <span style={{ flex: 'none', fontFamily: 'var(--f1)', fontSize: 10.5, fontWeight: 800, color: 'var(--ink)', background: 'var(--pap2)', borderRadius: 999, padding: '1px 7px' }}>
+                  ×{group.qty}
+                </span>
+              )}
+            </div>
+            <div style={{ fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>{cardSub(c)}</div>
+            {/* 등록(매입)가 — 중복이면 각 장을 펼쳐 본다. */}
+            <div style={{ marginTop: 4 }}>
+              <span style={{ fontFamily: 'var(--f1)', fontSize: 10.5, color: 'var(--ink3)', fontWeight: 600 }}>
+                등록 {group.head.basisJpy ? format(group.head.basisJpy) : '—'}{dup ? ` 외 ${group.items.length - 1}건` : ''}
+              </span>
+            </div>
           </div>
-        </div>
-        <div style={{ textAlign: 'right', flex: 'none' }}>
-          {/* 현재가(손익 색상) + 등록가 대비 손익률 */}
-          <div style={{ fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 900, color: profitColor(profitPct) }}>{curJpy > 0 ? format(curJpy) : '—'}</div>
-          <div style={{ marginTop: 3 }}>
-            <ProfitTag pct={profitPct} size={12} />
+          <div style={{ textAlign: 'right', flex: 'none' }}>
+            {/* 현재가(손익 색상) + 등록가 대비 손익률(그룹 합산) */}
+            <div style={{ fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 900, color: profitColor(group.profitPct) }}>{curJpy > 0 ? format(curJpy) : '—'}</div>
+            <div style={{ marginTop: 3 }}>
+              <ProfitTag pct={group.profitPct} size={12} />
+            </div>
           </div>
+        </Link>
+        {/* ⋯ 메뉴 — Link 바깥 형제(우측 세로 중앙). 중복이면 펼치기 버튼으로 대체. */}
+        <div style={{ position: 'absolute', top: '50%', right: -2, transform: 'translateY(-50%)', zIndex: 6 }}>
+          {dup ? (
+            <button
+              type="button"
+              aria-label={open ? '중복 카드 접기' : '중복 카드 펼치기'}
+              onClick={() => setOpen((o) => !o)}
+              style={{ width: 22, height: 26, border: 'none', background: 'transparent', color: 'var(--ink3)', fontSize: 12, cursor: 'pointer', padding: 0 }}
+            >
+              {open ? '▲' : '▼'}
+            </button>
+          ) : (
+            <CardMenu apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} plain />
+          )}
         </div>
-      </Link>
-      {/* ⋯ 메뉴 — Link 바깥 형제(우측 세로 중앙). 컨테이너 없는 plain 변형. */}
-      <div style={{ position: 'absolute', top: '50%', right: -2, transform: 'translateY(-50%)', zIndex: 6 }}>
-        <CardMenu apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} plain />
+        {c.graded && <GradedLabel company={c.gradeCompany} grade={c.gradeValue} />}
       </div>
-      {c.graded && <GradedLabel company={c.gradeCompany} grade={c.gradeValue} />}
+
+      {/* 중복 등록분 — 장마다 등록가·손익이 다르므로 각각 보여준다. */}
+      {dup && open && (
+        <div style={{ padding: '2px 0 10px 60px' }}>
+          {group.items.map((r, i) => (
+            <div key={r.c.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '7px 20px 7px 0' }}>
+              <span style={{ fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink3)', fontWeight: 600 }}>
+                {i + 1}번째{r.qty > 1 ? ` · ×${r.qty}` : ''} · 등록 {r.basisJpy ? format(r.basisJpy) : '—'}
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
+                <span style={{ fontFamily: 'var(--f1)', fontSize: 12.5, fontWeight: 800, color: profitColor(r.profitPct) }}>{r.curJpy > 0 ? format(r.curJpy) : '—'}</span>
+                <ProfitTag pct={r.profitPct} size={11} />
+              </span>
+              <div style={{ position: 'absolute', top: '50%', right: -2, transform: 'translateY(-50%)' }}>
+                <CardMenu apparelId={r.c.snkrdunkApparelId} basis={r.c.priceBasis} onRemove={() => onRemove(r.c.id)} plain />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -837,15 +856,6 @@ function CollectionHeader({ tab, setTab }: { tab?: AssetTab; setTab?: (t: AssetT
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div style={{ padding: '0 var(--gap) 18px' }}>
-      <div style={{ fontFamily: 'var(--f1)', fontSize: 17, fontWeight: 800, color: 'var(--ink)', marginBottom: 12 }}>{title}</div>
-      {children}
-    </div>
-  );
-}
-
 function HeroStat({ label, value, color = '#fff', flex = 1 }: { label: string; value: string; color?: string; flex?: number }) {
   return (
     <div style={{ flex }}>
@@ -855,33 +865,19 @@ function HeroStat({ label, value, color = '#fff', flex = 1 }: { label: string; v
   );
 }
 
-function SummaryCell({
-  label,
-  delta,
-  pctOnly,
-  sub,
-  format,
-}: {
-  label: string;
-  delta?: { abs: number; pct: number } | null;
-  pctOnly?: number | null;
-  sub?: string;
-  format?: (j: number) => string;
-}) {
-  const pct = delta ? delta.pct : pctOnly ?? null;
-  const color = pct == null ? 'var(--ink3)' : pct >= 0 ? UP : DOWN;
-  const main =
-    delta && format
-      ? `${delta.abs >= 0 ? '+' : '-'}${format(Math.abs(delta.abs))}`
-      : pct != null
-        ? `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`
-        : '—';
-  const subText = delta ? `(${pct! >= 0 ? '+' : ''}${pct!.toFixed(2)}%)` : sub;
+
+/** 히어로 안 7일/30일 변화 셀 — 금액 + (등락률). 색은 KR 관례(상승 빨강). */
+function HeroDelta({ label, delta, format }: { label: string; delta: { abs: number; pct: number } | null; format: (j: number) => string }) {
+  const up = (delta?.pct ?? 0) >= 0;
   return (
-    <div style={{ border: '1px solid var(--pap3)', borderRadius: 'var(--r)', padding: '13px 12px', background: 'var(--white)', minHeight: 92 }}>
-      <div style={{ fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink3)', fontWeight: 600 }}>{label}</div>
-      <div style={{ fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 900, color, marginTop: 7, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{main}</div>
-      {subText && <div style={{ fontFamily: 'var(--f1)', fontSize: 10.5, color: 'var(--ink3)', fontWeight: 700, marginTop: 3 }}>{subText}</div>}
+    <div style={{ flex: 1 }}>
+      <div style={{ fontFamily: 'var(--f1)', fontSize: 11.5, color: 'rgba(255,255,255,.55)', fontWeight: 600 }}>{label}</div>
+      <div style={{ fontFamily: 'var(--f1)', fontSize: 15, fontWeight: 800, color: delta == null ? 'rgba(255,255,255,.55)' : up ? '#FF6B5E' : '#6FA8FF', marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {delta == null ? '—' : `${delta.abs >= 0 ? '+' : '-'}${format(Math.abs(delta.abs))}`}
+        {delta != null && (
+          <span style={{ fontSize: 11, fontWeight: 700, marginLeft: 5 }}>({up ? '+' : ''}{delta.pct.toFixed(2)}%)</span>
+        )}
+      </div>
     </div>
   );
 }

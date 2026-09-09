@@ -133,7 +133,8 @@ export function MyScreen({ user, level, points = 0, cardCount, tradeCount, saved
   };
 
   // 포트폴리오 컴팩트 카드 — /api/me/portfolio.
-  const [pf, setPf] = useState<{ totalJpy: number; changePct: number | null; history: number[] } | null>(null);
+  // 등락은 누적 수익률(등록가 대비) — 서버 profitPct. 전일 대비(changePct)는 쓰지 않는다.
+  const [pf, setPf] = useState<{ totalJpy: number; profitPct: number | null; history: number[] } | null>(null);
   useEffect(() => {
     if (isGuest) return;
     let alive = true;
@@ -141,10 +142,10 @@ export function MyScreen({ user, level, points = 0, cardCount, tradeCount, saved
       try {
         const r = await fetch('/api/me/portfolio', { credentials: 'include', cache: 'no-store' });
         if (!r.ok || !alive) return;
-        const j = (await r.json()) as { data?: { totalJpy: number; changePct: number | null; totalCount: number; history: Array<{ totalJpy: number }> } };
+        const j = (await r.json()) as { data?: { totalJpy: number; profitPct?: number | null; totalCount: number; history: Array<{ totalJpy: number }> } };
         const d = j.data;
         if (!d || d.totalCount === 0) return;
-        if (alive) setPf({ totalJpy: d.totalJpy, changePct: d.changePct, history: (d.history ?? []).map((h) => h.totalJpy) });
+        if (alive) setPf({ totalJpy: d.totalJpy, profitPct: d.profitPct ?? null, history: (d.history ?? []).map((h) => h.totalJpy) });
       } catch {
         /* 시세 실패 시 정적 표시 */
       }
@@ -179,7 +180,7 @@ export function MyScreen({ user, level, points = 0, cardCount, tradeCount, saved
     }
   };
 
-  const pfUp = (pf?.changePct ?? 0) >= 0;
+  const pfUp = (pf?.profitPct ?? 0) >= 0;
   const pfColor = pfUp ? P.red : P.blue;
 
   const activity: MenuItem[] = [
@@ -292,9 +293,9 @@ export function MyScreen({ user, level, points = 0, cardCount, tradeCount, saved
                 <span style={{ fontSize: 17, fontWeight: 900, color: P.ink, letterSpacing: -0.4 }}>
                   {isGuest ? '로그인 후 확인' : pf ? format(pf.totalJpy) : '계산 중…'}
                 </span>
-                {pf?.changePct != null && (
+                {pf?.profitPct != null && (
                   <span style={{ fontSize: 11.5, fontWeight: 800, color: pfColor }}>
-                    {pfUp ? '+' : ''}{pf.changePct.toFixed(1)}% {pfUp ? '▲' : '▼'}
+                    {pfUp ? '+' : ''}{pf.profitPct.toFixed(1)}% {pfUp ? '▲' : '▼'}
                   </span>
                 )}
               </div>

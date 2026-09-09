@@ -122,6 +122,10 @@ export interface PortfolioSummary {
   yesterdayJpy: number | null;
   changeAbsJpy: number | null;
   changePct: number | null;
+  /** 누적 수익률 — 등록가 대비 오늘 시세(전 카드 합산). 구버전 서버 응답엔 없음. */
+  investedJpy?: number;
+  profitAbsJpy?: number | null;
+  profitPct?: number | null;
   history: Array<{ date: string; totalJpy: number }>;
   asOfDate: string;
 }

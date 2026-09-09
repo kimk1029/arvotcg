@@ -46,6 +46,8 @@ interface CardRow {
   pricePsa10Jpy: number;
   /** 등급 기준 대표 시세(registerBasisJpy) — 컬렉션 리스트·시세상세와 같은 값. */
   currentPriceJpy?: number;
+  /** 등록 시점 시세(JPY) — 구매가 미입력 카드의 누적 수익률 기준. */
+  registerPriceJpy?: number | null;
   trend: number[];
   buyPrice: number | null;
   buyCurrency: string | null;
@@ -164,12 +166,15 @@ export function PortfolioScreen() {
             ? (c.currentPriceJpy as number)
             : c.priceSingleJpy;
       const qty = Math.max(1, c.qty || 1);
-      const basisJpy =
+      // 기준가 — 구매가 우선, 없으면 등록가(등록 시점 등급 기준 시세). 컬렉션 화면과 같은 규칙.
+      const buyJpy =
         c.buyPrice != null && c.buyPrice > 0
           ? c.buyCurrency === 'JPY'
             ? c.buyPrice
             : c.buyPrice / (rate || 1)
           : null;
+      const basisJpy =
+        buyJpy ?? (c.registerPriceJpy != null && c.registerPriceJpy > 0 ? c.registerPriceJpy : null);
       const profitPct = basisJpy && curJpy > 0 ? ((curJpy - basisJpy) / basisJpy) * 100 : null;
       const t = c.trend ?? [];
       const dayPct =
@@ -295,7 +300,7 @@ export function PortfolioScreen() {
     );
 
   const totalJpy = usePsa10 && port.totalPsa10Jpy > 0 ? port.totalPsa10Jpy : port.totalJpy;
-  const up = (port.changePct ?? 0) >= 0;
+  const up = (totals.pct ?? 0) >= 0;
   const gradedCount = cards.filter((c) => c.graded).length;
   const pullCount = cards.filter((c) => c.selfPulled).length;
   const hist = range === 0 ? port.history : port.history.slice(-range);
@@ -317,13 +322,14 @@ export function PortfolioScreen() {
         <span className="cv-pf-id"><span className="cv-pf-dot" /> MY PORTFOLIO{usePsa10 ? ' · PSA10' : ''}</span>
         <span className="cv-pf-asof">{port.asOfDate ?? '실시간'} · KST</span>
       </div>
+      {/* 등락은 '누적 수익률' — 등록가 대비 오늘 시세(전 카드 합산). 컬렉션 히어로와 같은 값. */}
       <div className="cv-pf-valrow">
         <span className="cv-pf-val">{format(totalJpy)}</span>
-        {port.changePct != null && (
+        {totals.pct != null && (
           <span className="cv-pf-chg" style={{ color: up ? UP : DOWN }}>
             <span className="cv-pf-tri" style={{ borderBottomColor: up ? UP : 'transparent', borderTopColor: up ? 'transparent' : DOWN }} />
-            {up ? '+' : ''}{port.changePct.toFixed(2)}%
-            {port.changeAbsJpy != null && <em> {up ? '+' : '-'}{format(Math.abs(port.changeAbsJpy))}</em>}
+            {up ? '+' : ''}{totals.pct.toFixed(2)}%
+            <em> {up ? '+' : '-'}{format(Math.abs(totals.profit))} 누적</em>
           </span>
         )}
       </div>
@@ -459,7 +465,7 @@ export function PortfolioScreen() {
         })}
       </div>
 
-      <div className="cv-pf-foot">스니덩크 최근 체결 중앙값 기준 · 관심카드 제외 · 어제(KST 정각) 대비</div>
+      <div className="cv-pf-foot">스니덩크 최근 체결 중앙값 기준 · 관심카드 제외 · 등락은 등록가 대비 누적</div>
     </div>
   );
 }

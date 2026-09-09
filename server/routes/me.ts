@@ -387,7 +387,18 @@ router.get('/portfolio', async (req: Request, res: Response) => {
   try {
     const cards = await prisma.userCard.findMany({
       where: { userId, snkrdunkApparelId: { not: null } },
-      select: { id: true, snkrdunkApparelId: true, createdAt: true },
+      select: {
+        id: true,
+        snkrdunkApparelId: true,
+        createdAt: true,
+        qty: true,
+        registerPriceJpy: true,
+        buyPrice: true,
+        buyCurrency: true,
+        graded: true,
+        gradeCompany: true,
+        gradeValue: true,
+      },
     });
     const totalCount = await countMyCards(userId);
     const today = kstDateKey();
@@ -399,6 +410,9 @@ router.get('/portfolio', async (req: Request, res: Response) => {
     // 어제 대비 등락 계산용 — '오늘 추가한 카드'는 어제 스냅샷에 없으므로 제외.
     // (오늘 추가분을 포함하면 자산 유입이 가격 상승처럼 잡혀 등락이 부풀려짐)
     let comparableTodayJpy = 0;
+    // 누적 수익률(등록가 대비) — 컬렉션 화면과 같은 산식의 합계.
+    let investedJpy = 0;
+    let currentJpy = 0;
     // 카드 리스트와 동일한 sales-chart 기준 등락. 오늘 추가분 제외, 어제부터 보유분만.
     let heldPrevChart = 0; // 어제(직전 거래 포인트) 시세 합
     let heldLastChart = 0; // 오늘(최신 포인트) 시세 합
@@ -418,11 +432,13 @@ router.get('/portfolio', async (req: Request, res: Response) => {
       // 풀 스냅샷이 없는 경우뿐이라, 포트폴리오 응답이 스크레이프 N건에 안 묶인다.
       const priceByApparel = new Map<
         number,
-        { single: number; psa10: number; chartPrev: number; chartLast: number }
+        { single: number; psa10: number; psa9: number; psa8: number; chartPrev: number; chartLast: number }
       >();
-      const fromTrend = (p: { single: number; psa10: number; trend: number[] }) => ({
+      const fromTrend = (p: { single: number; psa10: number; psa9: number; psa8: number; trend: number[] }) => ({
         single: p.single,
         psa10: p.psa10,
+        psa9: p.psa9,
+        psa8: p.psa8,
         chartLast: p.trend.length >= 1 ? p.trend[p.trend.length - 1] : 0,
         chartPrev: p.trend.length >= 2 ? p.trend[p.trend.length - 2] : 0,
       });
@@ -433,7 +449,10 @@ router.get('/portfolio', async (req: Request, res: Response) => {
         // priceSingle/pricePsa10 이 계산된 풀 스냅샷만 사용 — 목록 수집 스냅샷(minPrice만)
         // 으로 합산하면 자산이 0 으로 빠지므로 그런 카드는 라이브 조회로 넘긴다.
         if (s && (s.priceSingle > 0 || s.pricePsa10 > 0)) {
-          priceByApparel.set(id, fromTrend({ single: s.priceSingle, psa10: s.pricePsa10, trend: s.trend }));
+          priceByApparel.set(
+            id,
+            fromTrend({ single: s.priceSingle, psa10: s.pricePsa10, psa9: s.pricePsa9, psa8: s.pricePsa8, trend: s.trend }),
+          );
           if (!isFreshEntry(catalog.get(id))) void refreshApparelPrices(id);
         } else {
           blockingIds.push(id);
@@ -443,13 +462,31 @@ router.get('/portfolio', async (req: Request, res: Response) => {
         blockingIds.map(async (id: number) => {
           const r = await refreshApparelPrices(id);
           if (!r) return;
-          priceByApparel.set(id, fromTrend({ single: r.single, psa10: r.psa10, trend: r.trendJpy }));
+          priceByApparel.set(
+            id,
+            fromTrend({ single: r.single, psa10: r.psa10, psa9: r.psa9, psa8: r.psa8, trend: r.trendJpy }),
+          );
         }),
       );
+      // 누적 수익률용 환율 — 구매가가 원화인 카드만 JPY 환산에 쓴다(실패 시 등록가로 폴백).
+      const jpyKrw = (await getJpyKrwRate().catch(() => null))?.rate ?? 0;
       for (const c of cards) {
         const p = c.snkrdunkApparelId != null ? priceByApparel.get(c.snkrdunkApparelId) : null;
         if (!p) continue;
         const addedToday = kstDateKey(c.createdAt) === today;
+        // 누적 수익률 — 등록(매입) 시점 기준가 대비 오늘 등급 일치 시세. 웹/앱 컬렉션 화면과 같은 규칙.
+        const qty = Math.max(1, c.qty || 1);
+        const basisJpy =
+          deriveRegisterPriceJpy(c.buyPrice, c.buyCurrency, 0, jpyKrw) ??
+          (c.registerPriceJpy != null && c.registerPriceJpy > 0 ? c.registerPriceJpy : null);
+        const curJpy = registerBasisJpy(
+          { single: p.single, psa10: p.psa10, psa9: p.psa9, psa8: p.psa8, trendJpy: [] },
+          { graded: c.graded, gradeCompany: c.gradeCompany, gradeValue: c.gradeValue },
+        ).price;
+        if (basisJpy && basisJpy > 0 && curJpy > 0) {
+          investedJpy += basisJpy * qty;
+          currentJpy += curJpy * qty;
+        }
         if (p.single > 0) {
           totalJpy += p.single;
           pricedCount += 1;
@@ -513,9 +550,16 @@ router.get('/portfolio', async (req: Request, res: Response) => {
       changePct = ((comparableTodayJpy - yesterdayJpy) / yesterdayJpy) * 100;
     }
 
+    // 누적 수익률 — 전일 대비(changePct)와 별개. 마이페이지·포트폴리오 헤더가 쓴다.
+    const profitAbsJpy = investedJpy > 0 ? currentJpy - investedJpy : null;
+    const profitPct = investedJpy > 0 ? ((currentJpy - investedJpy) / investedJpy) * 100 : null;
+
     res.json({
       data: {
         totalJpy,
+        investedJpy,
+        profitAbsJpy,
+        profitPct,
         pricedCount,
         totalCount,
         totalPsa10Jpy,
