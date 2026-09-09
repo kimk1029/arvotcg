@@ -27,9 +27,25 @@ try {
   const origUseEffect = R.useEffect;
   let seenState = 0;
   let seenEffect = 0;
+  const wrappedSetters = new WeakMap<object, unknown>();
+  let seenSet = 0;
   R.useState = function (init: unknown) {
-    const r = origUseState(init) as [unknown, unknown];
-    if (init === false && seenState++ < 8) console.warn('[ota] useState(false) -> ' + String(r[0]));
+    const r = origUseState(init) as [unknown, (v: unknown) => void];
+    if (init === false) {
+      const orig = r[1] as unknown as object;
+      let w = wrappedSetters.get(orig) as ((v: unknown) => void) | undefined;
+      if (!w) {
+        w = (v: unknown) => {
+          if (v === true && seenSet++ < 6) {
+            const st = String(new Error().stack ?? '').split('\n').slice(1, 6).join(' | ');
+            console.warn('[ota] setState(true) from: ' + st);
+          }
+          (orig as (v: unknown) => void)(v);
+        };
+        wrappedSetters.set(orig, w);
+      }
+      return [r[0], w];
+    }
     return r;
   };
   R.useEffect = function (fn: unknown, deps: unknown) {
