@@ -343,15 +343,18 @@ export function CollectionScreen() {
     try {
       const res = await fetch(`/api/me/cards/${id}`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) throw new Error(`status ${res.status}`);
-      // 다음 진입에 낡은 총액이 뜨지 않도록 캐시만 비운다(화면 재조회는 없음).
-      try { sessionStorage.removeItem(COLLECTION_CACHE_KEY); } catch {}
+      // 캐시도 남은 목록으로 갱신 — 비우면 재진입 때 전체 재조회로 화면이 깜빡인다.
+      setCards((prev) => {
+        if (prev && port) saveCollectionCache(port, prev);
+        return prev;
+      });
       toast.success('카드가 컬렉션에서 삭제되었습니다');
     } catch {
       // 실패 — 뺐던 카드를 되돌린다.
       setCards((prev) => (prev && removed ? [removed, ...prev] : prev));
       toast.error('삭제에 실패했어요. 잠시 후 다시 시도해 주세요');
     }
-  }, [toast]);
+  }, [toast, port]);
 
   if (tab === 'favorites')
     return (
@@ -632,7 +635,7 @@ function GradedLabel({ company, grade, height, inline }: { company?: string | nu
 }
 
 /** 카드 더보기(⋯) 메뉴 — 시세 보기 / 컬렉션에서 제거. Link/Panel 바깥에 형제로 배치. */
-function CardMenu({ apparelId, basis, onRemove, plain = false }: { apparelId: number | null; basis?: string | null; onRemove: () => void; plain?: boolean }) {
+function CardMenu({ apparelId, basis, onRemove, plain = false, up = false }: { apparelId: number | null; basis?: string | null; onRemove: () => void; plain?: boolean; up?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -674,7 +677,8 @@ function CardMenu({ apparelId, basis, onRemove, plain = false }: { apparelId: nu
         <div
           onClick={stop}
           style={{
-            position: 'absolute', top: 30, right: 0, zIndex: 20, minWidth: 138,
+            // up: 아래 행에 가려지지 않게 버튼 위로 펼친다(그룹 펼침 목록).
+            position: 'absolute', ...(up ? { bottom: 30 } : { top: 30 }), right: 0, zIndex: 30, minWidth: 138,
             background: 'var(--white)', borderRadius: 'var(--r-sm)', overflow: 'hidden',
             boxShadow: '0 6px 20px rgba(0,0,0,.18)', border: '1px solid var(--pap3)',
           }}
@@ -844,20 +848,31 @@ function CardListItem({ group, format, last, onRemove }: { group: CardGroup<Row>
       {/* 중복 등록분 — 장마다 등록가·손익이 다르므로 각각 보여준다. */}
       {dup && open && (
         <div style={{ padding: '2px 0 10px 66px' }}>
-          {group.items.map((r, i) => (
-            <div key={r.c.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '7px 24px 7px 0' }}>
-              <span style={{ fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink3)', fontWeight: 600 }}>
-                {i + 1}번째{r.qty > 1 ? ` · ×${r.qty}` : ''} · 등록 {r.basisJpy ? format(r.basisJpy) : '—'}
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
-                <span style={{ fontFamily: 'var(--f1)', fontSize: 12.5, fontWeight: 800, color: profitColor(r.profitPct) }}>{r.value > 0 ? format(r.value) : '—'}</span>
-                <ProfitTag pct={r.profitPct} size={11} />
-              </span>
-              <div style={{ position: 'absolute', top: '50%', right: -4, transform: 'translateY(-50%)' }}>
-                <CardMenu apparelId={r.c.snkrdunkApparelId} basis={r.c.priceBasis} onRemove={() => onRemove(r.c.id)} plain />
+          {group.items.map((r, i) => {
+            // 장별 차액 — 현재 평가액 − 기준가×수량. 금액은 검정, 차액만 부호색.
+            const diff = r.basisJpy != null && r.gradePriceJpy > 0 ? r.value - r.basisJpy * r.qty : null;
+            const diffUp = (diff ?? 0) >= 0;
+            return (
+              // 뒤 행이 위로 쌓이게(zIndex) + 메뉴는 위로 펼쳐 다음 행에 가리지 않는다.
+              <div key={r.c.id} style={{ position: 'relative', zIndex: i + 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '7px 24px 7px 0' }}>
+                <span style={{ fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink3)', fontWeight: 600 }}>
+                  {i + 1}번째{r.qty > 1 ? ` · ×${r.qty}` : ''} · 등록 {r.basisJpy ? format(r.basisJpy) : '—'}
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 'none' }}>
+                  <span style={{ fontFamily: 'var(--f1)', fontSize: 12.5, fontWeight: 800, color: 'var(--ink)' }}>{r.value > 0 ? format(r.value) : '—'}</span>
+                  {diff != null && (
+                    <span style={{ fontFamily: 'var(--f1)', fontSize: 11.5, fontWeight: 800, color: diffUp ? UP : DOWN, whiteSpace: 'nowrap' }}>
+                      {diffUp ? '▲' : '▼'} {format(Math.abs(diff))}
+                      {r.profitPct != null ? ` (${diffUp ? '+' : '-'}${Math.abs(r.profitPct).toFixed(1)}%)` : ''}
+                    </span>
+                  )}
+                </span>
+                <div style={{ position: 'absolute', top: '50%', right: -4, transform: 'translateY(-50%)' }}>
+                  <CardMenu apparelId={r.c.snkrdunkApparelId} basis={r.c.priceBasis} onRemove={() => onRemove(r.c.id)} plain up />
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

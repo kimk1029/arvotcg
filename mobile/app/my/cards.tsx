@@ -28,7 +28,7 @@ import {
   SWR_MY_CARDS,
   type MyCardRow,
 } from '@/lib/myApi';
-import { useSWR } from '@/lib/swr';
+import { useSWR, swrSet } from '@/lib/swr';
 import { isAuthenticated, subscribeSession } from '@/lib/session';
 import { parseCardStatics } from '../../../shared/cardStatics';
 import { SegmentedTabs, SegIcons } from '@/components/cv/SegmentedTabs';
@@ -196,10 +196,10 @@ export default function MyCardsScreen() {
             setRemovedIds((ids) => [...ids, id]);
             try {
               await deleteMyCard(id);
+              // 재조회(refresh)는 하지 않는다 — 캐시가 비면 로딩 상태로 한 번 더 깜빡인다.
+              // 남은 목록을 그대로 캐시에 넣어 두면 재진입도 즉시 그려진다.
+              swrSet(SWR_MY_CARDS, (data ?? []).filter((c) => c.id !== id), { persist: true });
               toast.success('카드가 컬렉션에서 삭제되었습니다');
-              // 서버 목록을 다시 받아온 뒤 낙관 목록을 비운다(중복 필터 방지).
-              refresh();
-              setRemovedIds((ids) => ids.filter((x) => x !== id));
             } catch {
               setRemovedIds((ids) => ids.filter((x) => x !== id));
               toast.error('삭제에 실패했어요. 잠시 후 다시 시도해 주세요');
@@ -208,7 +208,7 @@ export default function MyCardsScreen() {
         },
       ]);
     },
-    [toast, refresh],
+    [toast, data],
   );
 
   if (!authed) {
@@ -448,22 +448,32 @@ function CardListItem({ group, format, last, onRemove, tc }: { group: CardGroup<
       {/* 중복 등록분 — 장마다 등록가·손익이 다르므로 각각 보여준다. */}
       {dup && open ? (
         <View style={{ paddingLeft: 66, paddingBottom: 10 }}>
-          {group.items.map((r, i) => (
-            <View key={r.c.id} style={{ position: 'relative', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 7, paddingRight: 24 }}>
-              <PixelText variant="ko" size={10} color={tc.ink3} numberOfLines={1} style={{ flexShrink: 1 }}>
-                {`${i + 1}번째${r.qty > 1 ? ` · ×${r.qty}` : ''} · 등록 ${r.basisJpy ? format(r.basisJpy) : '—'}`}
-              </PixelText>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <PixelText variant="ko" size={12} weight="bold" color={profitColor(r.profitPct, tc.ink)}>
-                  {r.value > 0 ? format(r.value) : '—'}
+          {group.items.map((r, i) => {
+            // 장별 차액 — 현재 평가액 − 기준가×수량. 금액은 검정, 차액만 부호색 (웹 동일).
+            const diff = r.basisJpy != null && r.gradePriceJpy > 0 ? r.value - r.basisJpy * r.qty : null;
+            const diffUp = (diff ?? 0) >= 0;
+            return (
+              // 뒤 행이 위로 쌓이게(zIndex) + 메뉴는 위로 펼쳐 다음 행에 가리지 않는다.
+              <View key={r.c.id} style={{ position: 'relative', zIndex: i + 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 7, paddingRight: 24 }}>
+                <PixelText variant="ko" size={10} color={tc.ink3} numberOfLines={1} style={{ flexShrink: 1 }}>
+                  {`${i + 1}번째${r.qty > 1 ? ` · ×${r.qty}` : ''} · 등록 ${r.basisJpy ? format(r.basisJpy) : '—'}`}
                 </PixelText>
-                <ProfitTag pct={r.profitPct} size={10} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                  <PixelText variant="ko" size={12} weight="bold" color={tc.ink}>
+                    {r.value > 0 ? format(r.value) : '—'}
+                  </PixelText>
+                  {diff != null ? (
+                    <PixelText variant="ko" size={11} weight="bold" color={diffUp ? UP : DOWN}>
+                      {`${diffUp ? '▲' : '▼'} ${format(Math.abs(diff))}${r.profitPct != null ? ` (${diffUp ? '+' : '-'}${Math.abs(r.profitPct).toFixed(1)}%)` : ''}`}
+                    </PixelText>
+                  ) : null}
+                </View>
+                <View style={{ position: 'absolute', top: '50%', right: -4, transform: [{ translateY: -13 }] }}>
+                  <CardMenu apparelId={r.c.snkrdunkApparelId} basis={r.c.priceBasis} onRemove={() => onRemove(r.c.id)} tc={tc} plain up />
+                </View>
               </View>
-              <View style={{ position: 'absolute', top: '50%', right: -4, transform: [{ translateY: -13 }] }}>
-                <CardMenu apparelId={r.c.snkrdunkApparelId} basis={r.c.priceBasis} onRemove={() => onRemove(r.c.id)} tc={tc} plain />
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       ) : null}
     </View>
@@ -487,7 +497,7 @@ function GradedLabel({ gold, company, grade, height = 12, inline }: { gold: stri
 }
 
 /** 카드 ⋯ 메뉴 — 시세 보기 / 컬렉션에서 제거 (웹 CardMenu 동일). */
-function CardMenu({ apparelId, basis, onRemove, tc, plain = false }: { apparelId: number | null; basis?: string | null; onRemove: () => void; tc: ReturnType<typeof useThemeColors>; plain?: boolean }) {
+function CardMenu({ apparelId, basis, onRemove, tc, plain = false, up = false }: { apparelId: number | null; basis?: string | null; onRemove: () => void; tc: ReturnType<typeof useThemeColors>; plain?: boolean; up?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <View style={{ position: 'relative' }}>
@@ -502,8 +512,9 @@ function CardMenu({ apparelId, basis, onRemove, tc, plain = false }: { apparelId
       >
         <Text style={{ color: plain ? tc.ink3 : '#fff', fontSize: plain ? 17 : 15, fontWeight: '900', lineHeight: plain ? 18 : 16 }}>⋯</Text>
       </Pressable>
+      {/* up: 아래 행에 가려지지 않게 버튼 위로 펼친다(그룹 펼침 목록). */}
       {open ? (
-        <View style={{ position: 'absolute', top: 28, right: 0, minWidth: 132, backgroundColor: tc.white, borderColor: tc.pap3, borderWidth: 1, borderRadius: 10, paddingVertical: 4, zIndex: 20, elevation: 6, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}>
+        <View style={{ position: 'absolute', ...(up ? { bottom: 28 } : { top: 28 }), right: 0, minWidth: 132, backgroundColor: tc.white, borderColor: tc.pap3, borderWidth: 1, borderRadius: 10, paddingVertical: 4, zIndex: 30, elevation: 6, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}>
           {apparelId ? (
             <Pressable
               onPress={() => {

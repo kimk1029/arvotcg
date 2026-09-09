@@ -918,7 +918,11 @@ function ScanScreenInner() {
             }}
             item={manTarget}
             onClose={() => setManSheetOpen(false)}
-            onSaved={() => onRegisterSaved(manTarget)}
+            // 등록 완료 → 결과 화면 대신 바로 내 컬렉션으로(웹 CardRegisterSheet redirect 동일).
+            onSaved={() => {
+              setManSheetOpen(false);
+              router.replace('/my/cards' as never);
+            }}
           />
         ) : null}
 
