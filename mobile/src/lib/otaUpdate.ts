@@ -32,6 +32,10 @@ try {
   R.useState = function (init: unknown) {
     const r = origUseState(init) as [unknown, (v: unknown) => void];
     if (init === false) {
+      if (seenState++ < 10) {
+        const st = String(new Error().stack ?? '').split('\n').slice(1, 5).map((l) => l.replace(/\(address at [^)]*:1:/, '(').trim()).join(' | ');
+        console.warn('[ota] useState(false) -> ' + String(r[0]) + ' @ ' + st);
+      }
       const orig = r[1] as unknown as object;
       let w = wrappedSetters.get(orig) as ((v: unknown) => void) | undefined;
       if (!w) {
@@ -49,8 +53,9 @@ try {
     return r;
   };
   R.useEffect = function (fn: unknown, deps: unknown) {
-    if (Array.isArray(deps) && deps.length === 1 && typeof deps[0] === 'boolean' && seenEffect++ < 8) {
-      console.warn('[ota] useEffect([bool]) deps=' + String(deps[0]));
+    if (Array.isArray(deps) && deps.length === 1 && typeof deps[0] === 'boolean' && seenEffect++ < 10) {
+      const st = String(new Error().stack ?? '').split('\n').slice(1, 4).map((l) => l.replace(/\(address at [^)]*:1:/, '(').trim()).join(' | ');
+      console.warn('[ota] useEffect([bool]) deps=' + String(deps[0]) + ' @ ' + st);
     }
     return origUseEffect(fn, deps);
   };
