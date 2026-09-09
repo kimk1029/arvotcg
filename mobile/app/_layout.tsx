@@ -39,6 +39,7 @@ import { ForceUpdateGate } from '@/components/ForceUpdateGate';
 import { EntryGate } from '@/components/EntryGate';
 import { extractOAuthToken, persistTokenAndGoHome } from '@/lib/oauth';
 import { applyPendingOtaOnBoot } from '@/lib/otaUpdate';
+import { getApiBaseUrl } from '@/lib/apiClient';
 import { colors } from '@/theme/tokens';
 
 /**
@@ -123,6 +124,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (otaDone) return undefined;
     let alive = true;
+    fetch(`${getApiBaseUrl()}/health?probe=effect`).catch(() => {});
     applyPendingOtaOnBoot().finally(() => {
       if (alive) setOtaDone(true);
     });
