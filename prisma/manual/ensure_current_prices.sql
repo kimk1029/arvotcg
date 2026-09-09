@@ -18,3 +18,7 @@ CREATE INDEX IF NOT EXISTS "snkrdunk_current_prices_representativePrice_apparelI
  ON "snkrdunk_current_prices" ("representativePrice" DESC, "apparelId");
 -- API roles cannot read/write this internal cache through PostgREST.
 ALTER TABLE "snkrdunk_current_prices" ENABLE ROW LEVEL SECURITY;
+
+-- 홈 랭킹·팩 카탈로그의 game/itemKind 필터용 (없으면 18,000행 전체 순차 스캔).
+CREATE INDEX IF NOT EXISTS "snkrdunk_cards_game_itemKind_idx"
+ ON "snkrdunk_cards" ("game", "itemKind");

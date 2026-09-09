@@ -44,6 +44,21 @@ async function exists(p) {
 const inFlight = new Set();
 
 /**
+ * 파일도 있고 DB cdnImageUrl 도 이미 채워진 게 확인된 카드 — 더 볼 일이 없다.
+ *
+ * 이게 없을 때 ensureCardImage 는 캐시가 이미 끝난 카드에도 매번 보정 UPDATE 를 던졌다.
+ * 검색·목록 렌더마다 카드 수만큼 발사돼 누적 62만 건(전체 쓰기 1위)이 됐는데, 그중
+ * 대부분은 아무것도 바꾸지 않는 빈 UPDATE 였다. (2026-09-10 부하 점검)
+ */
+const settled = new Set();
+/** 프로세스가 오래 떠 있어도 무한정 커지지 않게 — 카탈로그(1.8만장) 규모의 여유값. */
+const SETTLED_MAX = 50_000;
+function markSettled(apparelId) {
+  if (settled.size >= SETTLED_MAX) settled.clear();
+  settled.add(apparelId);
+}
+
+/**
  * apparelId 의 원본 이미지를 webp 로 캐싱하고 DB cdnImageUrl 을 채운다.
  * await 불필요 — `void ensureCardImage(...)` 로 호출.
  *
@@ -52,6 +67,7 @@ const inFlight = new Set();
  */
 export async function ensureCardImage(apparelId, sourceUrl) {
   if (!apparelId || !sourceUrl) return;
+  if (settled.has(apparelId)) return; // 파일·DB 둘 다 확인된 카드 — DB 를 치지 않는다.
   if (inFlight.has(apparelId)) return;
   inFlight.add(apparelId);
   try {
@@ -60,9 +76,16 @@ export async function ensureCardImage(apparelId, sourceUrl) {
 
     // 이미 캐싱돼 있으면 다운로드 생략 — DB 가 비어있을 때만 보정.
     if (await exists(dest)) {
-      await prisma.snkrdunkCard
-        .updateMany({ where: { apparelId, cdnImageUrl: null }, data: { cdnImageUrl: url } })
-        .catch(() => {});
+      // 보정이 필요한지 먼저 읽고(PK 조회), 실제로 비어있을 때만 쓴다.
+      const row = await prisma.snkrdunkCard
+        .findUnique({ where: { apparelId }, select: { cdnImageUrl: true } })
+        .catch(() => null);
+      if (row && row.cdnImageUrl !== url) {
+        await prisma.snkrdunkCard
+          .updateMany({ where: { apparelId, cdnImageUrl: null }, data: { cdnImageUrl: url } })
+          .catch(() => {});
+      }
+      if (row) markSettled(apparelId);
       return;
     }
 
@@ -82,9 +105,10 @@ export async function ensureCardImage(apparelId, sourceUrl) {
     await writeFile(dest, webp);
 
     // 행이 아직 없을 수 있어(upsert 와의 경쟁) updateMany — 없으면 0건, 다음 조회에서 보정.
-    await prisma.snkrdunkCard
+    const n = await prisma.snkrdunkCard
       .updateMany({ where: { apparelId }, data: { cdnImageUrl: url } })
-      .catch(() => {});
+      .catch(() => null);
+    if (n && n.count > 0) markSettled(apparelId);
   } catch (err) {
     console.error('[cardImageCache]', apparelId, err?.message || err);
   } finally {

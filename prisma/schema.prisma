@@ -666,6 +666,9 @@ model SnkrdunkCard {
   @@index([packCode])
   /// 스캔·직접입력의 "세트코드+카드번호" 즉시 조회용 (앱 카메라 스캔 fast path).
   @@index([setCode, cardNumber])
+  /// 홈 랭킹·팩 카탈로그가 game/itemKind 로 거르는데 인덱스가 없어 매번 전체 순차 스캔이었다
+  /// (11분에 1,220 스캔 = 1,175만 행 읽기, 2026-09-10 부하 점검).
+  @@index([game, itemKind])
   @@map("snkrdunk_cards")
 }
 

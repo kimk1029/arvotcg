@@ -24,6 +24,7 @@ const NAV = [
   { href: '/oripa/packs', label: '오리파 팩', icon: '🎁' },
   { href: '/oripa', label: '오리파 티켓', icon: '🎟️' },
   { href: '/ads', label: '광고 분석', icon: '📢' },
+  { href: '/monitoring', label: '시스템 상태', icon: '🩺' },
 ];
 
 export function SideNav({ who }: { who?: string | null }) {
