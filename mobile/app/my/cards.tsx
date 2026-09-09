@@ -106,6 +106,8 @@ export default function MyCardsScreen() {
   const [sort, setSort] = useState<SortKey>('value');
   // 박스 제외 — 목록·손익 합계에서 박스(미개봉 상품)를 뺀다 (웹 CollectionScreen 동일).
   const [excludeBox, setExcludeBox] = useState(false);
+  // 삭제 낙관 반영 — 서버 응답을 기다리지 않고 목록·총액에서 즉시 뺀다.
+  const [removedIds, setRemovedIds] = useState<number[]>([]);
 
   // SWR — 카드 정적 데이터는 디스크까지 캐싱, 재진입 시 즉시 그리고 "오늘의 금액"만
   // /api/me/cards/prices 로 받아 merge (fetchMyCardsSmart). 등록/삭제 시 자동 무효화.
@@ -118,7 +120,7 @@ export default function MyCardsScreen() {
   // 웹 allRows 동일 — 등급 일치 시세(서버 currentPriceJpy: PSA10/9/8→등급가,
   // 타사→PSA10, 싱글=raw) × 수량. 기준가는 구매가 → 등록가(registerPriceJpy) 순.
   const allRows = useMemo<Row[]>(() => {
-    return (data ?? []).map((c) => {
+    return (data ?? []).filter((c) => !removedIds.includes(c.id)).map((c) => {
       const qty = Math.max(1, c.qty || 1);
       const buyJpy =
         c.buyPrice != null && c.buyPrice > 0
@@ -142,7 +144,7 @@ export default function MyCardsScreen() {
         t.length >= 2 && t[t.length - 2] > 0 ? ((t[t.length - 1] - t[t.length - 2]) / t[t.length - 2]) * 100 : null;
       return { c, curJpy, gradePriceJpy, qty, basisJpy, profitPct, dayPct, changePct: profitPct ?? dayPct, value: curJpy * qty };
     });
-  }, [data, rate]);
+  }, [data, rate, removedIds]);
   const boxCount = useMemo(() => allRows.filter((r) => r.c.itemKind === 'box').length, [allRows]);
   const visibleRows = useMemo(
     () => (excludeBox ? allRows.filter((r) => r.c.itemKind !== 'box') : allRows),
@@ -163,6 +165,10 @@ export default function MyCardsScreen() {
   // 중복 등록(같은 카드·같은 등급)은 한 줄로 묶는다 — 정본 shared/collectionGroup (웹 동일).
   const groups = useMemo(() => groupDuplicates(rows), [rows]);
 
+  // 총 자산 가치 — 화면의 카드로 직접 합산(추가/삭제 즉시 반영, 웹 동일).
+  const heroTotalJpy = useMemo(() => visibleRows.reduce((a, r) => a + r.value, 0), [visibleRows]);
+  const heroCount = useMemo(() => visibleRows.reduce((a, r) => a + r.qty, 0), [visibleRows]);
+
   // 히어로 구매금액/평가손익 — 웹 CollectionScreen totals 동일(allRows 기준 합산).
   const heroTotals = useMemo(() => {
     let invested = 0;
@@ -177,6 +183,8 @@ export default function MyCardsScreen() {
     return { invested, profit: current - invested };
   }, [visibleRows]);
 
+  // 삭제 — 목록에서 먼저 빼고(총액도 즉시 감소) 서버 처리는 뒤에서. 완료되면 토스트,
+  // 실패하면 되돌린다 (웹 CollectionScreen 동일).
   const handleRemove = useCallback(
     (id: number) => {
       Alert.alert('카드 삭제', '이 카드를 컬렉션에서 제거할까요?', [
@@ -185,12 +193,16 @@ export default function MyCardsScreen() {
           text: '삭제',
           style: 'destructive',
           onPress: async () => {
+            setRemovedIds((ids) => [...ids, id]);
             try {
               await deleteMyCard(id);
-              toast.success('카드가 삭제되었습니다');
+              toast.success('카드가 컬렉션에서 삭제되었습니다');
+              // 서버 목록을 다시 받아온 뒤 낙관 목록을 비운다(중복 필터 방지).
               refresh();
+              setRemovedIds((ids) => ids.filter((x) => x !== id));
             } catch {
-              toast.error('삭제 실패');
+              setRemovedIds((ids) => ids.filter((x) => x !== id));
+              toast.error('삭제에 실패했어요. 잠시 후 다시 시도해 주세요');
             }
           },
         },
@@ -218,7 +230,7 @@ export default function MyCardsScreen() {
           <FavoritesView />
         ) : (
         <>
-        <PortfolioHero totals={heroTotals} />
+        <PortfolioHero totals={heroTotals} totalJpy={heroTotalJpy} totalCount={heroCount} />
         {loading && !data ? (
           <View style={{ paddingTop: 30 }}><LoadingState /></View>
         ) : error ? (

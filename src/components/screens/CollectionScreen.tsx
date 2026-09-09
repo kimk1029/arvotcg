@@ -12,6 +12,7 @@ import { Panel } from '@/components/ui/Panel';
 import { parseCardStatics } from '../../../shared/cardStatics';
 import { SegmentedTabs, SegIcons } from '@/components/ui/SegmentedTabs';
 import { FavoritesPanel } from '@/components/screens/FavoritesPanel';
+import { useToast } from '@/components/ToastProvider';
 import { groupDuplicates, type CardGroup } from '../../../shared/collectionGroup';
 import { evaluationUnitJpy } from '../../../shared/snkrdunkPrice';
 
@@ -161,6 +162,7 @@ export function CollectionScreen() {
   // 내 자산 ↔ 관심카드 탭 (커뮤니티의 커뮤니티↔Shop 과 같은 전환).
   const [tab, setTab] = useState<AssetTab>('assets');
   const router = useRouter();
+  const toast = useToast();
   const { format, rate, mode, setMode } = useCurrency();
   const { mode: priceMode } = usePriceMode();
   // 세션 캐시 시드 — 재진입 시 마지막 결과를 즉시 그리고 백그라운드 갱신(SWR, 앱 peekMyCards 페어).
@@ -296,6 +298,10 @@ export function CollectionScreen() {
   // 중복 등록(같은 카드·같은 등급)은 한 줄로 묶는다 — 정본 shared/collectionGroup (앱 동일).
   const groups = useMemo(() => groupDuplicates(rows), [rows]);
 
+  // 총 자산 가치 — 화면에 있는 카드로 직접 합산한다. 서버 값만 쓰면 카드 추가/삭제 후
+  // /api/me/portfolio 재조회가 끝날 때까지 총액이 옛 값에 머문다(사용자 지시 2026-09-09).
+  const localTotalJpy = useMemo(() => visibleRows.reduce((a, r) => a + r.value, 0), [visibleRows]);
+
   const totals = useMemo(() => {
     let invested = 0;
     let current = 0;
@@ -324,18 +330,28 @@ export function CollectionScreen() {
   }, [port]);
 
   // 컬렉션에서 카드 제거 — 낙관적으로 목록에서 빼고 DELETE. 실패 시 전체 재조회.
+  // 삭제 — 목록에서 먼저 빼고(총액도 즉시 감소) 서버 처리는 뒤에서. 완료되면 토스트,
+  // 실패하면 되돌린다. 전체 재조회(setReload)는 하지 않는다 — 화면이 스피너로 깜빡였다.
   const handleRemove = useCallback(async (id: number) => {
     if (typeof window !== 'undefined' && !window.confirm('이 카드를 컬렉션에서 제거할까요?')) return;
-    setCards((prev) => (prev ? prev.filter((c) => c.id !== id) : prev));
+    let removed: CardRow | null = null;
+    setCards((prev) => {
+      if (!prev) return prev;
+      removed = prev.find((c) => c.id === id) ?? null;
+      return prev.filter((c) => c.id !== id);
+    });
     try {
       const res = await fetch(`/api/me/cards/${id}`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) throw new Error(`status ${res.status}`);
-      // 총 자산(히어로)도 갱신되도록 포트폴리오 재조회.
-      setReload((n) => n + 1);
+      // 다음 진입에 낡은 총액이 뜨지 않도록 캐시만 비운다(화면 재조회는 없음).
+      try { sessionStorage.removeItem(COLLECTION_CACHE_KEY); } catch {}
+      toast.success('카드가 컬렉션에서 삭제되었습니다');
     } catch {
-      setReload((n) => n + 1);
+      // 실패 — 뺐던 카드를 되돌린다.
+      setCards((prev) => (prev && removed ? [removed, ...prev] : prev));
+      toast.error('삭제에 실패했어요. 잠시 후 다시 시도해 주세요');
     }
-  }, []);
+  }, [toast]);
 
   if (tab === 'favorites')
     return (
@@ -378,7 +394,12 @@ export function CollectionScreen() {
       </>
     );
 
-  const totalJpy = usePsa10 && port.totalPsa10Jpy > 0 ? port.totalPsa10Jpy : port.totalJpy;
+  const totalJpy =
+    usePsa10 && port.totalPsa10Jpy > 0
+      ? port.totalPsa10Jpy
+      : localTotalJpy > 0
+        ? localTotalJpy
+        : port.totalJpy;
   // 누적 수익률 — 보유 카드 전체의 (현재가-기준가)×수량 합산 / 구매금액 합산.
   // 카드별 손익(-100만/+50만)을 상쇄한 평균 수익률 (앱 PortfolioHero 동일).
   const up = totals.profit >= 0;
@@ -445,7 +466,7 @@ export function CollectionScreen() {
           </div>
 
           <div style={{ display: 'flex', marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,.12)', position: 'relative', zIndex: 2 }}>
-            <HeroStat label="보유 카드" value={`${port.totalCount}장`} />
+            <HeroStat label="보유 카드" value={`${visibleRows.reduce((a, r) => a + r.qty, 0)}장`} />
             <HeroStat label="구매 금액" value={totals.invested > 0 ? format(totals.invested) : '—'} flex={1.3} />
             <HeroStat
               label="평가 손익"
