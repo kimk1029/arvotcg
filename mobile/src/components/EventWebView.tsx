@@ -1,7 +1,7 @@
 /**
  * 예약형 이벤트 페이지 WebView — 카드쇼(/event/cardshow) · 트레이드 데이(/event/tradeday) 공용.
  * 웹 arvotcg.com 의 같은 경로를 그대로 띄우되, 웹뷰엔 웹 쿠키가 없으므로 앱 로그인 토큰(JWT)을
- * ?token= 으로 전달해 페이지가 Bearer 인증으로 동작한다. 미로그인이면 게이트로 로그인 유도.
+ * Authorization 헤더로 전달해 웹 서버가 검증 후 HttpOnly 세션 쿠키로 교환한다. 미로그인이면 게이트로 로그인 유도.
  * 제목·경로·문구는 shared/eventPages.ts 설정에서 온다.
  */
 import { useState } from 'react';
@@ -46,14 +46,14 @@ export function EventWebView({ eventKey }: { eventKey: EventKey }) {
     );
   }
 
-  const url = `${WEB_OAUTH_ORIGIN}${config.path}?token=${encodeURIComponent(token)}&${EMBED_QUERY_KEY}=1`;
+  const url = `${WEB_OAUTH_ORIGIN}${config.path}?${EMBED_QUERY_KEY}=1`;
   const bg = CHROME_BG[eventKey];
 
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>
       <AppBar title={config.header} onBack={() => router.back()} />
       <WebView
-        source={{ uri: url }}
+        source={{ uri: url, headers: { Authorization: `Bearer ${token}` } }}
         // 웹이 앱 임베드로 인식해 하단 탭바를 숨기도록 UA 토큰 부착(정본 shared/embed.ts).
         applicationNameForUserAgent={EMBED_UA_TOKEN}
         onLoadEnd={() => setLoading(false)}

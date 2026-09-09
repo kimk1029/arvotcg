@@ -38,7 +38,8 @@ export default function InAppWebScreen() {
       const u = new URL(raw);
       if (TRUSTED_HOSTS.has(u.hostname)) {
         const token = getSession()?.token;
-        if (token && !u.searchParams.has('token')) u.searchParams.set('token', token);
+        // 예약 페이지는 헤더로 인증하여 토큰 정리용 리다이렉트를 피한다.
+        if (token && !u.pathname.startsWith('/event/') && !u.searchParams.has('token')) u.searchParams.set('token', token);
         u.searchParams.set(EMBED_QUERY_KEY, '1');
       }
       return u.toString();
@@ -46,6 +47,15 @@ export default function InAppWebScreen() {
       return null;
     }
   }, [url]);
+
+  const source = useMemo(() => {
+    if (!finalUrl) return undefined;
+    const u = new URL(finalUrl);
+    const token = getSession()?.token;
+    return TRUSTED_HOSTS.has(u.hostname) && u.pathname.startsWith('/event/') && token
+      ? { uri: finalUrl, headers: { Authorization: `Bearer ${token}` } }
+      : { uri: finalUrl };
+  }, [finalUrl]);
 
   if (!finalUrl) {
     return (
@@ -62,7 +72,7 @@ export default function InAppWebScreen() {
     <View style={{ flex: 1, backgroundColor: tc.paper }}>
       <AppBar title={typeof title === 'string' && title ? title : '이벤트'} onBack={() => router.back()} />
       <WebView
-        source={{ uri: finalUrl }}
+        source={source!}
         // 웹이 앱 임베드로 인식해 하단 탭바를 숨기도록 UA 토큰 부착(정본 shared/embed.ts).
         applicationNameForUserAgent={EMBED_UA_TOKEN}
         onLoadEnd={() => setLoading(false)}
