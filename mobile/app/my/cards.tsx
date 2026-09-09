@@ -7,8 +7,8 @@
  * 카드 ⋯ 메뉴(시세 보기/컬렉션에서 제거). 시세는 등급 일치(그레이딩=PSA10,
  * 비그레이딩=싱글) — 웹 allRows 와 동일 계산.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Dimensions, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { PortfolioHero } from '@/components/PortfolioHero';
@@ -499,10 +499,21 @@ function GradedLabel({ gold, company, grade, height = 12, inline }: { gold: stri
 /** 카드 ⋯ 메뉴 — 시세 보기 / 컬렉션에서 제거 (웹 CardMenu 동일). */
 function CardMenu({ apparelId, basis, onRemove, tc, plain = false, up = false }: { apparelId: number | null; basis?: string | null; onRemove: () => void; tc: ReturnType<typeof useThemeColors>; plain?: boolean; up?: boolean }) {
   const [open, setOpen] = useState(false);
+  // 화면 아래쪽 행이면 위로 펼친다 — 아래로 열면 하단 탭바 뒤로 들어가 눌리지 않는다.
+  const [autoUp, setAutoUp] = useState(false);
+  const wrapRef = useRef<View>(null);
+  const toggle = () => {
+    wrapRef.current?.measureInWindow((_x, y, _w, h) => {
+      // 남은 아래 공간(플로팅 탭바 ~90 + 메뉴 ~100) 부족하면 위로.
+      setAutoUp(Dimensions.get('window').height - (y + h) < 190);
+    });
+    setOpen((v) => !v);
+  };
+  const openUp = up || autoUp;
   return (
-    <View style={{ position: 'relative' }}>
+    <View ref={wrapRef} style={{ position: 'relative' }}>
       <Pressable
-        onPress={() => setOpen((v) => !v)}
+        onPress={toggle}
         hitSlop={6}
         style={
           plain
@@ -514,7 +525,7 @@ function CardMenu({ apparelId, basis, onRemove, tc, plain = false, up = false }:
       </Pressable>
       {/* up: 아래 행에 가려지지 않게 버튼 위로 펼친다(그룹 펼침 목록). */}
       {open ? (
-        <View style={{ position: 'absolute', ...(up ? { bottom: 28 } : { top: 28 }), right: 0, minWidth: 132, backgroundColor: tc.white, borderColor: tc.pap3, borderWidth: 1, borderRadius: 10, paddingVertical: 4, zIndex: 30, elevation: 6, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}>
+        <View style={{ position: 'absolute', ...(openUp ? { bottom: 28 } : { top: 28 }), right: 0, minWidth: 132, backgroundColor: tc.white, borderColor: tc.pap3, borderWidth: 1, borderRadius: 10, paddingVertical: 4, zIndex: 30, elevation: 6, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}>
           {apparelId ? (
             <Pressable
               onPress={() => {
