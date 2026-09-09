@@ -13,6 +13,7 @@ import { parseCardStatics } from '../../../shared/cardStatics';
 import { SegmentedTabs, SegIcons } from '@/components/ui/SegmentedTabs';
 import { FavoritesPanel } from '@/components/screens/FavoritesPanel';
 import { groupDuplicates, type CardGroup } from '../../../shared/collectionGroup';
+import { evaluationUnitJpy } from '../../../shared/snkrdunkPrice';
 
 interface HistPoint {
   date: string;
@@ -264,14 +265,15 @@ export function CollectionScreen() {
       //   등록가↔현재가를 항상 같은 등급끼리만 비교한다(전역 토글과 무관).
       const gradePriceJpy =
         c.currentPriceJpy > 0 ? c.currentPriceJpy : c.graded ? c.pricePsa10Jpy : c.priceSingleJpy;
-      const curJpy = gradePriceJpy;
-      // 등록(매입)가 대비 손익률 — 같은 등급 시세 기준(단가).
+      // 시세를 아직 못 받은 카드도 등록가로 평가액에 잡히게 — 폴백 정본 evaluationUnitJpy(서버 총 자산 동일).
+      const curJpy = evaluationUnitJpy({ gradeJpy: gradePriceJpy, basisJpy });
+      // 등록(매입)가 대비 손익률 — 같은 등급 시세 기준(단가). 실시세 없으면 표시 안 함.
       const profitPct = basisJpy && gradePriceJpy > 0 ? ((gradePriceJpy - basisJpy) / basisJpy) * 100 : null;
       // 어제(직전 체결일) 대비 등락 — 시세 추이 마지막 두 점.
       const t = c.trend ?? [];
       const dayPct =
         t.length >= 2 && t[t.length - 2] > 0 ? ((t[t.length - 1] - t[t.length - 2]) / t[t.length - 2]) * 100 : null;
-      return { c, curJpy, qty, basisJpy, profitPct, dayPct, changePct: profitPct ?? dayPct, value: curJpy * qty };
+      return { c, curJpy, gradePriceJpy, qty, basisJpy, profitPct, dayPct, changePct: profitPct ?? dayPct, value: curJpy * qty };
     });
   }, [cards, rate]);
   const boxCount = useMemo(() => allRows.filter((r) => r.c.itemKind === 'box').length, [allRows]);
@@ -298,9 +300,10 @@ export function CollectionScreen() {
     let invested = 0;
     let current = 0;
     for (const r of visibleRows) {
-      if (r.basisJpy && r.curJpy > 0) {
+      // 손익은 실시세가 있는 카드만 — 등록가 폴백 카드는 손익 0 으로 섞이지 않게.
+      if (r.basisJpy && r.gradePriceJpy > 0) {
         invested += r.basisJpy * r.qty;
-        current += r.curJpy * r.qty;
+        current += r.gradePriceJpy * r.qty;
       }
     }
     const profit = current - invested;
@@ -552,7 +555,10 @@ export function CollectionScreen() {
 
 type Row = {
   c: CardRow;
+  /** 표시용 현재가 — 실시세, 없으면 등록가 폴백. */
   curJpy: number;
+  /** 실시세(등급 일치). 0 이면 시세 미확보 — 손익 계산에서 제외. */
+  gradePriceJpy: number;
   qty: number;
   basisJpy: number | null;
   /** 등록(매입)가 대비 손익률. */

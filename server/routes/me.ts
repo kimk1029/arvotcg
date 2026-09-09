@@ -25,7 +25,7 @@ import {
   getMyTrades,
 } from '../lib/queries.js';
 import { fetchSnkrdunkApparel, fetchSnkrdunkSalesHistory, fetchSnkrdunkSalesChart } from '@/lib/snkrdunk';
-import { computeApparelPrices, headlineFromHistory, registerBasisJpy } from '../../shared/snkrdunkPrice';
+import { computeApparelPrices, evaluationUnitJpy, headlineFromHistory, registerBasisJpy } from '../../shared/snkrdunkPrice';
 import {
   ensureCatalogCard,
   isFreshEntry,
@@ -385,8 +385,9 @@ router.delete('/price-alerts/:apparelId', async (req: Request, res: Response) =>
 router.get('/portfolio', async (req: Request, res: Response) => {
   const userId = req.user!.userId;
   try {
+    // 스니덩크 상품이 연결되지 않은 카드(OCR·수동 등록)도 포함 — 등록가로라도 합산한다.
     const cards = await prisma.userCard.findMany({
-      where: { userId, snkrdunkApparelId: { not: null } },
+      where: { userId },
       select: {
         id: true,
         snkrdunkApparelId: true,
@@ -461,45 +462,66 @@ router.get('/portfolio', async (req: Request, res: Response) => {
       await Promise.all(
         blockingIds.map(async (id: number) => {
           const r = await refreshApparelPrices(id);
-          if (!r) return;
-          priceByApparel.set(
-            id,
-            fromTrend({ single: r.single, psa10: r.psa10, psa9: r.psa9, psa8: r.psa8, trend: r.trendJpy }),
-          );
+          if (r) {
+            priceByApparel.set(
+              id,
+              fromTrend({ single: r.single, psa10: r.psa10, psa9: r.psa9, psa8: r.psa8, trend: r.trendJpy }),
+            );
+            return;
+          }
+          // 라이브 조회 실패 — 목록 수집 스냅샷의 최저가(minPrice)라도 쓴다(합계가 0 으로 빠지지 않게).
+          const min = catalog.get(id)?.snapshot?.minPrice ?? 0;
+          if (min > 0) {
+            priceByApparel.set(id, fromTrend({ single: min, psa10: 0, psa9: 0, psa8: 0, trend: [] }));
+          }
         }),
       );
       // 누적 수익률용 환율 — 구매가가 원화인 카드만 JPY 환산에 쓴다(실패 시 등록가로 폴백).
       const jpyKrw = (await getJpyKrwRate().catch(() => null))?.rate ?? 0;
       for (const c of cards) {
         const p = c.snkrdunkApparelId != null ? priceByApparel.get(c.snkrdunkApparelId) : null;
-        if (!p) continue;
         const addedToday = kstDateKey(c.createdAt) === today;
-        // 누적 수익률 — 등록(매입) 시점 기준가 대비 오늘 등급 일치 시세. 웹/앱 컬렉션 화면과 같은 규칙.
         const qty = Math.max(1, c.qty || 1);
+        // 누적 수익률 — 등록(매입) 시점 기준가 대비 오늘 등급 일치 시세. 웹/앱 컬렉션 화면과 같은 규칙.
         const basisJpy =
           deriveRegisterPriceJpy(c.buyPrice, c.buyCurrency, 0, jpyKrw) ??
           (c.registerPriceJpy != null && c.registerPriceJpy > 0 ? c.registerPriceJpy : null);
-        const curJpy = registerBasisJpy(
-          { single: p.single, psa10: p.psa10, psa9: p.psa9, psa8: p.psa8, trendJpy: [] },
-          { graded: c.graded, gradeCompany: c.gradeCompany, gradeValue: c.gradeValue },
-        ).price;
-        if (basisJpy && basisJpy > 0 && curJpy > 0) {
+        // 등급 일치 현재가(컬렉션 목록의 currentPriceJpy 와 같은 값).
+        const gradeJpy = p
+          ? registerBasisJpy(
+              { single: p.single, psa10: p.psa10, psa9: p.psa9, psa8: p.psa8, trendJpy: [] },
+              { graded: c.graded, gradeCompany: c.gradeCompany, gradeValue: c.gradeValue },
+            ).price
+          : 0;
+        if (basisJpy && basisJpy > 0 && gradeJpy > 0) {
           investedJpy += basisJpy * qty;
-          currentJpy += curJpy * qty;
+          currentJpy += gradeJpy * qty;
         }
-        if (p.single > 0) {
-          totalJpy += p.single;
-          pricedCount += 1;
-          if (!addedToday) comparableTodayJpy += p.single;
+        // 총 자산 단가 — 정본 evaluationUnitJpy(등급가 → 싱글 → PSA10 → 등록가).
+        // 시세를 아직 못 받은 카드(스냅샷 없음·라이브 실패·상품 미연결)도 등록가로 반드시 합산한다.
+        const unitJpy = evaluationUnitJpy({
+          gradeJpy,
+          singleJpy: p?.single,
+          psa10Jpy: p?.psa10,
+          basisJpy,
+        });
+        if (unitJpy > 0) {
+          totalJpy += unitJpy * qty;
+          // '시세 반영'은 실제 시세를 받은 카드만 — 등록가 폴백은 합계에만 들어간다.
+          if (gradeJpy > 0 || (p && (p.single > 0 || p.psa10 > 0))) pricedCount += 1;
+          if (!addedToday) comparableTodayJpy += unitJpy * qty;
         }
-        if (p.psa10 > 0) {
-          totalPsa10Jpy += p.psa10;
+        if (p && p.psa10 > 0) {
+          totalPsa10Jpy += p.psa10 * qty;
           pricedPsa10Count += 1;
+        } else if (unitJpy > 0) {
+          // PSA10 시세가 없으면 총액이 비어 보이지 않게 대표 단가로 채운다.
+          totalPsa10Jpy += unitJpy * qty;
         }
         // 등락(차트 기준): 어제부터 보유 + 직전/최신 포인트 둘 다 있는 카드만.
-        if (!addedToday && p.chartPrev > 0 && p.chartLast > 0) {
-          heldPrevChart += p.chartPrev;
-          heldLastChart += p.chartLast;
+        if (p && !addedToday && p.chartPrev > 0 && p.chartLast > 0) {
+          heldPrevChart += p.chartPrev * qty;
+          heldLastChart += p.chartLast * qty;
         }
       }
     }
