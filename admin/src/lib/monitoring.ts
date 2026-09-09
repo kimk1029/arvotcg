@@ -137,8 +137,9 @@ async function collect(): Promise<Sample> {
              count(*) FILTER (WHERE state = 'active')::int AS active,
              count(*) FILTER (WHERE state = 'idle')::int AS idle,
              count(*) FILTER (WHERE state = 'idle in transaction')::int AS idle_tx,
-             COALESCE(MAX(EXTRACT(EPOCH FROM now() - query_start))
-                      FILTER (WHERE state = 'active'), 0)::float AS longest_sec
+             -- clock_timestamp(): now() 는 트랜잭션 시작 시각이라 자기 자신 쿼리에서 음수가 난다.
+             GREATEST(COALESCE(MAX(EXTRACT(EPOCH FROM clock_timestamp() - query_start))
+                      FILTER (WHERE state = 'active' AND pid <> pg_backend_pid()), 0), 0)::float AS longest_sec
       FROM pg_stat_activity
     `.catch((e) => { push('connections', e); return []; }),
     prisma.$queryRaw<Array<Record<string, unknown>>>`
@@ -167,7 +168,7 @@ async function collect(): Promise<Sample> {
       FROM pg_stat_user_tables ORDER BY pg_total_relation_size(relid) DESC LIMIT 12
     `.catch((e) => { push('tables', e); return []; }),
     prisma.$queryRaw<Array<Record<string, unknown>>>`
-      SELECT pid::int, EXTRACT(EPOCH FROM now() - query_start)::float AS sec,
+      SELECT pid::int, GREATEST(EXTRACT(EPOCH FROM clock_timestamp() - query_start), 0)::float AS sec,
              left(regexp_replace(query, '[\n\t ]+', ' ', 'g'), 200) AS query
       FROM pg_stat_activity
       WHERE state = 'active' AND pid <> pg_backend_pid() AND query_start IS NOT NULL
