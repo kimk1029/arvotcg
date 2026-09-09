@@ -5,19 +5,10 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { startRouteTransition } from '@/components/RouteProgress';
 import { ScanProgressOverlay } from '@/components/ScanProgressOverlay';
-import { type RegisterCardInput } from '@/components/cards/CardRegisterSheet';
+import { CardRegisterSheet, type RegisterCardInput } from '@/components/cards/CardRegisterSheet';
 import { CardThumb } from '@/components/CardThumb';
 import { useTheme } from '@/components/ThemeProvider';
 import { translate, translateKnownCardNameToKo } from '@/lib/cardTranslate';
-import { invalidateCollectionCaches } from '@/lib/collectionCache';
-import { registerBasisJpy } from '@/lib/snkrdunkPrice';
-import {
-  buildRegisterPayload,
-  defaultRegisterOptions,
-  postMyCard,
-  selfPulledBasis,
-  type RegisterOptions,
-} from '@/lib/registerCard';
 import { parseCardStatics } from '../../shared/cardStatics';
 import { cardCodeQuery } from '../../shared/cardCode';
 
@@ -236,9 +227,6 @@ function IcCaret({ c, size = 14 }: { c: string; size?: number }) {
    입력 중으로 바꾸고(포커스), 값이 들어간 기준은 체크 표시로 남아 검색에 함께 쓰인다. */
 type FieldKey = 'name' | 'set' | 'num';
 
-/** 등급사 — 등록 옵션의 그레이딩사 선택 (CardRegisterSheet 와 동일 목록). */
-const GRADE_COMPANIES = ['PSA', 'BGS', 'CGC', 'SGC', 'ARS'];
-
 const FIELDS: Array<{ key: FieldKey; label: string; color: string; placeholder: string; hint: string; max: number }> = [
   // 카드번호가 가장 확실한 단서라 첫 번째이자 기본 선택 (사용자 지시 2026-09-06).
   { key: 'num', label: '카드번호', color: '#1E8E5A', placeholder: '예) 025/165', hint: '세트코드 바로 옆 번호예요.', max: 16 },
@@ -249,11 +237,11 @@ const FIELDS: Array<{ key: FieldKey; label: string; color: string; placeholder: 
 /**
  * 내 카드 등록 — Claude Design 'ARVO 카드등록' 프로토타입 레이아웃.
  *
- * 검색(기준 칩 + 입력 한 줄 + 스캔) → 결과 단일 선택 → 하단 바에서 바로 등록까지
- * **한 화면**에서 끝난다. 이전에는 결과를 고르면 별도의 '카드 등록' 화면으로
- * 넘어갔는데, 그 단계를 없애고 등록 옵션(구입가·수량·등급·메모)을 같은 화면의
- * 접이식 패널로 옮겼다. 저장 규칙(payload)의 정본은 src/lib/registerCard.ts —
- * 시세상세 '내 컬렉션에 추가' 팝업과 같은 함수를 쓴다. 앱 scan.tsx manual 모드와 페어.
+ * 검색(기준 칩 + 입력 한 줄 + 스캔) → 결과 단일 선택 → '내 카드로 등록' 을 누르면
+ * **카드 등록 팝업(CardRegisterSheet)** 이 뜬다. 컬렉션 등록은 언제나 이 팝업을
+ * 채워야만 이뤄진다 — 시세상세 '내 컬렉션에 추가' 와 완전히 같은 시트·같은 저장 규칙
+ * (정본 src/lib/registerCard.ts). 예전의 하단 '옵션' 접이식 패널은 없앴다.
+ * 앱 scan.tsx manual 모드와 페어.
  */
 export function ManualAddForm(_props: Props) {
   const router = useRouter();
@@ -303,13 +291,9 @@ export function ManualAddForm(_props: Props) {
     nextPage: 1,
   });
 
-  /* ── 등록(같은 화면에서 처리 — 별도 '카드 등록' 화면 없음) ── */
-  const [optOpen, setOptOpen] = useState(false);
-  const [opts, setOpts] = useState<RegisterOptions>(() => defaultRegisterOptions());
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [saveErr, setSaveErr] = useState<string | null>(null);
-  const patch = (p: Partial<RegisterOptions>) => setOpts((o) => ({ ...o, ...p }));
+  /* ── 등록 — 반드시 '카드 등록' 팝업(CardRegisterSheet)을 채워야 저장된다.
+       시세상세 '내 컬렉션에 추가' 와 같은 시트·같은 저장 규칙(정본 registerCard.ts). ── */
+  const [sheetOpen, setSheetOpen] = useState(false);
   /** snkrdunk 한 페이지 로드 — 새 항목만 반환. */
   const fetchSnkPage = async (queries: string[], page: number, seen: Set<number>) => {
     const items: RegisterCardInput[] = [];
@@ -351,8 +335,6 @@ export function ManualAddForm(_props: Props) {
   const runSearchWith = async (nameV: string, setCodeV: string, cardNumberV: string) => {
     if (searching) return;
     setErr(null);
-    setSaved(false);
-    setSaveErr(null);
     setUseFallback(false);
     // 세트코드·카드번호·카드이름 중 하나만 있어도 검색 가능.
     // 정확 매칭(lookup)은 코드+번호가 모두 있을 때만, 스니덩크 검색은 있는 것만 합쳐서.
@@ -498,7 +480,7 @@ export function ManualAddForm(_props: Props) {
     setField('name');
     setSearched(false); setResults([]); setSelectedIdx(null);
     setHasMore(false); setRarityFilter(null); setSetFilter(null); setMenu(null);
-    setErr(null); setSaved(false); setSaveErr(null); setOptOpen(false);
+    setErr(null); setSheetOpen(false);
   };
 
   /** 촬영 → OCR → 읽어낸 이름/세트/번호를 기준에 채우고 그대로 검색. */
@@ -544,41 +526,6 @@ export function ManualAddForm(_props: Props) {
   };
   const [useFallback, setUseFallback] = useState(false);
   const target = useFallback ? fallbackCard : selected;
-
-  // 구매가 미입력 시 적용될 등록가 미리보기 — 서버 registerBasisJpy 와 동일 규칙.
-  const registerPreview = useMemo(() => {
-    const gp = target?.gradePrices;
-    if (!gp) return null;
-    const b = registerBasisJpy(
-      { single: gp.single, psa10: gp.psa10, psa9: gp.psa9, psa8: gp.psa8, trendJpy: [] },
-      { graded: opts.graded, gradeCompany: opts.gradeCompany, gradeValue: opts.gradeValue },
-    );
-    return b.price > 0 ? b : null;
-  }, [target, opts.graded, opts.gradeCompany, opts.gradeValue]);
-  const basis = target ? selfPulledBasis(target, opts) : null;
-
-  const onRegister = async () => {
-    if (!target || saving || saved) return;
-    setSaveErr(null);
-    setSaving(true);
-    try {
-      await postMyCard(buildRegisterPayload(target, opts));
-      // 내 컬렉션/홈 헤더 세션 캐시 무효화 — 안 비우면 재진입 시 낡은 총액이 먼저 그려진다.
-      invalidateCollectionCaches();
-      setSaved(true);
-      setOptOpen(false);
-      // 프로토타입처럼 '등록 완료!' 를 잠깐 보여준 뒤 내 컬렉션으로.
-      setTimeout(() => {
-        startRouteTransition();
-        router.push('/my/cards');
-        router.refresh();
-      }, 700);
-    } catch (e) {
-      setSaveErr(e instanceof Error ? e.message : '저장 실패');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') runSearch();
@@ -841,7 +788,7 @@ export function ManualAddForm(_props: Props) {
                 return (
                   <div
                     key={idx}
-                    onClick={() => { setUseFallback(false); setSelectedIdx(sel ? null : idx); setSaved(false); setSaveErr(null); }}
+                    onClick={() => { setUseFallback(false); setSelectedIdx(sel ? null : idx); }}
                     role="radio"
                     aria-checked={sel}
                     style={{
@@ -902,7 +849,7 @@ export function ManualAddForm(_props: Props) {
               <div style={{ textAlign: 'center', padding: '12px 0 8px', fontSize: 13, fontWeight: 700, color: P.ink3 }}>
                 찾는 카드가 없나요?{' '}
                 <span
-                  onClick={() => { setUseFallback(true); setSelectedIdx(null); setOptOpen(true); }}
+                  onClick={() => { setUseFallback(true); setSelectedIdx(null); setSheetOpen(true); }}
                   style={{ color: P.accent, cursor: 'pointer', textDecoration: useFallback ? 'underline' : 'none' }}
                 >
                   직접 입력하기
@@ -912,136 +859,6 @@ export function ManualAddForm(_props: Props) {
           </>
         )}
       </div>
-
-      {/* ── 등록 옵션 (같은 화면의 접이식 패널 — 별도 '카드 등록' 화면 없음) ── */}
-      {target && optOpen && (
-        <div
-          className="addbar-sticky"
-          style={{ position: 'sticky', zIndex: 21, background: P.pageBg, borderTop: `1px solid ${P.line}`, padding: '14px 18px 4px', maxHeight: '58vh', overflowY: 'auto' }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <div style={{ flex: 1, fontSize: 14.5, fontWeight: 800, color: P.ink }}>등록 옵션</div>
-            <button type="button" onClick={() => setOptOpen(false)} aria-label="옵션 닫기" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 12.5, fontWeight: 700, color: P.ink3, fontFamily: 'inherit' }}>
-              접기 ⌄
-            </button>
-          </div>
-
-          <OptCheck P={P} on={opts.selfPulled} onClick={() => patch({ selfPulled: !opts.selfPulled })}
-            label="직접 뽑은 카드예요" sub="구입가 대신 현재시세를 기준가로" />
-
-          <div style={{ marginTop: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-              <span style={{ flex: 1, fontSize: 11.5, fontWeight: 700, color: P.ink2 }}>구입가격</span>
-              {!opts.selfPulled && (
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {(['KRW', 'JPY'] as const).map((c) => (
-                    <button key={c} type="button" onClick={() => patch({ buyCurrency: c })}
-                      style={{ fontSize: 11, fontWeight: 800, padding: '4px 9px', borderRadius: 8, border: 'none', cursor: 'pointer', background: opts.buyCurrency === c ? P.btnBg : P.fieldBg, color: opts.buyCurrency === c ? P.btnFg : P.ink2, fontFamily: 'inherit' }}>
-                      {c === 'JPY' ? '¥ 엔화' : '₩ 원화'}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            {opts.selfPulled ? (
-              <div style={{ fontSize: 12, fontWeight: 600, color: P.ink3, background: P.fieldBg, borderRadius: 11, padding: '10px 12px' }}>
-                {basis
-                  ? `현재시세 ${basis.cur === 'JPY' ? '¥' : '₩'}${basis.price.toLocaleString()} 적용`
-                  : registerPreview
-                    ? `${registerPreview.basis} 시세 ¥${registerPreview.price.toLocaleString()} 적용`
-                    : '현재시세 정보가 없어 기준가는 비워둡니다'}
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: P.fieldBg, border: `1.5px solid ${P.fieldBd}`, borderRadius: 11, padding: '10px 12px' }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: P.ink3 }}>{opts.buyCurrency === 'JPY' ? '¥' : '₩'}</span>
-                <input
-                  inputMode="numeric"
-                  value={opts.buyPrice}
-                  onChange={(e) => patch({ buyPrice: e.target.value.replace(/[^0-9]/g, '') })}
-                  placeholder={opts.buyCurrency === 'JPY' ? '엔화 금액' : '원화 금액'}
-                  style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', fontSize: 14, fontWeight: 700, color: P.ink, padding: 0, fontFamily: 'inherit' }}
-                />
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11.5, fontWeight: 700, color: P.ink2, marginBottom: 5 }}>구입 날짜</div>
-              <input
-                type="date"
-                value={opts.buyDate}
-                onChange={(e) => patch({ buyDate: e.target.value })}
-                style={{ width: '100%', background: P.fieldBg, border: `1.5px solid ${P.fieldBd}`, borderRadius: 11, padding: '9px 12px', fontSize: 13.5, fontWeight: 700, color: P.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-              />
-            </div>
-            <div style={{ flex: 'none' }}>
-              <div style={{ fontSize: 11.5, fontWeight: 700, color: P.ink2, marginBottom: 5 }}>수량</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 2, background: P.fieldBg, border: `1.5px solid ${P.fieldBd}`, borderRadius: 11, padding: '3px 4px' }}>
-                <QtyBtn P={P} onClick={() => patch({ qty: Math.max(1, opts.qty - 1) })}>−</QtyBtn>
-                <span style={{ minWidth: 30, textAlign: 'center', fontSize: 14, fontWeight: 800, color: P.ink }}>{opts.qty}</span>
-                <QtyBtn P={P} onClick={() => patch({ qty: Math.min(999, opts.qty + 1) })}>＋</QtyBtn>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: P.ink2, marginBottom: 5 }}>발매 지역</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {([{ k: 'jp', label: '일본판' }, { k: 'kr', label: '한국판' }, { k: 'en', label: '영문판' }] as const).map((r) => (
-                <OptSeg key={r.k} P={P} active={opts.region === r.k} onClick={() => patch({ region: r.k })}>{r.label}</OptSeg>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ marginTop: 12 }}>
-            <OptCheck P={P} on={opts.graded} onClick={() => patch({ graded: !opts.graded })} label="등급(그레이딩) 카드예요" />
-          </div>
-          {opts.graded && (
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 700, color: P.ink2, marginBottom: 5 }}>등급사</div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {GRADE_COMPANIES.map((c) => (
-                    <OptSeg key={c} P={P} compact active={opts.gradeCompany === c} onClick={() => patch({ gradeCompany: c })}>{c}</OptSeg>
-                  ))}
-                </div>
-              </div>
-              <div style={{ flex: 'none', width: 118 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 700, color: P.ink2, marginBottom: 5 }}>등급</div>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {['10', '9', '8'].map((v) => (
-                    <OptSeg key={v} P={P} compact active={opts.gradeValue === v} onClick={() => patch({ gradeValue: v })}>{v}</OptSeg>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 구매가 미입력 시 적용될 등록가 안내 */}
-          {!opts.selfPulled && !opts.buyPrice.trim() && (
-            <div style={{ marginTop: 10, fontSize: 11.5, fontWeight: 600, color: P.ink3, lineHeight: 1.6 }}>
-              {registerPreview
-                ? `구매가 미입력 시 ${registerPreview.basis} 시세 ¥${registerPreview.price.toLocaleString()}(등록 시점 기준)로 등록돼요`
-                : opts.graded
-                  ? '구매가 미입력 시 등급 시세(타사 등급은 PSA10 기준)로 등록돼요'
-                  : '구매가 미입력 시 현재 싱글 시세로 등록돼요'}
-            </div>
-          )}
-
-          <div style={{ marginTop: 12, marginBottom: 8 }}>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: P.ink2, marginBottom: 5 }}>메모 (선택)</div>
-            <textarea
-              rows={2}
-              maxLength={500}
-              value={opts.memo}
-              onChange={(e) => patch({ memo: e.target.value })}
-              placeholder="구입 경로, 보관 위치, 컨디션 등"
-              style={{ width: '100%', background: P.fieldBg, border: `1.5px solid ${P.fieldBd}`, borderRadius: 11, padding: '10px 12px', fontSize: 13.5, fontWeight: 600, color: P.ink, outline: 'none', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-            />
-          </div>
-        </div>
-      )}
 
       {/* ── 하단 고정 등록 바 ── */}
       {searched && (
@@ -1058,96 +875,42 @@ export function ManualAddForm(_props: Props) {
               {target?.name ?? '선택 안 됨'}
             </div>
           </div>
-          {target && !saved && (
-            <button
-              type="button"
-              onClick={() => setOptOpen((v) => !v)}
-              aria-label="등록 옵션"
-              style={{ flex: 'none', height: 50, padding: '0 12px', borderRadius: 14, border: `1.5px solid ${P.fieldBd}`, background: P.pageBg, cursor: 'pointer', fontSize: 12.5, fontWeight: 800, color: P.ink, fontFamily: 'inherit', whiteSpace: 'nowrap' }}
-            >
-              옵션 {optOpen ? '⌄' : '⌃'}
-            </button>
-          )}
           <button
             type="button"
-            disabled={!target || saving || saved}
-            onClick={onRegister}
+            disabled={!target}
+            onClick={() => setSheetOpen(true)}
             style={{
               flex: 1, height: 50, borderRadius: 14, border: 'none',
-              background: saved ? '#2BB673' : target ? P.btnBg : P.disBg,
+              background: target ? P.btnBg : P.disBg,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              cursor: target && !saving && !saved ? 'pointer' : 'default',
-              boxShadow: target && !saved ? '0 6px 16px rgba(0,0,0,.18)' : 'none',
+              cursor: target ? 'pointer' : 'default',
+              boxShadow: target ? '0 6px 16px rgba(0,0,0,.18)' : 'none',
               fontFamily: 'inherit',
             }}
           >
-            {saved && (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-            )}
-            <span style={{ fontSize: 15.5, fontWeight: 800, color: saved || target ? '#fff' : P.disFg }}>
-              {saved ? '등록 완료!' : saving ? '등록 중…' : target ? '내 카드로 등록' : '카드를 선택하세요'}
+            <span style={{ fontSize: 15.5, fontWeight: 800, color: target ? '#fff' : P.disFg }}>
+              {target ? '내 카드로 등록' : '카드를 선택하세요'}
             </span>
           </button>
         </div>
       )}
-      {saveErr && (
-        <div style={{ padding: '0 18px 10px', fontSize: 12.5, fontWeight: 700, color: clean ? '#F5333F' : 'var(--red)', background: P.barBg }}>⚠ {saveErr}</div>
+
+      {/* ── 카드 등록 팝업 — 시세상세 '내 컬렉션에 추가' 와 완전히 같은 시트.
+           구매정보·등급·수량을 채우고 저장해야만 컬렉션에 등록된다. ── */}
+      {sheetOpen && target && (
+        <div className="cv-sheet-overlay" onClick={() => setSheetOpen(false)}>
+          <div className="cv-sheet-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cv-sheet-head">
+              <span className="form-label" style={{ margin: 0 }}>＋ 카드 등록</span>
+              <button type="button" className="cv-sheet-close" onClick={() => setSheetOpen(false)} aria-label="닫기">
+                ✕
+              </button>
+            </div>
+            <CardRegisterSheet card={target} />
+          </div>
+        </div>
       )}
     </div>
-  );
-}
-
-/** 등록 옵션 체크 행. */
-function OptCheck({ P, on, onClick, label, sub }: { P: Palette; on: boolean; onClick: () => void; label: string; sub?: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12,
-        background: on ? P.accentSoft : P.fieldBg, border: `1.5px solid ${on ? P.accent : P.fieldBd}`,
-        cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
-      }}
-    >
-      <span style={{ width: 20, height: 20, flex: 'none', borderRadius: 6, border: `2px solid ${on ? P.accent : P.radioBd}`, background: on ? P.accent : P.pageBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {on && (
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-        )}
-      </span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: P.ink }}>{label}</span>
-        {sub && <span style={{ display: 'block', fontSize: 11, fontStyle: 'italic', color: P.ink3, marginTop: 2 }}>{sub}</span>}
-      </span>
-    </button>
-  );
-}
-
-/** 등록 옵션 세그먼트 버튼. */
-function OptSeg({ P, active, compact, onClick, children }: { P: Palette; active: boolean; compact?: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        flex: compact ? 'none' : 1, padding: compact ? '7px 11px' : '10px 0', borderRadius: 11, cursor: 'pointer',
-        background: active ? P.btnBg : P.pageBg, color: active ? P.btnFg : P.ink,
-        border: `1.5px solid ${active ? P.btnBg : P.fieldBd}`, fontSize: compact ? 11.5 : 12.5, fontWeight: 800, fontFamily: 'inherit',
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function QtyBtn({ P, onClick, children }: { P: Palette; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: P.pageBg, color: P.ink, fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}
-    >
-      {children}
-    </button>
   );
 }
 
