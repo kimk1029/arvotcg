@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { COLLECTION_CACHE_KEY } from '@/lib/collectionCache';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CardThumb } from '@/components/CardThumb';
 import { GradeMark } from '@/components/cards/GradeMark';
 import { useCurrency } from '@/components/CurrencyProvider';
@@ -638,6 +638,16 @@ function GradedLabel({ company, grade, height, inline }: { company?: string | nu
 function CardMenu({ apparelId, basis, onRemove, plain = false, up = false }: { apparelId: number | null; basis?: string | null; onRemove: () => void; plain?: boolean; up?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // 화면 아래쪽 행이면 위로 펼친다 — 아래로 열면 하단 네비게이션 뒤로 들어가 눌리지 않는다.
+  const [autoUp, setAutoUp] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const openMenu = () => {
+    const r = wrapRef.current?.getBoundingClientRect();
+    // 남은 아래 공간(하단 네비 ~90px + 메뉴 높이 ~100px) 부족하면 위로.
+    setAutoUp(r ? window.innerHeight - r.bottom < 190 : false);
+    setOpen((o) => !o);
+  };
+  const openUp = up || autoUp;
   useEffect(() => {
     if (!open) return;
     const close = () => setOpen(false);
@@ -661,13 +671,13 @@ function CardMenu({ apparelId, basis, onRemove, plain = false, up = false }: { a
         display: 'grid', placeItems: 'center', backdropFilter: 'blur(2px)',
       };
   return (
-    <div style={{ position: 'relative' }}>
+    <div ref={wrapRef} style={{ position: 'relative' }}>
       <button
         type="button"
         aria-label="카드 메뉴"
         onClick={(e) => {
           stop(e);
-          setOpen((o) => !o);
+          openMenu();
         }}
         style={btnStyle}
       >
@@ -678,7 +688,7 @@ function CardMenu({ apparelId, basis, onRemove, plain = false, up = false }: { a
           onClick={stop}
           style={{
             // up: 아래 행에 가려지지 않게 버튼 위로 펼친다(그룹 펼침 목록).
-            position: 'absolute', ...(up ? { bottom: 30 } : { top: 30 }), right: 0, zIndex: 30, minWidth: 138,
+            position: 'absolute', ...(openUp ? { bottom: 30 } : { top: 30 }), right: 0, zIndex: 30, minWidth: 138,
             background: 'var(--white)', borderRadius: 'var(--r-sm)', overflow: 'hidden',
             boxShadow: '0 6px 20px rgba(0,0,0,.18)', border: '1px solid var(--pap3)',
           }}
