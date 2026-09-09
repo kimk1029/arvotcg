@@ -9,9 +9,10 @@
  * 인증은 `/auth/{provider}` 가 발급한 JWT 를 `Authorization: Bearer ...` 헤더로
  * 첨부. [[session]] 모듈이 토큰을 관리.
  */
+import { router } from 'expo-router';
 import { getApiOrigin } from './apiEnv';
-import { getAuthHeader } from './session';
-import { shotSanitize } from './shotMode';
+import { getAuthHeader, getSession, setSession } from './session';
+import { SHOT, shotSanitize } from './shotMode';
 
 export function getApiBaseUrl(): string {
   return getApiOrigin();
@@ -19,6 +20,29 @@ export function getApiBaseUrl(): string {
 
 /** @deprecated 모바일은 더 이상 웹 도메인을 호출하지 않음. apiClient 가 직접 Express 를 호출. */
 export const getWebBaseUrl = getApiBaseUrl;
+
+/**
+ * 401 → 로그인 화면. 만료·삭제된 토큰은 함께 지운다.
+ * 진입 게이트([[EntryGate]])가 없는 구버전 화면에서도 미로그인 사용자가 빈 화면에
+ * 갇히지 않게, 모든 API 호출이 지나가는 이 파일 한 곳에서만 처리한다.
+ * 이동은 로그인/온보딩에 도달할 때까지 1회 — 응답이 여러 개 몰려도 반복 이동하지 않는다.
+ */
+let sentToLogin = false;
+
+export function handleUnauthorized() {
+  if (SHOT || sentToLogin) return;
+  sentToLogin = true;
+  if (getSession()) setSession(null);
+  // 라우터가 준비되기 전 호출될 수 있어 한 틱 늦춘다(EntryGate 와 같은 이유).
+  setTimeout(() => {
+    try { router.replace('/login' as never); } catch { sentToLogin = false; }
+  }, 0);
+}
+
+/** 로그인 성공 후 다시 감시하도록 초기화. */
+export function resetUnauthorizedRedirect() {
+  sentToLogin = false;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -96,6 +120,7 @@ export async function api<T>(path: string, opts: ApiOpts = {}): Promise<T> {
         }
       }
       if (!res.ok) {
+        if (res.status === 401) handleUnauthorized();
         if (attempt < retries && RETRYABLE_STATUSES.has(res.status)) {
           await retryDelay(attempt + 1);
           continue;
