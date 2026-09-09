@@ -131,6 +131,8 @@ const DRAWER_SECTIONS: { label: string | null; items: DrawerItem[] }[] = [
     label: '소셜',
     items: [
       { emoji: '💬', label: '커뮤니티', href: '/feed' },
+      { emoji: '📖', label: '정보 글', href: '/info' },
+      { emoji: '📢', label: '공지사항', href: '/my/notices' },
       { emoji: '🔨', label: 'MVC 경매', href: '/cards/mvc-auction' },
       // 카드샵 = 커뮤니티의 Shop 탭 화면 (딥링크 ?tab=shop).
       { emoji: '🏪', label: '카드샵', href: '/feed?tab=shop' },
@@ -142,7 +144,6 @@ const DRAWER_SECTIONS: { label: string | null; items: DrawerItem[] }[] = [
       // 알림(포인트 적립·회수·레벨업)·쪽지함 — 미확인/미읽음 수는 렌더 시점에 동적 배지로.
       { emoji: '🔔', label: '알림', href: '/my/notifications' },
       { emoji: '✉️', label: '쪽지함', href: '/my/messages' },
-      { emoji: '📢', label: '공지사항', href: '/my/notices' },
       { emoji: '👤', label: '마이페이지', href: '/my' },
     ],
   },
