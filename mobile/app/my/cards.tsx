@@ -378,50 +378,51 @@ function CardGridItem({ group, rank, format, onRemove, tc }: { group: CardGroup<
   );
 }
 
-/* ── 리스트 행 — 웹 CardListItem 동일 (중복 등록은 한 줄로 묶고 펼치면 각 장 가격) ── */
+/* ── 리스트 행 — 웹 CardListItem 동일: 썸네일 | 카드명+등급배지 / 등록가·장수 | 오늘가 / 차액·등락률 ── */
 function CardListItem({ group, format, last, onRemove, tc }: { group: CardGroup<Row>; format: (j: number) => string; last: boolean; onRemove: (id: number) => void; tc: ReturnType<typeof useThemeColors> }) {
-  const { c, curJpy } = group.head;
+  const { c } = group.head;
   const dup = group.items.length > 1;
   const [open, setOpen] = useState(false);
   const img = c.snkrdunkImageUrl || c.photoUrl || null;
   const openDetail = () => openCardDetail(c.snkrdunkApparelId, c.priceBasis);
+  const profit = group.profitAbsJpy;
+  const up = (profit ?? 0) >= 0;
   return (
     <View style={{ borderBottomWidth: last ? 0 : 1, borderBottomColor: tc.pap3 }}>
       <View style={{ position: 'relative' }}>
-        <Pressable onPress={openDetail} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingRight: 20, paddingLeft: 2 }}>
-          {/* 썸네일 + 그레이딩 표식 — 표식은 이미지 블록 안(하단에 살짝 겹침).
-              행 전체 기준이면 우측 ⋯ 메뉴와 겹친다 (웹 동일). */}
-          <View style={{ position: 'relative' }}>
-            <ThumbImage uri={img} size={62} emojiSize={28} style={{ borderRadius: 8 }} />
-            {c.graded ? <GradedLabel gold={tc.gold} company={c.gradeCompany} grade={c.gradeValue} height={9} /> : null}
-          </View>
+        <Pressable onPress={openDetail} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingRight: 24, paddingLeft: 2 }}>
+          {/* 카드 비율 썸네일 */}
+          <ThumbImage uri={img} emojiSize={26} style={{ width: 54, height: 74, borderRadius: 8 }} />
           <View style={{ flex: 1, minWidth: 0 }}>
+            {/* 카드명 + 등급 배지(무등급이면 회색 칩) */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <PixelText variant="ko" size={13} weight="bold" color={tc.ink} numberOfLines={1} style={{ flexShrink: 1 }}>{cardName(c)}</PixelText>
-              {/* 중복 등록 장수 배지 */}
-              {group.qty > 1 ? (
-                <View style={{ backgroundColor: tc.pap2, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1 }}>
-                  <PixelText variant="ko" size={10} weight="bold" color={tc.ink}>{`×${group.qty}`}</PixelText>
+              <PixelText variant="ko" size={13.5} weight="bold" color={tc.ink} numberOfLines={1} style={{ flexShrink: 1 }}>{cardName(c)}</PixelText>
+              {c.graded ? (
+                <GradedLabel gold={tc.gold} company={c.gradeCompany} grade={c.gradeValue} height={11} inline />
+              ) : (
+                <View style={{ backgroundColor: tc.pap2, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
+                  <PixelText variant="ko" size={9.5} weight="bold" color={tc.ink3}>무등급</PixelText>
                 </View>
-              ) : null}
+              )}
             </View>
-            <PixelText variant="ko" size={10} color={tc.ink3} numberOfLines={1} style={{ marginTop: 2 }}>
-              {cardSub(c)}
-            </PixelText>
-            <PixelText variant="ko" size={9} color={tc.ink3} numberOfLines={1} style={{ marginTop: 4 }}>
-              등록 {group.head.basisJpy ? format(group.head.basisJpy) : '—'}{dup ? ` 외 ${group.items.length - 1}건` : ''}
+            {/* 등록(기준)가 · 보유 장수 */}
+            <PixelText variant="ko" size={11} color={tc.ink3} numberOfLines={1} style={{ marginTop: 6 }}>
+              {`등록 ${group.head.basisJpy ? format(group.head.basisJpy) : '—'} · ${group.qty}장${dup ? ` (${group.items.length}건)` : ''}`}
             </PixelText>
           </View>
+          {/* 오늘 가격(평가액) + 등록가 대비 차액·등락률 */}
           <View style={{ alignItems: 'flex-end' }}>
-            <PixelText variant="ko" size={13} weight="bold" color={profitColor(group.profitPct, tc.ink)}>
-              {curJpy > 0 ? format(curJpy) : '—'}
+            <PixelText variant="ko" size={14} weight="bold" color={tc.ink}>
+              {group.value > 0 ? format(group.value) : '—'}
             </PixelText>
-            <View style={{ marginTop: 3 }}>
-              <ProfitTag pct={group.profitPct} size={11} />
-            </View>
+            {profit != null && group.profitPct != null ? (
+              <PixelText variant="ko" size={11.5} weight="bold" color={up ? UP : DOWN} style={{ marginTop: 5 }}>
+                {`${up ? '▲' : '▼'} ${format(Math.abs(profit))} (${up ? '+' : '-'}${Math.abs(group.profitPct).toFixed(1)}%)`}
+              </PixelText>
+            ) : null}
           </View>
         </Pressable>
-        <View style={{ position: 'absolute', top: '50%', right: -2, transform: [{ translateY: -13 }], zIndex: 6 }}>
+        <View style={{ position: 'absolute', top: '50%', right: -4, transform: [{ translateY: -13 }], zIndex: 6 }}>
           {dup ? (
             <Pressable onPress={() => setOpen((v) => !v)} hitSlop={8} style={{ width: 22, height: 26, alignItems: 'center', justifyContent: 'center' }}>
               <PixelText variant="ko" size={11} color={tc.ink3}>{open ? '▲' : '▼'}</PixelText>
@@ -434,19 +435,19 @@ function CardListItem({ group, format, last, onRemove, tc }: { group: CardGroup<
 
       {/* 중복 등록분 — 장마다 등록가·손익이 다르므로 각각 보여준다. */}
       {dup && open ? (
-        <View style={{ paddingLeft: 60, paddingBottom: 10 }}>
+        <View style={{ paddingLeft: 66, paddingBottom: 10 }}>
           {group.items.map((r, i) => (
-            <View key={r.c.id} style={{ position: 'relative', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 7, paddingRight: 20 }}>
+            <View key={r.c.id} style={{ position: 'relative', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 7, paddingRight: 24 }}>
               <PixelText variant="ko" size={10} color={tc.ink3} numberOfLines={1} style={{ flexShrink: 1 }}>
                 {`${i + 1}번째${r.qty > 1 ? ` · ×${r.qty}` : ''} · 등록 ${r.basisJpy ? format(r.basisJpy) : '—'}`}
               </PixelText>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <PixelText variant="ko" size={12} weight="bold" color={profitColor(r.profitPct, tc.ink)}>
-                  {r.curJpy > 0 ? format(r.curJpy) : '—'}
+                  {r.value > 0 ? format(r.value) : '—'}
                 </PixelText>
                 <ProfitTag pct={r.profitPct} size={10} />
               </View>
-              <View style={{ position: 'absolute', top: '50%', right: -2, transform: [{ translateY: -13 }] }}>
+              <View style={{ position: 'absolute', top: '50%', right: -4, transform: [{ translateY: -13 }] }}>
                 <CardMenu apparelId={r.c.snkrdunkApparelId} basis={r.c.priceBasis} onRemove={() => onRemove(r.c.id)} tc={tc} plain />
               </View>
             </View>
@@ -469,8 +470,8 @@ function ProfitTag({ pct, size = 11 }: { pct: number | null; size?: number }) {
 }
 
 /** 그레이딩 표식 — 우하단 흰 필 배지(그레이딩사 로고 + 등급). 공통 컴포넌트 GradeMark 사용. */
-function GradedLabel({ gold, company, grade, height = 12 }: { gold: string; company?: string | null; grade?: string | null; height?: number }) {
-  return <GradeMark company={company} grade={grade} height={height} gold={gold} />;
+function GradedLabel({ gold, company, grade, height = 12, inline }: { gold: string; company?: string | null; grade?: string | null; height?: number; inline?: boolean }) {
+  return <GradeMark company={company} grade={grade} height={height} gold={gold} inline={inline} />;
 }
 
 /** 카드 ⋯ 메뉴 — 시세 보기 / 컬렉션에서 제거 (웹 CardMenu 동일). */

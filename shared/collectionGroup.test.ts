@@ -31,6 +31,8 @@ test('같은 카드·같은 등급만 묶이고, 장수·평가액·손익률이
   assert.equal(dup.value, 3000);
   // (3000 - 3000) / 3000
   assert.equal(dup.profitPct, 0);
+  assert.equal(dup.investedJpy, 3000);
+  assert.equal(dup.profitAbsJpy, 0);
   assert.equal(psa.items.length, 1);
   assert.equal(unknown.items.length, 1);
 });
@@ -41,4 +43,6 @@ test('수량(qty)과 기준가 없는 장을 손익률에서 제외한다', () =
   assert.equal(g.value, 3600);
   // 기준가 있는 2장만: (2400-2000)/2000
   assert.equal(g.profitPct, 20);
+  assert.equal(g.investedJpy, 2000);
+  assert.equal(g.profitAbsJpy, 400);
 });
