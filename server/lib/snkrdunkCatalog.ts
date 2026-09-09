@@ -35,10 +35,36 @@ export const CATALOG_PRICE_TTL_MS = 30 * 60 * 1000;
 /* ── 적재 (upsert / append) ──────────────────────────────────────── */
 
 /** apparel 상세 1건의 정적 정보를 카탈로그에 upsert. 실패는 로깅만. */
+
+/* ── 쓰기 스로틀 ────────────────────────────────────────────────────────
+ * 시세상세를 열 때마다 카탈로그 upsert + 스냅샷 insert 가 돌아 DB 쓰기가 폭주했고,
+ * Supabase 풀러가 포화돼 로그인까지 실패했다(2026-09-10 P2024/ECHECKOUTTIMEOUT).
+ * 같은 카드의 반복 쓰기는 메모리 타임스탬프로 걸러낸다 — 값은 어차피 몇 분 단위로 변한다.
+ */
+const SNAPSHOT_MIN_GAP_MS = 10 * 60_000;
+const CATALOG_MIN_GAP_MS = 30 * 60_000;
+const lastSnapshotAt = new Map<number, number>();
+const lastCatalogAt = new Map<number, number>();
+
+function tooSoon(map: Map<number, number>, id: number, gapMs: number): boolean {
+  const at = map.get(id);
+  if (at != null && Date.now() - at < gapMs) return true;
+  map.set(id, Date.now());
+  // 메모리 상한 — 오래된 항목부터 버린다.
+  if (map.size > 5000) {
+    for (const k of map.keys()) {
+      map.delete(k);
+      if (map.size <= 4000) break;
+    }
+  }
+  return false;
+}
+
 export async function upsertCatalogCard(
   a: SnkrdunkApparel,
   extra: { packCode?: string; apparelGroupId?: number | null } = {},
 ): Promise<void> {
+  if (a?.id != null && tooSoon(lastCatalogAt, a.id, CATALOG_MIN_GAP_MS)) return;
   try {
     const jp = a.localizedName || a.name || '';
     const statics = parseCardStatics(jp, a.productNumber);
@@ -141,6 +167,7 @@ export async function recordPriceSnapshot(
     headlineBasis?: string;
   },
 ): Promise<void> {
+  if (tooSoon(lastSnapshotAt, apparelId, SNAPSHOT_MIN_GAP_MS)) return;
   try {
     await prisma.snkrdunkPriceSnapshot.create({
       data: {
