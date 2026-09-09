@@ -74,8 +74,31 @@ model User {
   blocksReceived          UserBlock[]              @relation("BlocksReceived")
   cardShowReservations    CardShowReservation[]
   pointLogs               PointLog[]
+  bugReports              BugReport[]
 
   @@map("users")
+}
+
+/// 사용자 버그 제보 — 앱·웹 메뉴에서 누구나 작성하고, 열람은 어드민 전용.
+model BugReport {
+  id         Int      @id @default(autoincrement())
+  /// 제보자 — 탈퇴해도 제보는 남긴다 (SetNull).
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  title      String
+  content    String
+  /// 제보 환경 — 'web' | 'ios' | 'android'.
+  platform   String?
+  /// 앱/웹 버전 (shared/version.ts APP_VERSION).
+  appVersion String?
+  /// 답장용 연락처(선택) — 이메일/카톡 등 자유 입력.
+  contact    String?
+  /// 처리 상태 — 'open' | 'done'. 어드민이 토글.
+  status     String   @default("open")
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@map("bug_reports")
 }
 
 /// 포인트 적립·회수 원장 — 알림 피드(/api/me/notifications)의 데이터 소스.

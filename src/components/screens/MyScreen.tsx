@@ -197,6 +197,7 @@ export function MyScreen({ user, level, points = 0, cardCount, tradeCount, saved
     ...(isAdmin ? [{ emoji: '🛠', iconBg: '#E0EDFF', label: '어드민 · 콘텐츠 관리', href: '/admin' } satisfies MenuItem] : []),
     { emoji: '📢', iconBg: '#FFF6DE', label: '공지사항', badge: 'NEW', href: '/my/notices' },
     { emoji: '❓', iconBg: '#E0EDFF', label: 'FAQ · 자주 묻는 질문', href: '/my/faq' },
+    { emoji: '🐛', iconBg: '#FFECEC', label: '버그 제보', sub: '오류·이상한 점을 알려주세요', href: '/my/bug-report' },
     { emoji: '📜', iconBg: '#F0F0F2', label: '이용약관', href: '/terms' },
     { emoji: '🔒', iconBg: '#E3F6EC', label: '개인정보처리방침', href: '/privacy' },
     ...(!isGuest ? [{ emoji: '🚫', iconBg: '#FFECEC', label: '차단 관리', sub: '차단한 사용자 보기·해제', href: '/my/blocks' } satisfies MenuItem] : []),

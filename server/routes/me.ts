@@ -229,6 +229,51 @@ router.post('/cards', async (req: Request, res: Response) => {
   }
 });
 
+/* ── 버그 제보 ────────────────────────────────────────────────────────
+ * 사용자는 작성만 한다. 목록 열람은 어드민 대시보드(DB 직접 조회) 전용 —
+ * 다른 사람의 제보가 앱/웹에 노출되지 않는다.
+ */
+router.post('/bug-reports', async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const title = typeof body.title === 'string' ? body.title.trim().slice(0, 100) : '';
+  const content = typeof body.content === 'string' ? body.content.trim().slice(0, 4000) : '';
+  if (title.length < 2) return res.status(400).json({ error: '제목을 2자 이상 입력해 주세요' });
+  if (content.length < 5) return res.status(400).json({ error: '내용을 5자 이상 입력해 주세요' });
+  const platform =
+    body.platform === 'web' || body.platform === 'ios' || body.platform === 'android'
+      ? body.platform
+      : null;
+  const appVersion = typeof body.appVersion === 'string' ? body.appVersion.trim().slice(0, 20) || null : null;
+  const contact = typeof body.contact === 'string' ? body.contact.trim().slice(0, 120) || null : null;
+  try {
+    const row = await prisma.bugReport.create({
+      data: { userId, title, content, platform, appVersion, contact },
+      select: { id: true, createdAt: true },
+    });
+    res.status(201).json({ data: { id: row.id, createdAt: row.createdAt.toISOString() } });
+  } catch (err) {
+    console.error('[me.bug-reports.POST]', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+/** 내가 낸 제보 목록 — 본인 것만. (남의 제보는 어드민만 본다.) */
+router.get('/bug-reports', async (req: Request, res: Response) => {
+  try {
+    const rows = await prisma.bugReport.findMany({
+      where: { userId: req.user!.userId },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+      select: { id: true, title: true, status: true, createdAt: true },
+    });
+    res.json({ data: rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })) });
+  } catch (err) {
+    console.error('[me.bug-reports.GET]', err);
+    res.status(500).json({ data: [], error: 'internal' });
+  }
+});
+
 router.get('/favorites', async (req: Request, res: Response) => {
   try {
     const rows = await prisma.favoriteCard.findMany({

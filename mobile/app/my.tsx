@@ -289,6 +289,7 @@ export default function MyScreen() {
   const settings: MenuItem[] = [
     { emoji: '📢', iconBg: '#FFF6DE', label: '공지사항', badge: 'NEW', onPress: () => router.push('/my/notices' as never) },
     { emoji: '❓', iconBg: '#E0EDFF', label: 'FAQ · 자주 묻는 질문', onPress: () => router.push('/my/faq' as never) },
+    { emoji: '🐛', iconBg: '#FFECEC', label: '버그 제보', sub: '오류·이상한 점을 알려주세요', onPress: () => router.push('/my/bug-report' as never) },
     { emoji: '📜', iconBg: '#F0F0F2', label: '이용약관', onPress: () => router.push('/legal?doc=terms' as never) },
     { emoji: '🔒', iconBg: '#E3F6EC', label: '개인정보처리방침', onPress: () => router.push('/legal?doc=privacy' as never) },
     { emoji: '🚫', iconBg: '#FFECEC', label: '차단 관리', sub: '차단한 사용자 보기·해제', onPress: () => router.push('/my/blocks' as never) },

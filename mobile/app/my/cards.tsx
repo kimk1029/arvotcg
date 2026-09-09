@@ -7,7 +7,7 @@
  * 카드 ⋯ 메뉴(시세 보기/컬렉션에서 제거). 시세는 등급 일치(그레이딩=PSA10,
  * 비그레이딩=싱글) — 웹 allRows 와 동일 계산.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Alert, Dimensions, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
@@ -384,7 +384,7 @@ function CardGridItem({ group, rank, format, onRemove, tc }: { group: CardGroup<
         </View>
       </Pressable>
       <View style={{ position: 'absolute', top: 6, right: 6, zIndex: 6 }}>
-        <CardMenu apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} tc={tc} />
+        <CardMenu menuKey={`grid:${c.id}`} apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} tc={tc} />
       </View>
     </View>
   );
@@ -440,7 +440,7 @@ function CardListItem({ group, format, last, onRemove, tc }: { group: CardGroup<
               <PixelText variant="ko" size={11} color={tc.ink3}>{open ? '▲' : '▼'}</PixelText>
             </Pressable>
           ) : (
-            <CardMenu apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} tc={tc} plain />
+            <CardMenu menuKey={`list:${c.id}`} apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} tc={tc} plain />
           )}
         </View>
       </View>
@@ -469,7 +469,7 @@ function CardListItem({ group, format, last, onRemove, tc }: { group: CardGroup<
                   ) : null}
                 </View>
                 <View style={{ position: 'absolute', top: '50%', right: -4, transform: [{ translateY: -13 }] }}>
-                  <CardMenu apparelId={r.c.snkrdunkApparelId} basis={r.c.priceBasis} onRemove={() => onRemove(r.c.id)} tc={tc} plain up />
+                  <CardMenu menuKey={`item:${r.c.id}`} apparelId={r.c.snkrdunkApparelId} basis={r.c.priceBasis} onRemove={() => onRemove(r.c.id)} tc={tc} plain up />
                 </View>
               </View>
             );
@@ -496,9 +496,27 @@ function GradedLabel({ gold, company, grade, height = 12, inline }: { gold: stri
   return <GradeMark company={company} grade={grade} height={height} gold={gold} inline={inline} />;
 }
 
+/* ── ⋯ 메뉴는 화면에 하나만 (웹 CollectionScreen 동일) ───────────────
+ * 카드마다 open 상태를 따로 들면 여러 개가 동시에 열린다. 모듈 스코프에
+ * '열린 메뉴 키' 하나만 두고 useSyncExternalStore 로 구독한다. */
+let openMenuKey: string | null = null;
+const menuSubs = new Set<() => void>();
+function setOpenMenuKey(k: string | null): void {
+  openMenuKey = k;
+  menuSubs.forEach((f) => f());
+}
+function subscribeMenu(f: () => void): () => void {
+  menuSubs.add(f);
+  return () => { menuSubs.delete(f); };
+}
+function useMenuOpen(key: string): boolean {
+  return useSyncExternalStore(subscribeMenu, () => openMenuKey, () => null) === key;
+}
+
 /** 카드 ⋯ 메뉴 — 시세 보기 / 컬렉션에서 제거 (웹 CardMenu 동일). */
-function CardMenu({ apparelId, basis, onRemove, tc, plain = false, up = false }: { apparelId: number | null; basis?: string | null; onRemove: () => void; tc: ReturnType<typeof useThemeColors>; plain?: boolean; up?: boolean }) {
-  const [open, setOpen] = useState(false);
+function CardMenu({ menuKey, apparelId, basis, onRemove, tc, plain = false, up = false }: { menuKey: string; apparelId: number | null; basis?: string | null; onRemove: () => void; tc: ReturnType<typeof useThemeColors>; plain?: boolean; up?: boolean }) {
+  const open = useMenuOpen(menuKey);
+  const setOpen = (v: boolean) => setOpenMenuKey(v ? menuKey : null);
   // 화면 아래쪽 행이면 위로 펼친다 — 아래로 열면 하단 탭바 뒤로 들어가 눌리지 않는다.
   const [autoUp, setAutoUp] = useState(false);
   const wrapRef = useRef<View>(null);
@@ -507,7 +525,7 @@ function CardMenu({ apparelId, basis, onRemove, tc, plain = false, up = false }:
       // 남은 아래 공간(플로팅 탭바 ~90 + 메뉴 ~100) 부족하면 위로.
       setAutoUp(Dimensions.get('window').height - (y + h) < 190);
     });
-    setOpen((v) => !v);
+    setOpenMenuKey(open ? null : menuKey);
   };
   const openUp = up || autoUp;
   return (

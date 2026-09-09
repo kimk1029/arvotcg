@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { COLLECTION_CACHE_KEY } from '@/lib/collectionCache';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { CardThumb } from '@/components/CardThumb';
 import { GradeMark } from '@/components/cards/GradeMark';
 import { useCurrency } from '@/components/CurrencyProvider';
@@ -634,10 +634,28 @@ function GradedLabel({ company, grade, height, inline }: { company?: string | nu
   return <GradeMark company={company} grade={grade} height={height} gold="var(--gold)" inline={inline} />;
 }
 
+/* ── ⋯ 메뉴는 화면에 하나만 ─────────────────────────────────────────
+ * 예전엔 각 카드가 자기 open 상태를 따로 들고 있어 여러 개가 동시에 열렸다.
+ * 모듈 스코프에 '열린 메뉴 키' 하나만 두고 useSyncExternalStore 로 구독한다. */
+let openMenuKey: string | null = null;
+const menuSubs = new Set<() => void>();
+function setOpenMenuKey(k: string | null): void {
+  openMenuKey = k;
+  menuSubs.forEach((f) => f());
+}
+function subscribeMenu(f: () => void): () => void {
+  menuSubs.add(f);
+  return () => { menuSubs.delete(f); };
+}
+function useMenuOpen(key: string): boolean {
+  const cur = useSyncExternalStore(subscribeMenu, () => openMenuKey, () => null);
+  return cur === key;
+}
+
 /** 카드 더보기(⋯) 메뉴 — 시세 보기 / 컬렉션에서 제거. Link/Panel 바깥에 형제로 배치. */
-function CardMenu({ apparelId, basis, onRemove, plain = false, up = false }: { apparelId: number | null; basis?: string | null; onRemove: () => void; plain?: boolean; up?: boolean }) {
+function CardMenu({ menuKey, apparelId, basis, onRemove, plain = false, up = false }: { menuKey: string; apparelId: number | null; basis?: string | null; onRemove: () => void; plain?: boolean; up?: boolean }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const open = useMenuOpen(menuKey);
   // 화면 아래쪽 행이면 위로 펼친다 — 아래로 열면 하단 네비게이션 뒤로 들어가 눌리지 않는다.
   const [autoUp, setAutoUp] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -645,12 +663,13 @@ function CardMenu({ apparelId, basis, onRemove, plain = false, up = false }: { a
     const r = wrapRef.current?.getBoundingClientRect();
     // 남은 아래 공간(하단 네비 ~90px + 메뉴 높이 ~100px) 부족하면 위로.
     setAutoUp(r ? window.innerHeight - r.bottom < 190 : false);
-    setOpen((o) => !o);
+    setOpenMenuKey(open ? null : menuKey);
   };
+  const setOpen = (v: boolean) => setOpenMenuKey(v ? menuKey : null);
   const openUp = up || autoUp;
   useEffect(() => {
     if (!open) return;
-    const close = () => setOpen(false);
+    const close = () => setOpenMenuKey(null);
     window.addEventListener('click', close);
     return () => window.removeEventListener('click', close);
   }, [open]);
@@ -781,7 +800,7 @@ function CardGridItem({ group, rank, format, onRemove }: { group: CardGroup<Row>
       )}
       {/* ⋯ 메뉴 — Link/Panel 바깥 형제(이미지 우상단 오버레이). */}
       <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 6 }}>
-        <CardMenu apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} />
+        <CardMenu menuKey={`grid:${c.id}`} apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} />
       </div>
     </div>
   );
@@ -850,7 +869,7 @@ function CardListItem({ group, format, last, onRemove }: { group: CardGroup<Row>
               {open ? '▲' : '▼'}
             </button>
           ) : (
-            <CardMenu apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} plain />
+            <CardMenu menuKey={`list:${c.id}`} apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} plain />
           )}
         </div>
       </div>
@@ -878,7 +897,7 @@ function CardListItem({ group, format, last, onRemove }: { group: CardGroup<Row>
                   )}
                 </span>
                 <div style={{ position: 'absolute', top: '50%', right: -4, transform: 'translateY(-50%)' }}>
-                  <CardMenu apparelId={r.c.snkrdunkApparelId} basis={r.c.priceBasis} onRemove={() => onRemove(r.c.id)} plain up />
+                  <CardMenu menuKey={`item:${r.c.id}`} apparelId={r.c.snkrdunkApparelId} basis={r.c.priceBasis} onRemove={() => onRemove(r.c.id)} plain up />
                 </div>
               </div>
             );
