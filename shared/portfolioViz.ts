@@ -501,3 +501,38 @@ export function alignAndRebase(
 ): Array<{ date: string; value: number }> {
   return rebaseTo100(points.filter((p) => p.date >= fromDate && p.date <= toDate));
 }
+
+/* ── 차트의 '카드 추가' 마커 ─────────────────────────────────────────── */
+
+/** 서버 /me/portfolio 의 additions 항목 — 그 날 등록된 카드 수와 이름(최대 3개). */
+export interface VizAddition {
+  date: string;
+  count: number;
+  names: string[];
+}
+
+/**
+ * 히스토리 인덱스 → 그 날의 카드 추가 정보. 차트에서 금액이 뛴 날에
+ * "무엇이 추가됐는지" 세로선/툴팁으로 보여주기 위한 매핑(웹·앱 공통).
+ * 히스토리에 없는 날짜(구간 밖)는 버린다.
+ */
+export function additionIndexMap(
+  history: Array<{ date: string }>,
+  additions: VizAddition[] | undefined | null,
+): Map<number, VizAddition> {
+  const out = new Map<number, VizAddition>();
+  if (!additions || additions.length === 0) return out;
+  const indexByDate = new Map<string, number>();
+  history.forEach((h, i) => indexByDate.set(h.date, i));
+  for (const a of additions) {
+    const i = indexByDate.get(a.date);
+    if (i != null) out.set(i, a);
+  }
+  return out;
+}
+
+/** 마커 라벨 — "＋ 리자몽 외 2장". */
+export function additionLabel(a: VizAddition): string {
+  const first = a.names[0] ?? '카드';
+  return a.count > 1 ? `＋ ${first} 외 ${a.count - 1}장` : `＋ ${first}`;
+}

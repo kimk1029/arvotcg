@@ -2522,6 +2522,9 @@ a{color:inherit;text-decoration:none;}
 .cv-pf-tip-date{font-family:var(--f1);font-size:10px;color:rgba(255,255,255,.5);letter-spacing:.3px;}
 .cv-pf-tip-amt{font-family:var(--f1);font-size:14px;color:var(--gold);letter-spacing:.3px;margin-top:2px;}
 .cv-pf-tip-pct{font-family:var(--f1);font-size:12px;letter-spacing:.3px;margin-top:2px;}
+/* 카드 추가일 툴팁 줄 — 금액 점프의 원인(어떤 카드가 들어왔는지) */
+.cv-pf-tip-add{font-family:var(--f1);font-size:11px;color:#FFD23F;letter-spacing:.3px;margin-top:3px;
+  padding-top:3px;border-top:1px solid rgba(255,255,255,.15);max-width:190px;white-space:normal;}
 .cv-pf-axis{display:flex;justify-content:space-between;margin-top:6px;
   font-family:var(--f1);font-size:8px;color:rgba(255,255,255,.3);letter-spacing:.3px;}
 /* movers */

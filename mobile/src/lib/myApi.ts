@@ -127,6 +127,8 @@ export interface PortfolioSummary {
   profitAbsJpy?: number | null;
   profitPct?: number | null;
   history: Array<{ date: string; totalJpy: number }>;
+  /** 날짜별 카드 추가 이벤트 — 차트 마커용(구버전 서버엔 없음). */
+  additions?: Array<{ date: string; count: number; names: string[] }>;
   asOfDate: string;
 }
 

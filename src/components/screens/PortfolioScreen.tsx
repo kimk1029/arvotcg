@@ -15,7 +15,7 @@ import {
   Section as VizSection,
   upsideFromCards,
 } from '@/components/portfolio/PortfolioExtras';
-import type { VizAcquisition } from '../../../shared/portfolioViz';
+import { additionIndexMap, additionLabel, type VizAcquisition, type VizAddition } from '../../../shared/portfolioViz';
 import type { MarketIndexResponse, MarketIndexSeries } from '../../../shared/marketIndex';
 import type { VizCard } from '../../../shared/portfolioViz';
 
@@ -32,6 +32,8 @@ interface PortfolioData {
   changeAbsJpy: number | null;
   changePct: number | null;
   history: HistPoint[];
+  /** 날짜별 카드 추가 이벤트 — 차트 마커용(구버전 서버엔 없음). */
+  additions?: VizAddition[];
   asOfDate?: string;
 }
 
@@ -357,7 +359,7 @@ export function PortfolioScreen() {
           </button>
         ))}
       </div>
-      <PortfolioChart history={hist} format={format} />
+      <PortfolioChart history={hist} additions={port.additions} format={format} />
 
       {/* ── 인사이트 타일 (승률·평균 손익·PSA10 업사이드·최고 평가일 대비) ── */}
       <div style={{ marginTop: 12 }}>
@@ -523,7 +525,7 @@ function Spark({ trend, up }: { trend: number[]; up: boolean }) {
 
 /* ───────── 인터랙티브 차트 (호버 툴팁 + 클릭 핀) ───────── */
 
-function PortfolioChart({ history, format }: { history: HistPoint[]; format: (jpy: number) => string }) {
+function PortfolioChart({ history, additions, format }: { history: HistPoint[]; additions?: VizAddition[]; format: (jpy: number) => string }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   const [pinned, setPinned] = useState<number | null>(null);
@@ -548,6 +550,8 @@ function PortfolioChart({ history, format }: { history: HistPoint[]; format: (jp
   const overallUp = vals[n - 1] >= vals[0];
   const stroke = overallUp ? UP : DOWN;
 
+  // 카드 추가일 마커 — 금액이 뛴 날이 '시세 급등'이 아니라 '카드 유입'임을 표시.
+  const addMap = additionIndexMap(history, additions);
   const active = hover ?? pinned;
   const aPrev = active != null && active > 0 ? history[active - 1].totalJpy : null;
   const aPct = active != null && aPrev && aPrev > 0 ? ((history[active].totalJpy - aPrev) / aPrev) * 100 : null;
@@ -580,6 +584,9 @@ function PortfolioChart({ history, format }: { history: HistPoint[]; format: (jp
               {aPct >= 0 ? '▲ +' : '▼ '}{aPct.toFixed(2)}%
             </div>
           )}
+          {addMap.has(active) && (
+            <div className="cv-pf-tip-add">{additionLabel(addMap.get(active)!)}</div>
+          )}
         </div>
       )}
       <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: 'block', touchAction: 'none' }}>
@@ -590,6 +597,14 @@ function PortfolioChart({ history, format }: { history: HistPoint[]; format: (jp
           </linearGradient>
         </defs>
         <path d={area} fill="url(#pfFill)" stroke="none" />
+        {/* 카드 추가일 — 세로 점선 + 상단 ＋ 배지. 금액 점프의 원인을 바로 읽게 한다. */}
+        {[...addMap.keys()].map((i) => (
+          <g key={`add-${i}`}>
+            <line x1={xOf(i)} y1={10} x2={xOf(i)} y2={H} stroke={GOLD} strokeWidth={1} strokeDasharray="2 3" opacity={0.75} />
+            <circle cx={xOf(i)} cy={7} r={5} fill={GOLD} />
+            <text x={xOf(i)} y={10.5} textAnchor="middle" fontSize={8} fontWeight={800} fill="#16161a">+</text>
+          </g>
+        ))}
         <path d={line} fill="none" stroke={stroke} strokeWidth={2} strokeLinejoin="round" />
         {active != null && (
           <>
@@ -600,7 +615,7 @@ function PortfolioChart({ history, format }: { history: HistPoint[]; format: (jp
       </svg>
       <div className="cv-pf-axis">
         <span>{history[0].date}</span>
-        <span>{n}일 · 탭/호버 상세</span>
+        <span>{n}일 · 탭/호버 상세{addMap.size > 0 ? ' · ＋는 카드 추가일' : ''}</span>
         <span>{history[n - 1].date}</span>
       </div>
     </div>

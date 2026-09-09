@@ -38,6 +38,7 @@ import { getJpyKrwRate } from '../lib/fxRate.js';
 import { runDailyCheckIn } from '../lib/checkIn.js';
 import { logPointChange } from '../lib/pointLog.js';
 import { kstDateKey, kstDateKeyShifted } from '../../shared/kst';
+import { translateKnownCardNameToKo } from '../../shared/cardTranslate';
 import { UGC_TERMS_VERSION } from '../../shared/ugcTerms';
 
 const router = Router();
@@ -393,6 +394,7 @@ router.get('/portfolio', async (req: Request, res: Response) => {
         snkrdunkApparelId: true,
         createdAt: true,
         qty: true,
+        nickname: true,
         registerPriceJpy: true,
         buyPrice: true,
         buyCurrency: true,
@@ -414,6 +416,8 @@ router.get('/portfolio', async (req: Request, res: Response) => {
     // 누적 수익률(등록가 대비) — 컬렉션 화면과 같은 산식의 합계.
     let investedJpy = 0;
     let currentJpy = 0;
+    // 카드 추가 이벤트 — 차트에서 "이 날 무엇이 들어와 금액이 뛰었는지" 표시용(등록일 KST 기준).
+    const addedByDate = new Map<string, string[]>();
     // 카드 리스트와 동일한 sales-chart 기준 등락. 오늘 추가분 제외, 어제부터 보유분만.
     let heldPrevChart = 0; // 어제(직전 거래 포인트) 시세 합
     let heldLastChart = 0; // 오늘(최신 포인트) 시세 합
@@ -480,7 +484,12 @@ router.get('/portfolio', async (req: Request, res: Response) => {
       const jpyKrw = (await getJpyKrwRate().catch(() => null))?.rate ?? 0;
       for (const c of cards) {
         const p = c.snkrdunkApparelId != null ? priceByApparel.get(c.snkrdunkApparelId) : null;
-        const addedToday = kstDateKey(c.createdAt) === today;
+        const addedDate = kstDateKey(c.createdAt);
+        const addedToday = addedDate === today;
+        const rawName = c.snkrdunkApparelId != null ? catalog.get(c.snkrdunkApparelId)?.name ?? null : null;
+        const names = addedByDate.get(addedDate) ?? [];
+        names.push(rawName ? translateKnownCardNameToKo(rawName) : c.nickname || '카드');
+        addedByDate.set(addedDate, names);
         const qty = Math.max(1, c.qty || 1);
         // 누적 수익률 — 등록(매입) 시점 기준가 대비 오늘 등급 일치 시세. 웹/앱 컬렉션 화면과 같은 규칙.
         const basisJpy =
@@ -576,6 +585,13 @@ router.get('/portfolio', async (req: Request, res: Response) => {
     const profitAbsJpy = investedJpy > 0 ? currentJpy - investedJpy : null;
     const profitPct = investedJpy > 0 ? ((currentJpy - investedJpy) / investedJpy) * 100 : null;
 
+    // 차트 마커 — 히스토리 구간 안의 등록일만, 날짜순. 이름은 최대 3개까지.
+    const historyDates = new Set(history.map((h) => h.date));
+    const additions = Array.from(addedByDate.entries())
+      .filter(([date]) => historyDates.has(date))
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, names]) => ({ date, count: names.length, names: names.slice(0, 3) }));
+
     res.json({
       data: {
         totalJpy,
@@ -590,6 +606,7 @@ router.get('/portfolio', async (req: Request, res: Response) => {
         changeAbsJpy,
         changePct,
         history,
+        additions,
         asOfDate: today,
       },
     });
