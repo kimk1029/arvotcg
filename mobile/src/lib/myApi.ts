@@ -642,3 +642,29 @@ export async function fetchMarketIndexes(): Promise<import('../../../shared/mark
     return once();
   }
 }
+
+/* ── 버그 제보 ─────────────────────────────────────────────────────── */
+
+export interface BugReportInput {
+  title: string;
+  content: string;
+  contact?: string | null;
+  platform?: 'web' | 'ios' | 'android' | null;
+  appVersion?: string | null;
+}
+
+/** 버그 제보 등록 — 열람은 어드민 전용(내 목록만 fetchMyBugReports 로 확인). */
+export function postBugReport(input: BugReportInput): Promise<{ id: number }> {
+  return api<{ data: { id: number } }>('/api/me/bug-reports', { method: 'POST', body: input }).then((r) => r.data);
+}
+
+export interface MyBugReport {
+  id: number;
+  title: string;
+  status: string;
+  createdAt: string;
+}
+
+export function fetchMyBugReports(): Promise<MyBugReport[]> {
+  return api<{ data: MyBugReport[] }>('/api/me/bug-reports').then((r) => r.data);
+}
