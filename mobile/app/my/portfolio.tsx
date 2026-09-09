@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View, Image, Pressable } from 'react-native';
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import { router } from 'expo-router';
@@ -23,7 +23,7 @@ import {
   Section as VizSection,
   upsideFromCards,
 } from '@/components/portfolio/PortfolioExtras';
-import type { VizAcquisition } from '../../../shared/portfolioViz';
+import { additionIndexMap, additionLabel, type VizAcquisition, type VizAddition } from '../../../shared/portfolioViz';
 import { fetchMarketIndexes, type MarketIndexSeries } from '@/lib/myApi';
 import type { VizCard } from '../../../shared/portfolioViz';
 import { shotSource } from '@/lib/shotMode';
@@ -302,7 +302,7 @@ export default function PortfolioPage() {
           </View>
 
           {/* 일별 차트 */}
-          <PortfolioChart flat history={range === 0 ? port.history : port.history.slice(-range)} format={format} selIdx={selIdx} onSelect={setSelIdx} />
+          <PortfolioChart flat history={range === 0 ? port.history : port.history.slice(-range)} additions={port.additions} format={format} selIdx={selIdx} onSelect={setSelIdx} />
 
           {/* 인사이트 타일 · 내 자산 vs 시장 · 시장 지표 — 웹 PortfolioScreen 동일 순서 */}
           <InsightTiles cards={vizCards} upside={upside} history={port.history} format={format} />
@@ -515,7 +515,7 @@ export default function PortfolioPage() {
           </View>
 
           {/* 일별 차트 */}
-          <PortfolioChart history={range === 0 ? port.history : port.history.slice(-range)} format={format} selIdx={selIdx} onSelect={setSelIdx} />
+          <PortfolioChart history={range === 0 ? port.history : port.history.slice(-range)} additions={port.additions} format={format} selIdx={selIdx} onSelect={setSelIdx} />
 
           {/* 인사이트 타일 · 내 자산 vs 시장 · 시장 지표 — 웹 PortfolioScreen 동일 순서 */}
           <InsightTiles cards={vizCards} upside={upside} history={port.history} format={format} />
@@ -750,12 +750,14 @@ function SparkPath({ trend, color }: { trend: number[]; color: string }) {
 
 function PortfolioChart({
   history,
+  additions,
   format,
   selIdx,
   onSelect,
   flat,
 }: {
   history: Array<{ date: string; totalJpy: number }>;
+  additions?: VizAddition[];
   format: (jpy: number) => string;
   selIdx: number | null;
   onSelect: (i: number | null) => void;
@@ -807,6 +809,8 @@ function PortfolioChart({
   const overallUp = vals[vals.length - 1] >= vals[0];
   const stroke = overallUp ? '#22C55E' : '#E63946';
 
+  // 카드 추가일 마커 — 금액이 뛴 날이 '시세 급등'이 아니라 '카드 유입'임을 표시(웹 동일).
+  const addMap = additionIndexMap(history, additions);
   const sel = selIdx != null && selIdx >= 0 && selIdx < history.length ? selIdx : null;
   const selPrev = sel != null && sel > 0 ? history[sel - 1].totalJpy : null;
   const selPct = sel != null && selPrev && selPrev > 0 ? ((history[sel].totalJpy - selPrev) / selPrev) * 100 : null;
@@ -814,19 +818,26 @@ function PortfolioChart({
   return (
     <Wrap>
       {sel != null ? (
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
-          <PixelText variant={txt} size={12} color={inkColor}>{history[sel].date}</PixelText>
-          <PixelText variant={txt} size={16} weight="bold" color={strongColor}>{format(history[sel].totalJpy)}</PixelText>
-          {selPct != null && (
-            <PixelText variant={txt} size={13} weight="bold" color={selPct >= 0 ? (flat ? UP : tc.grnDk) : (flat ? DOWN : tc.red)}>
-              {selPct >= 0 ? '▲ +' : '▼ '}
-              {selPct.toFixed(2)}%
+        <View style={{ marginBottom: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+            <PixelText variant={txt} size={12} color={inkColor}>{history[sel].date}</PixelText>
+            <PixelText variant={txt} size={16} weight="bold" color={strongColor}>{format(history[sel].totalJpy)}</PixelText>
+            {selPct != null && (
+              <PixelText variant={txt} size={13} weight="bold" color={selPct >= 0 ? (flat ? UP : tc.grnDk) : (flat ? DOWN : tc.red)}>
+                {selPct >= 0 ? '▲ +' : '▼ '}
+                {selPct.toFixed(2)}%
+              </PixelText>
+            )}
+          </View>
+          {addMap.has(sel) ? (
+            <PixelText variant={txt} size={11} weight="bold" color={tc.gold} numberOfLines={2} style={{ marginTop: 4 }}>
+              {additionLabel(addMap.get(sel)!)} 추가
             </PixelText>
-          )}
+          ) : null}
         </View>
       ) : (
         <PixelText variant={txt} size={11} color={inkColor} style={{ marginBottom: 8 }}>
-          차트의 점을 눌러 그 날의 금액·등락률을 확인하세요
+          차트의 점을 눌러 그 날의 금액·등락률을 확인하세요{addMap.size > 0 ? ' (노란 선 = 카드 추가일)' : ''}
         </PixelText>
       )}
       <Svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`}>
@@ -845,6 +856,13 @@ function PortfolioChart({
             />
           );
         })}
+        {/* 카드 추가일 — 세로 점선 + 상단 점(웹 ＋ 배지와 같은 의미) */}
+        {[...addMap.keys()].map((i) => (
+          <React.Fragment key={`add-${i}`}>
+            <Line x1={xy(i).x} y1={8} x2={xy(i).x} y2={H} stroke={tc.gold} strokeWidth={1} strokeDasharray="2,3" opacity={0.75} />
+            <Circle cx={xy(i).x} cy={6} r={4} fill={tc.gold} />
+          </React.Fragment>
+        ))}
         {sel != null && (
           <Line x1={xy(sel).x} y1={0} x2={xy(sel).x} y2={H} stroke={inkColor} strokeWidth={1} strokeDasharray="3,3" />
         )}

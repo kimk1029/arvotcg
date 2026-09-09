@@ -348,3 +348,22 @@ export function boxTrendPoints(daily: readonly DailyPriceStat[]): Array<[number,
 
 /** 스냅샷 보관 상한 — 박스 기간 탭은 이 일수를 넘기지 않는다(서버 price-stats 상한). */
 export const BOX_RANGE_MAX_DAYS = 90;
+
+/**
+ * 컬렉션 평가 단가 — "등록만 하면 반드시 합산되도록" 하는 폴백 사슬.
+ * 등급 일치 시세(registerBasisJpy) → 싱글 → PSA10 → 등록가(기준가) 순.
+ * 서버 /me/portfolio 총 자산과 웹·앱 컬렉션 목록이 같은 규칙을 쓴다(정본).
+ */
+export function evaluationUnitJpy(p: {
+  /** 등급 일치 현재가. */
+  gradeJpy?: number | null;
+  singleJpy?: number | null;
+  psa10Jpy?: number | null;
+  /** 등록가(구매가 환산 포함) — 시세를 아직 못 받은 카드의 최후 폴백. */
+  basisJpy?: number | null;
+}): number {
+  for (const v of [p.gradeJpy, p.singleJpy, p.psa10Jpy, p.basisJpy]) {
+    if (typeof v === 'number' && v > 0) return v;
+  }
+  return 0;
+}

@@ -33,6 +33,7 @@ import { isAuthenticated, subscribeSession } from '@/lib/session';
 import { parseCardStatics } from '../../../shared/cardStatics';
 import { SegmentedTabs, SegIcons } from '@/components/cv/SegmentedTabs';
 import { groupDuplicates, type CardGroup } from '../../../shared/collectionGroup';
+import { evaluationUnitJpy } from '../../../shared/snkrdunkPrice';
 
 type SortKey = 'value' | 'change' | 'recent' | 'name' | 'game';
 type ViewMode = 'grid' | 'list';
@@ -71,7 +72,10 @@ function rankBadgeColor(rank: number, gold: string, ink: string): string {
 
 interface Row {
   c: MyCardRow;
+  /** 표시용 현재가 — 실시세, 없으면 등록가 폴백. */
   curJpy: number;
+  /** 실시세(등급 일치). 0 이면 시세 미확보 — 손익 계산에서 제외. */
+  gradePriceJpy: number;
   qty: number;
   basisJpy: number | null;
   profitPct: number | null;
@@ -124,17 +128,19 @@ export default function MyCardsScreen() {
           : null;
       const basisJpy =
         buyJpy ?? (c.registerPriceJpy != null && c.registerPriceJpy > 0 ? c.registerPriceJpy : null);
-      const curJpy =
+      const gradePriceJpy =
         (c.currentPriceJpy ?? 0) > 0
           ? (c.currentPriceJpy as number)
           : c.graded
             ? c.pricePsa10Jpy ?? 0
             : c.priceSingleJpy ?? 0;
-      const profitPct = basisJpy && curJpy > 0 ? ((curJpy - basisJpy) / basisJpy) * 100 : null;
+      // 시세를 아직 못 받은 카드도 등록가로 평가액에 잡히게 — 폴백 정본 evaluationUnitJpy(웹·서버 동일).
+      const curJpy = evaluationUnitJpy({ gradeJpy: gradePriceJpy, basisJpy });
+      const profitPct = basisJpy && gradePriceJpy > 0 ? ((gradePriceJpy - basisJpy) / basisJpy) * 100 : null;
       const t = c.trend ?? [];
       const dayPct =
         t.length >= 2 && t[t.length - 2] > 0 ? ((t[t.length - 1] - t[t.length - 2]) / t[t.length - 2]) * 100 : null;
-      return { c, curJpy, qty, basisJpy, profitPct, dayPct, changePct: profitPct ?? dayPct, value: curJpy * qty };
+      return { c, curJpy, gradePriceJpy, qty, basisJpy, profitPct, dayPct, changePct: profitPct ?? dayPct, value: curJpy * qty };
     });
   }, [data, rate]);
   const boxCount = useMemo(() => allRows.filter((r) => r.c.itemKind === 'box').length, [allRows]);
@@ -162,9 +168,10 @@ export default function MyCardsScreen() {
     let invested = 0;
     let current = 0;
     for (const r of visibleRows) {
-      if (r.basisJpy && r.curJpy > 0) {
+      // 손익은 실시세가 있는 카드만 — 등록가 폴백 카드는 손익 0 으로 섞이지 않게 (웹 동일).
+      if (r.basisJpy && r.gradePriceJpy > 0) {
         invested += r.basisJpy * r.qty;
-        current += r.curJpy * r.qty;
+        current += r.gradePriceJpy * r.qty;
       }
     }
     return { invested, profit: current - invested };
