@@ -5,6 +5,7 @@ import {
   type AvatarId,
 } from '@/lib/avatars';
 import { prisma } from './prisma.js';
+import { optimizedBannerUrl } from './bannerImage';
 import {
   DEFAULT_BG,
   DEFAULT_FRAME,
@@ -1042,17 +1043,19 @@ export async function getActiveHeroBanners(): Promise<HeroSlideRow[]> {
       where: { active: true },
       orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     });
-    return rows.map((r) => ({
+    return await Promise.all(rows.map(async (r) => ({
       cls: (SLIDE_CLASS_SET.has(r.slideClass) ? r.slideClass : 'slide-a') as HeroSlideRow['cls'],
       badge: r.badge,
       title: r.title,
       sub: r.sub,
       visualType: (VISUAL_TYPE_SET.has(r.visualType) ? r.visualType : 'emoji') as HeroSlideRow['visualType'],
-      visualValue: r.visualValue,
+      visualValue: r.visualType === 'image'
+        ? await optimizedBannerUrl(r.visualValue).catch(() => r.visualValue)
+        : r.visualValue,
       onClick: (r.onClick && ON_CLICK_SET.has(r.onClick) ? r.onClick : null) as HeroSlideRow['onClick'],
       linkUrl: r.linkUrl ?? null,
       ctaHint: r.ctaHint,
-    }));
+    })));
   } catch (err) {
     console.error('[getActiveHeroBanners]', err);
     return [];

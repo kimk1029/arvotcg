@@ -43,8 +43,13 @@ test('old and new app tokens exchange for HttpOnly cookies without redirect loop
   try {
     for (const req of [request('/event/cardshow?embed=1&token=valid'), request('/event/cardshow?embed=1', { authorization: 'Bearer valid' })]) {
       const res = await middleware(req);
-      assert.equal(res.status, 307);
-      assert.equal(new URL(res.headers.get('location')!).searchParams.has('token'), false);
+      const queryToken = req.nextUrl.searchParams.has('token');
+      assert.equal(res.status, queryToken ? 307 : 200);
+      if (queryToken) assert.equal(new URL(res.headers.get('location')!).searchParams.has('token'), false);
+      else {
+        assert.equal(res.headers.get('location'), null);
+        assert.match(res.headers.get('x-middleware-request-cookie')!, /pf30_session=valid/);
+      }
       assert.equal(res.cookies.get('pf30_session')?.httpOnly, true);
       assert.equal(res.cookies.get('pf30_session')?.secure, true);
     }
@@ -52,6 +57,9 @@ test('old and new app tokens exchange for HttpOnly cookies without redirect loop
     const invalid = await middleware(request('/event/cardshow?token=invalid&embed=1'));
     assert.equal(invalid.cookies.get('pf30_session'), undefined);
     assert.equal(invalid.headers.get('location')!.includes('token'), false);
+    const invalidHeader = await middleware(request('/event/cardshow?embed=1', { authorization: 'Bearer invalid' }));
+    assert.equal(new URL(invalidHeader.headers.get('location')!).pathname, '/login');
+    assert.equal(invalidHeader.cookies.get('pf30_session'), undefined);
   } finally { globalThis.fetch = original; }
 });
 

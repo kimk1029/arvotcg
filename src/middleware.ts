@@ -51,7 +51,17 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(login, { headers: { 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' } });
   }
   const exchange = bridgeToken && (req.nextUrl.searchParams.has('token') || req.cookies.get(SESSION_COOKIE)?.value !== bridgeToken);
-  const response = exchange ? NextResponse.redirect(cleanUrl) : NextResponse.next();
+  // 헤더 토큰은 URL 정리가 필요 없다. 첫 요청에서 바로 렌더링하고,
+  // 같은 요청의 서버 컴포넌트에도 검증된 세션 쿠키를 전달한다.
+  const requestHeaders = new Headers(req.headers);
+  if (exchange) {
+    const cookies = req.cookies.getAll().filter((cookie) => cookie.name !== SESSION_COOKIE);
+    cookies.push({ name: SESSION_COOKIE, value: bridgeToken });
+    requestHeaders.set('cookie', cookies.map(({ name, value }) => `${name}=${value}`).join('; '));
+  }
+  const response = exchange && req.nextUrl.searchParams.has('token')
+    ? NextResponse.redirect(cleanUrl)
+    : NextResponse.next({ request: { headers: requestHeaders } });
   if (exchange) response.cookies.set(SESSION_COOKIE, bridgeToken, {
     httpOnly: true, secure: req.nextUrl.protocol === 'https:', sameSite: 'lax', path: '/',
   });

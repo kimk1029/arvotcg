@@ -10,6 +10,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { warmCatalogImages, getWarmState, CARD_CDN_DIR } from '../lib/cardImageCache.js';
 import { getHeroAutoplayMs, setHeroAutoplayMs } from '../lib/queries.js';
 import { HERO_AUTOPLAY_MAX_MS, HERO_AUTOPLAY_MIN_MS } from '../../shared/heroBanner';
+import { encodeBanner } from '../lib/bannerImage';
 
 const SLIDE_CLASSES = ['slide-a', 'slide-b', 'slide-c', 'slide-d'] as const;
 const VISUAL_TYPES = ['emoji', 'image'] as const;
@@ -295,16 +296,20 @@ router.post('/banners/upload', bannerUpload.single('file'), async (req: Request,
     return res.status(400).json({ error: `지원하지 않는 형식: ${file.mimetype}` });
   }
   try {
-    const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${bannerExt(file.mimetype)}`;
+    const encoded = await encodeBanner(file.buffer);
+    const smaller = encoded.length < file.buffer.length;
+    const buffer = smaller ? encoded : file.buffer;
+    const contentType = smaller ? 'image/webp' : file.mimetype;
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${bannerExt(contentType)}`;
     if (process.env.BLOB_READ_WRITE_TOKEN) {
-      const { url } = await put(`banner/${filename}`, file.buffer, {
+      const { url } = await put(`banner/${filename}`, buffer, {
         access: 'public',
-        contentType: file.mimetype,
+        contentType,
       });
       return res.json({ url });
     }
     await mkdir(BANNER_UPLOADS_DIR, { recursive: true });
-    await writeFile(join(BANNER_UPLOADS_DIR, filename), file.buffer);
+    await writeFile(join(BANNER_UPLOADS_DIR, filename), buffer);
     res.json({ url: `${uploadsPublicOrigin()}/api/cdn/uploads/banner/${filename}` });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
