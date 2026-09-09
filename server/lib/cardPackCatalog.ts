@@ -59,10 +59,15 @@ async function loadCatalogFromDb(): Promise<PackWithBox[]> {
     const prices = new Map<number, number>();
     if (ids.length > 0) {
       const snapshots = await prisma.$queryRaw<Array<{ apparelId: number; minPrice: number }>>`
-        SELECT DISTINCT ON ("apparelId") "apparelId", "minPrice"
-        FROM "snkrdunk_price_snapshots"
-        WHERE "apparelId" IN (${Prisma.join(ids)})
-        ORDER BY "apparelId", "fetchedAt" DESC
+        SELECT s."apparelId", s."minPrice"
+        FROM unnest(ARRAY[${Prisma.join([...new Set(ids)])}]::int[]) AS requested(id)
+        CROSS JOIN LATERAL (
+          SELECT "apparelId", "minPrice"
+          FROM "snkrdunk_price_snapshots"
+          WHERE "apparelId" = requested.id
+          ORDER BY "fetchedAt" DESC
+          LIMIT 1
+        ) s
       `;
       for (const snapshot of snapshots) prices.set(Number(snapshot.apparelId), Number(snapshot.minPrice));
     }

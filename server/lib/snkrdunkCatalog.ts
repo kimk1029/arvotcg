@@ -238,11 +238,15 @@ export async function loadCatalogEntries(ids: number[]): Promise<Map<number, Cat
           fetchedAt: Date;
         }>
       >`
-        SELECT DISTINCT ON ("apparelId")
-          "apparelId", "minPrice", "listingCount", "priceSingle", "pricePsa10", "pricePsa9", "pricePsa8", "headlinePrice", "headlineBasis", "trend", "fetchedAt"
-        FROM "snkrdunk_price_snapshots"
-        WHERE "apparelId" IN (${Prisma.join(ids)})
-        ORDER BY "apparelId", "fetchedAt" DESC
+        SELECT s.*
+        FROM unnest(ARRAY[${Prisma.join([...new Set(ids)])}]::int[]) AS requested(id)
+        CROSS JOIN LATERAL (
+          SELECT "apparelId", "minPrice", "listingCount", "priceSingle", "pricePsa10", "pricePsa9", "pricePsa8", "headlinePrice", "headlineBasis", "trend", "fetchedAt"
+          FROM "snkrdunk_price_snapshots"
+          WHERE "apparelId" = requested.id
+          ORDER BY "fetchedAt" DESC
+          LIMIT 1
+        ) s
       `,
     ]);
     const snapById = new Map<number, (typeof snaps)[number]>(
