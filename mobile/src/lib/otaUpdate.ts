@@ -16,6 +16,8 @@ import { AppState } from 'react-native';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { getApiOrigin } from './apiEnv';
 const probe = (tag: string) => { fetch(`${getApiOrigin()}/health?probe=${tag}`).catch(() => {}); };
+console.warn('[ota] module init');
+probe('init');
 
 interface ExpoUpdatesNative {
   isEnabled?: boolean;
@@ -70,6 +72,7 @@ function armReloadOnResume(mod: ExpoUpdatesNative) {
  * 계속 기다렸다가 복귀 시 적용. 프로세스당 1회만 동작.
  */
 export async function applyPendingOtaOnBoot(): Promise<void> {
+  console.warn('[ota] applier enter');
   console.log('[ota] applier started=' + String(started) + ' dev=' + String(__DEV__));
   probe('enter');
   if (started) return;
