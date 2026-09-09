@@ -464,15 +464,26 @@ router.get('/ranking', async (req: Request, res: Response) => {
   const limitRaw = Number(req.query.limit ?? 10);
   const limit = Math.max(1, Math.min(30, Number.isFinite(limitRaw) ? Math.round(limitRaw) : 10));
   const key = `${kind}:${game}:${limit}`;
-  const hit = rankingCache.get(key);
-  if (hit && Date.now() - hit.t < RANKING_TTL_MS) {
+  const cached = rankingCache.get(key);
+  const hit = cached && Date.now() - cached.t >= RANKING_TTL_MS ? cached : null; // 만료된 값(=stale)
+  if (cached && !hit) {
     res.setHeader('Cache-Control', 'public, max-age=300');
-    return res.json({ data: hit.data, cachedAt: new Date(hit.t).toISOString() });
+    return res.json({ data: cached.data, cachedAt: new Date(cached.t).toISOString() });
   }
   // 이미 같은 키를 조회 중이면 그 결과를 함께 기다린다(무거운 쿼리 중복 실행 방지).
+  // 만료된 캐시라도 값이 있으면 즉시 응답하고 갱신은 뒤에서 한다(stale-while-revalidate).
+  // 스냅샷 테이블이 78만 행이라 이 쿼리는 수 초가 걸리고, 요청이 기다리면 커넥션을 붙들어
+  // 풀이 마른다(2026-09-10 장애).
+  if (hit) {
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json({ data: hit.data, cachedAt: new Date(hit.t).toISOString() });
+    if (rankingInflight.has(key)) return;
+    // 아래 로직을 백그라운드로 계속 진행하기 위해 응답만 먼저 보낸다.
+  }
   const pending = rankingInflight.get(key);
   if (pending) {
     const shared = await pending;
+    if (res.headersSent) return;
     if (shared) {
       res.setHeader('Cache-Control', 'public, max-age=300');
       return res.json({ data: shared, cachedAt: new Date().toISOString() });
@@ -488,16 +499,19 @@ router.get('/ranking', async (req: Request, res: Response) => {
   try {
     let rows: RankingRawRow[];
     if (kind === 'snkr') {
+      // 카드(1.8만행)에서 시작해 카드당 최신 스냅샷 1건만 LATERAL 로 집는다.
+      // 스냅샷 테이블 전체(78만행/462MB)를 DISTINCT ON 으로 훑던 이전 버전은 70초+ 걸렸다.
       rows = await prisma.$queryRaw<RankingRawRow[]>`
-        WITH latest AS (
-          SELECT DISTINCT ON ("apparelId") "apparelId", "minPrice", "priceSingle", "pricePsa10", "headlinePrice", "headlineBasis"
-          FROM "snkrdunk_price_snapshots"
-          WHERE "fetchedAt" >= ${since}
-          ORDER BY "apparelId", "fetchedAt" DESC
-        )
         SELECT c."apparelId", c."shortName", c."name", c."koName", c."localizedName", c."imageUrl", c."cdnImageUrl",
                s."minPrice", s."priceSingle", s."pricePsa10", s."headlinePrice", s."headlineBasis"
-        FROM latest s JOIN "snkrdunk_cards" c ON c."apparelId" = s."apparelId"
+        FROM "snkrdunk_cards" c
+        CROSS JOIN LATERAL (
+          SELECT p."minPrice", p."priceSingle", p."pricePsa10", p."headlinePrice", p."headlineBasis"
+          FROM "snkrdunk_price_snapshots" p
+          WHERE p."apparelId" = c."apparelId" AND p."fetchedAt" >= ${since}
+          ORDER BY p."fetchedAt" DESC
+          LIMIT 1
+        ) s
         WHERE c."itemKind" = 'single' AND c."game" = ${game} AND ${priceExpr} > 0
         ORDER BY ${priceExpr} DESC
         LIMIT ${limit}`;
@@ -506,15 +520,18 @@ router.get('/ranking', async (req: Request, res: Response) => {
         WITH held AS (
           SELECT "snkrdunkApparelId" AS "apparelId", COUNT(DISTINCT "userId")::int AS holders, SUM("qty")::int AS qty
           FROM "user_cards" WHERE "snkrdunkApparelId" IS NOT NULL GROUP BY 1
-        ), latest AS (
-          SELECT DISTINCT ON ("apparelId") "apparelId", "minPrice", "priceSingle", "pricePsa10", "headlinePrice", "headlineBasis"
-          FROM "snkrdunk_price_snapshots"
-          WHERE "apparelId" IN (SELECT "apparelId" FROM held)
-          ORDER BY "apparelId", "fetchedAt" DESC
         )
         SELECT c."apparelId", c."shortName", c."name", c."koName", c."localizedName", c."imageUrl", c."cdnImageUrl",
                s."minPrice", s."priceSingle", s."pricePsa10", s."headlinePrice", s."headlineBasis", h.holders, h.qty
-        FROM held h JOIN latest s ON s."apparelId" = h."apparelId" JOIN "snkrdunk_cards" c ON c."apparelId" = h."apparelId"
+        FROM held h
+        JOIN "snkrdunk_cards" c ON c."apparelId" = h."apparelId"
+        CROSS JOIN LATERAL (
+          SELECT p."minPrice", p."priceSingle", p."pricePsa10", p."headlinePrice", p."headlineBasis"
+          FROM "snkrdunk_price_snapshots" p
+          WHERE p."apparelId" = h."apparelId"
+          ORDER BY p."fetchedAt" DESC
+          LIMIT 1
+        ) s
         WHERE c."game" = ${game} AND ${priceExpr} > 0
         ORDER BY ${priceExpr} DESC
         LIMIT ${limit}`;
@@ -542,15 +559,35 @@ router.get('/ranking', async (req: Request, res: Response) => {
     });
     rankingCache.set(key, { t: Date.now(), data });
     settleInflight(data);
-    res.setHeader('Cache-Control', 'public, max-age=300');
-    res.json({ data, cachedAt: new Date().toISOString() });
+    if (!res.headersSent) {
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.json({ data, cachedAt: new Date().toISOString() });
+    }
   } catch (err) {
     console.error('[snkrdunk.ranking]', err);
     settleInflight(null);
-    res.status(500).json({ error: 'ranking failed' });
+    if (!res.headersSent) res.status(500).json({ error: 'ranking failed' });
   } finally {
     rankingInflight.delete(key);
   }
 });
+
+/* 홈이 쓰는 랭킹 조합을 미리 채워 둔다 — 사용자 요청이 무거운 쿼리를 실행하는 일이 없게.
+ * 내부 호출이라 Express 라우터를 태우지 않고 같은 핸들러 로직을 HTTP 로 한 번 부른다. */
+const WARM_KEYS = ['pokemon', 'onepiece'].flatMap((game) =>
+  ['snkr', 'collection'].map((kind) => `game=${game}&kind=${kind}&limit=10`),
+);
+async function warmRanking(): Promise<void> {
+  const port = process.env.PORT ?? 3030;
+  for (const q of WARM_KEYS) {
+    try {
+      await fetch(`http://127.0.0.1:${port}/api/snkrdunk/ranking?${q}`).then((r) => r.text());
+    } catch {
+      /* 부팅 직후 등 — 다음 주기에 다시 시도 */
+    }
+  }
+}
+setTimeout(() => { void warmRanking(); }, 20_000).unref?.();
+setInterval(() => { void warmRanking(); }, 25 * 60_000).unref?.();
 
 export default router;
