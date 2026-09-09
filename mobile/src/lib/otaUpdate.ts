@@ -14,56 +14,6 @@
  */
 import { AppState } from 'react-native';
 import { requireOptionalNativeModule } from 'expo-modules-core';
-import { getApiOrigin } from './apiEnv';
-const probe = (tag: string) => { fetch(`${getApiOrigin()}/health?probe=${tag}`).catch(() => {}); };
-console.warn('[ota] module init');
-probe('init');
-let wrapperCalled = false;
-// 진단: RootLayout 의 useState(false)/useEffect([bool]) 호출을 관찰 (React CJS exports 패치, 임시).
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const R = require('react') as Record<string, (...a: unknown[]) => unknown>;
-  const origUseState = R.useState;
-  const origUseEffect = R.useEffect;
-  let seenState = 0;
-  let seenEffect = 0;
-  const wrappedSetters = new WeakMap<object, unknown>();
-  let seenSet = 0;
-  R.useState = function (init: unknown) {
-    const r = origUseState(init) as [unknown, (v: unknown) => void];
-    if (init === false) {
-      if (seenState++ < 10) {
-        const st = String(new Error().stack ?? '').split('\n').slice(1, 5).map((l) => l.replace(/\(address at [^)]*:1:/, '(').trim()).join(' | ');
-        console.warn('[ota] useState(false) -> ' + String(r[0]) + ' @ ' + st);
-      }
-      const orig = r[1] as unknown as object;
-      let w = wrappedSetters.get(orig) as ((v: unknown) => void) | undefined;
-      if (!w) {
-        w = (v: unknown) => {
-          if (v === true && seenSet++ < 6) {
-            const st = String(new Error().stack ?? '').split('\n').slice(1, 6).join(' | ');
-            console.warn('[ota] setState(true) from: ' + st);
-          }
-          (orig as (v: unknown) => void)(v);
-        };
-        wrappedSetters.set(orig, w);
-      }
-      return [r[0], w];
-    }
-    return r;
-  };
-  R.useEffect = function (fn: unknown, deps: unknown) {
-    if (Array.isArray(deps) && deps.length === 1 && typeof deps[0] === 'boolean' && seenEffect++ < 10) {
-      const st = String(new Error().stack ?? '').split('\n').slice(1, 4).map((l) => l.replace(/\(address at [^)]*:1:/, '(').trim()).join(' | ');
-      console.warn('[ota] useEffect([bool]) deps=' + String(deps[0]) + ' @ ' + st);
-    }
-    return origUseEffect(fn, deps);
-  };
-  console.warn('[ota] hook patch installed');
-} catch (e) {
-  console.warn('[ota] hook patch failed', e instanceof Error ? e.message : e);
-}
-setTimeout(() => { console.warn('[ota] 8s after module init: wrapperCalled=' + String(wrapperCalled)); probe('t8-' + String(wrapperCalled)); }, 8000);
 
 interface ExpoUpdatesNative {
   isEnabled?: boolean;
@@ -117,17 +67,7 @@ function armReloadOnResume(mod: ExpoUpdatesNative) {
  * 없거나·실패면 resolve → 호출측은 현재 번들로 진행. 예산 초과면 resolve 하되 결과는
  * 계속 기다렸다가 복귀 시 적용. 프로세스당 1회만 동작.
  */
-export function applyPendingOtaOnBoot(): Promise<void> {
-  wrapperCalled = true;
-  console.warn('[ota] wrapper called (sync)');
-  probe('wrapper');
-  return applyPendingOtaOnBootAsync();
-}
-
-async function applyPendingOtaOnBootAsync(): Promise<void> {
-  console.warn('[ota] applier enter');
-  console.log('[ota] applier started=' + String(started) + ' dev=' + String(__DEV__));
-  probe('enter');
+export async function applyPendingOtaOnBoot(): Promise<void> {
   if (started) return;
   started = true;
   if (__DEV__) return;
@@ -138,8 +78,7 @@ async function applyPendingOtaOnBootAsync(): Promise<void> {
     mod = null;
   }
   console.log('[ota] module: ' + (mod ? 'enabled=' + String(mod.isEnabled) + ' embedded=' + String(mod.isEmbeddedLaunch) + ' updateId=' + String(mod.updateId) : 'missing'));
-  if (!mod || !mod.isEnabled) { probe(mod ? 'disabled' : 'nomod'); return; }
-  probe('check');
+  if (!mod || !mod.isEnabled) return;
   const m = mod;
   // 확인 → (있으면) 다운로드. isNew=false 여도 true 를 돌려준다 — 네이티브 백그라운드 다운로드가
   // 먼저 끝나 이미 DB 에 있으면 isNew 가 false 로 오는데, 그래도 reload 해야 지금 붙는다.
