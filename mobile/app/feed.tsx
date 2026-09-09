@@ -859,8 +859,8 @@ function PostRow({ post, P, ts, tagStyle, onBlocked, onDeleted, focused }: { pos
             <Text style={ts(12.5, '700', P.ink3)}>댓글{post.commentCount ? ` ${post.commentCount}` : ''}</Text>
           </Pressable>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-            <BookmarkHeart feedId={post.id} />
-            {(post.likeCount ?? 0) > 0 ? <Text style={ts(12.5, '700', P.ink3)}>{post.likeCount}</Text> : null}
+            {/* 좋아요 — 누르면 즉시 빨간 하트 + 숫자 반영(낙관), 서버 확인은 뒤에서 (웹 동일). */}
+            <BookmarkHeart feedId={post.id} count={post.likeCount ?? 0} />
           </View>
           {hasThumb ? <Text style={ts(12.5, '700', P.ink3)}>📷 {images.length}</Text> : null}
           <View style={{ marginLeft: 'auto' }}>
@@ -882,24 +882,37 @@ function emojiOf(v: string | null | undefined): string {
 
 /* ---------------- 북마크(추천) — 웹 BookmarkButton 동일: POST /api/bookmarks 토글 ---------------- */
 
-function BookmarkHeart({ feedId, tradeId }: { feedId?: number; tradeId?: number }) {
-  const [bookmarked, setBookmarked] = useState(false);
+function BookmarkHeart({ feedId, tradeId, count }: { feedId?: number; tradeId?: number; count?: number }) {
+  const [liked, setLiked] = useState(false);
+  const [delta, setDelta] = useState(0);
   const pendingRef = useRef(false);
   const toggle = async () => {
     if (pendingRef.current) return;
     pendingRef.current = true;
+    const next = !liked;
+    setLiked(next); // 낙관 토글 — 누르는 즉시 빨간 하트 + 숫자 반영
+    setDelta((d) => d + (next ? 1 : -1));
     try {
       const data = await api<{ bookmarked: boolean }>('/api/bookmarks', { method: 'POST', body: { feedId, tradeId } });
-      setBookmarked(data.bookmarked);
+      if (data.bookmarked !== next) {
+        setLiked(data.bookmarked);
+        setDelta((d) => d + (data.bookmarked ? 1 : -1) - (next ? 1 : -1));
+      }
     } catch {
-      // 미로그인(401) 포함 — 웹과 동일하게 조용히 무시
+      // 미로그인(401) 포함 — 원래 상태로 되돌린다.
+      setLiked(!next);
+      setDelta((d) => d - (next ? 1 : -1));
     } finally {
       pendingRef.current = false;
     }
   };
+  const total = count != null ? Math.max(0, count + delta) : null;
   return (
-    <Pressable onPress={toggle} hitSlop={6} style={{ padding: 4 }}>
-      <Text style={{ fontSize: 18, lineHeight: 20 }}>{bookmarked ? '💛' : '🤍'}</Text>
+    <Pressable onPress={toggle} hitSlop={6} style={{ padding: 4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+      <Text style={{ fontSize: 18, lineHeight: 20 }}>{liked ? '❤️' : '🤍'}</Text>
+      {total != null && total > 0 ? (
+        <Text style={{ fontSize: 12.5, fontWeight: '700', color: liked ? '#E5484D' : '#8A8F98' }}>{total}</Text>
+      ) : null}
     </Pressable>
   );
 }

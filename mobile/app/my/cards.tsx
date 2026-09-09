@@ -34,6 +34,7 @@ import { parseCardStatics } from '../../../shared/cardStatics';
 import { SegmentedTabs, SegIcons } from '@/components/cv/SegmentedTabs';
 import { groupDuplicates, type CardGroup } from '../../../shared/collectionGroup';
 import { evaluationUnitJpy } from '../../../shared/snkrdunkPrice';
+import { collectionTotals } from '../../../shared/collectionTotals';
 
 type SortKey = 'value' | 'change' | 'recent' | 'name' | 'game';
 type ViewMode = 'grid' | 'list';
@@ -165,9 +166,10 @@ export default function MyCardsScreen() {
   // 중복 등록(같은 카드·같은 등급)은 한 줄로 묶는다 — 정본 shared/collectionGroup (웹 동일).
   const groups = useMemo(() => groupDuplicates(rows), [rows]);
 
-  // 총 자산 가치 — 화면의 카드로 직접 합산(추가/삭제 즉시 반영, 웹 동일).
-  const heroTotalJpy = useMemo(() => visibleRows.reduce((a, r) => a + r.value, 0), [visibleRows]);
-  const heroCount = useMemo(() => visibleRows.reduce((a, r) => a + r.qty, 0), [visibleRows]);
+  // 총 자산 가치 — 정본 shared/collectionTotals (웹·마이페이지·포트폴리오와 같은 숫자).
+  const heroLocal = useMemo(() => collectionTotals(visibleRows.map((r) => r.c), rate), [visibleRows, rate]);
+  const heroTotalJpy = heroLocal.totalJpy;
+  const heroCount = heroLocal.qty;
 
   // 히어로 구매금액/평가손익 — 웹 CollectionScreen totals 동일(allRows 기준 합산).
   const heroTotals = useMemo(() => {
