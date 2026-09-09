@@ -42,6 +42,9 @@ export const CATALOG_PRICE_TTL_MS = 30 * 60 * 1000;
  * 같은 카드의 반복 쓰기는 메모리 타임스탬프로 걸러낸다 — 값은 어차피 몇 분 단위로 변한다.
  */
 const SNAPSHOT_MIN_GAP_MS = 10 * 60_000;
+/** 값이 그대로면 최대 이 간격까지는 아예 기록하지 않는다(같은 행을 또 쌓을 이유가 없다). */
+const SNAPSHOT_SAME_VALUE_GAP_MS = 6 * 60 * 60_000;
+const lastSnapshotSig = new Map<number, { sig: string; at: number }>();
 const CATALOG_MIN_GAP_MS = 30 * 60_000;
 const lastSnapshotAt = new Map<number, number>();
 const lastCatalogAt = new Map<number, number>();
@@ -170,6 +173,20 @@ export async function recordPriceSnapshot(
   },
 ): Promise<void> {
   if (tooSoon(lastSnapshotAt, apparelId, SNAPSHOT_MIN_GAP_MS)) return;
+  // 값이 직전과 동일하면 6시간까지는 기록 생략 — 스냅샷 테이블이 78만 행/462MB 로 불어
+  // INSERT 마다 커넥션을 오래 붙들었다(2026-09-10 장애).
+  const sig = [
+    Math.round(price.minPrice || 0),
+    Math.round(price.priceSingle ?? 0),
+    Math.round(price.pricePsa10 ?? 0),
+    Math.round(price.pricePsa9 ?? 0),
+    Math.round(price.pricePsa8 ?? 0),
+    Math.round(price.headlinePrice ?? 0),
+  ].join(':');
+  const prevSig = lastSnapshotSig.get(apparelId);
+  if (prevSig && prevSig.sig === sig && Date.now() - prevSig.at < SNAPSHOT_SAME_VALUE_GAP_MS) return;
+  lastSnapshotSig.set(apparelId, { sig, at: Date.now() });
+  if (lastSnapshotSig.size > 20_000) lastSnapshotSig.clear();
   try {
     await prisma.snkrdunkPriceSnapshot.create({
       data: {
