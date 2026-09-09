@@ -95,14 +95,23 @@ export default function PortfolioPage() {
   const allRows = useMemo(() => {
     if (!cards) return [];
     return cards.map((c) => {
-      const curJpy = usePsa10 && (c.pricePsa10Jpy ?? 0) > 0 ? (c.pricePsa10Jpy as number) : c.priceSingleJpy ?? 0;
+      // 등급 일치 시세 우선(웹 PortfolioScreen 동일) — PSA9 카드가 raw 값으로 보이던 불일치 방지.
+      const curJpy =
+        usePsa10 && (c.pricePsa10Jpy ?? 0) > 0
+          ? (c.pricePsa10Jpy as number)
+          : (c.currentPriceJpy ?? 0) > 0
+            ? (c.currentPriceJpy as number)
+            : c.priceSingleJpy ?? 0;
       const qty = Math.max(1, c.qty || 1);
-      const basisJpy =
+      // 기준가 — 구매가 우선, 없으면 등록가(등록 시점 등급 기준 시세). 컬렉션 화면과 같은 규칙.
+      const buyJpy =
         c.buyPrice != null && c.buyPrice > 0
           ? c.buyCurrency === 'JPY'
             ? c.buyPrice
             : c.buyPrice / (rate || 1)
           : null;
+      const basisJpy =
+        buyJpy ?? (c.registerPriceJpy != null && c.registerPriceJpy > 0 ? c.registerPriceJpy : null);
       const profitPct = basisJpy && curJpy > 0 ? ((curJpy - basisJpy) / basisJpy) * 100 : null;
       const t = c.trend ?? [];
       const dayPct =
@@ -222,7 +231,8 @@ export default function PortfolioPage() {
           {/* 평가액 헤더 */}
           {(() => {
             const totalJpy = usePsa10 && (port.totalPsa10Jpy ?? 0) > 0 ? (port.totalPsa10Jpy as number) : port.totalJpy;
-            const up = (port.changePct ?? 0) >= 0;
+            // 등락은 '누적 수익률' — 등록가 대비 오늘 시세(전 카드 합산). 웹 PortfolioScreen 동일.
+            const up = (totals.pct ?? 0) >= 0;
             return (
               <View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -238,16 +248,16 @@ export default function PortfolioPage() {
                   <PixelText variant={txt} size={38} weight="bold" color={tc.gold} style={{ letterSpacing: -1 }}>
                     {format(totalJpy)}
                   </PixelText>
-                  {port.changePct != null && (
+                  {totals.pct != null && (
                     <PixelText variant={txt} size={15} weight="bold" color={up ? UP : DOWN} style={{ marginBottom: 4 }}>
                       {up ? '▲ +' : '▼ '}
-                      {port.changePct.toFixed(2)}%
-                      {port.changeAbsJpy != null ? ` (${up ? '+' : '-'}${format(Math.abs(port.changeAbsJpy))})` : ''}
+                      {totals.pct.toFixed(2)}%
+                      {` (${totals.profit >= 0 ? '+' : '-'}${format(Math.abs(totals.profit))} 누적)`}
                     </PixelText>
                   )}
                 </View>
                 <PixelText variant={txt} size={11} color={W38} style={{ marginTop: 6 }}>
-                  {port.pricedCount}/{port.totalCount}장 · 어제(KST)대비
+                  {port.pricedCount}/{port.totalCount}장 · 등록가 대비 누적
                 </PixelText>
               </View>
             );
@@ -418,7 +428,7 @@ export default function PortfolioPage() {
           </View>
 
           <PixelText variant={txt} size={11} color={W38} style={{ textAlign: 'center', marginTop: 4, lineHeight: 14 }}>
-            스니덩크 최근 체결 중앙값 기준 · 관심카드 제외 · 어제(KST 정각) 대비
+            스니덩크 최근 체결 중앙값 기준 · 관심카드 제외 · 등락은 등록가 대비 누적
           </PixelText>
         </ScrollView>
       ) : (
@@ -427,7 +437,7 @@ export default function PortfolioPage() {
           {/* 평가액 헤더 */}
           {(() => {
             const totalJpy = usePsa10 && (port.totalPsa10Jpy ?? 0) > 0 ? (port.totalPsa10Jpy as number) : port.totalJpy;
-            const up = (port.changePct ?? 0) >= 0;
+            const up = (totals.pct ?? 0) >= 0;
             return (
               <PixelFrame bg={tc.ink} borderWidth={3} shadow={6}>
                 <View style={{ padding: 14 }}>
@@ -438,15 +448,15 @@ export default function PortfolioPage() {
                     {format(totalJpy)}
                   </PixelText>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                    {port.changePct != null && (
+                    {totals.pct != null && (
                       <PixelText variant={txt} size={14} color={up ? '#22C55E' : '#FF6B7A'}>
                         {up ? '▲ +' : '▼ '}
-                        {port.changePct.toFixed(2)}%
-                        {port.changeAbsJpy != null ? ` (${up ? '+' : '-'}${format(Math.abs(port.changeAbsJpy))})` : ''}
+                        {totals.pct.toFixed(2)}%
+                        {` (${totals.profit >= 0 ? '+' : '-'}${format(Math.abs(totals.profit))} 누적)`}
                       </PixelText>
                     )}
                     <PixelText variant={txt} size={11} color="rgba(255,255,255,0.45)">
-                      {port.pricedCount}/{port.totalCount}장 · 어제(KST)대비
+                      {port.pricedCount}/{port.totalCount}장 · 등록가 대비 누적
                     </PixelText>
                   </View>
                   {totals.pct != null && (
