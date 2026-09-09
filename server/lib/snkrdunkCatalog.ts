@@ -117,6 +117,8 @@ export async function upsertSearchResults(
 ): Promise<void> {
   try {
     for (const r of results) {
+      // 검색할 때마다 결과 수십 건을 upsert 하던 것 — 같은 카드는 30분 내 재기록 생략.
+      if (tooSoon(lastCatalogAt, r.apparelId, CATALOG_MIN_GAP_MS)) continue;
       const statics = parseCardStatics(r.name);
       await prisma.snkrdunkCard.upsert({
         where: { apparelId: r.apparelId },

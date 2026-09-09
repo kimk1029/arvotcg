@@ -36,6 +36,58 @@ function resolveSource(bodySource: unknown, req: Request): MetricSource {
  * 로그인한 요청이 오면 userId 를 채운다 — 예전엔 skipDuplicates 로 첫 행이 굳어 "오늘 로그인"이
  * 실제의 1% 수준으로 집계됐다(2026-09-09). day 는 KST 달력 날짜.
  */
+/* 같은 IP·같은 날짜의 방문은 어차피 한 행(ON CONFLICT) — 매 요청 DB 를 때릴 이유가 없다.
+ * 커넥션 풀 고갈의 상위 원인이라 메모리에서 먼저 걸러낸다(2026-09-10).
+ * 단, 익명→로그인 전환은 userId 를 채워야 하므로 그때는 한 번 더 쓴다. */
+const seenPageView = new Map<string, boolean>(); // key: ip|day → userId 채워졌는지
+function pageViewAlreadyWritten(ip: string | null, day: string, userId: string | null): boolean {
+  const key = `${ip ?? '-'}|${day}`;
+  const hadUser = seenPageView.get(key);
+  if (hadUser === undefined) {
+    seenPageView.set(key, userId != null);
+    return false;
+  }
+  if (!hadUser && userId != null) {
+    seenPageView.set(key, true);
+    return false; // 로그인 정보가 처음 붙는 순간만 한 번 더 기록
+  }
+  if (seenPageView.size > 20_000) seenPageView.clear();
+  return true;
+}
+
+
+/* 행동 로그 버퍼 — 요청마다 createMany 를 던지면 커넥션이 남아나지 않는다.
+ * 5초(또는 500건) 단위로 한 번에 기록한다. 유실은 통계 로그라 허용. */
+interface ActionLogRow {
+  type: string;
+  path: string;
+  target: string;
+  source: MetricSource;
+  userId: string | null;
+  anonId: string | null;
+  ip: string | null;
+  ua: string | null;
+  referer: string | null;
+}
+const actionLogBuffer: ActionLogRow[] = [];
+let actionLogTimer: NodeJS.Timeout | null = null;
+
+function flushActionLogs(): void {
+  actionLogTimer = null;
+  if (actionLogBuffer.length === 0) return;
+  const batch = actionLogBuffer.splice(0, actionLogBuffer.length);
+  prisma.actionLog.createMany({ data: batch }).catch((err) => console.error('[action-log]', err));
+}
+
+function queueActionLogs(rows: ActionLogRow[]): void {
+  actionLogBuffer.push(...rows);
+  if (actionLogBuffer.length >= 500) return flushActionLogs();
+  if (actionLogTimer == null) {
+    actionLogTimer = setTimeout(flushActionLogs, 5000);
+    actionLogTimer.unref?.();
+  }
+}
+
 function upsertPageView(input: {
   path: string;
   ip: string | null;
@@ -46,6 +98,7 @@ function upsertPageView(input: {
   source: MetricSource;
 }): void {
   const day = kstDateKey();
+  if (pageViewAlreadyWritten(input.ip, day, input.userId)) return;
   prisma
     .$executeRaw`
       INSERT INTO page_views ("path", "ip", "ua", "userId", "country", "referer", "source", "day")
@@ -143,9 +196,7 @@ router.post('/action', optionalAuth, async (req: Request, res: Response) => {
     }))
     .filter((e) => e.type.length > 0);
 
-  if (data.length > 0) {
-    prisma.actionLog.createMany({ data }).catch((err) => console.error('[action-log]', err));
-  }
+  if (data.length > 0) queueActionLogs(data);
 
   const firstView = data.find((e) => e.type === 'pageview' && e.path);
   if (firstView) {

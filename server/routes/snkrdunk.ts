@@ -430,6 +430,9 @@ router.get('/apparels/:id/sales-chart', async (req: Request, res: Response) => {
 const RANKING_SNAPSHOT_DAYS = 21;
 const RANKING_TTL_MS = 30 * 60 * 1000;
 const rankingCache = new Map<string, { t: number; data: unknown[] }>();
+/* 캐시가 비는 순간 동시 요청이 무거운 $queryRaw 를 각각 실행해 커넥션을 다 썼다 —
+ * 같은 키는 한 번만 조회하고 나머지는 그 결과를 기다린다(single-flight, 2026-09-10). */
+const rankingInflight = new Map<string, Promise<unknown[] | null>>();
 
 interface RankingRawRow {
   apparelId: number;
@@ -466,6 +469,19 @@ router.get('/ranking', async (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'public, max-age=300');
     return res.json({ data: hit.data, cachedAt: new Date(hit.t).toISOString() });
   }
+  // 이미 같은 키를 조회 중이면 그 결과를 함께 기다린다(무거운 쿼리 중복 실행 방지).
+  const pending = rankingInflight.get(key);
+  if (pending) {
+    const shared = await pending;
+    if (shared) {
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return res.json({ data: shared, cachedAt: new Date().toISOString() });
+    }
+    return res.status(500).json({ error: 'ranking failed' });
+  }
+  let settleInflight: (v: unknown[] | null) => void = () => {};
+  rankingInflight.set(key, new Promise<unknown[] | null>((resolve) => { settleInflight = resolve; }));
+
   const since = new Date(Date.now() - RANKING_SNAPSHOT_DAYS * 86_400_000);
   // 대표가 SQL 식 — representativePrice() 와 같은 폴백 순서.
   const priceExpr = Prisma.sql`COALESCE(NULLIF(s."headlinePrice",0), NULLIF(s."pricePsa10",0), NULLIF(s."priceSingle",0), s."minPrice")`;
@@ -525,11 +541,15 @@ router.get('/ranking', async (req: Request, res: Response) => {
       };
     });
     rankingCache.set(key, { t: Date.now(), data });
+    settleInflight(data);
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.json({ data, cachedAt: new Date().toISOString() });
   } catch (err) {
     console.error('[snkrdunk.ranking]', err);
+    settleInflight(null);
     res.status(500).json({ error: 'ranking failed' });
+  } finally {
+    rankingInflight.delete(key);
   }
 });
 
