@@ -71,7 +71,16 @@ function useAuthed(): boolean {
   return authed;
 }
 
-export function PortfolioHero({ totals: totalsProp }: { totals?: HeroTotals | null } = {}) {
+export function PortfolioHero({
+  totals: totalsProp,
+  totalJpy: totalJpyProp,
+  totalCount: totalCountProp,
+}: {
+  totals?: HeroTotals | null;
+  /** 화면이 직접 합산한 총 자산(엔) — 카드 추가/삭제가 즉시 반영되도록 서버 값보다 우선. */
+  totalJpy?: number | null;
+  totalCount?: number | null;
+} = {}) {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();
   const authed = useAuthed();
@@ -115,8 +124,8 @@ export function PortfolioHero({ totals: totalsProp }: { totals?: HeroTotals | nu
   const ownedAll = useCollection();
   const owned = ownedAll.filter((c) => !c.favorite);
   const localTotalJpy = owned.reduce((a, c) => a + cardJpy(c, 'single', rate), 0);
-  const totalJpy = port ? port.totalJpy : localTotalJpy;
-  const totalCount = port ? port.totalCount : owned.length;
+  const totalJpy = totalJpyProp && totalJpyProp > 0 ? totalJpyProp : port ? port.totalJpy : localTotalJpy;
+  const totalCount = totalCountProp != null ? totalCountProp : port ? port.totalCount : owned.length;
 
   // 누적 수익률 — 보유 카드 전체의 (현재가-기준가)×수량 합산 / 구매금액 합산.
   // 카드별 손익(-100만/+50만)을 상쇄해 평균 수익률로 보여준다 (웹 CollectionScreen 동일).
