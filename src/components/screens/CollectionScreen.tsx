@@ -606,8 +606,8 @@ function ProfitTag({ pct, size = 12 }: { pct: number | null; size?: number }) {
  * 그레이딩 카드 표식 — 부모(position:relative) 우하단에 작게 플로팅.
  * 구현 정본은 공통 GradeMark(src/components/cards/GradeMark) — 여기는 골드 폴백만 고정한 얇은 래퍼.
  */
-function GradedLabel({ company, grade, height }: { company?: string | null; grade?: string | null; height?: number }) {
-  return <GradeMark company={company} grade={grade} height={height} gold="var(--gold)" />;
+function GradedLabel({ company, grade, height, inline }: { company?: string | null; grade?: string | null; height?: number; inline?: boolean }) {
+  return <GradeMark company={company} grade={grade} height={height} gold="var(--gold)" inline={inline} />;
 }
 
 /** 카드 더보기(⋯) 메뉴 — 시세 보기 / 컬렉션에서 제거. Link/Panel 바깥에 형제로 배치. */
@@ -753,54 +753,58 @@ function CardGridItem({ group, rank, format, onRemove }: { group: CardGroup<Row>
 }
 
 function CardListItem({ group, format, last, onRemove }: { group: CardGroup<Row>; format: (j: number) => string; last: boolean; onRemove: (id: number) => void }) {
-  const { c, curJpy } = group.head;
+  const { c } = group.head;
   const dup = group.items.length > 1;
   const [open, setOpen] = useState(false);
   const img = c.snkrdunkImageUrl || c.photoUrl || null;
   const href = cardDetailHref(c) ?? '#';
+  const profit = group.profitAbsJpy;
+  const up = (profit ?? 0) >= 0;
   return (
     <div style={{ borderBottom: last ? 'none' : '1px solid var(--pap3)' }}>
       <div style={{ position: 'relative' }}>
-        <Link href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px 11px 2px', textDecoration: 'none', color: 'inherit' }}>
-          {/* 썸네일 + 그레이딩 표식 — 표식은 이미지 좌측 블록 안(하단에 살짝 겹침)에 둔다.
-              행 전체를 기준으로 잡으면 우측 ⋯ 메뉴와 겹친다. */}
-          <div style={{ position: 'relative', flex: 'none' }}>
-            <CardThumb
-              style={{ width: 62, height: 62, borderRadius: 'var(--r-sm)', overflow: 'hidden', background: 'var(--pap2)', display: 'grid', placeItems: 'center' }}
-              src={img}
-              alt={cardName(c)}
-              emojiSize={28}
-            />
-            {c.graded && <GradedLabel company={c.gradeCompany} grade={c.gradeValue} height={9} />}
-          </div>
+        <Link href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 24px 12px 2px', textDecoration: 'none', color: 'inherit' }}>
+          {/* 카드 비율 썸네일 */}
+          <CardThumb
+            style={{ width: 54, height: 74, flex: 'none', borderRadius: 8, overflow: 'hidden', background: 'var(--pap2)', display: 'grid', placeItems: 'center' }}
+            src={img}
+            alt={cardName(c)}
+            emojiSize={26}
+          />
           <div style={{ flex: 1, minWidth: 0 }}>
+            {/* 카드명 + 등급 배지(무등급이면 회색 칩) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-              <span style={{ fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cardName(c)}</span>
-              {/* 중복 등록 장수 배지 */}
-              {group.qty > 1 && (
-                <span style={{ flex: 'none', fontFamily: 'var(--f1)', fontSize: 10.5, fontWeight: 800, color: 'var(--ink)', background: 'var(--pap2)', borderRadius: 999, padding: '1px 7px' }}>
-                  ×{group.qty}
+              <span style={{ fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 800, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {cardName(c)}
+              </span>
+              {c.graded ? (
+                <GradedLabel company={c.gradeCompany} grade={c.gradeValue} height={11} inline />
+              ) : (
+                <span style={{ flex: 'none', fontFamily: 'var(--f1)', fontSize: 10, fontWeight: 800, color: 'var(--ink3)', background: 'var(--pap2)', borderRadius: 6, padding: '3px 7px', lineHeight: 1 }}>
+                  무등급
                 </span>
               )}
             </div>
-            <div style={{ fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>{cardSub(c)}</div>
-            {/* 등록(매입)가 — 중복이면 각 장을 펼쳐 본다. */}
-            <div style={{ marginTop: 4 }}>
-              <span style={{ fontFamily: 'var(--f1)', fontSize: 10.5, color: 'var(--ink3)', fontWeight: 600 }}>
-                등록 {group.head.basisJpy ? format(group.head.basisJpy) : '—'}{dup ? ` 외 ${group.items.length - 1}건` : ''}
-              </span>
+            {/* 등록(기준)가 · 보유 장수 */}
+            <div style={{ fontFamily: 'var(--f1)', fontSize: 11.5, color: 'var(--ink3)', fontWeight: 600, marginTop: 6 }}>
+              등록 {group.head.basisJpy ? format(group.head.basisJpy) : '—'} · {group.qty}장
+              {dup ? ` (${group.items.length}건)` : ''}
             </div>
           </div>
+          {/* 오늘 가격(평가액) + 등록가 대비 차액·등락률 */}
           <div style={{ textAlign: 'right', flex: 'none' }}>
-            {/* 현재가(손익 색상) + 등록가 대비 손익률(그룹 합산) */}
-            <div style={{ fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 900, color: profitColor(group.profitPct) }}>{curJpy > 0 ? format(curJpy) : '—'}</div>
-            <div style={{ marginTop: 3 }}>
-              <ProfitTag pct={group.profitPct} size={12} />
+            <div style={{ fontFamily: 'var(--f1)', fontSize: 15.5, fontWeight: 900, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
+              {group.value > 0 ? format(group.value) : '—'}
             </div>
+            {profit != null && group.profitPct != null && (
+              <div style={{ fontFamily: 'var(--f1)', fontSize: 12, fontWeight: 800, color: up ? UP : DOWN, marginTop: 5, whiteSpace: 'nowrap' }}>
+                {up ? '▲' : '▼'} {format(Math.abs(profit))} ({up ? '+' : '-'}{Math.abs(group.profitPct).toFixed(1)}%)
+              </div>
+            )}
           </div>
         </Link>
         {/* ⋯ 메뉴 — Link 바깥 형제(우측 세로 중앙). 중복이면 펼치기 버튼으로 대체. */}
-        <div style={{ position: 'absolute', top: '50%', right: -2, transform: 'translateY(-50%)', zIndex: 6 }}>
+        <div style={{ position: 'absolute', top: '50%', right: -4, transform: 'translateY(-50%)', zIndex: 6 }}>
           {dup ? (
             <button
               type="button"
@@ -818,17 +822,17 @@ function CardListItem({ group, format, last, onRemove }: { group: CardGroup<Row>
 
       {/* 중복 등록분 — 장마다 등록가·손익이 다르므로 각각 보여준다. */}
       {dup && open && (
-        <div style={{ padding: '2px 0 10px 60px' }}>
+        <div style={{ padding: '2px 0 10px 66px' }}>
           {group.items.map((r, i) => (
-            <div key={r.c.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '7px 20px 7px 0' }}>
+            <div key={r.c.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '7px 24px 7px 0' }}>
               <span style={{ fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink3)', fontWeight: 600 }}>
                 {i + 1}번째{r.qty > 1 ? ` · ×${r.qty}` : ''} · 등록 {r.basisJpy ? format(r.basisJpy) : '—'}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
-                <span style={{ fontFamily: 'var(--f1)', fontSize: 12.5, fontWeight: 800, color: profitColor(r.profitPct) }}>{r.curJpy > 0 ? format(r.curJpy) : '—'}</span>
+                <span style={{ fontFamily: 'var(--f1)', fontSize: 12.5, fontWeight: 800, color: profitColor(r.profitPct) }}>{r.value > 0 ? format(r.value) : '—'}</span>
                 <ProfitTag pct={r.profitPct} size={11} />
               </span>
-              <div style={{ position: 'absolute', top: '50%', right: -2, transform: 'translateY(-50%)' }}>
+              <div style={{ position: 'absolute', top: '50%', right: -4, transform: 'translateY(-50%)' }}>
                 <CardMenu apparelId={r.c.snkrdunkApparelId} basis={r.c.priceBasis} onRemove={() => onRemove(r.c.id)} plain />
               </div>
             </div>

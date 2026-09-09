@@ -25,9 +25,15 @@ interface Props {
   height?: number;
   /** 미등록 그레이딩사 폴백 라벨 배경색(예: 'var(--gold)'). 없으면 폴백 렌더 없이 null. */
   gold?: string;
+  /** 인라인 배치 — 카드 이미지 위 오버레이가 아니라 글자 옆 배지로 쓴다(컬렉션 리스트 카드명 옆). */
+  inline?: boolean;
 }
 
-export function GradeMark({ company, grade, height = 12, gold }: Props) {
+export function GradeMark({ company, grade, height = 12, gold, inline }: Props) {
+  // 인라인이면 절대배치 대신 흐름 안에 놓는다(그림자도 옅게).
+  const place: React.CSSProperties = inline
+    ? { position: 'relative', boxShadow: 'inset 0 0 0 1px var(--pap3)' }
+    : { position: 'absolute', bottom: 5, right: 5, boxShadow: '0 1px 3px rgba(0,0,0,.35)' };
   const key = (company ?? '').trim().toUpperCase();
   const logo = GRADE_LOGOS[key];
   if (!logo) {
@@ -36,10 +42,9 @@ export function GradeMark({ company, grade, height = 12, gold }: Props) {
     return (
       <span
         style={{
-          position: 'absolute', bottom: 5, right: 5, zIndex: 4, pointerEvents: 'none',
+          ...place, zIndex: 4, pointerEvents: 'none', flex: 'none',
           fontFamily: 'var(--f1)', fontSize: 8.5, fontWeight: 800, lineHeight: 1, letterSpacing: 0.3,
           color: '#fff', background: gold, padding: '2px 6px', borderRadius: 6,
-          boxShadow: '0 1px 3px rgba(0,0,0,.3)',
         }}
       >
         그레이딩
@@ -52,10 +57,9 @@ export function GradeMark({ company, grade, height = 12, gold }: Props) {
   return (
     <span
       style={{
-        position: 'absolute', bottom: 5, right: 5, zIndex: 4, pointerEvents: 'none',
+        ...place, zIndex: 4, pointerEvents: 'none', flex: 'none',
         display: 'inline-flex', alignItems: 'center', gap,
         background: '#fff', padding: '2px 5px', borderRadius: 6,
-        boxShadow: '0 1px 3px rgba(0,0,0,.35)',
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}

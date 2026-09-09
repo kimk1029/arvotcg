@@ -30,9 +30,18 @@ interface Props {
   height?: number;
   /** 미등록 그레이딩사 폴백 라벨 색. 없으면 폴백 렌더 없이 null. */
   gold?: string;
+  /** 인라인 배치 — 이미지 위 오버레이가 아니라 글자 옆 배지(컬렉션 리스트 카드명 옆). */
+  inline?: boolean;
 }
 
-export function GradeMark({ company, grade, height = 12, gold }: Props) {
+export function GradeMark({ company, grade, height = 12, gold, inline }: Props) {
+  // 인라인이면 절대배치·그림자 없이 흐름 안에 놓는다 (웹 GradeMark 동일).
+  const place = inline
+    ? ({ borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' } as const)
+    : ({
+        position: 'absolute', bottom: 5, right: 5,
+        shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 2,
+      } as const);
   const key = (company ?? '').trim().toUpperCase();
   // 스토어 스크린샷 모드 — 그레이딩사 로고는 제3자 상표라 메타데이터에 노출하지 않는다.
   // 로고 없이 등급 숫자만 담긴 중립 배지로 대체.
@@ -43,9 +52,8 @@ export function GradeMark({ company, grade, height = 12, gold }: Props) {
         <View
           pointerEvents="none"
           style={{
-            position: 'absolute', bottom: 5, right: 5, zIndex: 4, backgroundColor: '#fff',
+            ...place, zIndex: 4, backgroundColor: '#fff',
             paddingHorizontal: 6, paddingVertical: 2.5, borderRadius: 6,
-            shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 2,
           }}
         >
           <PixelText variant="ko" size={Math.max(8.5, height * 0.75)} weight="bold" color="#111">
@@ -57,7 +65,7 @@ export function GradeMark({ company, grade, height = 12, gold }: Props) {
     if (!gold) return null;
     // 미등록 회사 폴백 — 골드 '그레이딩' 라벨.
     return (
-      <View pointerEvents="none" style={{ position: 'absolute', bottom: 5, right: 5, zIndex: 4, backgroundColor: gold, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+      <View pointerEvents="none" style={{ ...place, zIndex: 4, backgroundColor: gold, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
         <PixelText variant="ko" size={8} weight="bold" color="#fff">그레이딩</PixelText>
       </View>
     );
@@ -69,10 +77,9 @@ export function GradeMark({ company, grade, height = 12, gold }: Props) {
     <View
       pointerEvents="none"
       style={{
-        position: 'absolute', bottom: 5, right: 5, zIndex: 4,
+        ...place, zIndex: 4,
         flexDirection: 'row', alignItems: 'center', gap,
         backgroundColor: '#fff', paddingHorizontal: 5, paddingVertical: 2.5, borderRadius: 6,
-        shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 2,
       }}
     >
       <Image source={logo} style={{ height, width: height * (GRADE_LOGO_AR[key] ?? 1) }} resizeMode="contain" />
