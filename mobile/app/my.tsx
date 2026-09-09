@@ -13,8 +13,8 @@ import { InlineLoginGate } from '@/components/InlineLoginGate';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { useToast } from '@/components/ToastProvider';
 import {
-  deleteMyAccount, fetchMySummary, fetchMyCardsSmart, fetchPortfolio, fetchUnreadCount, updateMyName,
-  SWR_MY_CARDS, SWR_PORTFOLIO, type MyCardRow, type MySummary, type PortfolioSummary,
+  deleteMyAccount, fetchMySummary, fetchPortfolio, fetchUnreadCount, peekMyCards, updateMyName,
+  SWR_PORTFOLIO, type MySummary, type PortfolioSummary,
 } from '@/lib/myApi';
 import { useSWR } from '@/lib/swr';
 import { collectionTotals } from '../../shared/collectionTotals';
@@ -173,13 +173,11 @@ export default function MyScreen() {
     enabled: authed,
     deps: [authed],
   });
-  // 총액·수익률은 내 컬렉션과 같은 숫자여야 한다 — 캐시된 카드 목록이 있으면
-  // 정본 shared/collectionTotals 로 다시 합산(추가/삭제 직후에도 즉시 일치, 웹 MyScreen 동일).
-  const { data: myCards } = useSWR<MyCardRow[]>(SWR_MY_CARDS, fetchMyCardsSmart, {
-    persist: true,
-    enabled: authed,
-    deps: [authed],
-  });
+  // 총액·수익률은 내 컬렉션과 같은 숫자여야 한다 — **이미 받아둔 캐시**만 합산한다
+  // (정본 shared/collectionTotals, 웹 MyScreen 동일).
+  // 여기서 /api/me/cards/with-prices 를 새로 조회하면 안 된다 — 무거운 엔드포인트라
+  // 마이페이지 진입마다 서버 DB 커넥션 풀이 고갈됐다(2026-09-10 로그인 실패 사고).
+  const myCards = peekMyCards();
   const pfLocal = useMemo(
     () => (myCards && myCards.length > 0 ? collectionTotals(myCards, rate) : null),
     [myCards, rate],
