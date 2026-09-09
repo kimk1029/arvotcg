@@ -41,7 +41,7 @@ try {
     ['/', { 'x-middleware-subrequest': 'middleware:middleware:middleware:middleware:middleware' }, 307],
     ['/', { 'x-middleware-subrequest': 'src/middleware:src/middleware:src/middleware:src/middleware:src/middleware' }, 307],
     ['/cards?_rsc=probe', { RSC: '1', 'Next-Router-Prefetch': '1' }, 307],
-    ['/api/navercafe/list', {}, 401], ['/api/cards/lookup?embed=1', {}, 401],
+    ['/api/navercafe/list', {}, 401], ['/api/me?embed=1', {}, 401],
     ['/event/cardshow?embed=1&token=fake', {}, 307],
     ['/event/cardshow?embed=1&token=smoke-valid', {}, 307],
     ['/event/cardshow?embed=1', { cookie: 'pf30_session=smoke-valid' }, 200],
