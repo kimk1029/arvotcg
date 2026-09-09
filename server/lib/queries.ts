@@ -671,16 +671,22 @@ export async function getMyCardsWithPrices(
     .filter((x): x is { r: (typeof result)[number]; desired: number } => x.desired != null);
   if (toBackfill.length > 0) {
     for (const { r, desired } of toBackfill) r.registerPriceJpy = desired;
-    void Promise.all(
-      toBackfill.map(({ r }) =>
-        prisma.userCard
-          .updateMany({
-            where: { id: r.id, registerPriceJpy: null },
-            data: { registerPriceJpy: r.registerPriceJpy },
-          })
-          .catch(() => undefined),
-      ),
-    ).catch(() => undefined);
+    // 카드 수만큼 동시에 UPDATE 를 던지면 커넥션 풀(10)이 순식간에 마른다 —
+    // 로그인 콜백까지 P2024 로 실패했다(2026-09-10). 값이 같은 것끼리 묶어 몇 건으로 줄인다.
+    const byPrice = new Map<number, number[]>();
+    for (const { r } of toBackfill) {
+      const price = r.registerPriceJpy as number;
+      const ids = byPrice.get(price) ?? [];
+      ids.push(r.id);
+      byPrice.set(price, ids);
+    }
+    void (async () => {
+      for (const [price, ids] of byPrice) {
+        await prisma.userCard
+          .updateMany({ where: { id: { in: ids }, registerPriceJpy: null }, data: { registerPriceJpy: price } })
+          .catch(() => undefined);
+      }
+    })();
   }
 
   return result;
