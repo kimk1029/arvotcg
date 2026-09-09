@@ -123,6 +123,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (otaDone) return undefined;
     let alive = true;
+    console.log('[boot] RootLayout OTA effect');
     applyPendingOtaOnBoot().finally(() => {
       if (alive) setOtaDone(true);
     });
