@@ -5,7 +5,7 @@
  * 작성 리워드 안내(+REWARDS.feed_general P).
  * 플랫(클린·다크) 테마는 라운드 소프트 스타일, 픽셀 테마는 하드 잉크 보더.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -58,6 +58,7 @@ export default function WriteFeed() {
   const [images, setImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
   const [avatarId, setAvatarId] = useState('');
 
   // 웹은 useInventory 로 avatarId 를 body 에 포함 — 동일하게 전송.
@@ -117,12 +118,18 @@ export default function WriteFeed() {
   const removeImage = (url: string) => setImages((prev) => prev.filter((u) => u !== url));
 
   const submit = useCallback(async () => {
-    if (submitting || uploading) return;
+    // ref 잠금 — state 는 비동기라 빠른 더블탭이면 두 호출 모두 submitting=false 로 통과한다.
+    if (submitLockRef.current || submitting || uploading) return;
+    submitLockRef.current = true;
     if (!note.trim()) {
+      submitLockRef.current = false;
       toast.error('내용을 입력해주세요');
       return;
     }
-    if (!(await ensureUgcTerms())) return; // 커뮤니티 이용규칙(UGC EULA) 동의 게이트
+    if (!(await ensureUgcTerms())) {
+      submitLockRef.current = false;
+      return; // 커뮤니티 이용규칙(UGC EULA) 동의 게이트
+    }
     setSubmitting(true);
     try {
       await api('/api/feeds', {
@@ -142,6 +149,7 @@ export default function WriteFeed() {
         return;
       }
       toast.error(e instanceof Error ? e.message : '등록 실패');
+      submitLockRef.current = false;
       setSubmitting(false);
     }
   }, [submitting, uploading, note, avatarId, category, images, toast]);

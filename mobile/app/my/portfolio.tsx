@@ -24,6 +24,7 @@ import {
   upsideFromCards,
 } from '@/components/portfolio/PortfolioExtras';
 import { additionIndexMap, additionLabel, type VizAcquisition, type VizAddition } from '../../../shared/portfolioViz';
+import { collectionTotals } from '../../../shared/collectionTotals';
 import { fetchMarketIndexes, type MarketIndexSeries } from '@/lib/myApi';
 import type { VizCard } from '../../../shared/portfolioViz';
 import { shotSource } from '@/lib/shotMode';
@@ -132,19 +133,17 @@ export default function PortfolioPage() {
     );
   }, [allRows, filter, sort]);
 
-  const totals = useMemo(() => {
-    let invested = 0;
-    let current = 0;
-    for (const r of allRows) {
-      if (r.basisJpy && r.curJpy > 0) {
-        invested += r.basisJpy * r.qty;
-        current += r.curJpy * r.qty;
-      }
-    }
-    const profit = current - invested;
-    const pct = invested > 0 ? (profit / invested) * 100 : null;
-    return { invested, current, profit, pct };
-  }, [allRows]);
+  // 총액·손익 — 정본 shared/collectionTotals (내 컬렉션·마이페이지와 같은 숫자).
+  const totalsAll = useMemo(() => collectionTotals(cards ?? [], rate), [cards, rate]);
+  const totals = useMemo(
+    () => ({
+      invested: totalsAll.investedJpy,
+      current: totalsAll.investedJpy + totalsAll.profitJpy,
+      profit: totalsAll.profitJpy,
+      pct: totalsAll.profitPct,
+    }),
+    [totalsAll],
+  );
 
   // 인포그래픽 입력 — 집계는 전부 정본 shared/portfolioViz.ts (웹과 같은 함수).
   const vizCards = useMemo<VizCard[]>(
@@ -230,7 +229,12 @@ export default function PortfolioPage() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 120, gap: 16 }}>
           {/* 평가액 헤더 */}
           {(() => {
-            const totalJpy = usePsa10 && (port.totalPsa10Jpy ?? 0) > 0 ? (port.totalPsa10Jpy as number) : port.totalJpy;
+            const totalJpy =
+              usePsa10 && (port.totalPsa10Jpy ?? 0) > 0
+                ? (port.totalPsa10Jpy as number)
+                : totalsAll.totalJpy > 0
+                  ? totalsAll.totalJpy
+                  : port.totalJpy;
             // 등락은 '누적 수익률' — 등록가 대비 오늘 시세(전 카드 합산). 웹 PortfolioScreen 동일.
             const up = (totals.pct ?? 0) >= 0;
             return (
@@ -265,7 +269,12 @@ export default function PortfolioPage() {
 
           {/* KPI 그리드 6종 — 다크 셀 */}
           {(() => {
-            const totalJpy = usePsa10 && (port.totalPsa10Jpy ?? 0) > 0 ? (port.totalPsa10Jpy as number) : port.totalJpy;
+            const totalJpy =
+              usePsa10 && (port.totalPsa10Jpy ?? 0) > 0
+                ? (port.totalPsa10Jpy as number)
+                : totalsAll.totalJpy > 0
+                  ? totalsAll.totalJpy
+                  : port.totalJpy;
             const gradedCount = cards.filter((c) => c.graded).length;
             return (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -436,7 +445,12 @@ export default function PortfolioPage() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 40, gap: 14 }}>
           {/* 평가액 헤더 */}
           {(() => {
-            const totalJpy = usePsa10 && (port.totalPsa10Jpy ?? 0) > 0 ? (port.totalPsa10Jpy as number) : port.totalJpy;
+            const totalJpy =
+              usePsa10 && (port.totalPsa10Jpy ?? 0) > 0
+                ? (port.totalPsa10Jpy as number)
+                : totalsAll.totalJpy > 0
+                  ? totalsAll.totalJpy
+                  : port.totalJpy;
             const up = (totals.pct ?? 0) >= 0;
             return (
               <PixelFrame bg={tc.ink} borderWidth={3} shadow={6}>
@@ -479,7 +493,12 @@ export default function PortfolioPage() {
 
           {/* KPI 인포그래픽 그리드 — 웹 동일 6종 */}
           {(() => {
-            const totalJpy = usePsa10 && (port.totalPsa10Jpy ?? 0) > 0 ? (port.totalPsa10Jpy as number) : port.totalJpy;
+            const totalJpy =
+              usePsa10 && (port.totalPsa10Jpy ?? 0) > 0
+                ? (port.totalPsa10Jpy as number)
+                : totalsAll.totalJpy > 0
+                  ? totalsAll.totalJpy
+                  : port.totalJpy;
             const gradedCount = cards.filter((c) => c.graded).length;
             return (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>

@@ -4,7 +4,7 @@
  * 실시간 데이터: /api/me/summary(카드·거래·찜·포인트·레벨) + /api/me/portfolio + 미읽음 쪽지.
  * 미인증 시 InlineLoginGate. 웹 MyScreen 과 페어.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
@@ -13,10 +13,11 @@ import { InlineLoginGate } from '@/components/InlineLoginGate';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { useToast } from '@/components/ToastProvider';
 import {
-  deleteMyAccount, fetchMySummary, fetchPortfolio, fetchUnreadCount, updateMyName,
-  SWR_PORTFOLIO, type MySummary, type PortfolioSummary,
+  deleteMyAccount, fetchMySummary, fetchMyCardsSmart, fetchPortfolio, fetchUnreadCount, updateMyName,
+  SWR_MY_CARDS, SWR_PORTFOLIO, type MyCardRow, type MySummary, type PortfolioSummary,
 } from '@/lib/myApi';
 import { useSWR } from '@/lib/swr';
+import { collectionTotals } from '../../shared/collectionTotals';
 import { isAuthenticated, setSession, subscribeSession } from '@/lib/session';
 
 /* 프로토타입 고정 팔레트 — 테마 무관 (홈 CleanHomeScreen·커뮤니티 feed.tsx 와 동일 접근) */
@@ -149,7 +150,7 @@ function Sparkline({ points, color }: { points: number[]; color: string }) {
 export default function MyScreen() {
   const toast = useToast();
   const authed = useAuthed();
-  const { format } = useCurrency();
+  const { format, rate } = useCurrency();
   // SWR — 재진입 즉시 페인트(디스크 캐시) + TTL 내 재조회 생략. 내 자산 화면과
   // 포트폴리오 캐시 키를 공유해 어느 쪽을 먼저 열어도 다른 쪽이 즉시 뜬다.
   const { data, refresh } = useSWR<MySummary>('me:summary', fetchMySummary, {
@@ -172,6 +173,19 @@ export default function MyScreen() {
     enabled: authed,
     deps: [authed],
   });
+  // 총액·수익률은 내 컬렉션과 같은 숫자여야 한다 — 캐시된 카드 목록이 있으면
+  // 정본 shared/collectionTotals 로 다시 합산(추가/삭제 직후에도 즉시 일치, 웹 MyScreen 동일).
+  const { data: myCards } = useSWR<MyCardRow[]>(SWR_MY_CARDS, fetchMyCardsSmart, {
+    persist: true,
+    enabled: authed,
+    deps: [authed],
+  });
+  const pfLocal = useMemo(
+    () => (myCards && myCards.length > 0 ? collectionTotals(myCards, rate) : null),
+    [myCards, rate],
+  );
+  const pfTotalJpy = pfLocal && pfLocal.totalJpy > 0 ? pfLocal.totalJpy : pf?.totalJpy ?? 0;
+  const pfProfitPct = pfLocal?.profitPct ?? pf?.profitPct ?? null;
 
   // 이름 편집 — 웹 EditableName 대응(PATCH /api/me/name).
   const [editOpen, setEditOpen] = useState(false);
@@ -227,7 +241,7 @@ export default function MyScreen() {
   const savedCount = summary?.counts.savedCount ?? 0;
 
   // 등락은 누적 수익률(등록가 대비) — 서버 profitPct. 전일 대비(changePct)는 쓰지 않는다(웹 MyScreen 동일).
-  const pfUp = (pf?.profitPct ?? 0) >= 0;
+  const pfUp = (pfProfitPct ?? 0) >= 0;
   const pfColor = pfUp ? P.red : P.blue;
 
   const saveName = async () => {
@@ -374,11 +388,11 @@ export default function MyScreen() {
                 <Text style={{ fontSize: 11, fontWeight: '700', color: P.sub }}>포트폴리오</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
                   <Text style={{ fontSize: 17, fontWeight: '900', color: P.ink, letterSpacing: -0.4 }}>
-                    {pf ? format(pf.totalJpy) : '계산 중…'}
+                    {pf || pfLocal ? format(pfTotalJpy) : '계산 중…'}
                   </Text>
-                  {pf?.profitPct != null ? (
+                  {pfProfitPct != null ? (
                     <Text style={{ fontSize: 11.5, fontWeight: '800', color: pfColor }}>
-                      {pfUp ? '+' : ''}{pf.profitPct.toFixed(1)}% {pfUp ? '▲' : '▼'}
+                      {pfUp ? '+' : ''}{pfProfitPct.toFixed(1)}% {pfUp ? '▲' : '▼'}
                     </Text>
                   ) : null}
                 </View>

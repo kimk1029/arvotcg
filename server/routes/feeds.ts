@@ -106,6 +106,16 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     : [];
   const userId = req.user!.userId;
   try {
+    // 중복 등록 방지 — 같은 사용자가 30초 안에 같은 글을 또 보내면(더블탭·재시도)
+    // 새로 만들지 않고 방금 만든 글을 그대로 돌려준다. 클라이언트 잠금이 뚫려도 안전.
+    const dup = await prisma.feed
+      .findFirst({
+        where: { authorId: userId, text, createdAt: { gte: new Date(Date.now() - 30_000) } },
+        orderBy: { createdAt: 'desc' },
+      })
+      .catch(() => null);
+    if (dup) return res.status(201).json({ data: dup });
+
     await prisma.user.upsert({
       where: { id: userId },
       update: {},

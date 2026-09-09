@@ -9,6 +9,8 @@ import { useInventory } from '@/components/InventoryProvider';
 import { StatusBar } from '@/components/ui/StatusBar';
 import { useUnread } from '@/components/UnreadProvider';
 import { signOut } from '@/lib/session';
+import { peekCollectionCards } from '@/lib/collectionCache';
+import { collectionTotals, type TotalsCard } from '../../../shared/collectionTotals';
 import type { LevelInfo } from '@/lib/level';
 
 /**
@@ -97,7 +99,7 @@ function ChevronSvg({ s = 16 }: { s?: number }) {
 export function MyScreen({ user, level, points = 0, cardCount, tradeCount, savedCount, isGuest, isAdmin }: Props) {
   const inv = useInventory();
   const router = useRouter();
-  const { format } = useCurrency();
+  const { format, rate } = useCurrency();
   const { count: unread } = useUnread();
   const p = level;
   const xpPct = Math.max(0, Math.min(100, Math.round((p.xp / p.xpNeeded) * 100)));
@@ -134,6 +136,8 @@ export function MyScreen({ user, level, points = 0, cardCount, tradeCount, saved
 
   // 포트폴리오 컴팩트 카드 — /api/me/portfolio.
   // 등락은 누적 수익률(등록가 대비) — 서버 profitPct. 전일 대비(changePct)는 쓰지 않는다.
+  // 총액은 내 컬렉션과 같은 값이어야 하므로, 컬렉션 세션 캐시가 있으면 정본
+  // shared/collectionTotals 로 다시 합산해 덮어쓴다(추가/삭제 직후에도 즉시 일치).
   const [pf, setPf] = useState<{ totalJpy: number; profitPct: number | null; history: number[] } | null>(null);
   useEffect(() => {
     if (isGuest) return;
@@ -145,7 +149,14 @@ export function MyScreen({ user, level, points = 0, cardCount, tradeCount, saved
         const j = (await r.json()) as { data?: { totalJpy: number; profitPct?: number | null; totalCount: number; history: Array<{ totalJpy: number }> } };
         const d = j.data;
         if (!d || d.totalCount === 0) return;
-        if (alive) setPf({ totalJpy: d.totalJpy, profitPct: d.profitPct ?? null, history: (d.history ?? []).map((h) => h.totalJpy) });
+        if (!alive) return;
+        const cached = peekCollectionCards<TotalsCard>();
+        const local = cached && cached.length > 0 ? collectionTotals(cached, rate) : null;
+        setPf({
+          totalJpy: local && local.totalJpy > 0 ? local.totalJpy : d.totalJpy,
+          profitPct: local?.profitPct ?? d.profitPct ?? null,
+          history: (d.history ?? []).map((h) => h.totalJpy),
+        });
       } catch {
         /* 시세 실패 시 정적 표시 */
       }
@@ -153,7 +164,7 @@ export function MyScreen({ user, level, points = 0, cardCount, tradeCount, saved
     return () => {
       alive = false;
     };
-  }, [isGuest]);
+  }, [isGuest, rate]);
 
   const saveName = async () => {
     const trimmed = input.trim();

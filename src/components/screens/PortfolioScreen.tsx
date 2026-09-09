@@ -16,6 +16,7 @@ import {
   upsideFromCards,
 } from '@/components/portfolio/PortfolioExtras';
 import { additionIndexMap, additionLabel, type VizAcquisition, type VizAddition } from '../../../shared/portfolioViz';
+import { collectionTotals } from '../../../shared/collectionTotals';
 import type { MarketIndexResponse, MarketIndexSeries } from '../../../shared/marketIndex';
 import type { VizCard } from '../../../shared/portfolioViz';
 
@@ -197,19 +198,17 @@ export function PortfolioScreen() {
     );
   }, [allRows, filter, sort]);
 
-  const totals = useMemo(() => {
-    let invested = 0;
-    let current = 0;
-    for (const r of allRows) {
-      if (r.basisJpy && r.curJpy > 0) {
-        invested += r.basisJpy * r.qty;
-        current += r.curJpy * r.qty;
-      }
-    }
-    const profit = current - invested;
-    const pct = invested > 0 ? (profit / invested) * 100 : null;
-    return { invested, current, profit, pct };
-  }, [allRows]);
+  // 총액·손익 — 정본 shared/collectionTotals (내 컬렉션 히어로·마이페이지와 같은 숫자).
+  const totalsAll = useMemo(() => collectionTotals(cards ?? [], rate), [cards, rate]);
+  const totals = useMemo(
+    () => ({
+      invested: totalsAll.investedJpy,
+      current: totalsAll.investedJpy + totalsAll.profitJpy,
+      profit: totalsAll.profitJpy,
+      pct: totalsAll.profitPct,
+    }),
+    [totalsAll],
+  );
 
   // 인포그래픽 입력 — 집계는 전부 정본 shared/portfolioViz.ts 가 한다.
   const vizCards = useMemo<VizCard[]>(
@@ -301,7 +300,12 @@ export function PortfolioScreen() {
       </div>
     );
 
-  const totalJpy = usePsa10 && port.totalPsa10Jpy > 0 ? port.totalPsa10Jpy : port.totalJpy;
+  const totalJpy =
+    usePsa10 && port.totalPsa10Jpy > 0
+      ? port.totalPsa10Jpy
+      : totalsAll.totalJpy > 0
+        ? totalsAll.totalJpy
+        : port.totalJpy;
   const up = (totals.pct ?? 0) >= 0;
   const gradedCount = cards.filter((c) => c.graded).length;
   const pullCount = cards.filter((c) => c.selfPulled).length;
