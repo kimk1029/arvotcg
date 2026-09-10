@@ -6,7 +6,7 @@ import { isPublicApi, hasIndependentApiAuth } from '../shared/accessPolicy';
 const SESSION_COOKIE = process.env.SESSION_COOKIE_NAME ?? 'pf30_session';
 const PUBLIC_ASSETS = new Set([
   '/app-ads.txt', // AdMob 소유권 확인용 공개 파일. 보호 화면의 로그인 정책과 무관하다.
-  '/favicon.ico', '/icon.svg', '/apple-icon.png', '/manifest.webmanifest', '/robots.txt', '/sitemap.xml',
+  '/favicon.ico', '/icon.png', '/icon.svg', '/apple-icon.png', '/manifest.webmanifest', '/robots.txt', '/sitemap.xml',
   '/snkrdunk-icon.png', '/app-icon.png', '/meta.png', '/promo/cardshow.png',
   '/grading/ars.webp', '/grading/sgc.webp', '/grading/bgs.webp', '/grading/cgc.webp', '/grading/psa.webp',
 ]);
