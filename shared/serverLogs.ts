@@ -28,11 +28,16 @@ const ERROR_WORD_RE = /(^|[^a-z])(error|err|exception|unhandled|rejected|fail(?:
 const ERROR_CODE_RE = /[A-Za-z]*Error\b|\bE[A-Z]{4,}\b|✖|❌/;
 const WARN_RE = /(^|[^a-z])(warn(?:ing)?|deprecat\w*|slow|retry|retrying|skipped)([^a-z]|$)|⚠/i;
 
+// 집계 로그의 "0 failed" / "no errors" 는 성공 보고다. 판정 전에 지운다.
+// (실측: `[dailySnapshot] done: 2 recorded / 0 failed / 2 tried` 가 빨갛게 잡혔다.)
+const ZERO_COUNT_RE = /\b(?:0|no)\s+(?:failed|failures?|fails?|errors?|exceptions?|timeouts?)\b/gi;
+
 /** 한 줄의 심각도. 표준 에러로 나온 줄은 무조건 error. */
 export function classifyLine(text: string, source: 'out' | 'err'): LogLevel {
   if (source === 'err') return 'error';
-  if (ERROR_WORD_RE.test(text) || ERROR_CODE_RE.test(text)) return 'error';
-  if (WARN_RE.test(text)) return 'warn';
+  const t = text.replace(ZERO_COUNT_RE, ' ');
+  if (ERROR_WORD_RE.test(t) || ERROR_CODE_RE.test(t)) return 'error';
+  if (WARN_RE.test(t)) return 'warn';
   return 'info';
 }
 

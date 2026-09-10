@@ -35,6 +35,13 @@ test('평범한 줄을 error 로 오인하지 않는다', () => {
   }
 });
 
+test('집계 로그의 0건 보고는 에러가 아니다 — 실측 오탐', () => {
+  assert.equal(classifyLine('[dailySnapshot] done: 2 recorded / 0 failed / 2 tried', 'out'), 'info');
+  assert.equal(classifyLine('[warm] finished with no errors', 'out'), 'info');
+  // 0건이 아니면 여전히 에러다.
+  assert.equal(classifyLine('[dailySnapshot] done: 2 recorded / 3 failed / 5 tried', 'out'), 'error');
+});
+
 test('경고는 warn 으로 따로 구분한다', () => {
   assert.equal(classifyLine('[cache] slow query, retrying', 'out'), 'warn');
   assert.equal(classifyLine('DeprecationWarning: punycode', 'out'), 'warn');
