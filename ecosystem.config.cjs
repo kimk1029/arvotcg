@@ -55,6 +55,8 @@ module.exports = {
       // npm 만 죽이고 tsx 자식이 고아로 남아 :3030 을 점유(EADDRINUSE), 이후 모든
       // 재기동이 크래시 루프에 빠진다 (2026-07-17 배포 3연속 실패 원인).
       name: 'pokefesta30-server',
+      // Preserve per-entry incident times across deploys (PM2 host timezone).
+      time: true,
       cwd: __dirname + '/server',
       script: 'index.js',
       interpreter: 'node',

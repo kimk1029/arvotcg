@@ -39,7 +39,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  safety:
+    name: Outage regression gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - run: npx tsx --test server/lib/resilience.test.ts
+
   deploy:
+    needs: safety
     name: Deploy to ${{ matrix.target }}
     runs-on: ubuntu-latest
     strategy:
@@ -111,7 +124,7 @@ jobs:
             echo "=== deploy target: $DEPLOY_TARGET ($DEPLOY_DIR) ==="
             cd "$DEPLOY_DIR"
             git fetch origin main
-            git reset --hard origin/main
+            git reset --hard "${{ github.sha }}"
 
             cd server
 
@@ -174,18 +187,19 @@ jobs:
             pm2 start ecosystem.config.cjs --only pokefesta30-server
             pm2 save
 
-            # 헬스 체크 — /health 엔드포인트가 {ok:true,...} 반환 (최대 120초).
+            # DB 준비 상태 확인 — 연결 풀과 현재가 테이블 조회 성공 필수 (약 120초 제한).
             # delete→start + npm ci 직후엔 tsx 콜드 스타트가 30초를 훌쩍 넘길
             # 수 있어(2026-07-15 실사례: 40초+에 정상 기동) 넉넉히 기다린다.
-            for i in $(seq 1 120); do
-              if curl -sf http://127.0.0.1:3030/health >/dev/null 2>&1; then
-                echo "✓ [$DEPLOY_TARGET] server is up on :3030 (${i}s)"
+            DEADLINE=$(( $(date +%s) + 120 ))
+            while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+              if curl --connect-timeout 2 --max-time 4 -sf http://127.0.0.1:3030/ready >/dev/null 2>&1; then
+                echo "✓ [$DEPLOY_TARGET] server is up on :3030 (DB readiness passed)"
                 exit 0
               fi
-              [ $((i % 15)) -eq 0 ] && echo "…waiting for :3030/health (${i}s)"
+              echo "…waiting for :3030/ready"
               sleep 1
             done
-            echo "::error::[$DEPLOY_TARGET] server did not respond on :3030/health within 120s"
+            echo "::error::[$DEPLOY_TARGET] server readiness failed on :3030/ready within 120s"
             echo "--- :3030 port holders ---"
             { ss -tlnp 2>/dev/null | grep 3030 || netstat -tlnp 2>/dev/null | grep 3030; } || true
             pm2 logs pokefesta30-server --lines 80 --nostream || true

@@ -91,6 +91,10 @@ jobs:
         working-directory: server
         run: npm run test:security
 
+      - name: Outage regression tests
+        working-directory: server
+        run: npm run test:resilience
+
       - name: Typecheck
         working-directory: server
         run: npm run typecheck

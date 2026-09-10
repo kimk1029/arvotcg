@@ -1,0 +1,27 @@
+name: Production availability
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-availability
+  cancel-in-progress: false
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check application database readiness (3 attempts)
+        env:
+          MONITOR_API_ORIGIN: ${{ vars.MONITOR_API_ORIGIN }}
+        run: node --experimental-strip-types scripts/check-readiness.mjs

@@ -24,6 +24,7 @@ import { lookupIllustrator, searchTcgdexByIllustrator } from './lib/illustrator.
 import { dominantNeonForUrl } from './lib/imageColor.js';
 import { matchSnkrdunkForCard } from './lib/snkrdunkMatch.js';
 import { prisma } from './lib/prisma.js';
+import { createReadinessProbe } from './lib/readiness.ts';
 import { CARD_CDN_DIR, startCardImageWarmer } from './lib/cardImageCache.js';
 import { fetchApparelSingleJpy } from '@/lib/snkrdunkPrice';
 import { buildCors, protectCookieWrites } from './middleware/cors.js';
@@ -171,6 +172,17 @@ app.use('/api/cdn', express.static(CARD_CDN_DIR, { maxAge: '7d', immutable: true
 // 노출하므로 관리자 세션에서만 접근 가능.
 app.use('/debug', requireAdmin, express.static(DEBUG_DIR));
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
+
+// Check the application pool and the serving table required by price APIs.
+const databaseReady = createReadinessProbe(() => prisma.$transaction(async tx => {
+  await tx.$executeRaw`SET LOCAL statement_timeout = '1500ms'`;
+  await tx.$queryRaw`SELECT "apparelId" FROM snkrdunk_current_prices LIMIT 1`;
+}, { maxWait: 1000, timeout: 2000 }));
+app.get('/ready', async (_req, res) => {
+  const ok = await databaseReady();
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(ok ? 200 : 503).json({ ok });
+});
 
 app.get('/health', async (_req, res) => {
   const paddleUp = await paddleHealthcheck();
