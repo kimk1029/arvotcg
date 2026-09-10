@@ -3,12 +3,18 @@
  * 주변 카드와 같은 여백·모서리·배경을 써서 튀지 않게 한다.
  *
  * **네이티브 모듈을 절대 top-level import 하지 않는다.** OTA 는 구 스토어 빌드
- * (1.1.3·1.1.4·1.1.5 — 광고 SDK 가 없는 바이너리)에도 내려가므로, import 하면
+ * (1.1.3·1.1.4·1.1.5 vc28 이하 — 광고 SDK 가 없는 바이너리)에도 내려가므로, import 하면
  * 그 기기에서 앱이 즉시 종료된다(2026-09-06 expo-application 사고와 같은 형태).
- * lazy require + try/catch 로 감싸고, 모듈이 없으면 아무것도 그리지 않는다.
+ *
+ * **lazy require + try/catch 만으로는 부족하다 (2026-09-11 실측, 내 컬렉션 진입 시 종료).**
+ * Metro 런타임의 최상위 `require`(다른 모듈 로딩 중이 아닐 때 = useEffect 안)는
+ * `guardedLoadModule` 이 감싸는데, 모듈 팩토리가 던진 예외를 호출자에게 던지지 않고
+ * `ErrorUtils.reportFatalError` 로 넘긴다 → try/catch 는 아무것도 못 잡고 치명 오류로 앱이 죽는다.
+ * 그래서 require 하기 전에 `TurboModuleRegistry.get` 으로 네이티브 모듈 존재를 먼저 확인한다
+ * (get 은 없으면 null, getEnforcing 과 달리 던지지 않는다).
  */
 import { useEffect, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, TurboModuleRegistry, View } from 'react-native';
 import { PixelText } from './PixelText';
 import { useThemeColors } from './ThemeProvider';
 import { adsReadyForRelease, bannerUnitId } from '@/lib/ads';
@@ -21,11 +27,18 @@ let initStarted = false;
 /** 광고 SDK 가 이 바이너리에 있으면 돌려주고, 없으면 null. 한 번만 시도한다. */
 function loadAds(): AdsModule | null {
   if (cached !== undefined) return cached;
+  // 구 바이너리(광고 SDK 미포함) — require 자체를 하지 않는다. 패키지 index 가 로드되며
+  // TurboModuleRegistry.getEnforcing('RNGoogleMobileAdsModule') 을 호출해 던지는데,
+  // 그 예외는 위 설명대로 try/catch 로 잡히지 않는다.
+  if (!TurboModuleRegistry.get('RNGoogleMobileAdsModule')) {
+    cached = null;
+    return null;
+  }
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     cached = require('react-native-google-mobile-ads') as AdsModule;
   } catch {
-    cached = null; // 구 바이너리 — 광고 없이 그대로 동작한다.
+    cached = null;
   }
   return cached;
 }
