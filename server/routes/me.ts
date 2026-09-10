@@ -76,6 +76,76 @@ router.get('/summary', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * 등록가(JPY) 산정 — 등록(POST)·수정(PATCH) 공통.
+ *  · 구매가 입력: buyPrice(통화 buyCurrency)를 JPY 환산. (직접뽑기도 클라이언트가 현재시세를 buyPrice 로 보냄)
+ *  · 구매가 미입력: 지금 시세를 등급 기준으로 스냅 — PSA10/9/8 → 해당 등급 최근 체결가,
+ *    타사(BGS/CGC 등) → PSA10 기준, 싱글(비등급) → raw 싱글가. (registerBasisJpy 규칙)
+ * 산정 불가면 null → 최초 조회 시 보조 백필(getMyCardsWithPrices).
+ */
+async function resolveRegisterPriceJpy(
+  c: { buyPrice: number | null; buyCurrency: string; snkrdunkApparelId: number | null },
+  grade: { graded: boolean; gradeCompany: string | null; gradeValue: string | null },
+): Promise<number | null> {
+  if (c.buyPrice != null && c.buyPrice > 0) {
+    const rate = c.buyCurrency === 'JPY' ? 1 : (await getJpyKrwRate().catch(() => null))?.rate ?? 0;
+    return deriveRegisterPriceJpy(c.buyPrice, c.buyCurrency, 0, rate);
+  }
+  if (!c.snkrdunkApparelId) return null;
+  const snkrdunkApparelId = c.snkrdunkApparelId;
+  try {
+    const [a, hist, chart] = await Promise.all([
+      fetchSnkrdunkApparel(snkrdunkApparelId),
+      fetchSnkrdunkSalesHistory(snkrdunkApparelId).catch(() => null),
+      fetchSnkrdunkSalesChart(snkrdunkApparelId).catch(() => null),
+    ]);
+    const prices = computeApparelPrices(hist?.history ?? [], chart?.points ?? [], a?.minPrice ?? 0);
+    const basis = registerBasisJpy(prices, grade);
+    // 이왕 받아온 시세는 스냅샷/카탈로그에 재적재 (응답 경로 밖, 실패 무시).
+    if (a) {
+      void upsertCatalogCard(a);
+      const headline = headlineFromHistory(hist?.history ?? [], a.minPrice ?? 0);
+      void recordPriceSnapshot(snkrdunkApparelId, {
+        minPrice: a.minPrice ?? 0,
+        listingCount: a.listingCount,
+        headlinePrice: headline.price,
+        headlineBasis: headline.basis,
+        priceSingle: prices.single,
+        pricePsa10: prices.psa10,
+        pricePsa9: prices.psa9,
+        pricePsa8: prices.psa8,
+        trend: prices.trendJpy,
+      });
+    }
+    return basis.price > 0 ? Math.round(basis.price) : null;
+  } catch (err) {
+    console.warn('[me.cards] 등록가 시세 조회 실패', snkrdunkApparelId, err);
+    return null;
+  }
+}
+
+/** 등록/수정 공통 — 구매·등급 입력값 정규화 (POST 와 PATCH 가 같은 규칙으로 저장). */
+function parsePurchaseFields(body: Record<string, unknown>) {
+  const buyPriceNum = Number(body.buyPrice);
+  const buyPrice = Number.isFinite(buyPriceNum) && buyPriceNum > 0 ? Math.round(buyPriceNum) : null;
+  const buyCurrency = body.buyCurrency === 'JPY' ? 'JPY' : 'KRW';
+  const qtyNum = Number(body.qty);
+  const qty = Number.isFinite(qtyNum) ? Math.max(1, Math.min(999, Math.round(qtyNum))) : 1;
+  const buyDate = typeof body.buyDate === 'string' ? body.buyDate.trim().slice(0, 10) || null : null;
+  // 발매 지역(에디션) — 'jp' | 'kr' | 'en' 만 허용.
+  const region =
+    body.region === 'jp' || body.region === 'kr' || body.region === 'en' ? body.region : null;
+  const memo = typeof body.memo === 'string' ? body.memo.trim().slice(0, 500) : null;
+  // 직접뽑기 / 등급(그레이딩) 정보
+  const selfPulled = body.selfPulled === true;
+  const graded = body.graded === true;
+  const gradeCompany =
+    graded && typeof body.gradeCompany === 'string' ? body.gradeCompany.trim().slice(0, 16) || null : null;
+  const gradeValue =
+    graded && typeof body.gradeValue === 'string' ? body.gradeValue.trim().slice(0, 8) || null : null;
+  return { buyPrice, buyCurrency, qty, buyDate, region, memo, selfPulled, graded, gradeCompany, gradeValue };
+}
+
 router.get('/cards', async (req: Request, res: Response) => {
   try {
     const rows = await prisma.userCard.findMany({
@@ -111,7 +181,6 @@ router.post('/cards', async (req: Request, res: Response) => {
   }
 
   const nickname = typeof body.nickname === 'string' ? body.nickname.trim().slice(0, 60) : null;
-  const memo = typeof body.memo === 'string' ? body.memo.trim().slice(0, 500) : null;
   const gradeEstimate =
     typeof body.gradeEstimate === 'string' ? body.gradeEstimate.trim().slice(0, 60) : null;
   const centeringScore =
@@ -123,66 +192,15 @@ router.post('/cards', async (req: Request, res: Response) => {
       ? body.photoUrl.slice(0, 500)
       : null;
 
-  // 구매 정보 (구매가/통화/수량/구매시기)
-  const buyPriceNum = Number(body.buyPrice);
-  const buyPrice = Number.isFinite(buyPriceNum) && buyPriceNum > 0 ? Math.round(buyPriceNum) : null;
-  const buyCurrency = body.buyCurrency === 'JPY' ? 'JPY' : 'KRW';
-  const qtyNum = Number(body.qty);
-  const qty = Number.isFinite(qtyNum) ? Math.max(1, Math.min(999, Math.round(qtyNum))) : 1;
-  const buyDate = typeof body.buyDate === 'string' ? body.buyDate.trim().slice(0, 10) || null : null;
-  // 발매 지역(에디션) — 'jp' | 'kr' | 'en' 만 허용.
-  const region =
-    body.region === 'jp' || body.region === 'kr' || body.region === 'en' ? body.region : null;
+  // 구매 정보 / 직접뽑기 / 등급 — PATCH 와 같은 정규화(parsePurchaseFields).
+  const { buyPrice, buyCurrency, qty, buyDate, region, memo, selfPulled, graded, gradeCompany, gradeValue } =
+    parsePurchaseFields(body);
 
-  // 직접뽑기 / 등급(그레이딩) 정보
-  const selfPulled = body.selfPulled === true;
-  const graded = body.graded === true;
-  const gradeCompany =
-    graded && typeof body.gradeCompany === 'string' ? body.gradeCompany.trim().slice(0, 16) || null : null;
-  const gradeValue =
-    graded && typeof body.gradeValue === 'string' ? body.gradeValue.trim().slice(0, 8) || null : null;
-
-  // 등록가(JPY) — 등록 단계에서 확정 저장. 컬렉션의 "등록가격" + 등락률 기준값.
-  //  · 구매가 입력: 사용자가 적은 buyPrice(통화 buyCurrency)를 JPY 환산.
-  //    (직접뽑기(selfPulled)도 클라이언트가 buyPrice 에 현재시세를 담아 보냄.)
-  //  · 구매가 미입력: 등록 당시 시세를 등급 기준으로 스냅 —
-  //    PSA10/9/8 → 해당 등급 최근 체결가, 타사(BGS/CGC 등) → PSA10 기준,
-  //    싱글(비등급) → raw 싱글가. (registerBasisJpy 규칙)
-  // 그래도 산정 불가면 null → 최초 조회 시 보조 백필(getMyCardsWithPrices).
-  let registerPriceJpy: number | null = null;
-  if (buyPrice != null && buyPrice > 0) {
-    const rate = buyCurrency === 'JPY' ? 1 : (await getJpyKrwRate().catch(() => null))?.rate ?? 0;
-    registerPriceJpy = deriveRegisterPriceJpy(buyPrice, buyCurrency, 0, rate);
-  } else if (snkrdunkApparelId) {
-    try {
-      const [a, hist, chart] = await Promise.all([
-        fetchSnkrdunkApparel(snkrdunkApparelId),
-        fetchSnkrdunkSalesHistory(snkrdunkApparelId).catch(() => null),
-        fetchSnkrdunkSalesChart(snkrdunkApparelId).catch(() => null),
-      ]);
-      const prices = computeApparelPrices(hist?.history ?? [], chart?.points ?? [], a?.minPrice ?? 0);
-      const basis = registerBasisJpy(prices, { graded, gradeCompany, gradeValue });
-      registerPriceJpy = basis.price > 0 ? Math.round(basis.price) : null;
-      // 이왕 받아온 시세는 스냅샷/카탈로그에 재적재 (응답 경로 밖, 실패 무시).
-      if (a) {
-        void upsertCatalogCard(a);
-        const headline = headlineFromHistory(hist?.history ?? [], a.minPrice ?? 0);
-        void recordPriceSnapshot(snkrdunkApparelId, {
-          minPrice: a.minPrice ?? 0,
-          listingCount: a.listingCount,
-          headlinePrice: headline.price,
-          headlineBasis: headline.basis,
-          priceSingle: prices.single,
-          pricePsa10: prices.psa10,
-          pricePsa9: prices.psa9,
-          pricePsa8: prices.psa8,
-          trend: prices.trendJpy,
-        });
-      }
-    } catch (err) {
-      console.warn('[me.cards.POST] 등록가 시세 조회 실패', snkrdunkApparelId, err);
-    }
-  }
+  // 등록가(JPY) — 등록 단계에서 확정 저장. 컬렉션의 "등록가격" + 등락률 기준값 (resolveRegisterPriceJpy).
+  const registerPriceJpy = await resolveRegisterPriceJpy(
+    { buyPrice, buyCurrency, snkrdunkApparelId },
+    { graded, gradeCompany, gradeValue },
+  );
 
   try {
     await prisma.user.upsert({
@@ -693,6 +711,56 @@ router.get('/cards/:id', async (req: Request, res: Response) => {
     res.json({ data: row });
   } catch (err) {
     console.error('[me.cards.GET id]', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+/**
+ * 등록 정보 수정 — 구매가/통화/수량/구입일/지역/메모/직접뽑기/등급. 카드 자체(상품)는 바꾸지 않는다.
+ * 등록가(registerPriceJpy)는 등록 때와 같은 규칙으로 다시 산정한다(구매가 있으면 환산, 없으면 지금 시세 스냅).
+ * 응답은 갱신된 행 — 클라이언트가 목록 캐시에 바로 merge 한다.
+ */
+router.patch('/cards/:id', async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: 'invalid id' });
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  try {
+    const row = await prisma.userCard.findUnique({ where: { id } });
+    if (!row || row.userId !== req.user!.userId) return res.status(404).json({ error: 'not found' });
+    const f = parsePurchaseFields(body);
+    const registerPriceJpy =
+      (await resolveRegisterPriceJpy(
+        { buyPrice: f.buyPrice, buyCurrency: f.buyCurrency, snkrdunkApparelId: row.snkrdunkApparelId },
+        { graded: f.graded, gradeCompany: f.gradeCompany, gradeValue: f.gradeValue },
+      )) ?? row.registerPriceJpy;
+    const updated = await prisma.userCard.update({ where: { id }, data: { ...f, registerPriceJpy } });
+    res.json({ data: updated });
+  } catch (err) {
+    console.error('[me.cards.PATCH]', err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+/**
+ * 묶음 만들기/해제 — { ids: number[], bundle: boolean }.
+ * bundle=true 면 새 묶음 id 를 발급해 ids 전부에 저장(2장 이상), false 면 ids 의 묶음을 푼다.
+ * 컬렉션 화면은 bundleId 가 같은 카드를 한 줄로 묶어 그린다(shared/collectionGroup).
+ */
+router.post('/cards/bundle', async (req: Request, res: Response) => {
+  const body = (req.body ?? {}) as { ids?: unknown; bundle?: unknown };
+  const ids = Array.isArray(body.ids) ? body.ids.filter((v): v is number => Number.isInteger(v)) : [];
+  const bundle = body.bundle !== false;
+  if (ids.length === 0 || (bundle && ids.length < 2)) return res.status(400).json({ error: '2장 이상 선택해 주세요' });
+  try {
+    const bundleId = bundle ? `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` : null;
+    const r = await prisma.userCard.updateMany({
+      where: { id: { in: ids }, userId: req.user!.userId },
+      data: { bundleId },
+    });
+    if (r.count === 0) return res.status(404).json({ error: 'not found' });
+    res.json({ data: { bundleId, count: r.count } });
+  } catch (err) {
+    console.error('[me.cards.bundle]', err);
     res.status(500).json({ error: 'internal' });
   }
 });

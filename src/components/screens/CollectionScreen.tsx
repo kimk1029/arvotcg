@@ -18,6 +18,8 @@ import { useToast } from '@/components/ToastProvider';
 import { groupDuplicates, type CardGroup } from '../../../shared/collectionGroup';
 import { evaluationUnitJpy } from '../../../shared/snkrdunkPrice';
 import { collectionTotals, displayTotalJpy } from '../../../shared/collectionTotals';
+import { regionBadge } from '../../../shared/collectionBadges';
+import { CardRegisterSheet } from '@/components/cards/CardRegisterSheet';
 
 interface HistPoint {
   date: string;
@@ -56,6 +58,9 @@ interface CardRow {
   buyCurrency: string | null;
   qty: number;
   buyDate: string | null;
+  memo?: string | null;
+  /** 사용자가 직접 묶은 묶음 id — 같은 값끼리 한 줄(shared/collectionGroup). */
+  bundleId?: string | null;
   createdAt: string;
   region: string | null;
   series: string | null;
@@ -178,6 +183,11 @@ export function CollectionScreen() {
   const [view, setView] = useState<View>('list');
   // 박스 제외 — 목록·손익 합계·비중 도넛에서 박스(미개봉 상품)를 뺀다 (앱 my/cards 동일).
   const [excludeBox, setExcludeBox] = useState(false);
+  // 등록 정보 수정 — ⋯ 메뉴 '등록 정보 수정' → 등록 시트를 기존 값으로 채워 띄운다.
+  const [editing, setEditing] = useState<CardRow | null>(null);
+  // 묶음 만들기 — 선택 모드에서 카드를 고르고 '묶기'. 서버 bundleId 로 저장(웹·앱 공통).
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<number[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -338,18 +348,6 @@ export function CollectionScreen() {
     return { invested, current, profit, pct };
   }, [visibleRows]);
 
-  const summary = useMemo(() => {
-    const h = port?.history ?? [];
-    const over = (days: number): { abs: number; pct: number } | null => {
-      if (h.length < 2) return null;
-      const last = h[h.length - 1].totalJpy;
-      const base = h[Math.max(0, h.length - 1 - days)].totalJpy;
-      if (!base) return null;
-      return { abs: last - base, pct: ((last - base) / base) * 100 };
-    };
-    return { d7: over(7), d30: over(30) };
-  }, [port]);
-
   // 컬렉션에서 카드 제거 — 낙관적으로 목록에서 빼고 DELETE. 실패 시 전체 재조회.
   // 삭제 — 목록에서 먼저 빼고(총액도 즉시 감소) 서버 처리는 뒤에서. 완료되면 토스트,
   // 실패하면 되돌린다. 전체 재조회(setReload)는 하지 않는다 — 화면이 스피너로 깜빡였다.
@@ -390,6 +388,39 @@ export function CollectionScreen() {
       toast.error('삭제에 실패했어요. 잠시 후 다시 시도해 주세요');
     }
   }, [toast, rate, port]);
+
+  /** 목록의 카드 행을 부분 갱신하고 세션 캐시에도 같이 쓴다. */
+  const patchCards = useCallback((fn: (c: CardRow) => CardRow) => {
+    setCards((prev) => {
+      if (!prev) return prev;
+      const next = prev.map(fn);
+      if (port) saveCollectionCache(port, next);
+      return next;
+    });
+  }, [port]);
+
+  // 묶음 만들기/해제 — POST /api/me/cards/bundle. 성공하면 bundleId 를 목록에 바로 반영.
+  const handleBundle = useCallback(async (ids: number[], bundle: boolean) => {
+    try {
+      const res = await fetch('/api/me/cards/bundle', {
+        method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids, bundle }),
+      });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const j = (await res.json()) as { data?: { bundleId: string | null } };
+      const bundleId = j.data?.bundleId ?? null;
+      patchCards((c) => (ids.includes(c.id) ? { ...c, bundleId } : c));
+      setSelecting(false);
+      setSelected([]);
+      toast.success(bundle ? `${ids.length}장을 묶었어요` : '묶음을 해제했어요');
+    } catch {
+      toast.error(bundle ? '묶기에 실패했어요' : '묶음 해제에 실패했어요');
+    }
+  }, [patchCards, toast]);
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }, []);
 
   if (tab === 'favorites')
     return (
@@ -515,12 +546,6 @@ export function CollectionScreen() {
               flex={1.2}
             />
           </div>
-
-          {/* 자산 요약(7일·30일 변화) — 총 자산 가치 블록 안에 같이 표시. 앱 PortfolioHero 동일. */}
-          <div style={{ display: 'flex', marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,.12)', position: 'relative', zIndex: 2 }}>
-            <HeroDelta label="7일 변화" delta={summary.d7} format={format} />
-            <HeroDelta label="30일 변화" delta={summary.d30} format={format} />
-          </div>
         </div>
       </div>
 
@@ -530,6 +555,19 @@ export function CollectionScreen() {
           <div style={{ fontFamily: 'var(--f1)', fontSize: 17, fontWeight: 800, color: 'var(--ink)' }}>
             내 카드 목록 <span style={{ color: 'var(--ink3)' }}>({rows.length})</span>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* 묶기 — 선택 모드 토글. 리스트형에서 카드를 고른 뒤 하단 바의 '묶기'. */}
+          <button
+            type="button"
+            onClick={() => { setSelecting((v) => !v); setSelected([]); if (!selecting) setView('list'); }}
+            style={{
+              fontFamily: 'var(--f1)', fontSize: 11, fontWeight: 800, padding: '5px 10px', borderRadius: 'var(--r-sm)',
+              border: `1px solid ${selecting ? 'var(--ink)' : 'var(--pap3)'}`, cursor: 'pointer',
+              background: selecting ? 'var(--ink)' : 'var(--white)', color: selecting ? 'var(--white)' : 'var(--ink)',
+            }}
+          >
+            {selecting ? '선택 취소' : '묶기'}
+          </button>
           <div style={{ display: 'flex', gap: 4, background: 'var(--pap2)', borderRadius: 'var(--r-sm)', padding: 3 }}>
             {(['grid', 'list'] as View[]).map((v) => (
               <button
@@ -549,6 +587,7 @@ export function CollectionScreen() {
                 )}
               </button>
             ))}
+          </div>
           </div>
         </div>
 
@@ -595,17 +634,101 @@ export function CollectionScreen() {
         ) : view === 'grid' ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, paddingBottom: 24 }}>
             {groups.map((g, i) => (
-              <CardGridItem key={g.key} group={g} rank={i + 1} format={format} onRemove={handleRemove} />
+              <CardGridItem key={g.key} group={g} rank={i + 1} format={format} onRemove={handleRemove} onEdit={setEditing} onUnbundle={(ids) => handleBundle(ids, false)} />
             ))}
           </div>
         ) : (
           <div style={{ paddingBottom: 24 }}>
             {groups.map((g, i, arr) => (
-              <CardListItem key={g.key} group={g} format={format} last={i === arr.length - 1} onRemove={handleRemove} />
+              <CardListItem
+                key={g.key}
+                group={g}
+                format={format}
+                last={i === arr.length - 1}
+                onRemove={handleRemove}
+                onEdit={setEditing}
+                onUnbundle={(ids) => handleBundle(ids, false)}
+                selecting={selecting}
+                selected={selected}
+                onToggleSelect={toggleSelect}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {/* 선택 모드 하단 바 — 2장 이상 고르면 '묶기' 활성. */}
+      {selecting && (
+        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 'calc(var(--nav-h,70px) + 8px)', zIndex: 40, display: 'flex', justifyContent: 'center', padding: '0 var(--gap)', pointerEvents: 'none' }}>
+          <div style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--ink)', color: 'var(--white)', borderRadius: 999, padding: '10px 14px 10px 18px', boxShadow: '0 8px 24px rgba(0,0,0,.25)', fontFamily: 'var(--f1)', fontSize: 12.5, fontWeight: 800 }}>
+            <span>{selected.length}장 선택</span>
+            <button
+              type="button"
+              disabled={selected.length < 2}
+              onClick={() => handleBundle(selected, true)}
+              style={{ fontFamily: 'var(--f1)', fontSize: 12.5, fontWeight: 800, padding: '7px 16px', borderRadius: 999, border: 'none', cursor: selected.length < 2 ? 'default' : 'pointer', background: selected.length < 2 ? 'rgba(255,255,255,.25)' : 'var(--white)', color: selected.length < 2 ? 'rgba(255,255,255,.6)' : 'var(--ink)' }}
+            >
+              묶기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 등록 정보 수정 모달 — 시세상세 등록 시트와 같은 폼을 기존 값으로 채워 띄운다. */}
+      {editing && (
+        <div className="cv-sheet-overlay" onClick={() => setEditing(null)}>
+          <div className="cv-sheet-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cv-sheet-head">
+              <span className="form-label" style={{ margin: 0 }}>✏️ 등록 정보 수정</span>
+              <button type="button" className="cv-sheet-close" onClick={() => setEditing(null)} aria-label="닫기">✕</button>
+            </div>
+            <CardRegisterSheet
+              key={editing.id}
+              card={{
+                cardId: editing.cardId,
+                setCode: editing.ocrSetCode,
+                cardNumber: editing.ocrCardNumber,
+                snkrdunkApparelId: editing.snkrdunkApparelId,
+                name: cardName(editing),
+                imageUrl: editing.snkrdunkImageUrl || editing.photoUrl,
+                currentPriceJpy: editing.currentPriceJpy > 0 ? editing.currentPriceJpy : null,
+                gradePrices: editing.priceSingleJpy > 0 || editing.pricePsa10Jpy > 0
+                  ? { single: editing.priceSingleJpy, psa10: editing.pricePsa10Jpy, psa9: 0, psa8: 0 }
+                  : null,
+              }}
+              editId={editing.id}
+              initial={{
+                selfPulled: editing.selfPulled,
+                buyPrice: editing.buyPrice != null && editing.buyPrice > 0 ? String(editing.buyPrice) : '',
+                buyCurrency: editing.buyCurrency === 'JPY' ? 'JPY' : 'KRW',
+                buyDate: editing.buyDate ?? '',
+                qty: Math.max(1, editing.qty || 1),
+                region: editing.region === 'kr' || editing.region === 'en' ? editing.region : 'jp',
+                graded: editing.graded,
+                gradeCompany: editing.gradeCompany ?? 'PSA',
+                gradeValue: editing.gradeValue ?? '',
+                memo: editing.memo ?? '',
+              }}
+              redirectOnSave={false}
+              onSaved={(updated) => {
+                const id = editing.id;
+                const u = (updated ?? {}) as Partial<CardRow>;
+                // 서버가 돌려준 행(등록가 재산정 포함)을 목록에 merge — 시세 필드는 기존 값 유지.
+                patchCards((c) => (c.id === id ? {
+                  ...c,
+                  buyPrice: u.buyPrice ?? null, buyCurrency: u.buyCurrency ?? c.buyCurrency, qty: u.qty ?? c.qty,
+                  buyDate: u.buyDate ?? null, region: u.region ?? null, memo: u.memo ?? null,
+                  selfPulled: u.selfPulled ?? c.selfPulled, graded: u.graded ?? c.graded,
+                  gradeCompany: u.gradeCompany ?? null, gradeValue: u.gradeValue ?? null,
+                  registerPriceJpy: u.registerPriceJpy ?? c.registerPriceJpy,
+                } : c));
+                toast.success('등록 정보를 수정했어요');
+                setTimeout(() => setEditing(null), 600);
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       <div style={{ fontFamily: 'var(--f1)', fontSize: 9, color: 'var(--ink3)', textAlign: 'center', letterSpacing: 0.3, lineHeight: 1.6, padding: '0 var(--gap)' }}>
         스니덩크 최근 체결 중앙값 기준 · 관심카드 제외 · 등락은 등록가 대비 누적
@@ -689,8 +812,8 @@ function useMenuOpen(key: string): boolean {
   return cur === key;
 }
 
-/** 카드 더보기(⋯) 메뉴 — 시세 보기 / 컬렉션에서 제거. Link/Panel 바깥에 형제로 배치. */
-function CardMenu({ menuKey, apparelId, basis, onRemove, plain = false, up = false }: { menuKey: string; apparelId: number | null; basis?: string | null; onRemove: () => void; plain?: boolean; up?: boolean }) {
+/** 카드 더보기(⋯) 메뉴 — 시세 보기 / 등록 정보 수정 / 묶음 해제 / 컬렉션에서 제거. Link/Panel 바깥에 형제로 배치. */
+function CardMenu({ menuKey, apparelId, basis, onRemove, onEdit, onUnbundle, plain = false, up = false }: { menuKey: string; apparelId: number | null; basis?: string | null; onRemove: () => void; onEdit?: () => void; onUnbundle?: () => void; plain?: boolean; up?: boolean }) {
   const router = useRouter();
   const open = useMenuOpen(menuKey);
   // 화면 아래쪽 행이면 위로 펼친다 — 아래로 열면 하단 네비게이션 뒤로 들어가 눌리지 않는다.
@@ -762,6 +885,16 @@ function CardMenu({ menuKey, apparelId, basis, onRemove, plain = false, up = fal
               📈 시세 보기
             </button>
           )}
+          {onEdit && (
+            <button type="button" onClick={(e) => { stop(e); setOpen(false); onEdit(); }} style={{ ...menuItemStyle, borderTop: apparelId ? '1px solid var(--pap3)' : 'none' }}>
+              ✏️ 등록 정보 수정
+            </button>
+          )}
+          {onUnbundle && (
+            <button type="button" onClick={(e) => { stop(e); setOpen(false); onUnbundle(); }} style={{ ...menuItemStyle, borderTop: '1px solid var(--pap3)' }}>
+              🧩 묶음 해제
+            </button>
+          )}
           <button
             type="button"
             onClick={(e) => {
@@ -769,7 +902,7 @@ function CardMenu({ menuKey, apparelId, basis, onRemove, plain = false, up = fal
               setOpen(false);
               onRemove();
             }}
-            style={{ ...menuItemStyle, color: 'var(--red)', borderTop: apparelId ? '1px solid var(--pap3)' : 'none' }}
+            style={{ ...menuItemStyle, color: 'var(--red)', borderTop: apparelId || onEdit ? '1px solid var(--pap3)' : 'none' }}
           >
             🗑 컬렉션에서 제거
           </button>
@@ -785,7 +918,7 @@ const menuItemStyle: React.CSSProperties = {
   background: 'transparent', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
 };
 
-function CardGridItem({ group, rank, format, onRemove }: { group: CardGroup<Row>; rank: number; format: (j: number) => string; onRemove: (id: number) => void }) {
+function CardGridItem({ group, rank, format, onRemove, onEdit, onUnbundle }: { group: CardGroup<Row>; rank: number; format: (j: number) => string; onRemove: (id: number) => void; onEdit: (c: CardRow) => void; onUnbundle: (ids: number[]) => void }) {
   const { c, curJpy, basisJpy } = group.head;
   // 중복 등록은 한 타일로 — 장수는 그룹 합, 손익률도 그룹 합산 기준.
   const qty = group.qty;
@@ -837,13 +970,79 @@ function CardGridItem({ group, rank, format, onRemove }: { group: CardGroup<Row>
       )}
       {/* ⋯ 메뉴 — Link/Panel 바깥 형제(이미지 우상단 오버레이). */}
       <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 6 }}>
-        <CardMenu menuKey={`grid:${c.id}`} apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} />
+        <CardMenu
+          menuKey={`grid:${c.id}`}
+          apparelId={c.snkrdunkApparelId}
+          basis={c.priceBasis}
+          onRemove={() => onRemove(c.id)}
+          onEdit={group.items.length === 1 ? () => onEdit(c) : undefined}
+          onUnbundle={c.bundleId ? () => onUnbundle(group.items.map((r) => r.c.id)) : undefined}
+        />
       </div>
     </div>
   );
 }
 
-function CardListItem({ group, format, last, onRemove }: { group: CardGroup<Row>; format: (j: number) => string; last: boolean; onRemove: (id: number) => void }) {
+/** 카드 이름 아랫줄 배지 — 등급(PSA 10 / 무등급) + 언어판(일판/한판/영판) + 묶음(N장). 여러 개 동시 표기. */
+function BadgeRow({ c, bundleCount }: { c: CardRow; bundleCount?: number }) {
+  const chip: React.CSSProperties = { flex: 'none', fontFamily: 'var(--f1)', fontSize: 9.5, fontWeight: 800, color: 'var(--ink3)', background: 'var(--pap2)', borderRadius: 5, padding: '2px 6px', lineHeight: 1.2 };
+  const lang = regionBadge(c.region);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+      {c.graded ? <GradedLabel company={c.gradeCompany} grade={c.gradeValue} height={9} inline /> : <span style={chip}>무등급</span>}
+      {lang && <span style={chip}>{lang}</span>}
+      {bundleCount != null && bundleCount > 1 && <span style={{ ...chip, color: 'var(--white)', background: 'var(--ink)' }}>묶음 {bundleCount}장</span>}
+    </div>
+  );
+}
+
+/** 묶음 썸네일 — 카드 이미지가 부채꼴로 겹치고 우하단에 장수 배지. 앱 FanThumb 페어. */
+function FanThumb({ srcs, alt, count }: { srcs: Array<string | null>; alt: string; count: number }) {
+  const layers = srcs.slice(0, 3);
+  const n = layers.length;
+  return (
+    <div style={{ position: 'relative', width: 54, height: 74, flex: 'none' }}>
+      {layers.map((src, i) => {
+        // 뒤 카드일수록 왼쪽·위로 살짝 벗어나며 기울인다(부채꼴). 맨 앞(i=n-1)이 정위치.
+        const k = n - 1 - i;
+        return (
+          <CardThumb
+            key={i}
+            style={{
+              position: 'absolute', left: 0, top: 0, width: 46, height: 64, borderRadius: 6, overflow: 'hidden',
+              background: 'var(--pap2)', display: 'grid', placeItems: 'center',
+              transform: `translate(${k * -4}px, ${k * -3}px) rotate(${k * -8}deg)`, transformOrigin: '50% 100%',
+              boxShadow: '0 1px 3px rgba(0,0,0,.25)', zIndex: i + 1,
+            }}
+            src={src}
+            alt={alt}
+            emojiSize={22}
+          />
+        );
+      })}
+      <span style={{ position: 'absolute', right: -2, bottom: 2, zIndex: 5, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: 'var(--ink)', color: 'var(--white)', fontFamily: 'var(--f1)', fontSize: 10, fontWeight: 900, display: 'grid', placeItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }}>
+        {count}
+      </span>
+    </div>
+  );
+}
+
+/** 선택 모드 체크박스. */
+function SelectBox({ on }: { on: boolean }) {
+  return (
+    <span style={{ flex: 'none', width: 20, height: 20, borderRadius: 6, border: `2px solid ${on ? 'var(--ink)' : 'var(--pap3)'}`, background: on ? 'var(--ink)' : 'var(--white)', color: 'var(--white)', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 900, lineHeight: 1 }}>
+      {on ? '✓' : ''}
+    </span>
+  );
+}
+
+function CardListItem({
+  group, format, last, onRemove, onEdit, onUnbundle, selecting, selected, onToggleSelect,
+}: {
+  group: CardGroup<Row>; format: (j: number) => string; last: boolean;
+  onRemove: (id: number) => void; onEdit: (c: CardRow) => void; onUnbundle: (ids: number[]) => void;
+  selecting: boolean; selected: number[]; onToggleSelect: (id: number) => void;
+}) {
   const { c } = group.head;
   const dup = group.items.length > 1;
   const [open, setOpen] = useState(false);
@@ -851,90 +1050,117 @@ function CardListItem({ group, format, last, onRemove }: { group: CardGroup<Row>
   const href = cardDetailHref(c) ?? '#';
   const profit = group.profitAbsJpy;
   const up = (profit ?? 0) >= 0;
+  const allSelected = group.items.every((r) => selected.includes(r.c.id));
+  const toggleGroup = () => group.items.forEach((r) => { if (selected.includes(r.c.id) === allSelected) onToggleSelect(r.c.id); });
+  const body = (
+    <>
+      {selecting && <SelectBox on={allSelected} />}
+      {/* 썸네일 — 묶음이면 부채꼴 + 장수 배지 */}
+      {dup ? (
+        <FanThumb srcs={group.items.map((r) => r.c.snkrdunkImageUrl || r.c.photoUrl || null)} alt={cardName(c)} count={group.qty} />
+      ) : (
+        <CardThumb
+          style={{ width: 54, height: 74, flex: 'none', borderRadius: 8, overflow: 'hidden', background: 'var(--pap2)', display: 'grid', placeItems: 'center' }}
+          src={img}
+          alt={cardName(c)}
+          emojiSize={26}
+        />
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {/* 카드명 — 배지는 아랫줄로 빼서 이름이 잘리지 않게 */}
+        <div style={{ fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 800, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {cardName(c)}
+        </div>
+        <BadgeRow c={c} bundleCount={dup ? group.qty : undefined} />
+        {/* 등록(기준)가 · 보유 장수(진하게). 묶음은 등록 합계. */}
+        <div style={{ fontFamily: 'var(--f1)', fontSize: 11.5, color: 'var(--ink3)', fontWeight: 600, marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {dup ? `등록 합계 ${group.investedJpy > 0 ? format(group.investedJpy) : '—'}` : `등록 ${group.head.basisJpy ? format(group.head.basisJpy) : '—'}`}
+          {' · '}<b style={{ color: 'var(--ink)', fontWeight: 800 }}>{group.qty}장</b>
+        </div>
+      </div>
+      {/* 평가금액(검정 볼드) + 등록가 대비 손익(한 단계 작게, 상승 빨강/하락 파랑) */}
+      <div style={{ textAlign: 'right', flex: 'none' }}>
+        <div style={{ fontFamily: 'var(--f1)', fontSize: 15.5, fontWeight: 900, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
+          {group.value > 0 ? format(group.value) : '—'}
+        </div>
+        {profit != null && group.profitPct != null && (
+          <div style={{ fontFamily: 'var(--f1)', fontSize: 11, fontWeight: 800, color: up ? UP : DOWN, marginTop: 4, whiteSpace: 'nowrap' }}>
+            {up ? '▲' : '▼'} {format(Math.abs(profit))} ({up ? '+' : '-'}{Math.abs(group.profitPct).toFixed(1)}%)
+          </div>
+        )}
+      </div>
+    </>
+  );
+  const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 24px 12px 2px', textDecoration: 'none', color: 'inherit', width: '100%', background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer', font: 'inherit' };
   return (
     <div style={{ borderBottom: last ? 'none' : '1px solid var(--pap3)' }}>
       <div style={{ position: 'relative' }}>
-        <Link href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 24px 12px 2px', textDecoration: 'none', color: 'inherit' }}>
-          {/* 카드 비율 썸네일 */}
-          <CardThumb
-            style={{ width: 54, height: 74, flex: 'none', borderRadius: 8, overflow: 'hidden', background: 'var(--pap2)', display: 'grid', placeItems: 'center' }}
-            src={img}
-            alt={cardName(c)}
-            emojiSize={26}
-          />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {/* 카드명 + 등급 배지(무등급이면 회색 칩) */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-              <span style={{ fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 800, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {cardName(c)}
-              </span>
-              {c.graded ? (
-                <GradedLabel company={c.gradeCompany} grade={c.gradeValue} height={11} inline />
-              ) : (
-                <span style={{ flex: 'none', fontFamily: 'var(--f1)', fontSize: 10, fontWeight: 800, color: 'var(--ink3)', background: 'var(--pap2)', borderRadius: 6, padding: '3px 7px', lineHeight: 1 }}>
-                  무등급
-                </span>
-              )}
-            </div>
-            {/* 등록(기준)가 · 보유 장수 */}
-            <div style={{ fontFamily: 'var(--f1)', fontSize: 11.5, color: 'var(--ink3)', fontWeight: 600, marginTop: 6 }}>
-              등록 {group.head.basisJpy ? format(group.head.basisJpy) : '—'} · {group.qty}장
-              {dup ? ` (${group.items.length}건)` : ''}
-            </div>
-          </div>
-          {/* 오늘 가격(평가액) + 등록가 대비 차액·등락률 */}
-          <div style={{ textAlign: 'right', flex: 'none' }}>
-            <div style={{ fontFamily: 'var(--f1)', fontSize: 15.5, fontWeight: 900, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
-              {group.value > 0 ? format(group.value) : '—'}
-            </div>
-            {profit != null && group.profitPct != null && (
-              <div style={{ fontFamily: 'var(--f1)', fontSize: 12, fontWeight: 800, color: up ? UP : DOWN, marginTop: 5, whiteSpace: 'nowrap' }}>
-                {up ? '▲' : '▼'} {format(Math.abs(profit))} ({up ? '+' : '-'}{Math.abs(group.profitPct).toFixed(1)}%)
-              </div>
+        {selecting ? (
+          <button type="button" onClick={toggleGroup} style={rowStyle}>{body}</button>
+        ) : (
+          <Link href={href} style={rowStyle}>{body}</Link>
+        )}
+        {/* ⋯ 메뉴 — Link 바깥 형제(우측 세로 중앙). 묶음이면 펼치기 버튼으로 대체(메뉴는 하위 행에). */}
+        {!selecting && (
+          <div style={{ position: 'absolute', top: '50%', right: -4, transform: 'translateY(-50%)', zIndex: 6 }}>
+            {dup ? (
+              <button
+                type="button"
+                aria-label={open ? '묶음 접기' : '묶음 펼치기'}
+                onClick={() => setOpen((o) => !o)}
+                style={{ width: 22, height: 26, border: 'none', background: 'transparent', color: 'var(--ink3)', fontSize: 12, cursor: 'pointer', padding: 0 }}
+              >
+                {open ? '▲' : '▼'}
+              </button>
+            ) : (
+              <CardMenu
+                menuKey={`list:${c.id}`}
+                apparelId={c.snkrdunkApparelId}
+                basis={c.priceBasis}
+                onRemove={() => onRemove(c.id)}
+                onEdit={() => onEdit(c)}
+                plain
+              />
             )}
           </div>
-        </Link>
-        {/* ⋯ 메뉴 — Link 바깥 형제(우측 세로 중앙). 중복이면 펼치기 버튼으로 대체. */}
-        <div style={{ position: 'absolute', top: '50%', right: -4, transform: 'translateY(-50%)', zIndex: 6 }}>
-          {dup ? (
-            <button
-              type="button"
-              aria-label={open ? '중복 카드 접기' : '중복 카드 펼치기'}
-              onClick={() => setOpen((o) => !o)}
-              style={{ width: 22, height: 26, border: 'none', background: 'transparent', color: 'var(--ink3)', fontSize: 12, cursor: 'pointer', padding: 0 }}
-            >
-              {open ? '▲' : '▼'}
-            </button>
-          ) : (
-            <CardMenu menuKey={`list:${c.id}`} apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} plain />
-          )}
-        </div>
+        )}
       </div>
 
-      {/* 중복 등록분 — 장마다 등록가·손익이 다르므로 각각 보여준다. */}
-      {dup && open && (
+      {/* 묶음 하위 행 — 장마다 등록가·등록일·개별 손익이 다르므로 각각. 현재가는 같은 카드면 전부 같다. */}
+      {dup && open && !selecting && (
         <div style={{ padding: '2px 0 10px 66px' }}>
+          {c.bundleId && (
+            <button type="button" onClick={() => onUnbundle(group.items.map((r) => r.c.id))} style={{ fontFamily: 'var(--f1)', fontSize: 10.5, fontWeight: 800, color: 'var(--ink3)', background: 'var(--pap2)', border: 'none', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', marginBottom: 4 }}>
+              🧩 묶음 해제
+            </button>
+          )}
           {group.items.map((r, i) => {
             // 장별 차액 — 현재 평가액 − 기준가×수량. 금액은 검정, 차액만 부호색.
             const diff = r.basisJpy != null && r.gradePriceJpy > 0 ? r.value - r.basisJpy * r.qty : null;
             const diffUp = (diff ?? 0) >= 0;
+            const date = (r.c.buyDate || r.c.createdAt || '').slice(0, 10);
             return (
               // 뒤 행이 위로 쌓이게(zIndex) + 메뉴는 위로 펼쳐 다음 행에 가리지 않는다.
               <div key={r.c.id} style={{ position: 'relative', zIndex: i + 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '7px 24px 7px 0' }}>
-                <span style={{ fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink3)', fontWeight: 600 }}>
-                  {i + 1}번째{r.qty > 1 ? ` · ×${r.qty}` : ''} · 등록 {r.basisJpy ? format(r.basisJpy) : '—'}
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 'none' }}>
-                  <span style={{ fontFamily: 'var(--f1)', fontSize: 12.5, fontWeight: 800, color: 'var(--ink)' }}>{r.value > 0 ? format(r.value) : '—'}</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontFamily: 'var(--f1)', fontSize: 11.5, fontWeight: 800, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {i + 1}. {cardName(r.c)}
+                  </div>
+                  <div style={{ fontFamily: 'var(--f1)', fontSize: 10.5, color: 'var(--ink3)', fontWeight: 600, marginTop: 2, whiteSpace: 'nowrap' }}>
+                    등록 {r.basisJpy ? format(r.basisJpy) : '—'}{r.qty > 1 ? ` · ×${r.qty}` : ''}{date ? ` · ${date}` : ''}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right', flex: 'none' }}>
+                  <div style={{ fontFamily: 'var(--f1)', fontSize: 12.5, fontWeight: 800, color: 'var(--ink)' }}>{r.curJpy > 0 ? format(r.curJpy) : '—'}</div>
                   {diff != null && (
-                    <span style={{ fontFamily: 'var(--f1)', fontSize: 11.5, fontWeight: 800, color: diffUp ? UP : DOWN, whiteSpace: 'nowrap' }}>
+                    <div style={{ fontFamily: 'var(--f1)', fontSize: 10.5, fontWeight: 800, color: diffUp ? UP : DOWN, whiteSpace: 'nowrap', marginTop: 2 }}>
                       {diffUp ? '▲' : '▼'} {format(Math.abs(diff))}
                       {r.profitPct != null ? ` (${diffUp ? '+' : '-'}${Math.abs(r.profitPct).toFixed(1)}%)` : ''}
-                    </span>
+                    </div>
                   )}
-                </span>
+                </div>
                 <div style={{ position: 'absolute', top: '50%', right: -4, transform: 'translateY(-50%)' }}>
-                  <CardMenu menuKey={`item:${r.c.id}`} apparelId={r.c.snkrdunkApparelId} basis={r.c.priceBasis} onRemove={() => onRemove(r.c.id)} plain up />
+                  <CardMenu menuKey={`item:${r.c.id}`} apparelId={r.c.snkrdunkApparelId} basis={r.c.priceBasis} onRemove={() => onRemove(r.c.id)} onEdit={() => onEdit(r.c)} plain up />
                 </div>
               </div>
             );
@@ -981,22 +1207,6 @@ function HeroStat({ label, value, color = '#fff', flex = 1 }: { label: string; v
   );
 }
 
-
-/** 히어로 안 7일/30일 변화 셀 — 금액 + (등락률). 색은 KR 관례(상승 빨강). */
-function HeroDelta({ label, delta, format }: { label: string; delta: { abs: number; pct: number } | null; format: (j: number) => string }) {
-  const up = (delta?.pct ?? 0) >= 0;
-  return (
-    <div style={{ flex: 1 }}>
-      <div style={{ fontFamily: 'var(--f1)', fontSize: 11.5, color: 'rgba(255,255,255,.55)', fontWeight: 600 }}>{label}</div>
-      <div style={{ fontFamily: 'var(--f1)', fontSize: 15, fontWeight: 800, color: delta == null ? 'rgba(255,255,255,.55)' : up ? '#FF6B5E' : '#6FA8FF', marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {delta == null ? '—' : `${delta.abs >= 0 ? '+' : '-'}${format(Math.abs(delta.abs))}`}
-        {delta != null && (
-          <span style={{ fontSize: 11, fontWeight: 700, marginLeft: 5 }}>({up ? '+' : ''}{delta.pct.toFixed(2)}%)</span>
-        )}
-      </div>
-    </div>
-  );
-}
 
 /** 다크 히어로용 스파크라인(우하단 배경). */
 function Msg({ children }: { children: ReactNode }) {

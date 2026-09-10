@@ -17,6 +17,7 @@ import {
 } from '@/components/portfolio/PortfolioExtras';
 import { additionIndexMap, additionLabel, type VizAcquisition, type VizAddition } from '../../../shared/portfolioViz';
 import { collectionTotals, displayTotalJpy } from '../../../shared/collectionTotals';
+import { historyDelta, type HistoryDelta } from '../../../shared/portfolioDelta';
 import type { MarketIndexResponse, MarketIndexSeries } from '../../../shared/marketIndex';
 import type { VizCard } from '../../../shared/portfolioViz';
 
@@ -355,6 +356,9 @@ export function PortfolioScreen() {
         <Kpi label="보유" value={`${cards.length}장`} />
         <Kpi label="시세반영" value={`${port.pricedCount}/${port.totalCount}`} color="#7FB0FF" />
         <Kpi label="그레이딩" value={`${gradedCount}건`} color="#A78BFA" />
+        {/* 7일·30일 변화 — 내 자산 히어로에서 옮겨옴. 날짜 기준 정본 shared/portfolioDelta. */}
+        <DeltaKpi label="7일 변화" delta={historyDelta(port.history, 7)} format={format} />
+        <DeltaKpi label="30일 변화" delta={historyDelta(port.history, 30)} format={format} />
       </div>
 
       {/* ── 차트 (기간 탭 + 호버/탭 툴팁) ── */}
@@ -475,6 +479,20 @@ export function PortfolioScreen() {
 
       <div className="cv-pf-foot">스니덩크 최근 체결 중앙값 기준 · 관심카드 제외 · 등락은 등록가 대비 누적</div>
     </div>
+  );
+}
+
+/** N일 변화 타일 — 금액 + (등락률). 데이터 부족이면 '—'. */
+function DeltaKpi({ label, delta, format }: { label: string; delta: HistoryDelta | null; format: (jpy: number) => string }) {
+  if (!delta) return <Kpi label={label} value="—" />;
+  const up = delta.abs >= 0;
+  return (
+    <Kpi
+      label={label}
+      value={`${up ? '+' : '-'}${format(Math.abs(delta.abs))}`}
+      sub={`${up ? '+' : ''}${delta.pct.toFixed(2)}% · ${delta.baseDate.slice(5)} 대비`}
+      color={up ? UP : DOWN}
+    />
   );
 }
 

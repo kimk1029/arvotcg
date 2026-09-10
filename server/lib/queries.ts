@@ -412,6 +412,8 @@ export interface MyCardRow {
   graded: boolean;
   gradeCompany: string | null;
   gradeValue: string | null;
+  /** 사용자가 직접 묶은 묶음 id — 컬렉션 화면이 같은 값끼리 한 줄로 묶는다. */
+  bundleId: string | null;
   createdAt: string;
 }
 
@@ -443,6 +445,7 @@ export async function getMyCards(userId: string, limit = 100): Promise<MyCardRow
       graded: r.graded,
       gradeCompany: r.gradeCompany,
       gradeValue: r.gradeValue,
+      bundleId: r.bundleId ?? null,
       createdAt: r.createdAt.toISOString(),
     }));
   } catch (err) {

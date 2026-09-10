@@ -25,6 +25,7 @@ import {
 } from '@/components/portfolio/PortfolioExtras';
 import { additionIndexMap, additionLabel, type VizAcquisition, type VizAddition } from '../../../shared/portfolioViz';
 import { collectionTotals, displayTotalJpy } from '../../../shared/collectionTotals';
+import { historyDelta, type HistoryDelta } from '../../../shared/portfolioDelta';
 import { fetchMarketIndexes, type MarketIndexSeries } from '@/lib/myApi';
 import type { VizCard } from '../../../shared/portfolioViz';
 import { shotSource } from '@/lib/shotMode';
@@ -292,6 +293,11 @@ export default function PortfolioPage() {
                 <KpiFlat label="보유" value={`${cards.length}장`} txt={txt} />
                 <KpiFlat label="시세반영" value={`${port.pricedCount}/${port.totalCount}`} color="#7FB0FF" txt={txt} />
                 <KpiFlat label="그레이딩" value={`${gradedCount}건`} color="#A78BFA" txt={txt} />
+                {/* 7일·30일 변화 — 내 자산 히어로에서 옮겨옴. 날짜 기준 정본 shared/portfolioDelta (웹 DeltaKpi 동일). */}
+                {([7, 30] as const).map((d) => {
+                  const v = deltaView(historyDelta(port.history, d), format);
+                  return <KpiFlat key={d} label={`${d}일 변화`} value={v.value} sub={v.sub} color={v.color} txt={txt} />;
+                })}
               </View>
             );
           })()}
@@ -517,6 +523,10 @@ export default function PortfolioPage() {
                 <Kpi label="보유" value={`${cards.length}장`} />
                 <Kpi label="시세반영" value={`${port.pricedCount}/${port.totalCount}`} color="#7FB0FF" />
                 <Kpi label="그레이딩" value={`${gradedCount}건`} color="#A78BFA" />
+                {([7, 30] as const).map((d) => {
+                  const v = deltaView(historyDelta(port.history, d), format);
+                  return <Kpi key={d} label={`${d}일 변화`} value={v.value} sub={v.sub} color={v.color} />;
+                })}
               </View>
             );
           })()}
@@ -669,6 +679,17 @@ export default function PortfolioPage() {
 }
 
 /** KPI 셀 (픽셀) — 웹 Kpi 동일 (3열 그리드). */
+/** N일 변화 타일 표시값 — 금액 + (등락률 · 기준일). 데이터 부족이면 '—' (웹 DeltaKpi 동일). */
+function deltaView(delta: HistoryDelta | null, format: (jpy: number) => string): { value: string; sub?: string; color?: string } {
+  if (!delta) return { value: '—' };
+  const up = delta.abs >= 0;
+  return {
+    value: `${up ? '+' : '-'}${format(Math.abs(delta.abs))}`,
+    sub: `${up ? '+' : ''}${delta.pct.toFixed(2)}% · ${delta.baseDate.slice(5)} 대비`,
+    color: up ? UP : DOWN,
+  };
+}
+
 function Kpi({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   const tc = useThemeColors();
   const txt = useThemeTextVariant();

@@ -39,6 +39,7 @@ import {
   gradeAggsFromHistory,
   gradeDisplayJpy,
   gradeUplift,
+  headlineRecentJpy,
   priceChangeFromPoints,
   type DailyPriceStat,
   type SnkrGradeAgg,
@@ -180,7 +181,10 @@ export default function SnkrdunkDetail() {
   const sel = grades.find((g) => g.key === effectiveGrade) ?? grades[grades.length - 1];
   // 정본 gradeDisplayJpy — 홈 HOT·내 컬렉션 목록가와 같은 통계(최근 체결 중앙값).
   // 박스는 등급 집계 대신 전체 체결 중앙값(정본 boxHeadlineFromHistory).
-  const headlinePrice = isBox ? boxHeadlineFromHistory(historyList, apparel?.minPrice ?? 0) : gradeDisplayJpy(sel, apparel?.minPrice ?? 0);
+  // 헤드라인 '최근 체결가' = 선택 등급의 실제 마지막 체결(정본 headlineRecentJpy). 평가·등록 기준인
+  // 최근 7건 중앙값(gradeDisplayJpy)은 아래 줄에 따로 보여준다 (웹 CardDetailView 동일).
+  const headlinePrice = isBox ? boxHeadlineFromHistory(historyList, apparel?.minPrice ?? 0) : headlineRecentJpy(sel, apparel?.minPrice ?? 0);
+  const basisPrice = isBox ? 0 : gradeDisplayJpy(sel, apparel?.minPrice ?? 0);
   const rawGrade = grades.find((g) => g.key === 'RAW');
   const rawRecent = gradeDisplayJpy(rawGrade, apparel?.minPrice ?? 0);
   // 등급별 투자 수익률 — RAW 평균가 → PSA10 평균가 상승폭 (웹 동일, 정본 shared).
@@ -336,6 +340,11 @@ export default function SnkrdunkDetail() {
                         </View>
                       ) : null}
                     </View>
+                    {basisPrice > 0 && basisPrice !== headlinePrice ? (
+                      <PixelText variant={txt} size={9} color={tc.ink3} style={{ marginTop: 4 }}>
+                        {`최근 7건 중앙값 ${fmtYen(basisPrice)} · 등록가·평가 기준`}
+                      </PixelText>
+                    ) : null}
                     <View style={{ flexDirection: 'row', gap: 20, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: tc.pap3 }}>
                       <View style={{ flex: 1 }}>
                         <PixelText variant={txt} size={10} color={tc.ink3}>전일 대비</PixelText>

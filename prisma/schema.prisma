@@ -523,6 +523,8 @@ model UserCard {
   gradeCompany      String?
   /// 사용자가 입력한 실제 등급 값 — "10", "9.5" 등.
   gradeValue        String?
+  /// 사용자가 직접 묶은 묶음 id — 같은 값끼리 컬렉션에서 한 줄(묶음)로 표시. 미묶음이면 null.
+  bundleId          String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

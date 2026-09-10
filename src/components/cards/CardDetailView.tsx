@@ -13,7 +13,7 @@ import { BoxHitCards } from '@/components/cards/BoxHitCards';
 import { downsamplePricePoints, isGradedSnkrdunkBadge,
   bundleOnlyUnits,
 } from '@/lib/snkrdunk';
-import { BOX_RANGE_MAX_DAYS, boxHeadlineFromHistory, defaultGradeKey, gradeDisplayJpy, gradeUplift, priceChangeFromPoints, type SnkrGradeAgg } from '@/lib/snkrdunkPrice';
+import { BOX_RANGE_MAX_DAYS, boxHeadlineFromHistory, defaultGradeKey, gradeDisplayJpy, gradeUplift, headlineRecentJpy, priceChangeFromPoints, type SnkrGradeAgg } from '@/lib/snkrdunkPrice';
 
 /**
  * 카드 시세 상세 — ARVOTCG '카드상세' 디자인 레이아웃.
@@ -143,7 +143,10 @@ export function CardDetailView({
   const sel = grades.find((g) => g.key === gradeKey) ?? grades[0];
   // 정본 gradeDisplayJpy — 홈 HOT·내 컬렉션 목록가와 같은 통계(최근 체결 중앙값).
   // 박스는 등급 집계 대신 전체 체결 중앙값(정본 boxHeadlineFromHistory).
-  const headlinePrice = isBox ? boxHeadlineFromHistory(trades, minPrice) : gradeDisplayJpy(sel, minPrice);
+  // 헤드라인 '최근 체결가' = 선택 등급의 실제 마지막 체결(정본 headlineRecentJpy). 평가·등록 기준인
+  // 최근 7건 중앙값(gradeDisplayJpy)은 아래 줄에 따로 보여준다 — 라벨과 숫자가 어긋나지 않게.
+  const headlinePrice = isBox ? boxHeadlineFromHistory(trades, minPrice) : headlineRecentJpy(sel, minPrice);
+  const basisPrice = isBox ? 0 : gradeDisplayJpy(sel, minPrice);
   // KREAM 비교 기준 = RAW(비등급) 최근 거래가. 없으면 최저매물.
   const rawGrade = grades.find((g) => g.key === 'RAW');
   // 등급별 투자 수익률 — RAW 평균가 → PSA10 평균가 상승폭 (정본 shared gradeUplift).
@@ -270,6 +273,11 @@ export function CardDetailView({
               </span>
             )}
           </div>
+          {basisPrice > 0 && basisPrice !== headlinePrice && (
+            <div style={{ fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink3)', marginTop: 4 }}>
+              최근 7건 중앙값 <Price jpy={basisPrice} /> · 등록가·평가 기준
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 20, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--pap3)' }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: 'var(--f1)', fontSize: 10, color: 'var(--ink3)' }}>전일 대비</div>

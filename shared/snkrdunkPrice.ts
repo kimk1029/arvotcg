@@ -214,6 +214,16 @@ export function gradeDisplayJpy(agg: SnkrGradeAgg | undefined, minPrice: number)
   return agg?.median || agg?.avg || minPrice || 0;
 }
 
+/**
+ * 시세상세 헤드라인 '최근 체결가' — 선택 등급의 실제 마지막 체결가.
+ * 평가·등록 기준(gradeDisplayJpy, 최근 7건 중앙값)과 다르다: 헤드라인은 라벨 그대로
+ * "가장 최근 한 건"을 보여주고, 중앙값은 그 아래 '평가 기준'으로 따로 표기한다.
+ * 체결이 없으면 gradeDisplayJpy 폴백(중앙값 → 평균 → 최저매물).
+ */
+export function headlineRecentJpy(agg: SnkrGradeAgg | undefined, minPrice: number): number {
+  return agg?.recent || gradeDisplayJpy(agg, minPrice);
+}
+
 /** 거래가 가장 많은 등급(= 시세상세 기본 탭). 데이터가 없으면 RAW. */
 export function defaultGradeKey(grades: SnkrGradeAgg[]): string {
   return (

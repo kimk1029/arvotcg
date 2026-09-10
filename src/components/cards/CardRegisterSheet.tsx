@@ -8,6 +8,7 @@ import { startRouteTransition } from '@/components/RouteProgress';
 import { registerBasisJpy } from '@/lib/snkrdunkPrice';
 import {
   buildRegisterPayload,
+  patchMyCard,
   postMyCard,
   selfPulledBasis,
   todayStr,
@@ -55,32 +56,39 @@ function fmtKrw(v: number | null | undefined): string {
  * 이미지·세트·번호·등급·현재시세는 자동 표시, 사용자는 구매정보/등급/직접뽑기만 채운다.
  *
  * @param redirectOnSave 저장 후 /my/cards 로 이동할지. 모달 안에서 쓸 땐 false.
- * @param onSaved 저장 성공 시 콜백 (모달 닫기 등).
+ * @param onSaved 저장 성공 시 콜백 (모달 닫기 등). 수정 모드면 서버가 돌려준 갱신 행을 넘긴다.
+ * @param editId 수정 모드 — 이 id 의 등록 정보를 PATCH 한다(카드 자체는 그대로). initial 로 입력값을 채운다.
+ * @param initial 입력 초기값 — 수정 모드에서 기존 등록 정보를 채워 넣는다.
  */
 export function CardRegisterSheet({
   card,
   redirectOnSave = true,
   onSaved,
+  editId,
+  initial,
 }: {
   card: RegisterCardInput;
   redirectOnSave?: boolean;
-  onSaved?: () => void;
+  onSaved?: (updated?: Record<string, unknown> | null) => void;
+  editId?: number | null;
+  initial?: Partial<RegisterOptions> | null;
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const [selfPulled, setSelfPulled] = useState(false);
-  const [buyPrice, setBuyPrice] = useState('');
-  const [buyCurrency, setBuyCurrency] = useState<'KRW' | 'JPY'>('KRW');
-  const [buyDate, setBuyDate] = useState(todayStr());
-  const [qty, setQty] = useState(1);
-  const [region, setRegion] = useState<'jp' | 'kr' | 'en'>('jp');
-  const [graded, setGraded] = useState(!!card.gradeEstimate);
-  const [gradeCompany, setGradeCompany] = useState('PSA');
-  const [gradeValue, setGradeValue] = useState('');
-  const [memo, setMemo] = useState('');
+  const [selfPulled, setSelfPulled] = useState(initial?.selfPulled ?? false);
+  const [buyPrice, setBuyPrice] = useState(initial?.buyPrice ?? '');
+  const [buyCurrency, setBuyCurrency] = useState<'KRW' | 'JPY'>(initial?.buyCurrency ?? 'KRW');
+  const [buyDate, setBuyDate] = useState(initial?.buyDate ?? todayStr());
+  const [qty, setQty] = useState(initial?.qty ?? 1);
+  const [region, setRegion] = useState<'jp' | 'kr' | 'en'>(initial?.region ?? 'jp');
+  const [graded, setGraded] = useState(initial?.graded ?? !!card.gradeEstimate);
+  const [gradeCompany, setGradeCompany] = useState(initial?.gradeCompany ?? 'PSA');
+  const [gradeValue, setGradeValue] = useState(initial?.gradeValue ?? '');
+  const [memo, setMemo] = useState(initial?.memo ?? '');
+  const editing = editId != null;
 
   // 직접뽑기면 현재시세를 기준가로. (JPY 우선, 없으면 KRW)
   // 단, 등급카드는 서버가 등급 시세로 등록가를 산정하므로 여기선 제외.
@@ -111,12 +119,14 @@ export function CardRegisterSheet({
     };
     setSaving(true);
     try {
-      await postMyCard(buildRegisterPayload(card, options));
+      const payload = buildRegisterPayload(card, options);
+      // 수정 모드 — 같은 payload 규칙으로 PATCH. 카드 식별자는 서버가 무시(기존 행 유지).
+      const updated = editing ? await patchMyCard(editId as number, payload) : (await postMyCard(payload), null);
       // 내 컬렉션/홈 헤더 세션 캐시 무효화 — 안 비우면 재진입 시 낡은 총액이 먼저 그려지고
       // 무거운 /api/me/portfolio 가 타임아웃되면 새 카드가 합산되지 않은 채 남는다.
       invalidateCollectionCaches();
       setSaved(true);
-      onSaved?.();
+      onSaved?.(updated);
       if (redirectOnSave) {
         startRouteTransition();
         router.push('/my/cards');
@@ -328,10 +338,12 @@ export function CardRegisterSheet({
       {err && <div className="cv-manual-err">⚠ {err}</div>}
 
       <button type="button" className="cv-manual-submit" disabled={saving || saved} onClick={onSave}>
-        {saved ? '✓ 컬렉션에 등록됨' : saving ? '저장 중...' : '＋ 컬렉션에 등록'}
+        {editing
+          ? saved ? '✓ 수정됨' : saving ? '저장 중...' : '수정 저장'
+          : saved ? '✓ 컬렉션에 등록됨' : saving ? '저장 중...' : '＋ 컬렉션에 등록'}
       </button>
 
-      {saved && (
+      {saved && !editing && (
         <div style={{ marginTop: 8, textAlign: 'center', fontSize: 10 }}>
           <Link href="/my/cards" style={{ color: 'var(--ink)', textDecoration: 'underline' }}>
             내 컬렉션 보기 →

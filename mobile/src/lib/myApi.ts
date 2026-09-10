@@ -99,6 +99,8 @@ export interface MyCardRow {
   game?: string | null;
   /** 'single' | 'box' — 박스(미개봉 상품) 여부. '박스 제외' 필터용. */
   itemKind?: 'single' | 'box' | null;
+  /** 사용자가 직접 묶은 묶음 id — 같은 값끼리 한 줄(shared/collectionGroup). */
+  bundleId?: string | null;
 }
 
 export interface MyFavoriteRow {
@@ -466,6 +468,24 @@ export function createMyCard(input: CreateMyCardInput): Promise<{ data: MyCardRo
     // 카드 구성이 바뀜 — 컬렉션/포트폴리오 캐시 무효화 (다음 진입 시 풀 재조회).
     swrInvalidate(SWR_MY_CARDS);
     swrInvalidate(SWR_PORTFOLIO);
+    return r;
+  });
+}
+
+/** 등록 정보 수정 (PATCH) — 구매가/수량/구입일/지역/메모/직접뽑기/등급. 응답은 갱신된 행. */
+export function updateMyCard(id: number, input: CreateMyCardInput): Promise<{ data: MyCardRow }> {
+  return api<{ data: MyCardRow }>(`/api/me/cards/${id}`, { method: 'PATCH', body: input }).then((r) => {
+    swrInvalidate(SWR_MY_CARDS);
+    swrInvalidate(SWR_PORTFOLIO);
+    return r;
+  });
+}
+
+/** 묶음 만들기(bundle=true, 2장 이상)/해제(false). 응답의 bundleId 를 목록 캐시에 반영한다. */
+export function bundleMyCards(ids: number[], bundle: boolean): Promise<{ data: { bundleId: string | null; count: number } }> {
+  return api<{ data: { bundleId: string | null; count: number } }>('/api/me/cards/bundle', { method: 'POST', body: { ids, bundle } }).then((r) => {
+    const cur = peekMyCards();
+    if (cur) swrSet(SWR_MY_CARDS, cur.map((c) => (ids.includes(c.id) ? { ...c, bundleId: r.data.bundleId } : c)), { persist: true });
     return r;
   });
 }

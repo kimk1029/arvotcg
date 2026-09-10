@@ -46,3 +46,13 @@ test('수량(qty)과 기준가 없는 장을 손익률에서 제외한다', () =
   assert.equal(g.investedJpy, 2000);
   assert.equal(g.profitAbsJpy, 400);
 });
+
+test('사용자 묶음(bundleId)은 상품·등급이 달라도 한 그룹, 없으면 기존 규칙', () => {
+  const a = { ...row(1, 100, 1000, 1500), c: { ...row(1, 100, 1000, 1500).c, bundleId: 'x' } };
+  const b = { ...row(2, 200, 500, 900, 1, true), c: { ...row(2, 200, 500, 900, 1, true).c, bundleId: 'x' } };
+  const groups = groupDuplicates([a, b, row(3, 100, 1000, 1500)]);
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups[0].items.map((r) => r.c.id), [1, 2]);
+  assert.equal(groups[0].value, 2400);
+  assert.equal(groups[1].items.length, 1);
+});

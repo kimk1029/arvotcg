@@ -120,3 +120,19 @@ export async function postMyCard(payload: Record<string, unknown>): Promise<void
     throw new Error(body?.error ?? `HTTP ${r.status}`);
   }
 }
+
+/** 등록 정보 수정 (PATCH). 응답의 갱신 행을 돌려준다 — 목록 캐시 merge 용. */
+export async function patchMyCard(id: number, payload: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+  const r = await fetch(`/api/me/cards/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (r.status === 401) throw new Error('로그인이 필요해요');
+  if (!r.ok) {
+    const body = (await r.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? `HTTP ${r.status}`);
+  }
+  const j = (await r.json().catch(() => null)) as { data?: Record<string, unknown> } | null;
+  return j?.data ?? null;
+}
