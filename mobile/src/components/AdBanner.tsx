@@ -50,6 +50,9 @@ export function AdBanner({ marginHorizontal = 14, marginTop = 0, marginBottom = 
   const tc = useThemeColors();
   const [mod, setMod] = useState<AdsModule | null>(null);
   const [failed, setFailed] = useState(false);
+  // 광고가 실제로 채워지기 전에는 자리를 차지하지 않는다 —
+  // 먼저 빈 상자를 그리면 로딩 동안 섹션 사이에 구멍이 보인다(에뮬레이터 실측).
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     const m = loadAds();
@@ -71,9 +74,13 @@ export function AdBanner({ marginHorizontal = 14, marginTop = 0, marginBottom = 
     <BannerAd
       unitId={bannerUnitId(platform, useTestUnit)}
       size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+      onAdLoaded={() => setLoaded(true)}
       onAdFailedToLoad={() => setFailed(true)}
     />
   );
+
+  // 로딩 중에는 높이 0 으로 숨겨 둔다. 배너는 마운트돼 있어야 채워지므로 언마운트하지 않는다.
+  if (!loaded) return <View style={{ height: 0, overflow: 'hidden' }}>{ad}</View>;
 
   if (bare) return <View style={{ alignItems: 'center' }}>{ad}</View>;
 
