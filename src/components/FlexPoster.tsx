@@ -213,18 +213,19 @@ export function FlexPoster({ data: d }: { data: FlexData }) {
             </div>
           </div>
 
-          {/* 카드 이미지 — 정중앙, 폭의 78% 까지 크게. 우하단에 작은 인증 도장 */}
+          {/* 카드 이미지 — 정중앙, 폭의 86%. 스니덩크 배경 제거본은 카드 둘레에 여백이 포함돼 있어
+              흰 상자 대신 투명 상자에 넣고 살짝 확대(1.12)해 여백을 잘라낸다. 우하단에 작은 인증 도장. */}
           <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 12px' }}>
-            <div style={{ position: 'relative', width: '78%', maxWidth: 360 }}>
+            <div style={{ position: 'relative', width: '86%', maxWidth: 400 }}>
               <div
                 style={{
-                  width: '100%', aspectRatio: '5 / 7', borderRadius: 18, overflow: 'hidden',
-                  background: '#fff', boxShadow: '0 20px 44px rgba(40,80,170,.3)', display: 'grid', placeItems: 'center',
+                  width: '100%', aspectRatio: '63 / 88', borderRadius: 18, overflow: 'hidden',
+                  background: 'transparent', boxShadow: '0 20px 44px rgba(40,80,170,.3)', display: 'grid', placeItems: 'center',
                 }}
               >
                 {d.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={d.imageUrl} alt={d.name} crossOrigin="anonymous" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={d.imageUrl} alt={d.name} crossOrigin="anonymous" style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scale(1.12)', display: 'block' }} />
                 ) : (
                   <span style={{ fontSize: 54 }}>🃏</span>
                 )}
