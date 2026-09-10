@@ -140,12 +140,14 @@ export function summarizeHealth(sample: Sample): HealthSummary {
   checks.push({
     key: 'cache',
     title: '데이터 즉시 응답률',
-    level: !db ? 'unknown' : worseWhenLow(db.hitPct, 99, 95),
+    // 97% 는 이 서비스의 평상시 값(98% 안팎)을 기준으로 잡은 선이다.
+    // 교과서 기준 99% 로 두면 배너가 상시 주황이라 경고가 무뎌진다.
+    level: !db ? 'unknown' : worseWhenLow(db.hitPct, 97, 95),
     value: db ? `${db.hitPct.toFixed(1)}%` : '확인 불가',
     detail:
-      '자주 쓰는 데이터가 디스크까지 가지 않고 메모리에서 바로 나온 비율입니다. 99% 아래로 떨어지면 전체가 느려집니다.',
+      '자주 쓰는 데이터가 디스크까지 가지 않고 메모리에서 바로 나온 비율입니다. 97% 아래로 떨어지면 전체가 느려집니다.',
     ratio: db ? clamp01(db.hitPct / 100) : null,
-    scale: '목표 99% 이상',
+    scale: '목표 97% 이상',
   });
 
   // 6. 상태 수집 자체가 실패했는가 — 있을 때만 보여준다.

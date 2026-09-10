@@ -59,12 +59,17 @@ test('커넥션 사용률 임계값 — 60% 주의, 85% 위험', () => {
   assert.equal(at(85).ratio, 0.85);
 });
 
-test('캐시 적중률은 낮을수록 나쁘다', () => {
+test('캐시 적중률은 낮을수록 나쁘다 — 주의 97%, 위험 95%', () => {
   const at = (hitPct: number) => find(summarizeHealth(sample({
     dbStats: { ...sample().dbStats!, hitPct },
   })), 'cache');
+  // 평상시 98% 대는 정상으로 본다. 99% 기준이면 배너가 상시 주황이었다.
   assert.equal(at(99.5).level, 'ok');
-  assert.equal(at(99).level, 'warn');
+  assert.equal(at(98.1).level, 'ok');
+  assert.equal(at(97.1).level, 'ok');
+  assert.equal(at(97).level, 'warn');
+  assert.equal(at(95.5).level, 'warn');
+  assert.equal(at(95).level, 'bad');
   assert.equal(at(94).level, 'bad');
 });
 

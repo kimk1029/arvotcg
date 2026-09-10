@@ -148,11 +148,11 @@ export default async function Page() {
 
         <div className="stat-card">
           <div className="lbl">캐시 적중률</div>
-          <div className="val" style={{ color: tone(db?.hitPct ?? 100, 99, 95, false) }}>
+          <div className="val" style={{ color: tone(db?.hitPct ?? 100, 97, 95, false) }}>
             {db ? `${db.hitPct.toFixed(2)}%` : '—'}
           </div>
           <div className="sub">
-            디스크 읽기 {fmtNum(db?.blksRead ?? 0)} 블록 · 99% 미만이면 작업 세트가 캐시를 넘었습니다
+            디스크 읽기 {fmtNum(db?.blksRead ?? 0)} 블록 · 97% 미만이면 작업 세트가 캐시를 넘었습니다
           </div>
           <Spark points={history} pick={(p) => p.hitPct} color="#129782" />
         </div>
