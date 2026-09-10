@@ -213,14 +213,27 @@ export function FlexPoster({ data: d }: { data: FlexData }) {
             </div>
           </div>
 
-          {/* 카드 이미지 — 정중앙, 폭의 86%. 스니덩크 배경 제거본은 카드 둘레에 여백이 포함돼 있어
-              흰 상자 대신 투명 상자에 넣고 살짝 확대(1.12)해 여백을 잘라낸다. 우하단에 작은 인증 도장. */}
-          <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 12px' }}>
-            <div style={{ position: 'relative', width: '86%', maxWidth: 400 }}>
+          {/* 3열 — 왼쪽: 로고·워드마크 세로 / 가운데: 카드 이미지(정중앙) / 오른쪽: 카드 기본정보 배지 세로.
+              양옆 열을 같은 flex 로 두어 이미지가 포스터 정중앙에 온다. */}
+          <div style={{ display: 'flex', alignItems: 'center', margin: '10px 0 14px', padding: '0 8px' }}>
+            {/* 왼쪽 — 앱 로고 + ARVO/TCG + 슬로건 (세로) */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <LogoMark size={40} />
+              <div style={{ textAlign: 'center', lineHeight: 1 }}>
+                <div style={{ fontSize: 17, fontWeight: 900, color: INK, letterSpacing: -0.3 }}>ARVO</div>
+                <div style={{ fontSize: 17, fontWeight: 900, color: ACCENT, letterSpacing: -0.3, marginTop: 2 }}>TCG</div>
+              </div>
+              <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: 1.4, color: '#8FA3C8', textAlign: 'center', lineHeight: 1.7 }}>
+                COLLECT<br />TRACK<br />GROW
+              </div>
+            </div>
+
+            {/* 가운데 — 카드 이미지. 배경 제거본의 둘레 여백은 투명 상자 + 1.12 확대로 잘라낸다. 우하단 인증 도장. */}
+            <div style={{ position: 'relative', width: '56%', maxWidth: 270, flex: 'none' }}>
               <div
                 style={{
-                  width: '100%', aspectRatio: '63 / 88', borderRadius: 18, overflow: 'hidden',
-                  background: 'transparent', boxShadow: '0 20px 44px rgba(40,80,170,.3)', display: 'grid', placeItems: 'center',
+                  width: '100%', aspectRatio: '63 / 88', borderRadius: 16, overflow: 'hidden',
+                  background: 'transparent', boxShadow: '0 18px 40px rgba(40,80,170,.3)', display: 'grid', placeItems: 'center',
                 }}
               >
                 {d.imageUrl ? (
@@ -230,34 +243,33 @@ export function FlexPoster({ data: d }: { data: FlexData }) {
                   <span style={{ fontSize: 54 }}>🃏</span>
                 )}
               </div>
-              {/* 인증 도장 — 카드 우하단에 살짝 걸쳐 기울여 찍힌 워터마크. 실제 수익률을 담는다. */}
-              <div style={{ position: 'absolute', right: -14, bottom: -14, transform: 'rotate(-14deg)', opacity: 0.9, mixBlendMode: 'multiply', pointerEvents: 'none' }}>
+              <div style={{ position: 'absolute', right: -16, bottom: -14, transform: 'rotate(-14deg)', opacity: 0.9, mixBlendMode: 'multiply', pointerEvents: 'none' }}>
                 <Stamp date={ymd(d.createdAt)} up={up} pct={pct} />
               </div>
             </div>
-          </div>
 
-          {/* 배지 — 이미지 아래 한 줄(중앙) */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 6, padding: '0 12px', marginBottom: 12 }}>
-            {d.graded ? (
-              <Badge>
-                {gradeLogo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={gradeLogo} alt={d.gradeCompany ?? 'PSA'} style={{ height: 13, width: 'auto' }} />
-                ) : (
-                  <b style={{ color: '#1D5BFF' }}>{d.gradeCompany ?? 'PSA'}</b>
-                )}
-                <b>{d.gradeValue ?? ''}</b>
-              </Badge>
-            ) : (
-              <Badge muted>RAW</Badge>
-            )}
-            <Badge>{REGION_FLAG[d.region] ?? '🇯🇵'} {REGION_LABEL[d.region] ?? '일본판'}</Badge>
-            {(d.setCode || d.cardNumber) && (
-              <Badge>{[d.setCode?.toUpperCase(), d.cardNumber].filter(Boolean).join(' ')}</Badge>
-            )}
-            {d.rarity && <Badge>{d.rarity}</Badge>}
-            {d.series && <Badge>{d.series}</Badge>}
+            {/* 오른쪽 — 카드 기본정보 배지 세로 나열 */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              {d.graded ? (
+                <Badge small>
+                  {gradeLogo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={gradeLogo} alt={d.gradeCompany ?? 'PSA'} style={{ height: 11, width: 'auto' }} />
+                  ) : (
+                    <b style={{ color: '#1D5BFF' }}>{d.gradeCompany ?? 'PSA'}</b>
+                  )}
+                  <b>{d.gradeValue ?? ''}</b>
+                </Badge>
+              ) : (
+                <Badge small muted>RAW</Badge>
+              )}
+              <Badge small>{REGION_FLAG[d.region] ?? '🇯🇵'} {REGION_LABEL[d.region] ?? '일본판'}</Badge>
+              {(d.setCode || d.cardNumber) && (
+                <Badge small>{[d.setCode?.toUpperCase(), d.cardNumber].filter(Boolean).join(' ')}</Badge>
+              )}
+              {d.rarity && <Badge small>{d.rarity}</Badge>}
+              {d.series && <Badge small>{d.series}</Badge>}
+            </div>
           </div>
 
           {/* 본문 패널 */}
@@ -300,21 +312,6 @@ export function FlexPoster({ data: d }: { data: FlexData }) {
             </div>
           </div>
 
-          {/* 푸터 */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,.94)', borderRadius: 18, padding: '12px 16px', margin: '12px 10px 0', position: 'relative' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <LogoMark size={34} />
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1 }}>
-                  <span style={{ color: INK }}>ARVO</span><span style={{ color: ACCENT }}>TCG</span>
-                </div>
-                <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: 1.8, color: '#8FA3C8', marginTop: 3 }}>TCG, MORE VALUE · arvotcg.com</div>
-              </div>
-            </div>
-            <div style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 1.6, color: '#8FA3C8', textAlign: 'right', lineHeight: 1.7 }}>
-              COLLECT<br />TRACK<br />GROW
-            </div>
-          </div>
         </div>
 
         {/* ── 공유 버튼 — 캡처 영역(posterRef) 밖이라 공유 이미지에 찍히지 않는다 ── */}
@@ -418,13 +415,14 @@ function Stamp({ date, up, pct }: { date: string; up: boolean; pct: number | nul
   );
 }
 
-function Badge({ children, muted }: { children: React.ReactNode; muted?: boolean }) {
+function Badge({ children, muted, small }: { children: React.ReactNode; muted?: boolean; small?: boolean }) {
   return (
     <span
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, textAlign: 'center',
+        whiteSpace: small ? 'normal' : 'nowrap', maxWidth: '100%', wordBreak: 'keep-all',
         background: muted ? '#E6ECF6' : '#fff', color: muted ? '#8FA3C8' : '#1B2A47',
-        borderRadius: 12, padding: '8px 12px', fontSize: 12, fontWeight: 800,
+        borderRadius: small ? 10 : 12, padding: small ? '6px 8px' : '8px 12px', fontSize: small ? 10.5 : 12, fontWeight: 800,
         boxShadow: '0 4px 12px rgba(40,80,170,.12)',
       }}
     >
