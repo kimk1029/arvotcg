@@ -1,42 +1,22 @@
-name: Deploy Server
-
-# Express OCR / API 서버 (server/) 를 **NAS(Synology) 와 Vultr 양쪽에** SSH 배포.
-# server/** 또는 prisma/schema.prisma 가 main 에 푸시되면 실행.
-#
-# 두 대상은 서로 독립이다 (fail-fast: false) — 한쪽이 실패해도 다른 쪽은 계속 배포된다.
-# 이전 기간 동안 NAS = stage, Vultr = production 후보로 같은 코드를 동시에 굴린다.
-#
-#   nas   : SSH_HOST / SSH_USER / SSH_KEY / SSH_PORT        + SERVER_ENV
-#   vultr : VULTR_SSH_HOST / VULTR_SSH_USER / VULTR_SSH_KEY / VULTR_SSH_PORT
-#           + VULTR_SERVER_ENV (없으면 서버의 기존 server/.env 유지)
-#
-# VULTR_SSH_HOST 시크릿이 비어있으면 vultr 대상은 **조용히 건너뛴다** —
-# 인스턴스를 만들기 전에도 이 워크플로가 깨지지 않는다.
+name: Deploy Server (reusable)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'server/**'
-      - 'src/lib/**'
-      # 서버가 ../shared 를 직접 import 하므로 shared 만 바뀐 커밋(팩 카탈로그 추가 등)도 재배포 필수.
-      - 'shared/**'
-      - 'prisma/schema.prisma'
-      - 'prisma/manual/**'
-      - 'ecosystem.config.cjs'
-      - '.github/workflows/deploy-server.yml'
-  workflow_dispatch:
+  workflow_call:
     inputs:
       target:
-        description: '배포 대상 (all | nas | vultr)'
+        required: true
+        type: string
+    secrets:
+      SSH_HOST:
         required: false
-        default: 'all'
-        type: choice
-        options: [all, nas, vultr]
-
-concurrency:
-  group: deploy-hosts   # deploy.yml 과 같은 그룹 — 동시 git reset/npm ci 로 prisma client 가 날아가 크래시루프(2026-08-29)
-  cancel-in-progress: false
+      SSH_USER:
+        required: false
+      SSH_KEY:
+        required: false
+      SSH_PORT:
+        required: false
+      SERVER_ENV:
+        required: false
 
 jobs:
   safety:
@@ -53,45 +33,23 @@ jobs:
 
   deploy:
     needs: safety
-    name: Deploy to ${{ matrix.target }}
+    name: Deploy to ${{ inputs.target }}
     runs-on: ubuntu-latest
-    strategy:
-      # 한쪽 실패가 다른 쪽 배포를 취소하지 않도록.
-      fail-fast: false
-      matrix:
-        include:
-          - target: nas
-            host_secret: SSH_HOST
-            user_secret: SSH_USER
-            key_secret: SSH_KEY
-            port_secret: SSH_PORT
-            env_secret: SERVER_ENV
-            dir: /root/dev/pokefesta30
-          - target: vultr
-            host_secret: VULTR_SSH_HOST
-            user_secret: VULTR_SSH_USER
-            key_secret: VULTR_SSH_KEY
-            port_secret: VULTR_SSH_PORT
-            env_secret: VULTR_SERVER_ENV
-            dir: /root/dev/pokefesta30
+    # 같은 호스트의 서버/어드민만 직렬화한다. NAS와 Vultr는 독립 실행.
+    concurrency:
+      group: deploy-host-${{ inputs.target }}
+      cancel-in-progress: false
     steps:
-      # workflow_dispatch 로 대상을 고른 경우 + 시크릿 미설정 대상 스킵 판정.
-      # secrets 컨텍스트는 job-level `if` 에서 못 쓰므로 step 으로 계산한다.
       - name: Resolve target
         id: gate
         env:
-          HOST: ${{ secrets[matrix.host_secret] }}
-          WANTED: ${{ github.event.inputs.target || 'all' }}
+          HOST: ${{ secrets.SSH_HOST }}
         run: |
-          if [ "$WANTED" != "all" ] && [ "$WANTED" != "${{ matrix.target }}" ]; then
+          if [ -z "$HOST" ]; then
             echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "⏭  ${{ matrix.target }} — 이번 실행 대상 아님 (target=$WANTED)"
-          elif [ -z "$HOST" ]; then
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "⏭  ${{ matrix.target }} — ${{ matrix.host_secret }} 시크릿 미설정, 건너뜀"
+            echo "Host secret is not configured; skipping deployment"
           else
             echo "run=true" >> "$GITHUB_OUTPUT"
-            echo "▶  ${{ matrix.target }} 배포 진행"
           fi
 
       - name: SSH & deploy server
@@ -103,14 +61,14 @@ jobs:
           # 비워두면 대상 서버에 이미 놓인 파일을 그대로 사용.
           # 대상별 전용 시크릿만 사용한다. vultr(운영) 에 VULTR_SERVER_ENV 가 없으면
           # NAS(stage) 의 SERVER_ENV 로 덮어쓰지 않고 서버에 있는 .env 를 유지한다.
-          SERVER_ENV_CONTENT: ${{ secrets[matrix.env_secret] }}
-          DEPLOY_DIR: ${{ matrix.dir }}
-          DEPLOY_TARGET: ${{ matrix.target }}
+          SERVER_ENV_CONTENT: ${{ secrets.SERVER_ENV }}
+          DEPLOY_DIR: /root/dev/pokefesta30
+          DEPLOY_TARGET: ${{ inputs.target }}
         with:
-          host: ${{ secrets[matrix.host_secret] }}
-          username: ${{ secrets[matrix.user_secret] }}
-          key: ${{ secrets[matrix.key_secret] }}
-          port: ${{ secrets[matrix.port_secret] || 22 }}
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
           # NAS 의 npm ci 두 번(서버+루트)만 10분 가까이 걸려 기본 10m 으론 pm2 재시작 전에
           # "Run Command Timeout" 으로 죽는다 (2026-08-06 실사고). 여유 있게 30분.
           # (Vultr 는 보통 1~2분이면 끝나지만 같은 여유를 준다.)

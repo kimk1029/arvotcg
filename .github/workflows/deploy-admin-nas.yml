@@ -1,0 +1,23 @@
+name: Deploy Admin — NAS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'admin/**'
+      - 'prisma/schema.prisma'
+      - '.github/workflows/deploy-admin.yml'
+      - '.github/workflows/deploy-admin-nas.yml'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-admin.yml
+    with:
+      target: nas
+    secrets:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_KEY: ${{ secrets.SSH_KEY }}
+      SSH_PORT: ${{ secrets.SSH_PORT }}

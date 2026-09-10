@@ -5,7 +5,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/kimk1029/pokefesta30/main/scripts/vultr-bootstrap.sh | bash
 #   (또는 저장소를 먼저 클론했다면: bash scripts/vultr-bootstrap.sh)
 #
-# 이 스크립트가 끝나면 .github/workflows/deploy-server.yml 의 `vultr` 대상이
+# 이 스크립트가 끝나면 .github/workflows/deploy-server-vultr.yml 워크플로이
 # 그대로 붙는다 — 이후 배포는 main push 만으로 자동.
 #
 # 끝난 뒤 할 일 (스크립트가 안 하는 것):
@@ -102,6 +102,6 @@ cat <<DONE
        VULTR_SSH_KEY  = (이 서버에 등록한 개인키)
        VULTR_SSH_PORT = 22
   4) 유저 업로드 rsync (위 주석 참고) — 안 하면 과거 게시물 이미지가 깨진다
-  5) 첫 배포: GitHub Actions → Deploy Server → Run workflow → target=vultr
+  5) 첫 배포: GitHub Actions → Deploy Server — Vultr → Run workflow
 ────────────────────────────────────────────────────────────
 DONE

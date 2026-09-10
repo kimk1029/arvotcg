@@ -1,26 +1,31 @@
 # API 서버 (server/) — 구조·설계 규칙
 
 > Express + tsx. pm2 `pokefesta30-server`(:3030, fork 모드, node 직접 실행 — npm 래퍼 금지).
-> main push 시 deploy-server.yml로 자동 배포. **안티봇 스크레이퍼(KREAM 등)는 반드시 여기**
+> main push 시 대상별 deploy-server-{nas,vultr}.yml로 자동 배포. **안티봇 스크레이퍼(KREAM 등)는 반드시 여기**
 > (Vercel IP는 차단됨).
 
-## 배포 대상 — NAS + Vultr 동시 (이전 진행 중)
+## 배포 대상 — NAS/Vultr 독립 워크플로
 
-`deploy-server.yml` 은 **두 대상에 같은 코드를 병렬 배포**한다 (`fail-fast: false` —
-한쪽이 실패해도 다른 쪽은 계속 나간다).
+GitHub Actions에서 다음 워크플로를 각각 실행·재실행할 수 있다.
 
-| 대상 | 역할 | 시크릿 | 앞단 TLS |
-| --- | --- | --- | --- |
-| `nas` | **stage** | `SSH_HOST/USER/KEY/PORT`, `SERVER_ENV` | DSM 리버스 프록시 `:3031` |
-| `vultr` | **production 후보** | `VULTR_SSH_HOST/USER/KEY/PORT`, `VULTR_SERVER_ENV`(없으면 `SERVER_ENV` 재사용) | Caddy (`scripts/Caddyfile.example`) |
+| 대상 | API 서버 | 어드민 |
+| --- | --- | --- |
+| NAS (stage) | `Deploy Server — NAS` (`deploy-server-nas.yml`) | `Deploy Admin — NAS` (`deploy-admin-nas.yml`) |
+| Vultr (production) | `Deploy Server — Vultr` (`deploy-server-vultr.yml`) | `Deploy Admin — Vultr` (`deploy-admin-vultr.yml`) |
 
-- `VULTR_SSH_HOST` 가 비어 있으면 vultr 대상은 **조용히 스킵** — 인스턴스 생성 전에도 워크플로가 깨지지 않는다.
-- 특정 대상만 배포: Actions → Deploy Server → Run workflow → `target=nas|vultr`.
-- Vultr 인스턴스 프로비저닝은 `scripts/vultr-bootstrap.sh` (멱등, Ubuntu 22.04).
-- **주의**: 두 서버가 같은 Supabase 를 본다. 인프로세스 스케줄러(가격알림 15분 /
-  이미지 워밍 / 03:00 KST 스냅샷)는 **단일 인스턴스 전제**라 양쪽에서 동시에 돌면
-  가격알림이 중복 발송된다. 스냅샷·워밍은 멱등이라 안전. 이전이 끝나 한쪽을 접기
-  전까지는 **stage(NAS) 쪽 알림 스케줄러를 env 로 꺼둘 것**.
+- 각 진입 워크플로는 기존 경로의 main push와 개별 `Run workflow`를 지원한다.
+- 공통 SSH 배포 구현은 `deploy-server.yml` / `deploy-admin.yml`의 `workflow_call`로 공유한다.
+- NAS는 `SSH_*`/`SERVER_ENV`, Vultr는 `VULTR_SSH_*`/`VULTR_SERVER_ENV`만 전달한다.
+  호스트 시크릿이 없으면 해당 배포를 건너뛰고, 환경 파일 시크릿이 없으면 해당 호스트의 기존 파일을 유지한다.
+- 같은 호스트의 서버·어드민 SSH 작업은 `deploy-host-nas` / `deploy-host-vultr`로 직렬화한다.
+  서로 다른 호스트는 독립 실행하며 실패 상태도 별도로 표시한다.
+- Supabase 스키마 동기화는 Vultr 어드민 워크플로가 `deploy.yml`을 호출해 한 번만 실행한다.
+  기존 정책대로 스키마 동기화 실패가 어드민 배포를 차단하지는 않는다.
+  NAS 어드민만 수동 배포하면 스키마 동기화는 실행하지 않는다.
+- 서버 배포 전 장애 회귀 테스트, 배포 후 `/ready` DB 준비 상태 검증을 유지한다.
+- Vultr 프로비저닝: `scripts/vultr-bootstrap.sh` (Ubuntu 22.04).
+- 두 서버는 같은 DB를 사용할 수 있다. 주기 작업은 단일 인스턴스 전제이므로
+  `SERVER_ROLE` 설정을 확인해 primary 한 곳에서만 실행한다.
 
 ## 레이어
 

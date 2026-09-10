@@ -1,0 +1,31 @@
+name: Deploy Admin — Vultr
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'admin/**'
+      - 'prisma/schema.prisma'
+      - '.github/workflows/deploy-admin.yml'
+      - '.github/workflows/deploy-admin-vultr.yml'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    uses: ./.github/workflows/deploy.yml
+    secrets:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+  deploy:
+    needs: migrate
+    # 기존 정책 유지: 스키마 동기화 실패도 어드민 배포를 막지 않는다.
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/deploy-admin.yml
+    with:
+      target: vultr
+    secrets:
+      SSH_HOST: ${{ secrets.VULTR_SSH_HOST }}
+      SSH_USER: ${{ secrets.VULTR_SSH_USER }}
+      SSH_KEY: ${{ secrets.VULTR_SSH_KEY }}
+      SSH_PORT: ${{ secrets.VULTR_SSH_PORT }}

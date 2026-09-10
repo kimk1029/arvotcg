@@ -1,0 +1,70 @@
+name: Deploy Admin (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+    secrets:
+      SSH_HOST:
+        required: false
+      SSH_USER:
+        required: false
+      SSH_KEY:
+        required: false
+      SSH_PORT:
+        required: false
+
+jobs:
+  deploy-admin:
+    name: Deploy admin to ${{ inputs.target }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-host-${{ inputs.target }}
+      cancel-in-progress: false
+    steps:
+      - name: Resolve target
+        id: gate
+        env:
+          HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          if [ -z "$HOST" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "⏭  ${{ inputs.target }} — SSH_HOST 시크릿 미설정, 건너뜀"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: SSH & deploy admin
+        if: steps.gate.outputs.run == 'true'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          # NAS 에서 npm ci(~7분) + prisma generate + next build 가 도는데
+          # drone-ssh 기본 command_timeout 은 10분이라 빌드 막바지에 끊긴다. 넉넉히 20분.
+          command_timeout: 20m
+          script: |
+            set -e
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+            cd /root/dev/pokefesta30
+            git fetch origin main
+            git reset --hard "${{ github.sha }}"
+
+            cd admin
+            rm -rf .next
+
+            npm ci
+            npx prisma generate
+            npm run build
+
+            test -f .next/BUILD_ID || { echo "::error::admin build did not produce .next/BUILD_ID"; exit 1; }
+
+            pm2 restart pokefesta30-admin --update-env \
+              || pm2 start npm --name pokefesta30-admin -- start
+            pm2 save
