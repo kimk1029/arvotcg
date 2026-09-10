@@ -37,6 +37,7 @@ import { ToastProvider } from '@/components/ToastProvider';
 import { UgcTermsGateHost } from '@/components/UgcTermsGate';
 import { ForceUpdateGate } from '@/components/ForceUpdateGate';
 import { EntryGate } from '@/components/EntryGate';
+import { ReviewPromptGate } from '@/components/ReviewPromptGate';
 import { extractOAuthToken, persistTokenAndGoHome } from '@/lib/oauth';
 import { applyPendingOtaOnBoot } from '@/lib/otaUpdate';
 import { colors } from '@/theme/tokens';
@@ -175,6 +176,8 @@ export default function RootLayout() {
              */}
             <Slot />
                 <UgcTermsGateHost />
+                {/* 3번째 실행 후기 요청창 — 웹 ReviewPromptGate 페어. EntryGate 안이라 로그인 뒤에만 뜬다. */}
+                <ReviewPromptGate />
                 </ActionTracker>
                 </PhoneShell>
                 </EntryGate>

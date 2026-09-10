@@ -1,5 +1,7 @@
 'use client';
 
+import { STORE_REVIEW_URL, storePlatformFromUa } from '../../../shared/reviewPrompt';
+
 /**
  * 예약형 이벤트 화면 — 카드쇼(/event/cardshow)와 트레이드 데이(/event/tradeday)가 같은 컴포넌트를 쓴다.
  * 행사별 차이(제목·팔레트·1부/2부 회차·안내 박스·슬롯 카드 표시 항목)는 shared/eventPages.ts 설정으로.
@@ -52,6 +54,9 @@ interface SlotsResp {
     slotId: number;
     reservedAt: string;
     checkedInAt: string | null;
+    /** 입장 완료 후 본인이 확인한 이벤트 참여 / 리뷰 이벤트 참여 시각. 구서버 응답엔 없을 수 있다. */
+    eventJoinedAt?: string | null;
+    reviewJoinedAt?: string | null;
     slot: Pick<Slot, 'id' | 'date' | 'time' | 'capacity'>;
   } | null;
   slots: Slot[];
@@ -286,6 +291,26 @@ export function EventReserveScreen({ eventKey }: { eventKey: EventKey }) {
     }
   };
 
+  /** 이벤트 참여 / 리뷰 이벤트 참여 확정 — 입장 완료자만. 서버가 멱등 처리. */
+  const participate = async (kind: 'event' | 'review') => {
+    if (busy || !data?.myReservation) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const r = await call('/api/cardshow/participate', { method: 'POST', body: JSON.stringify({ event: eventKey, kind }) });
+      const j = (await r.json().catch(() => null)) as { error?: string } | null;
+      if (!r.ok) {
+        setNotice(j?.error ?? '참여 처리에 실패했어요. 다시 시도해 주세요.');
+        return;
+      }
+      await load();
+    } catch {
+      setNotice('요청에 실패했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   /* ---------- 렌더 ---------- */
 
   const night = config.theme === 'night';
@@ -503,6 +528,11 @@ export function EventReserveScreen({ eventKey }: { eventKey: EventKey }) {
             <span style={{ display: 'block', fontSize: 15, fontWeight: 900, color: P.ink, marginTop: 3 }}>
               {fmtDate(mySlot.date)} {mySlot.time}
             </span>
+            {checkedIn ? (
+              <span style={{ display: 'block', fontSize: 10.5, fontWeight: 800, color: P.sub, marginTop: 3 }}>
+                이벤트 {data.myReservation?.eventJoinedAt ? '참여완료 ✓' : '미참여'} · 리뷰 이벤트 {data.myReservation?.reviewJoinedAt ? '참여완료 ✓' : '미참여'}
+              </span>
+            ) : null}
           </span>
           <span style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 3, fontSize: 12.5, fontWeight: 800, color: P.sub }}>
             내 예약 보기
@@ -592,7 +622,10 @@ export function EventReserveScreen({ eventKey }: { eventKey: EventKey }) {
           slot={mySlot}
           reservedAt={data.myReservation?.reservedAt ?? null}
           checkedInAt={data.myReservation?.checkedInAt ?? null}
+          eventJoinedAt={data.myReservation?.eventJoinedAt ?? null}
+          reviewJoinedAt={data.myReservation?.reviewJoinedAt ?? null}
           busy={busy}
+          onParticipate={participate}
           onCheckIn={() => { setMyOpen(false); setShowCheckInConfirm(true); }}
           onCancel={cancelReservation}
           onClose={() => setMyOpen(false)}
@@ -770,14 +803,20 @@ const btn = (P: Palette, kind: 'ghost' | 'primary' | 'danger' | 'accent' | 'gree
   return { ...base, background: night ? P.accent : P.ink, color: night ? '#06201C' : '#fff', fontWeight: 900 };
 };
 
-function MyReservationModal({ P, night, config, slot, reservedAt, checkedInAt, busy, onCheckIn, onCancel, onClose }: {
+function MyReservationModal({ P, night, config, slot, reservedAt, checkedInAt, eventJoinedAt, reviewJoinedAt, busy, onParticipate, onCheckIn, onCancel, onClose }: {
   P: Palette; night: boolean; config: EventPageConfig;
   slot: Pick<Slot, 'id' | 'date' | 'time' | 'capacity'>;
   reservedAt: string | null; checkedInAt: string | null; busy: boolean;
+  eventJoinedAt: string | null; reviewJoinedAt: string | null;
+  onParticipate: (kind: 'event' | 'review') => void;
   onCheckIn: () => void; onCancel: () => void; onClose: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
+  // 참여 확인창 — 어느 버튼을 눌렀는지. 확인하면 onParticipate 호출.
+  const [joinConfirm, setJoinConfirm] = useState<'event' | 'review' | null>(null);
   const done = Boolean(checkedInAt);
+  const platform = typeof navigator !== 'undefined' ? storePlatformFromUa(navigator.userAgent) : null;
+  const reviewUrl = platform ? STORE_REVIEW_URL[platform] : null;
   return (
     <ModalShell P={P} night={night} onClose={onClose}>
       <div style={{ textAlign: 'center', marginBottom: 14 }}>
@@ -792,7 +831,37 @@ function MyReservationModal({ P, night, config, slot, reservedAt, checkedInAt, b
         {checkedInAt ? <Row P={P} label="입장 확인" value={new Date(checkedInAt).toLocaleString('ko-KR')} /> : null}
       </div>
       {done ? (
-        <button onClick={onClose} style={{ width: '100%', ...btn(P, 'primary', night) }}>닫기</button>
+        joinConfirm ? (
+          <>
+            <p style={{ margin: '0 0 12px', textAlign: 'center', fontSize: 13.5, fontWeight: 800, color: P.ink, lineHeight: 1.6 }}>
+              {joinConfirm === 'event' ? '이벤트에 참여하시겠습니까?' : '리뷰 이벤트에 참여하시겠습니까?'}<br />
+              <span style={{ fontSize: 12, fontWeight: 700, color: P.sub }}>확인하면 참여완료 상태로 표시되며 되돌릴 수 없습니다.</span>
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setJoinConfirm(null)} disabled={busy} style={{ flex: 1, ...btn(P, 'ghost', night) }}>돌아가기</button>
+              <button onClick={() => { const k = joinConfirm; setJoinConfirm(null); onParticipate(k); }} disabled={busy} style={{ flex: 1.4, ...btn(P, 'green', night), opacity: busy ? 0.6 : 1 }}>{busy ? '처리 중…' : '확인'}</button>
+            </div>
+          </>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* 리뷰 쓰러가기 — OS 별 스토어 링크. 앱 WebView 는 스토어 주소를 가로채 스토어 앱으로 연다. */}
+            {reviewUrl ? (
+              <a href={reviewUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 0', borderRadius: 12, background: P.modalBg, border: `1.5px solid ${P.line}`, color: P.ink, fontSize: 13.5, fontWeight: 900, textDecoration: 'none' }}>
+                ⭐ 리뷰 쓰러가기 <span style={{ fontSize: 11, fontWeight: 700, color: P.sub }}>({platform === 'ios' ? 'App Store' : 'Google Play'})</span>
+              </a>
+            ) : (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <a href={STORE_REVIEW_URL.android} target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '11px 0', borderRadius: 12, background: P.modalBg, border: `1.5px solid ${P.line}`, color: P.ink, fontSize: 12.5, fontWeight: 900, textDecoration: 'none' }}>⭐ Google Play 리뷰</a>
+                <a href={STORE_REVIEW_URL.ios} target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '11px 0', borderRadius: 12, background: P.modalBg, border: `1.5px solid ${P.line}`, color: P.ink, fontSize: 12.5, fontWeight: 900, textDecoration: 'none' }}>⭐ App Store 리뷰</a>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <JoinButton P={P} night={night} label="이벤트 참여" doneLabel="이벤트 참여완료" doneAt={eventJoinedAt} busy={busy} onPress={() => setJoinConfirm('event')} />
+              <JoinButton P={P} night={night} label="리뷰 이벤트 참여" doneLabel="리뷰 이벤트 참여완료" doneAt={reviewJoinedAt} busy={busy} onPress={() => setJoinConfirm('review')} />
+            </div>
+            <button onClick={onClose} style={{ width: '100%', ...btn(P, 'ghost', night), fontSize: 13.5, padding: '12px 0' }}>닫기</button>
+          </div>
+        )
       ) : confirming ? (
         <>
           <p style={{ margin: '0 0 12px', textAlign: 'center', fontSize: 13.5, fontWeight: 800, color: P.ink }}>예약을 취소하시겠습니까?</p>
@@ -811,6 +880,21 @@ function MyReservationModal({ P, night, config, slot, reservedAt, checkedInAt, b
         </div>
       )}
     </ModalShell>
+  );
+}
+
+/** 입장 완료자용 참여 버튼 — 미참여면 누를 수 있는 버튼, 완료면 초록 상태 칩(비활성). */
+function JoinButton({ P, night, label, doneLabel, doneAt, busy, onPress }: { P: Palette; night: boolean; label: string; doneLabel: string; doneAt: string | null; busy: boolean; onPress: () => void }) {
+  if (doneAt) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '10px 6px', borderRadius: 12, background: 'rgba(43,182,115,0.12)', border: `1.5px solid ${P.green}`, color: P.green, fontSize: 12.5, fontWeight: 900 }}>
+        <span>✓ {doneLabel}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: P.sub }}>{new Date(doneAt).toLocaleDateString('ko-KR')}</span>
+      </div>
+    );
+  }
+  return (
+    <button onClick={onPress} disabled={busy} style={{ flex: 1, ...btn(P, 'accent', night), fontSize: 13, padding: '12px 0' }}>{label}</button>
   );
 }
 

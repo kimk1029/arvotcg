@@ -227,6 +227,10 @@ model CardShowReservation {
   createdAt   DateTime     @default(now())
   /// 현장 담당자가 사용자 예약 화면에서 입장을 확정한 시각
   checkedInAt DateTime?
+  /// 입장 완료 후 '이벤트 참여' 를 확인한 시각 (사용자 본인이 확인창에서 확정)
+  eventJoinedAt DateTime?
+  /// 입장 완료 후 '리뷰 이벤트 참여' 를 확인한 시각
+  reviewJoinedAt DateTime?
 
   @@unique([userId, eventKey])
   @@index([slotId])

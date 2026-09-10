@@ -7,6 +7,7 @@ import { GoogleAnalytics } from '@/components/GoogleAnalytics';
 import { PostHogAnalytics } from '@/components/PostHogAnalytics';
 import { UgcTermsGateHost } from '@/components/UgcTermsGate';
 import { EntryGate } from '@/components/EntryGate';
+import { ReviewPromptGate } from '@/components/ReviewPromptGate';
 import { InAppBrowserNotice } from '@/components/InAppBrowserNotice';
 import { InventoryProvider } from '@/components/InventoryProvider';
 import { JsonLd } from '@/components/JsonLd';
@@ -168,6 +169,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 {/* 진입 게이트 — 미로그인 → /login (앱 EntryGate 페어; 웹은 온보딩 생략). */}
                 <Suspense fallback={null}>
                   <EntryGate />
+                </Suspense>
+                {/* 3번째 방문 후기 요청창 — 앱 ReviewPromptGate 페어. */}
+                <Suspense fallback={null}>
+                  <ReviewPromptGate />
                 </Suspense>
                 <PhoneShell>{children}</PhoneShell>
                   </UnreadProvider>

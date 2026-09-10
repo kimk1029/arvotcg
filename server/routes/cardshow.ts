@@ -41,6 +41,8 @@ router.get('/slots', optionalAuth, async (req: Request, res: Response) => {
             slotId: true,
             createdAt: true,
             checkedInAt: true,
+            eventJoinedAt: true,
+            reviewJoinedAt: true,
             slot: { select: { id: true, date: true, time: true, capacity: true } },
           },
         })
@@ -54,6 +56,8 @@ router.get('/slots', optionalAuth, async (req: Request, res: Response) => {
             slotId: mine.slotId,
             reservedAt: mine.createdAt.toISOString(),
             checkedInAt: mine.checkedInAt?.toISOString() ?? null,
+            eventJoinedAt: mine.eventJoinedAt?.toISOString() ?? null,
+            reviewJoinedAt: mine.reviewJoinedAt?.toISOString() ?? null,
             slot: mine.slot,
           }
         : null,
@@ -162,6 +166,33 @@ router.post('/check-in', requireAuth, async (req: Request, res: Response) => {
     res.json({ ok: true, checkedInAt: updated.checkedInAt!.toISOString() });
   } catch (err) {
     console.error('[cardshow.check-in]', userId, err);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+/**
+ * POST /api/cardshow/participate { event, kind: 'event' | 'review' } — 입장 완료된 예약자가
+ * 내 예약 화면에서 '이벤트 참여' / '리뷰 이벤트 참여' 를 확인창으로 확정한다. 한 번 확정하면 유지(멱등).
+ * 보상은 없다(스토어 리뷰 대가 제공은 정책 위반) — 현장 진행용 참여 표시일 뿐.
+ */
+router.post('/participate', requireAuth, async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  const eventKey = eventKeyOf(req);
+  const kind = (req.body as { kind?: unknown } | undefined)?.kind;
+  if (kind !== 'event' && kind !== 'review') return res.status(400).json({ error: 'kind 는 event | review' });
+  try {
+    const reservation = await prisma.cardShowReservation.findUnique({ where: { userId_eventKey: { userId, eventKey } } });
+    if (!reservation) return res.status(404).json({ error: '예약 내역이 없어요' });
+    if (!reservation.checkedInAt) return res.status(409).json({ error: '입장 확인 후 참여할 수 있어요' });
+    const field = kind === 'event' ? 'eventJoinedAt' : 'reviewJoinedAt';
+    const already = reservation[field];
+    const at = already ?? new Date();
+    if (!already) {
+      await prisma.cardShowReservation.update({ where: { userId_eventKey: { userId, eventKey } }, data: { [field]: at } });
+    }
+    res.json({ ok: true, kind, at: at.toISOString(), already: Boolean(already) });
+  } catch (err) {
+    console.error('[cardshow.participate]', userId, err);
     res.status(500).json({ error: 'internal' });
   }
 });
