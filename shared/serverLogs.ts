@@ -10,8 +10,13 @@ export type LogLevel = 'error' | 'warn' | 'info';
 
 /** 로그 한 줄. */
 export interface LogLine {
-  /** 'YYYY-MM-DDTHH:mm:ss' — pm2 접두사가 없으면 null. */
+  /** 'YYYY-MM-DDTHH:mm:ss' — pm2 가 찍은 **서버 로컬 시각** 그대로. 없으면 null. */
   at: string | null;
+  /**
+   * `at` 을 실제 시점(UTC ISO)으로 바꾼 값. 로그를 읽은 서버에서만 채울 수 있다 —
+   * pm2 는 서버 로컬 시각으로 찍는데 운영 서버는 UTC 라, 이 값이 없으면 화면이 9시간 어긋난다.
+   */
+  atIso?: string | null;
   level: LogLevel;
   /** out = 표준 출력, err = 표준 에러(console.error·미처리 예외). */
   source: 'out' | 'err';
@@ -39,6 +44,23 @@ export function classifyLine(text: string, source: 'out' | 'err'): LogLevel {
   if (ERROR_WORD_RE.test(t) || ERROR_CODE_RE.test(t)) return 'error';
   if (WARN_RE.test(t)) return 'warn';
   return 'info';
+}
+
+/**
+ * pm2 가 찍은 로컬 시각 문자열 → UTC ISO 문자열.
+ *
+ * 오프셋이 없는 'YYYY-MM-DDTHH:mm:ss' 를 JS 는 **실행 환경의 로컬 시각**으로 읽는다.
+ * 이 함수는 로그 파일을 쓴 그 서버에서 호출해야 맞는 시점이 나온다.
+ */
+export function localLogTimeToIso(at: string | null): string | null {
+  if (!at) return null;
+  const t = new Date(at).getTime();
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}
+
+/** 각 줄에 atIso 를 채운다. 로그를 읽은 서버에서 한 번만 부른다. */
+export function withIsoTimes(lines: LogLine[]): LogLine[] {
+  return lines.map((l) => ({ ...l, atIso: localLogTimeToIso(l.at) }));
 }
 
 /** 파일에서 읽은 원문 → 로그 줄 배열. 빈 줄은 버린다. */

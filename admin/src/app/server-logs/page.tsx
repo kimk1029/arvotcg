@@ -1,17 +1,13 @@
 import Link from 'next/link';
 import { AutoRefresh } from '@/components/AutoRefresh';
+import { RefreshButton } from '@/components/RefreshButton';
+import { fmtLogTime } from '@/lib/format';
 import { fetchServerLogs, type LogLevelFilter } from '@/lib/serverLogs';
 
 export const dynamic = 'force-dynamic';
 
 const LIMITS = [200, 500, 1000, 2000];
 const DEFAULT_LIMIT = 500;
-
-/** 'YYYY-MM-DDTHH:mm:ss' → 'MM-DD HH:mm:ss'. pm2 가 이미 서버 로컬시각(KST)으로 찍는다. */
-function shortTime(at: string | null): string {
-  if (!at) return '';
-  return at.length >= 19 ? `${at.slice(5, 10)} ${at.slice(11, 19)}` : at;
-}
 
 export default async function Page({
   searchParams,
@@ -39,7 +35,7 @@ export default async function Page({
       <h1 className="admin-h1">서버 로그</h1>
       <p className="admin-sub">
         API 서버(pm2)의 표준 출력과 표준 에러를 시각순으로 합쳐 보여 줍니다. 빨간 줄이 에러입니다.
-        20초마다 자동 갱신됩니다.
+        시각은 한국 시간(KST)이며, 20초마다 자동 갱신되고 새로고침 버튼으로 바로 다시 불러올 수 있습니다.
       </p>
 
       {r.fetchError ? (
@@ -64,11 +60,13 @@ export default async function Page({
               {n.toLocaleString()}줄
             </Link>
           ))}
+          <RefreshButton />
         </div>
       </div>
 
       <div className="log-legend">
         경고 {r.warnCount.toLocaleString()}건 · 표시 {r.lines.length.toLocaleString()}줄
+        {r.at ? ` · ${fmtLogTime(r.at)} 기준 (KST)` : ''}
         {r.sources.map((s) => (
           <span key={s.kind} className="log-src">
             {s.kind === 'out' ? '표준 출력' : '표준 에러'}:{' '}
@@ -85,7 +83,7 @@ export default async function Page({
         <div className="log-view">
           {r.lines.map((l, i) => (
             <div key={`${l.at ?? ''}-${i}`} className={`log-line ${l.level}`}>
-              <span className="log-time">{shortTime(l.at)}</span>
+              <span className="log-time">{fmtLogTime(l.atIso)}</span>
               <span className="log-text">{l.text}</span>
             </div>
           ))}

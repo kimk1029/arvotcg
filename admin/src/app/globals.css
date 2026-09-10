@@ -220,6 +220,16 @@ form.search a.btn{display:inline-flex;align-items:center;text-decoration:none;}
 .log-tabs a.err.on span{background:#7F1D1D;color:#FEE2E2;}
 .log-limits a.on{background:#3B82F6;color:#fff;border-color:#3B82F6;}
 
+.refresh-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:12px;
+  font-weight:600;color:#fff;background:#3B82F6;border:1px solid #3B82F6;border-radius:999px;
+  cursor:pointer;font-family:inherit;}
+.refresh-btn:hover:not(:disabled){background:#2563EB;border-color:#2563EB;}
+.refresh-btn:disabled{opacity:.75;cursor:default;}
+.refresh-ico{display:inline-block;font-size:14px;line-height:1;}
+.refresh-ico.spin{animation:refresh-spin .8s linear infinite;}
+@keyframes refresh-spin{to{transform:rotate(360deg);}}
+@media(prefers-reduced-motion:reduce){.refresh-ico.spin{animation:none;}}
+
 .log-legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:11px;
   color:#94A3B8;margin-bottom:10px;}
 .log-legend code{background:#F1F5F9;color:#475569;}

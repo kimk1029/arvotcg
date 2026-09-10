@@ -10,6 +10,18 @@ export function fmtDate(d: Date | string | null | undefined): string {
   return `${k.toISOString().slice(0, 10)} ${k.toISOString().slice(11, 16)}`;
 }
 
+/**
+ * 로그 줄 시각 — KST 'MM-DD HH:mm:ss'.
+ * 운영 서버가 UTC 라 pm2 원문(atIso 없이)은 9시간 어긋난다. 실제 시점(atIso)만 변환한다.
+ */
+export function fmtLogTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return '';
+  const k = new Date(t + KST_OFFSET_MS).toISOString();
+  return `${k.slice(5, 10)} ${k.slice(11, 19)}`;
+}
+
 /** UA 한 줄 요약 — 'iOS' | 'Android' | 'PC' (+ ' 웹뷰'), 방문 기록 기기 열. */
 export function deviceOf(ua: string | null | undefined): string {
   if (!ua) return '-';

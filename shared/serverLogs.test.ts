@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { classifyLine, filterByLevel, mergeLogLines, parseLogLines } from './serverLogs';
+import { classifyLine, filterByLevel, localLogTimeToIso, mergeLogLines, parseLogLines, withIsoTimes } from './serverLogs';
 
 test('pm2 시각 접두사를 떼어내고 본문만 남긴다', () => {
   const [l] = parseLogLines('2026-09-10T04:16:44: [dailySnapshot] done: 2 recorded', 'out');
@@ -69,4 +69,25 @@ test('에러만 필터', () => {
   ];
   assert.equal(filterByLevel(lines, 'all').length, 2);
   assert.deepEqual(filterByLevel(lines, 'error').map((l) => l.text), ['boom']);
+});
+
+test('pm2 로컬 시각을 실제 시점(UTC ISO)으로 바꾼다', () => {
+  const iso = localLogTimeToIso('2026-09-10T04:16:44');
+  assert.ok(iso && iso.endsWith('Z'), iso ?? 'null');
+  // 어느 시간대에서 돌려도 원문이 가리키는 시점과 같아야 한다.
+  assert.equal(new Date(iso!).getTime(), new Date('2026-09-10T04:16:44').getTime());
+});
+
+test('시각이 없는 줄은 atIso 도 null', () => {
+  assert.equal(localLogTimeToIso(null), null);
+  assert.equal(localLogTimeToIso('not a date'), null);
+  const [l] = withIsoTimes(parseLogLines('plain line', 'out'));
+  assert.equal(l.atIso, null);
+});
+
+test('withIsoTimes 는 원문 at 을 그대로 남긴다', () => {
+  const [l] = withIsoTimes(parseLogLines('2026-09-10T04:16:44: hello', 'out'));
+  assert.equal(l.at, '2026-09-10T04:16:44');
+  assert.equal(l.text, 'hello');
+  assert.ok(l.atIso);
 });

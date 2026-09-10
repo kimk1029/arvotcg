@@ -12,7 +12,7 @@ import { getHeroAutoplayMs, setHeroAutoplayMs } from '../lib/queries.js';
 import { HERO_AUTOPLAY_MAX_MS, HERO_AUTOPLAY_MIN_MS } from '../../shared/heroBanner';
 import { encodeBanner } from '../lib/bannerImage';
 import { readServerLogs } from '../lib/serverLogFiles.js';
-import { filterByLevel, mergeLogLines } from '../../shared/serverLogs';
+import { filterByLevel, mergeLogLines, withIsoTimes } from '../../shared/serverLogs';
 
 const SLIDE_CLASSES = ['slide-a', 'slide-b', 'slide-c', 'slide-d'] as const;
 const VISUAL_TYPES = ['emoji', 'image'] as const;
@@ -146,7 +146,7 @@ router.get('/logs', async (req: Request, res: Response) => {
   try {
     const { groups, sources } = await readServerLogs();
     // 필터가 'error' 면 먼저 걸러야 "최근 300줄 안에 에러가 없다"로 빈 화면이 되지 않는다.
-    const merged = mergeLogLines(groups, 0);
+    const merged = withIsoTimes(mergeLogLines(groups, 0));
     const lines = filterByLevel(merged, level);
     const tail = lines.length > limit ? lines.slice(lines.length - limit) : lines;
     res.json({
