@@ -38,3 +38,12 @@ test('앱 ID 미발급 플랫폼은 테스트 앱 ID 로 떨어진다', () => {
   assert.equal(adsReadyForRelease('android'), false);
   assert.equal(adsReadyForRelease('ios'), true);
 });
+
+test('앱 ID 가 미발급이면 배포 빌드도 테스트 단위로 떨어진다', () => {
+  // AdBanner 가 쓰는 조건: __DEV__ || !adsReadyForRelease(platform)
+  const useTest = (p: 'android' | 'ios') => !adsReadyForRelease(p);
+  assert.equal(useTest('android'), true);
+  assert.equal(bannerUnitId('android', useTest('android')), ADMOB_TEST.banner.android);
+  assert.equal(useTest('ios'), false);
+  assert.equal(bannerUnitId('ios', useTest('ios')), ADMOB_BANNER_UNIT.ios);
+});

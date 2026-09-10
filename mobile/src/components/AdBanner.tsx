@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
-import { bannerUnitId } from '@/lib/ads';
+import { adsReadyForRelease, bannerUnitId } from '@/lib/ads';
 
 type AdsModule = typeof import('react-native-google-mobile-ads');
 
@@ -28,6 +28,10 @@ function loadAds(): AdsModule | null {
 }
 
 const platform: 'android' | 'ios' = Platform.OS === 'ios' ? 'ios' : 'android';
+
+// 개발 빌드는 물론, 실제 값이 덜 갖춰진 플랫폼도 테스트 단위를 쓴다.
+// (앱 ID 가 테스트 값인 채로 실제 광고 단위를 부르면 노출이 아예 안 붙는다.)
+const useTestUnit = __DEV__ || !adsReadyForRelease(platform);
 
 export function AdBanner({ marginVertical = 10 }: { marginVertical?: number }) {
   const [mod, setMod] = useState<AdsModule | null>(null);
@@ -51,7 +55,7 @@ export function AdBanner({ marginVertical = 10 }: { marginVertical?: number }) {
   return (
     <View style={{ alignItems: 'center', marginVertical }}>
       <BannerAd
-        unitId={bannerUnitId(platform, __DEV__)}
+        unitId={bannerUnitId(platform, useTestUnit)}
         size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
         onAdFailedToLoad={() => setFailed(true)}
       />

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { View, StyleSheet, Platform, Pressable } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePathname } from 'expo-router';
@@ -8,6 +9,7 @@ import { Tabbar } from './Tabbar';
 import { useChrome } from './ChromeContext';
 import { useThemeColors, useTheme } from './ThemeProvider';
 import { useNavPrefs } from './NavPrefsProvider';
+import { AdBanner } from './AdBanner';
 import { isFlatTheme } from '@/lib/theme';
 
 interface Props {
@@ -23,6 +25,8 @@ const DARK_CHROME_BG = '#0F172A';
  */
 export function PhoneShell({ children }: Props) {
   const pathname = usePathname();
+  // 배너 실제 높이 — 플로팅 탭바를 이만큼 위로 올려 배너를 가리지 않게 한다.
+  const [adHeight, setAdHeight] = useState(0);
   const { hidden } = useChrome();
   const { theme } = useTheme();
   const { navStyle } = useNavPrefs();
@@ -45,6 +49,10 @@ export function PhoneShell({ children }: Props) {
   // 클린·다크(모던 플랫) 테마는 픽셀 골드 상단 밴드를 쓰지 않는다 — 각 화면이
   // 자체 헤더를 갖고, SafeArea top 인셋만 페이퍼색으로 남긴다.
   const showStatusBand = !isFullscreen && !isFlatTheme(theme);
+  // 광고 배너 — 홈만 제외하고 모든 화면 하단에 붙인다(로그인·온보딩 등 전체화면 제외).
+  // 화면마다 넣지 않고 여기 한 곳에서만 그린다.
+  const isHome = pathname === '/' || pathname === '/index';
+  const showAd = !isFullscreen && !isHome;
   return (
     <View style={[styles.root, { backgroundColor: c.pap2 }]}>
       <SystemStatusBar style={systemBarStyle} animated />
@@ -65,11 +73,28 @@ export function PhoneShell({ children }: Props) {
       >
         {showStatusBand ? <StatusBar /> : null}
         <View style={styles.screen}>{children}</View>
+        {/* 광고 배너는 플로우에 자리를 차지한다 — 컨텐츠를 덮지 않으므로 화면마다
+            하단 여백을 손볼 필요가 없다. 광고가 없으면(홈·구 바이너리) 높이 0. */}
+        {showAd ? (
+          <View
+            style={{ backgroundColor: c.pap2, paddingBottom: floating ? insets.bottom : 0 }}
+            onLayout={(e) => setAdHeight(e.nativeEvent.layout.height)}
+          >
+            <AdBanner marginVertical={0} />
+          </View>
+        ) : null}
         {/* 플로팅: 탭바를 절대배치 오버레이로 띄워 컨텐츠가 바 뒤로 지나가게 한다.
+            배너가 있으면 그 높이만큼 위로 올려 탭바가 배너를 덮지 않게 한다.
             통합형: 기존처럼 플로우에 차지(컨텐츠와 안 겹침). */}
         {!isFullscreen ? (
           floating ? (
-            <View style={[styles.floatDock, { paddingBottom: insets.bottom }]} pointerEvents="box-none">
+            <View
+              style={[
+                styles.floatDock,
+                adHeight > 0 ? { bottom: adHeight } : { paddingBottom: insets.bottom },
+              ]}
+              pointerEvents="box-none"
+            >
               <Tabbar />
             </View>
           ) : (
