@@ -194,7 +194,7 @@ export function FlexPoster({ data: d }: { data: FlexData }) {
             </div>
 
             {/* 인증 도장 — 카드 우하단에 살짝 기울여 찍힌 워터마크 */}
-            <div style={{ position: 'absolute', left: 'calc(50% - 8px)', bottom: -14, transform: 'rotate(-14deg)', opacity: 0.88, mixBlendMode: 'multiply', pointerEvents: 'none' }}>
+            <div style={{ position: 'absolute', left: 'calc(50% - 60px)', bottom: -16, transform: 'rotate(-14deg)', opacity: 0.88, mixBlendMode: 'multiply', pointerEvents: 'none' }}>
               <Stamp date={ymd(d.createdAt)} up={up} pct={pct} />
             </div>
           </div>
