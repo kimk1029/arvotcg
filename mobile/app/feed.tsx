@@ -135,6 +135,8 @@ interface FeedPost {
   images?: string[];
   commentCount?: number;
   likeCount?: number;
+  /** 지금 로그인한 사용자가 좋아요를 눌렀는가. 하트 버튼의 초기 상태. */
+  liked?: boolean;
 }
 
 interface Trade {
@@ -860,7 +862,7 @@ function PostRow({ post, P, ts, tagStyle, onBlocked, onDeleted, focused }: { pos
           </Pressable>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
             {/* 좋아요 — 누르면 즉시 빨간 하트 + 숫자 반영(낙관), 서버 확인은 뒤에서 (웹 동일). */}
-            <BookmarkHeart feedId={post.id} count={post.likeCount ?? 0} />
+            <BookmarkHeart feedId={post.id} count={post.likeCount ?? 0} initial={post.liked ?? false} />
           </View>
           {hasThumb ? <Text style={ts(12.5, '700', P.ink3)}>📷 {images.length}</Text> : null}
           <View style={{ marginLeft: 'auto' }}>
@@ -882,10 +884,16 @@ function emojiOf(v: string | null | undefined): string {
 
 /* ---------------- 북마크(추천) — 웹 BookmarkButton 동일: POST /api/bookmarks 토글 ---------------- */
 
-function BookmarkHeart({ feedId, tradeId, count }: { feedId?: number; tradeId?: number; count?: number }) {
-  const [liked, setLiked] = useState(false);
+function BookmarkHeart({ feedId, tradeId, count, initial = false }: { feedId?: number; tradeId?: number; count?: number; initial?: boolean }) {
+  const [liked, setLiked] = useState(initial);
   const [delta, setDelta] = useState(0);
   const pendingRef = useRef(false);
+  // 목록을 다시 받아 서버 값이 바뀌면 그 값으로 맞춘다(낙관 반영분은 리셋).
+  useEffect(() => {
+    if (pendingRef.current) return;
+    setLiked(initial);
+    setDelta(0);
+  }, [initial]);
   const toggle = async () => {
     if (pendingRef.current) return;
     pendingRef.current = true;

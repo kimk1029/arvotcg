@@ -123,7 +123,12 @@ export function swrInvalidate(prefix: string): void {
 }
 
 // 세션 변경(로그인/로그아웃/계정 전환) → 사용자 데이터 캐시 일괄 무효화.
-subscribeSession(() => swrInvalidate('me:'));
+// feed: 도 함께 지운다 — 목록 행에 '내가 누른 좋아요' 가 들어 있어
+// 계정을 바꾸면 앞 사용자의 하트가 그대로 보인다.
+subscribeSession(() => {
+  swrInvalidate('me:');
+  swrInvalidate('feed:');
+});
 
 /* ── 훅 ─────────────────────────────────────────────────────────── */
 
