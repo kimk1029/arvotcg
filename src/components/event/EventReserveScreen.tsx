@@ -844,17 +844,19 @@ function MyReservationModal({ P, night, config, slot, reservedAt, checkedInAt, e
           </>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {/* 리뷰 쓰러가기 — OS 별 스토어 링크. 앱 WebView 는 스토어 주소를 가로채 스토어 앱으로 연다. */}
-            {reviewUrl ? (
-              <a href={reviewUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 0', borderRadius: 12, background: P.modalBg, border: `1.5px solid ${P.line}`, color: P.ink, fontSize: 13.5, fontWeight: 900, textDecoration: 'none' }}>
-                ⭐ 리뷰 쓰러가기 <span style={{ fontSize: 11, fontWeight: 700, color: P.sub }}>({platform === 'ios' ? 'App Store' : 'Google Play'})</span>
-              </a>
-            ) : (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <a href={STORE_REVIEW_URL.android} target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '11px 0', borderRadius: 12, background: P.modalBg, border: `1.5px solid ${P.line}`, color: P.ink, fontSize: 12.5, fontWeight: 900, textDecoration: 'none' }}>⭐ Google Play 리뷰</a>
-                <a href={STORE_REVIEW_URL.ios} target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '11px 0', borderRadius: 12, background: P.modalBg, border: `1.5px solid ${P.line}`, color: P.ink, fontSize: 12.5, fontWeight: 900, textDecoration: 'none' }}>⭐ App Store 리뷰</a>
-              </div>
-            )}
+            {/* 리뷰 쓰러가기 — 참여 버튼 위 오른쪽 정렬 텍스트 링크(OS 별 스토어). 앱 WebView 는 스토어 주소를 가로채 스토어 앱으로 연다. */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingRight: 2 }}>
+              {reviewUrl ? (
+                <a href={reviewUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 800, color: P.accentText, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                  ⭐ 리뷰 쓰러가기 ({platform === 'ios' ? 'App Store' : 'Google Play'})
+                </a>
+              ) : (
+                <>
+                  <a href={STORE_REVIEW_URL.android} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 800, color: P.accentText, textDecoration: 'underline', textUnderlineOffset: 3 }}>⭐ Google Play 리뷰</a>
+                  <a href={STORE_REVIEW_URL.ios} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 800, color: P.accentText, textDecoration: 'underline', textUnderlineOffset: 3 }}>⭐ App Store 리뷰</a>
+                </>
+              )}
+            </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <JoinButton P={P} night={night} label="이벤트 참여" doneLabel="이벤트 참여완료" doneAt={eventJoinedAt} busy={busy} onPress={() => setJoinConfirm('event')} />
               <JoinButton P={P} night={night} label="리뷰 이벤트 참여" doneLabel="리뷰 이벤트 참여완료" doneAt={reviewJoinedAt} busy={busy} onPress={() => setJoinConfirm('review')} />
