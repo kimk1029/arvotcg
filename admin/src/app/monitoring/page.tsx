@@ -1,4 +1,5 @@
 import { getSystemStatus, MONITORING_TTL_MS, type HistoryPoint } from '@/lib/monitoring';
+import { summarizeHealth, LEVEL_BG, LEVEL_COLOR, LEVEL_LABEL, type HealthCheck } from '@/lib/health';
 import { fmtDate } from '@/lib/format';
 import { AutoRefresh } from '@/components/AutoRefresh';
 
@@ -41,9 +42,48 @@ function Spark({ points, pick, color }: { points: HistoryPoint[]; pick: (p: Hist
   );
 }
 
+/** 전체 판정 배너 — 화면을 열자마자 한 줄로 결론을 준다. */
+function HealthBanner({ level, title, message }: { level: HealthCheck['level']; title: string; message: string }) {
+  return (
+    <div className="health-banner" style={{ background: LEVEL_BG[level], borderColor: LEVEL_COLOR[level] }}>
+      <span className="health-orb" style={{ background: LEVEL_COLOR[level] }} aria-hidden />
+      <div style={{ minWidth: 0 }}>
+        <div className="health-banner-title" style={{ color: LEVEL_COLOR[level] }}>
+          {title}
+          <span className="health-pill" style={{ background: LEVEL_COLOR[level] }}>{LEVEL_LABEL[level]}</span>
+        </div>
+        <div className="health-banner-msg">{message}</div>
+      </div>
+    </div>
+  );
+}
+
+/** 항목 카드 — 신호등 점 + 큰 값 + 게이지 + 평이한 설명. */
+function HealthCard({ check }: { check: HealthCheck }) {
+  const color = LEVEL_COLOR[check.level];
+  return (
+    <div className="health-card">
+      <div className="health-card-head">
+        <span className="health-dot" style={{ background: color }} aria-hidden />
+        <span className="health-card-title">{check.title}</span>
+        <span className="health-tag" style={{ color, borderColor: color }}>{LEVEL_LABEL[check.level]}</span>
+      </div>
+      <div className="health-value" style={{ color }}>{check.value}</div>
+      {check.ratio === null ? null : (
+        <div className="gauge" role="img" aria-label={`${check.title} ${Math.round(check.ratio * 100)}%`}>
+          <i style={{ width: `${Math.max(2, Math.round(check.ratio * 100))}%`, background: color }} />
+        </div>
+      )}
+      {check.scale ? <div className="health-scale">{check.scale}</div> : null}
+      <div className="health-detail">{check.detail}</div>
+    </div>
+  );
+}
+
 export default async function Page() {
   const { sample, history, ageMs } = await getSystemStatus();
   const { connections: conn, dbStats: db } = sample;
+  const health = summarizeHealth(sample);
 
   const connPct = conn && conn.maxConnections > 0 ? (conn.total / conn.maxConnections) * 100 : 0;
   const okProbes = sample.probes.filter((p) => p.ok);
@@ -57,9 +97,18 @@ export default async function Page() {
         수집 {fmtDate(sample.at)} · {ageMs > 0 ? `${Math.round(ageMs / 1000)}초 전 캐시` : '방금 갱신'} ·{' '}
         {Math.round(MONITORING_TTL_MS / 1000)}초마다 자동 갱신
       </p>
-      <p className="admin-sub">
-        pg_stat 통계 뷰만 읽고 결과를 {Math.round(MONITORING_TTL_MS / 1000)}초 캐시합니다. 실제 테이블을 스캔하지 않으므로
-        이 화면을 여러 명이 동시에 켜두어도 DB 조회는 {Math.round(MONITORING_TTL_MS / 1000)}초에 한 번뿐입니다.
+
+      <HealthBanner level={health.level} title={health.title} message={health.message} />
+
+      <div className="health-grid">
+        {health.checks.map((c) => (
+          <HealthCard key={c.key} check={c} />
+        ))}
+      </div>
+
+      <p className="health-note">
+        초록은 정상, 주황은 지켜볼 것, 빨강은 지금 손봐야 하는 항목입니다. 막대는 위험선까지 얼마나 찼는지를 뜻하며
+        {' '}{Math.round(MONITORING_TTL_MS / 1000)}초마다 스스로 갱신됩니다.
       </p>
 
       {sample.errors.length > 0 ? (
@@ -70,6 +119,13 @@ export default async function Page() {
           ))}
         </div>
       ) : null}
+
+      <details className="admin-details">
+        <summary>기술 상세 — 원자료 지표와 쿼리 (개발자용)</summary>
+      <p className="admin-sub">
+        pg_stat 통계 뷰만 읽고 결과를 {Math.round(MONITORING_TTL_MS / 1000)}초 캐시합니다. 실제 테이블을 스캔하지 않으므로
+        이 화면을 여러 명이 동시에 켜두어도 DB 조회는 {Math.round(MONITORING_TTL_MS / 1000)}초에 한 번뿐입니다.
+      </p>
 
       <div className="grid-stats">
         <div className="stat-card">
@@ -232,6 +288,7 @@ export default async function Page() {
           ))}
         </tbody>
       </table>
+      </details>
     </>
   );
 }
