@@ -197,9 +197,10 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
         {registerSheet}
         <Pressable onPress={openRegisterSheet} style={[styles.flatWide, { backgroundColor: collectBg }]}>
           <PixelText variant={txt} size={14} weight="bold" color={tc.white}>{isCollected ? '✓' : '＋'}</PixelText>
+          {/* 담긴 상태의 두 줄은 글자를 줄여 한 줄 버튼 높이(48) 안에 넣는다 (웹 동일). */}
           <View style={{ alignItems: 'center', flexShrink: 1 }}>
-            <PixelText variant="ko" size={13} weight="bold" color={tc.white} numberOfLines={1}>{collectLabel}</PixelText>
-            {isCollected ? <PixelText variant="ko" size={10} color={tc.white} numberOfLines={1} style={{ opacity: 0.92 }}>＋ 카드 추가 등록</PixelText> : null}
+            <PixelText variant="ko" size={isCollected ? 11.5 : 13} weight="bold" color={tc.white} numberOfLines={1} style={isCollected ? { lineHeight: 15 } : undefined}>{collectLabel}</PixelText>
+            {isCollected ? <PixelText variant="ko" size={9} color={tc.white} numberOfLines={1} style={{ opacity: 0.92, lineHeight: 12 }}>＋ 카드 추가 등록</PixelText> : null}
           </View>
         </Pressable>
         {/* 수익 인증 — 내 컬렉션에 있는 카드만(웹 CardActions 동일) */}
@@ -232,8 +233,8 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
         <PixelPress onPress={openRegisterSheet} bg={collectBg} borderWidth={3} shadow={4} hi="rgba(255,255,255,0.25)" lo="rgba(0,0,0,0.3)" wrapStyle={styles.flex} innerStyle={styles.wideFace}>
           <Text style={[styles.icon, { color: colors.white }]}>{isCollected ? '✓' : '＋'}</Text>
           <View style={{ alignItems: 'center', flexShrink: 1 }}>
-            <Text style={[styles.label, { color: colors.white }]} numberOfLines={1}>{collectLabel}</Text>
-            {isCollected ? <Text numberOfLines={1} style={{ fontFamily: fonts.ko, fontSize: 10, lineHeight: 13, color: colors.white, marginTop: 2, opacity: 0.92 }}>＋ 카드 추가 등록</Text> : null}
+            <Text style={[styles.label, { color: colors.white }, isCollected ? { fontSize: 11.5, lineHeight: 14 } : null]} numberOfLines={1}>{collectLabel}</Text>
+            {isCollected ? <Text numberOfLines={1} style={{ fontFamily: fonts.ko, fontSize: 9, lineHeight: 11, color: colors.white, opacity: 0.92 }}>＋ 카드 추가 등록</Text> : null}
           </View>
         </PixelPress>
       </View>
@@ -264,24 +265,27 @@ const styles = StyleSheet.create({
   },
   flex: { flex: 1 },
   // 클린: 라운드 버튼.
+  // 높이는 정사각 버튼과 같은 한 줄 높이(48)로 고정 — 두 줄 텍스트가 버튼을 키우지 않는다.
   flatWide: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
-    paddingVertical: 13,
+    height: 48,
+    paddingHorizontal: 8,
     borderRadius: 14,
   },
   flatSquare: {
     width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 14,
     borderWidth: 1,
   },
   // 픽셀: 넓은 버튼 face / 정사각 face.
-  wideFace: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, paddingHorizontal: 6 },
+  wideFace: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 38, paddingHorizontal: 6 },
   squareFace: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
   icon: { color: colors.white, fontSize: 15, lineHeight: 18, flexShrink: 0 },
   label: { fontFamily: fonts.ko, fontSize: 13, fontWeight: '700', letterSpacing: 0.2, includeFontPadding: false, flexShrink: 1 },
