@@ -636,11 +636,6 @@ export default function CommunityScreen() {
           </Card>
         </View>
 
-        {/* 광고 — 인기글 카드와 HOT 키워드 사이. 좌우 여백은 주변 섹션과 동일. */}
-        <View style={{ paddingTop: 10 }}>
-          <AdBanner marginHorizontal={16} marginBottom={0} />
-        </View>
-
         {/* HOT keyword */}
         <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4 }}>
           <View style={{ backgroundColor: P.kwBg, borderRadius: 16, padding: 15 }}>
@@ -756,9 +751,11 @@ export default function CommunityScreen() {
                   ts={ts}
                 />
               ) : (
-                visiblePosts.map((p) => (
+                visiblePosts.map((p, i) => (
                   <View key={p.id} ref={(v) => { rowRefs.current[p.id] = v; }} collapsable={false}>
                     <PostRow post={p} P={P} ts={ts} tagStyle={tagStyle} onBlocked={removeBlockedUser} onDeleted={removePost} focused={focusId === p.id} />
+                    {/* 광고 — 글 3개 뒤, 글 사이에 한 번. 목록 맨 위는 오터치 위험. */}
+                    {i === 2 ? <AdBanner marginHorizontal={16} marginTop={4} marginBottom={4} /> : null}
                   </View>
                 ))
               )}

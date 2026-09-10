@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
+import { AdBanner } from '@/components/AdBanner';
 import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
 import { PixelFrame } from '@/components/cv/PixelFrame';
@@ -118,8 +119,12 @@ export default function PriceInfoScreen() {
           </View>
         ) : (
           <View style={{ marginHorizontal: 14, gap: 10 }}>
-            {visible.map((pack) => (
-              <PackRow key={pack.code} pack={pack} />
+            {visible.map((pack, i) => (
+              <View key={pack.code}>
+                <PackRow pack={pack} />
+                {/* 광고 — 박스 목록 3번째 뒤, 항목 사이에 한 번. */}
+                {i === 2 ? <AdBanner marginHorizontal={0} marginTop={10} marginBottom={0} /> : null}
+              </View>
             ))}
           </View>
         )}
