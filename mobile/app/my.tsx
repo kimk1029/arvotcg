@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import { AdBanner } from '@/components/AdBanner';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { ComposedAvatar } from '@/components/ComposedAvatar';
 import { InlineLoginGate } from '@/components/InlineLoginGate';
@@ -417,6 +418,9 @@ export default function MyScreen() {
             </Pressable>
           ))}
         </View>
+
+        {/* 광고 — 통계 타일과 '내 활동' 사이. 주변 카드와 같은 여백. */}
+        <AdBanner marginHorizontal={16} marginBottom={16} />
 
         {/* 내 활동 */}
         <Text style={{ fontSize: 17, fontWeight: '800', color: P.ink, paddingHorizontal: 20, paddingBottom: 12 }}>내 활동</Text>

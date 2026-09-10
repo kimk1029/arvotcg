@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { ScrollView, View, Pressable, Text, TextInput, Animated, Easing, Image, LayoutAnimation, Modal, Platform, RefreshControl, UIManager } from 'react-native';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { router, useLocalSearchParams } from 'expo-router';
+import { AdBanner } from '@/components/AdBanner';
 import { useTheme, useThemeColors } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import { PixelFrame } from '@/components/cv/PixelFrame';
@@ -633,6 +634,11 @@ export default function CommunityScreen() {
               ))}
             </View>
           </Card>
+        </View>
+
+        {/* 광고 — 인기글 카드와 HOT 키워드 사이. 좌우 여백은 주변 섹션과 동일. */}
+        <View style={{ paddingTop: 10 }}>
+          <AdBanner marginHorizontal={16} marginBottom={0} />
         </View>
 
         {/* HOT keyword */}

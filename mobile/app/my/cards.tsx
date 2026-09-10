@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Alert, Dimensions, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { AdBanner } from '@/components/AdBanner';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { PortfolioHero } from '@/components/PortfolioHero';
 import { FavoritesView } from '@/components/FavoritesView';
@@ -252,6 +253,8 @@ export default function MyCardsScreen() {
         ) : (
           <>
             <View style={{ height: 12 }} />
+            {/* 광고 — 자산 히어로와 카드 목록 사이. */}
+            <AdBanner marginHorizontal={space.gap} marginBottom={14} />
             {/* ── 내 카드 목록 (웹 동일: 헤더 + 그리드/리스트 토글 + 정렬 세그먼트) ── */}
             <View style={{ paddingHorizontal: space.gap }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>

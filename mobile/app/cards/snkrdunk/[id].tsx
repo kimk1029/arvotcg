@@ -2,6 +2,7 @@ import { CardImageZoom } from '@/components/CardImageZoom';
 import { useEffect, useMemo, useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, View, Text } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { AdBanner } from '@/components/AdBanner';
 import { AppBar } from '@/components/AppBar';
 import { CardActions } from '@/components/CardActions';
 import { KreamCompare } from '@/components/cards/KreamCompare';
@@ -455,6 +456,9 @@ export default function SnkrdunkDetail() {
 
             </>
             ) : null}
+
+            {/* 광고 — 체결 정보와 '가격 추이' 사이. */}
+            <AdBanner marginHorizontal={14} marginBottom={14} />
 
             {/* ── 가격 추이 (기간 탭) ── */}
             <View style={{ marginHorizontal: 14 }}>

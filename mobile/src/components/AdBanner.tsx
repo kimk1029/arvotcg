@@ -1,5 +1,6 @@
 /**
- * 애드몹 배너.
+ * 애드몹 배너 — 화면 하단에 고정하지 않고, 각 화면의 섹션 사이에 콘텐츠처럼 끼워 넣는다.
+ * 주변 카드와 같은 여백·모서리·배경을 써서 튀지 않게 한다.
  *
  * **네이티브 모듈을 절대 top-level import 하지 않는다.** OTA 는 구 스토어 빌드
  * (1.1.3·1.1.4·1.1.5 — 광고 SDK 가 없는 바이너리)에도 내려가므로, import 하면
@@ -8,6 +9,8 @@
  */
 import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
+import { PixelText } from './PixelText';
+import { useThemeColors } from './ThemeProvider';
 import { adsReadyForRelease, bannerUnitId } from '@/lib/ads';
 
 type AdsModule = typeof import('react-native-google-mobile-ads');
@@ -33,7 +36,18 @@ const platform: 'android' | 'ios' = Platform.OS === 'ios' ? 'ios' : 'android';
 // (앱 ID 가 테스트 값인 채로 실제 광고 단위를 부르면 노출이 아예 안 붙는다.)
 const useTestUnit = __DEV__ || !adsReadyForRelease(platform);
 
-export function AdBanner({ marginVertical = 10 }: { marginVertical?: number }) {
+interface Props {
+  /** 좌우 여백 — 그 화면의 다른 섹션과 같은 값을 준다. */
+  marginHorizontal?: number;
+  /** 위아래 여백 — 섹션 사이 간격에 맞춘다. */
+  marginTop?: number;
+  marginBottom?: number;
+  /** 카드 배경·모서리를 끄고 배너만 놓는다(이미 카드 안에 넣는 경우). */
+  bare?: boolean;
+}
+
+export function AdBanner({ marginHorizontal = 14, marginTop = 0, marginBottom = 12, bare = false }: Props) {
+  const tc = useThemeColors();
   const [mod, setMod] = useState<AdsModule | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -48,17 +62,38 @@ export function AdBanner({ marginVertical = 10 }: { marginVertical?: number }) {
     setMod(m);
   }, []);
 
-  // SDK 없음(구 바이너리)·웹·로드 실패 → 자리를 차지하지 않는다.
+  // SDK 없음(구 바이너리)·웹·로드 실패 → 자리를 아예 차지하지 않는다.
+  // 광고가 안 붙을 때 빈 상자가 남으면 그게 더 어색하다.
   if (!mod || failed || Platform.OS === 'web') return null;
 
   const { BannerAd, BannerAdSize } = mod;
+  const ad = (
+    <BannerAd
+      unitId={bannerUnitId(platform, useTestUnit)}
+      size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+      onAdFailedToLoad={() => setFailed(true)}
+    />
+  );
+
+  if (bare) return <View style={{ alignItems: 'center' }}>{ad}</View>;
+
   return (
-    <View style={{ alignItems: 'center', marginVertical }}>
-      <BannerAd
-        unitId={bannerUnitId(platform, useTestUnit)}
-        size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-        onAdFailedToLoad={() => setFailed(true)}
-      />
+    <View style={{ marginHorizontal, marginTop, marginBottom }}>
+      {/* 광고임을 밝히는 작은 라벨 — 콘텐츠로 오인하지 않게 하는 최소 표기. */}
+      <PixelText variant="ko" size={8} color={tc.ink3} style={{ marginBottom: 4, marginLeft: 2, letterSpacing: 0.3 }}>
+        광고
+      </PixelText>
+      <View
+        style={{
+          alignItems: 'center',
+          overflow: 'hidden',
+          borderRadius: 14,
+          backgroundColor: tc.white,
+          paddingVertical: 8,
+        }}
+      >
+        {ad}
+      </View>
     </View>
   );
 }
