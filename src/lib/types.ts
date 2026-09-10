@@ -58,6 +58,12 @@ export interface FeedPost {
   commentCount?: number;
   /** 추천(북마크) 수 (정렬·표시용). 서버 _count.bookmarks. */
   likeCount?: number;
+  /**
+   * 지금 로그인한 사용자가 이 글에 좋아요를 눌렀는가.
+   * 비로그인이면 항상 false. 하트 버튼의 초기 상태가 이 값이라,
+   * 다른 페이지에 갔다 와도 눌린 상태가 유지된다.
+   */
+  liked?: boolean;
 }
 
 export type ShopCategory = 'charge' | 'ticket' | 'skin';

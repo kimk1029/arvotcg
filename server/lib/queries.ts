@@ -120,9 +120,10 @@ type FeedRow = {
   _count?: { comments: number; bookmarks: number } | null;
 };
 
-function toFeedPost(r: FeedRow): FeedPost {
+function toFeedPost(r: FeedRow, liked = false): FeedPost {
   const look = authorLook(r.author, { emoji: r.authorEmoji, bg: r.authorBgId, frame: r.authorFrameId });
   return {
+    liked,
     id: r.id,
     text: r.text,
     time: relTime(r.createdAt),
@@ -195,6 +196,28 @@ export async function getBlockedIds(viewerId: string | null | undefined): Promis
   }
 }
 
+/**
+ * `feedIds` 중 이 사용자가 좋아요를 누른 글의 id 집합.
+ * 비로그인이거나 목록이 비면 DB 를 치지 않고 빈 집합을 돌려준다.
+ */
+export async function likedFeedIds(
+  viewerId: string | null | undefined,
+  feedIds: number[],
+): Promise<Set<number>> {
+  if (!viewerId || feedIds.length === 0) return new Set();
+  try {
+    const rows = await prisma.bookmark.findMany({
+      where: { userId: viewerId, feedId: { in: feedIds } },
+      select: { feedId: true },
+    });
+    return new Set(rows.map((r) => r.feedId).filter((id): id is number => id != null));
+  } catch (err) {
+    // 좋아요 표시가 안 되는 것보다 목록이 안 뜨는 게 더 나쁘다 — 조용히 비운다.
+    console.error('[likedFeedIds] query failed:', err);
+    return new Set();
+  }
+}
+
 export async function getFeedPage(opts: {
   cursor?: string | null;
   limit?: number;
@@ -222,13 +245,16 @@ export async function getFeedPage(opts: {
     });
     const hasMore = rows.length > limit;
     const slice = hasMore ? rows.slice(0, limit) : rows;
+    // 이 뷰어가 누른 좋아요 — 목록에 있는 글만 한 번에 조회한다(unique(userId,feedId) 인덱스).
+    // 이게 없으면 하트는 클릭 순간에만 켜지고 화면을 다시 열면 꺼진 채로 돌아온다.
+    const likedIds = await likedFeedIds(opts.viewerId, slice.map((r) => r.id));
     const items = slice.map((r) =>
       toFeedPost({
         ...r,
         // 레거시 row 에 컬럼이 없을 경우 안전한 기본값
         authorBgId: (r as unknown as { authorBgId?: string }).authorBgId ?? 'default',
         authorFrameId: (r as unknown as { authorFrameId?: string }).authorFrameId ?? 'none',
-      }),
+      }, likedIds.has(r.id)),
     );
     const nextCursor = hasMore ? slice[slice.length - 1].createdAt.toISOString() : null;
     return { items, nextCursor };
@@ -874,7 +900,8 @@ export async function getMyFavoritesWithPrices(
 }
 
 export async function getMyFeeds(userId: string, limit = 30): Promise<FeedPost[]> {
-  const { items } = await getFeedPage({ authorId: userId, limit });
+  // 작성자이자 뷰어다 — viewerId 를 넘겨야 내가 누른 좋아요가 켜진 채로 온다.
+  const { items } = await getFeedPage({ authorId: userId, limit, viewerId: userId });
   return items;
 }
 
@@ -929,7 +956,8 @@ export async function getMyBookmarks(
         });
       }
       if (b.feed) {
-        feeds.push(toFeedPost(b.feed));
+        // 이 목록에 있다는 것 자체가 내가 좋아요를 눌렀다는 뜻.
+        feeds.push(toFeedPost(b.feed, true));
       }
     }
     return { trades, feeds };

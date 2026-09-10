@@ -589,7 +589,7 @@ function PostRow({ post, P, clean, focused }: { post: FeedPost; P: Palette; clea
           <button type="button" onClick={toggle} aria-label="댓글" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700, color: P.ink3, background: 'none', border: 'none', cursor: 'pointer' }}>{Ic.chat(P.chev, 15)}댓글{post.commentCount ? ` ${post.commentCount}` : ''}</button>
           <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             {/* 좋아요 — 누르면 즉시 빨간 하트 + 숫자 반영(낙관), 서버 확인은 뒤에서. */}
-            <BookmarkButton feedId={post.id} count={post.likeCount ?? 0} />
+            <BookmarkButton feedId={post.id} count={post.likeCount ?? 0} initial={post.liked ?? false} />
           </span>
           {hasThumb && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12.5, fontWeight: 700, color: P.ink3 }}>📷 {images.length}</span>

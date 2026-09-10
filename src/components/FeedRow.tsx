@@ -165,7 +165,7 @@ export function FeedRow({ post }: { post: FeedPost }) {
         )}
       </div>
       <div className="fi-right" onClick={(e) => e.stopPropagation()}>
-        <BookmarkButton feedId={post.id} />
+        <BookmarkButton feedId={post.id} count={post.likeCount ?? 0} initial={post.liked ?? false} />
         {/* 사진 인디케이터 — 좋아요 아래, 아이콘 + 갯수(오른쪽) */}
         {hasImages && (
           <div

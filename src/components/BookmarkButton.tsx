@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface Props {
   tradeId?: number;
@@ -19,6 +19,13 @@ export function BookmarkButton({ tradeId, feedId, initial = false, count }: Prop
   const [liked, setLiked] = useState(initial);
   const [delta, setDelta] = useState(0);
   const pendingRef = useRef(false);
+
+  // 목록을 다시 받아 서버 값이 바뀌면 그 값으로 맞춘다(앱 BookmarkHeart 와 동일).
+  useEffect(() => {
+    if (pendingRef.current) return;
+    setLiked(initial);
+    setDelta(0);
+  }, [initial]);
 
   const toggle = async (e: React.MouseEvent) => {
     e.preventDefault();
