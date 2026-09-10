@@ -5,7 +5,7 @@
 /** 홈 하단 랭킹(SNKR 최고가·컬렉션 TOP) 행 — /api/snkrdunk/ranking 응답. 웹은 SnkrdunkRow 확장형으로 특수화. */
 export type RankingRow = { apparelId: number; shortName: string; localizedName?: string; imageUrl: string | null; minPrice: number; recentPrice?: number; basis?: string; holders?: number; qty?: number };
 export type RankingEntry<Row extends RankingRow = RankingRow> = { at: number; rows: Row[] };
-export const RANKING_TTL = 5 * 60_000;
+export const RANKING_TTL = 24 * 60 * 60_000;
 // Storage and transport are supplied by each platform. Failed requests never replace a good cache.
 export function createRankingCache<Row extends RankingRow = RankingRow>(
   read: (key: string) => RankingEntry<Row> | null,
@@ -13,7 +13,7 @@ export function createRankingCache<Row extends RankingRow = RankingRow>(
   fetchRows: (game: string, kind: string) => Promise<Row[]>,
 ) {
   const pending = new Map<string, Promise<Row[]>>();
-  const key = (game: string, kind: string) => `home:ranking:v2:${game}:${kind}`;
+  const key = (game: string, kind: string) => `home:ranking:v3:${game}:${kind}`;
   return {
     peek: (game: string, kind: string) => read(key(game, kind))?.rows,
     load(game: string, kind: string) {
