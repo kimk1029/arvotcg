@@ -226,13 +226,16 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
           alignItems: 'center',
           justifyContent: 'center',
           gap: 7,
-          padding: 13,
+          // 높이는 옆 정사각 버튼(48)과 같은 한 줄 높이로 고정 — 담긴 상태의 두 줄 텍스트는
+          // 글자를 줄여 그 안에 넣는다(예전엔 두 줄만큼 버튼이 커져 행 전체가 높아졌다).
+          height: 48,
+          padding: '0 10px',
           border: 'none',
           borderRadius: 'var(--r)',
           background: isCollected ? 'var(--grn)' : 'var(--ink)',
           color: 'var(--white)',
           fontFamily: 'var(--f1)',
-          fontSize: 13,
+          fontSize: isCollected ? 12 : 13,
           fontWeight: 800,
           letterSpacing: 0.3,
           cursor: 'pointer',
@@ -243,9 +246,9 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
         ) : (
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
         )}
-        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, lineHeight: 1.15 }}>
           <span style={{ whiteSpace: 'nowrap' }}>{isCollected ? '내 컬렉션에 담김' : '내 컬렉션에 추가'}</span>
-          {isCollected && <span style={{ display: 'block', fontSize: 10, fontWeight: 500, lineHeight: 1.2, whiteSpace: 'nowrap', opacity: 0.92 }}>＋ 카드 추가 등록</span>}
+          {isCollected && <span style={{ display: 'block', fontSize: 9.5, fontWeight: 600, lineHeight: 1.15, whiteSpace: 'nowrap', opacity: 0.92 }}>＋ 카드 추가 등록</span>}
         </span>
       </button>
 
@@ -258,7 +261,7 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
           aria-label="수익 인증"
           style={{
             flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-            padding: '13px 12px', border: '1.5px solid var(--blu)', borderRadius: 'var(--r)',
+            height: 48, padding: '0 12px', border: '1.5px solid var(--blu)', borderRadius: 'var(--r)',
             background: 'var(--white)', color: 'var(--blu)', fontFamily: 'var(--f1)', fontSize: 12.5,
             fontWeight: 800, cursor: flexBusy ? 'default' : 'pointer', whiteSpace: 'nowrap',
           }}

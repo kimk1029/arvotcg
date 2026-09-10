@@ -8,8 +8,11 @@
  * 외부 사이트에는 절대 토큰을 노출하지 않는다.
  */
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { ActivityIndicator, Platform, Share, Text, View } from 'react-native';
+import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import { File, Paths } from 'expo-file-system';
+import { requireOptionalNativeModule } from 'expo-modules-core';
+import { useToast } from '@/components/ToastProvider';
 import { EMBED_QUERY_KEY, EMBED_UA_TOKEN } from '@/lib/embed';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
@@ -24,8 +27,50 @@ const TRUSTED_HOSTS = new Set([
   'www.poke-30.com',
 ]);
 
+/** 웹 → 앱 메시지 (window.ReactNativeWebView.postMessage). 수익 인증 페이지가 PNG 를 넘긴다. */
+interface WebMessage {
+  type?: string;
+  dataUrl?: string;
+  fileName?: string;
+  title?: string;
+}
+
+/** data:image/png;base64,… → 캐시 파일. 반환은 file:// URI. */
+function writeDataUrlToCache(dataUrl: string, fileName: string): string {
+  const b64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  const bin = globalThis.atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const f = new File(Paths.cache, fileName.replace(/[^a-z0-9._-]/gi, '_') || 'flex.png');
+  if (f.exists) f.delete();
+  f.create();
+  f.write(bytes);
+  return f.uri;
+}
+
+/**
+ * 이미지 파일 공유 — expo-sharing(네이티브)이 있는 빌드면 공유 시트(카카오톡·인스타 등),
+ * 없는 구 빌드(OTA)는 iOS 는 RN Share 로 파일, Android 는 링크 텍스트로 폴백.
+ * 네이티브 모듈은 require 전에 존재부터 확인한다 — 최상위 require 가 던지면 앱이 죽는다
+ * ([[ota-native-module-crash]] 2026-09-11).
+ */
+async function shareImageFile(uri: string, title: string, fallbackUrl: string): Promise<void> {
+  if (requireOptionalNativeModule('ExpoSharing')) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Sharing = require('expo-sharing') as typeof import('expo-sharing');
+    await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: title, UTI: 'public.png' });
+    return;
+  }
+  if (Platform.OS === 'ios') {
+    await Share.share({ url: uri, title });
+    return;
+  }
+  await Share.share({ message: `${title}\n${fallbackUrl}`, title });
+}
+
 export default function InAppWebScreen() {
   const tc = useThemeColors();
+  const toast = useToast();
   const { url, title } = useLocalSearchParams<{ url?: string; title?: string }>();
   const [loading, setLoading] = useState(true);
   // 플로팅 탭바가 WebView 위에 떠서 페이지 하단 버튼이 가려지지 않도록 바 높이만큼 비운다.
@@ -76,6 +121,24 @@ export default function InAppWebScreen() {
         // 웹이 앱 임베드로 인식해 하단 탭바를 숨기도록 UA 토큰 부착(정본 shared/embed.ts).
         applicationNameForUserAgent={EMBED_UA_TOKEN}
         onLoadEnd={() => setLoading(false)}
+        // 수익 인증 '이미지로 공유' — 웹이 포스터 PNG 를 넘기면 파일로 저장해 공유 시트를 띄운다.
+        onMessage={(e: WebViewMessageEvent) => {
+          let msg: WebMessage | null = null;
+          try {
+            msg = JSON.parse(e.nativeEvent.data) as WebMessage;
+          } catch {
+            return;
+          }
+          if (msg?.type !== 'flex-share-image' || !msg.dataUrl) return;
+          (async () => {
+            try {
+              const uri = writeDataUrlToCache(msg!.dataUrl!, msg!.fileName ?? 'arvotcg-flex.png');
+              await shareImageFile(uri, msg!.title ?? '수익 인증', finalUrl);
+            } catch {
+              toast.error('이미지를 공유하지 못했어요');
+            }
+          })();
+        }}
         style={{ flex: 1, marginBottom: floatNavInset }}
         originWhitelist={['https://*', 'http://*']}
       />
