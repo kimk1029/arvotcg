@@ -9,6 +9,8 @@
 
 export interface GroupableCard {
   id: number;
+  /** 사용자가 직접 묶은 묶음 id — 있으면 상품·등급과 무관하게 같은 묶음끼리 한 줄. */
+  bundleId?: string | null;
   snkrdunkApparelId?: number | null;
   cardId?: string | null;
   graded?: boolean | null;
@@ -44,8 +46,9 @@ export interface CardGroup<R> {
   profitAbsJpy: number | null;
 }
 
-/** 같은 카드·같은 등급이면 같은 키. 상품 식별자가 없으면 자기 자신(묶이지 않음). */
+/** 같은 카드·같은 등급이면 같은 키. 사용자 묶음(bundleId)이 있으면 그 키가 우선. 상품 식별자가 없으면 자기 자신(묶이지 않음). */
 export function duplicateGroupKey(c: GroupableCard): string {
+  if (c.bundleId) return `b${c.bundleId}`;
   const id =
     c.snkrdunkApparelId != null ? `a${c.snkrdunkApparelId}` : c.cardId ? `c${c.cardId}` : `u${c.id}`;
   const grade = c.graded ? `${(c.gradeCompany ?? 'PSA').toUpperCase()} ${c.gradeValue ?? ''}`.trim() : 'RAW';

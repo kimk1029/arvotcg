@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, View, Pressable, TextInput, Text } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { router, useLocalSearchParams } from 'expo-router';
+import { AdBanner } from '@/components/AdBanner';
 import { AppBar } from '@/components/AppBar';
 import { PixelText } from '@/components/PixelText';
 import { PixelBall } from '@/components/PixelBall';
@@ -766,7 +767,13 @@ function ScanScreenInner() {
               </Svg>
             </Pressable>
 
-            {!manSearched && !manSearching ? <ManualCardGuide P={MP} clean={mclean} /> : null}
+            {!manSearched && !manSearching ? (
+              <>
+                <ManualCardGuide P={MP} clean={mclean} />
+                {/* 광고 — 설명용 샘플 이미지 아래. 검색 결과가 뜨면 사라진다. */}
+                <AdBanner marginHorizontal={0} marginTop={14} marginBottom={0} />
+              </>
+            ) : null}
 
             {/* ── 검색 결과 — 필터 칩(드롭다운 메뉴) → 결과 수+정렬 → 라디오 행 리스트 ── */}
             {manSearched ? (

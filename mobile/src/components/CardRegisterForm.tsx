@@ -21,8 +21,10 @@ import {
   type PriceCurrency,
 } from '@/data/cardvault';
 import { addCards } from '@/lib/collection';
-import { createMyCard } from '@/lib/myApi';
+import { createMyCard, updateMyCard, type CreateMyCardInput, type MyCardRow } from '@/lib/myApi';
 import { usePriceMode } from '@/lib/priceMode';
+import { DatePickerField } from '@/components/cv/DatePickerField';
+import { useToast } from '@/components/ToastProvider';
 
 /** 오늘을 YYYY-MM-DD 로. */
 function todayStr(): string {
@@ -106,16 +108,35 @@ export function MCatBtn({ P, active, onPress, label, compact }: { P: ManualPalet
   );
 }
 
+/** 수정 모드 초기값 — 기존 등록 행(MyCardRow)에서 뽑는다 (웹 CardRegisterSheet initial 페어). */
+export interface RegisterInitial {
+  selfPulled?: boolean;
+  buyPrice?: string;
+  buyCurrency?: PriceCurrency;
+  buyDate?: string;
+  qty?: number;
+  region?: 'jp' | 'kr' | 'en';
+  graded?: boolean;
+  gradeCompany?: string;
+  gradeValue?: string;
+  memo?: string;
+}
+
 export function CardRegisterForm({
   card,
   onSaved,
   hideCta = false,
   submitRef,
   onBusyChange,
+  editId,
+  initial,
 }: {
   card: CardItem;
-  /** 저장 완료 — 구매정보가 반영된 카드 전달 (호출측에서 결과 화면/닫기 처리). */
-  onSaved: (saved: CardItem) => void;
+  /** 저장 완료 — 구매정보가 반영된 카드 전달 (호출측에서 결과 화면/닫기 처리). 수정 모드면 서버 갱신 행도 함께. */
+  onSaved: (saved: CardItem, updated?: MyCardRow) => void;
+  /** 수정 모드 — 이 id 의 등록 정보를 PATCH 한다(카드 자체는 그대로). initial 로 입력값을 채운다. */
+  editId?: number | null;
+  initial?: RegisterInitial | null;
   /**
    * 폼 안의 등록 버튼을 숨긴다 — '내 카드 등록' 화면처럼 화면 하단 고정 바가
    * 등록을 대신 눌러줄 때. 그 경우 submitRef 로 저장 함수를 넘겨받는다.
@@ -128,19 +149,21 @@ export function CardRegisterForm({
 }) {
   const MP = useManualPalette();
   const { mode: priceMode } = usePriceMode();
+  const toast = useToast();
 
-  const [buyYm, setBuyYm] = useState(todayStr());
-  const [region, setRegion] = useState<'jp' | 'kr' | 'en'>('jp');
-  const [memo, setMemo] = useState('');
-  const [buyPriceStr, setBuyPriceStr] = useState('');
+  const editing = editId != null;
+  const [buyYm, setBuyYm] = useState(initial?.buyDate ?? todayStr());
+  const [region, setRegion] = useState<'jp' | 'kr' | 'en'>(initial?.region ?? 'jp');
+  const [memo, setMemo] = useState(initial?.memo ?? '');
+  const [buyPriceStr, setBuyPriceStr] = useState(initial?.buyPrice ?? '');
   // 시세가 JPY 인 카드는 구매가도 JPY 로 입력할 확률이 높다 → 기본 통화 맞춤.
-  const [buyCur, setBuyCur] = useState<PriceCurrency>(() => inferCardCurrency(card));
-  const [buyQty, setBuyQty] = useState(1);
-  const [selfPulled, setSelfPulled] = useState(false);
+  const [buyCur, setBuyCur] = useState<PriceCurrency>(() => initial?.buyCurrency ?? inferCardCurrency(card));
+  const [buyQty, setBuyQty] = useState(initial?.qty ?? 1);
+  const [selfPulled, setSelfPulled] = useState(initial?.selfPulled ?? false);
   // 스캔 센터링 추정이 있으면 등급 토글 기본 ON (웹 CardRegisterSheet 동일).
-  const [graded, setGraded] = useState(card.grade != null || !!card.gradeEstimate);
-  const [gradeCompany, setGradeCompany] = useState('PSA');
-  const [gradeValue, setGradeValue] = useState(card.grade != null ? String(card.grade) : '');
+  const [graded, setGraded] = useState(initial?.graded ?? (card.grade != null || !!card.gradeEstimate));
+  const [gradeCompany, setGradeCompany] = useState(initial?.gradeCompany ?? 'PSA');
+  const [gradeValue, setGradeValue] = useState(initial?.gradeValue ?? (card.grade != null ? String(card.grade) : ''));
   const [saving, setSaving] = useState(false);
 
   /** 구매정보를 카드에 반영해 로컬+서버 저장. */
@@ -178,11 +201,8 @@ export function CardRegisterForm({
             buyDate: buyYm || undefined,
           };
     }
-    // 로컬 캐시(홈 등 로컬 기반 화면용) + 서버 DB 양쪽에 저장.
-    // 서버 저장을 기다린 뒤 onSaved — 안 기다리면 내 카드 화면이 SWR 무효화보다 먼저
-    // 포커스돼 낡은 캐시(TTL 내)를 그대로 그려 총액에 새 카드가 합산되지 않는다.
-    addCards([saved]);
-    await createMyCard({
+    // 서버 payload — 등록(POST)·수정(PATCH) 동일 규칙.
+    const payload: CreateMyCardInput = {
       snkrdunkApparelId: saved.snkrdunkApparelId ?? null,
       ocrSetCode: saved.set && saved.set !== '-' ? saved.set : null,
       ocrCardNumber: saved.num && saved.num !== '-' ? saved.num.split('/')[0] : null,
@@ -200,7 +220,25 @@ export function CardRegisterForm({
       gradeValue: saved.gradeValue ?? null,
       gradeEstimate: saved.gradeEstimate ?? null,
       centeringScore: saved.centeringScore ?? null,
-    }).catch((e) => {
+    };
+    if (editing) {
+      // 수정 — 서버 행만 갱신(로컬 컬렉션엔 추가하지 않는다). 실패는 호출측 토스트 대신 여기서 경고.
+      try {
+        const r = await updateMyCard(editId as number, payload);
+        setSaving(false);
+        onSaved(saved, r.data);
+      } catch (e) {
+        console.warn('[CardRegisterForm] updateMyCard 실패:', (e as Error)?.message ?? e);
+        toast.error('수정에 실패했어요. 잠시 후 다시 시도해 주세요');
+        setSaving(false);
+      }
+      return;
+    }
+    // 로컬 캐시(홈 등 로컬 기반 화면용) + 서버 DB 양쪽에 저장.
+    // 서버 저장을 기다린 뒤 onSaved — 안 기다리면 내 카드 화면이 SWR 무효화보다 먼저
+    // 포커스돼 낡은 캐시(TTL 내)를 그대로 그려 총액에 새 카드가 합산되지 않는다.
+    addCards([saved]);
+    await createMyCard(payload).catch((e) => {
       console.warn('[CardRegisterForm] createMyCard 실패:', (e as Error)?.message ?? e);
     });
     setSaving(false);
@@ -282,15 +320,8 @@ export function CardRegisterForm({
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <View style={{ flex: 1 }}>
           <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ marginBottom: 6, paddingLeft: 2 }}>구입 날짜</PixelText>
-          <View style={{ backgroundColor: MP.pageBg, borderWidth: 1.5, borderColor: MP.fieldBd, borderRadius: 12, paddingHorizontal: 12 }}>
-            <TextInput
-              value={buyYm}
-              onChangeText={setBuyYm}
-              placeholder="2026-08-04"
-              placeholderTextColor={MP.ink3}
-              style={{ paddingVertical: 12, fontSize: 13, fontWeight: '700', color: MP.ink, padding: 0 }}
-            />
-          </View>
+          {/* 달력 선택기 — 직접 타이핑 대신 탭해서 고른다 (웹 <input type="date"> 페어). */}
+          <DatePickerField value={buyYm} onChange={setBuyYm} P={MP} />
         </View>
         <View style={{ flex: 1 }}>
           <PixelText variant="ko" size={11} weight="bold" color={MP.ink2} style={{ marginBottom: 6, paddingLeft: 2 }}>수량</PixelText>
@@ -392,7 +423,7 @@ export function CardRegisterForm({
           marginTop: 2,
         }}
       >
-        <PixelText variant="ko" size={14} weight="bold" color="#ffffff">{saving ? '저장 중...' : '＋ 컬렉션에 등록'}</PixelText>
+        <PixelText variant="ko" size={14} weight="bold" color="#ffffff">{saving ? '저장 중...' : editing ? '수정 저장' : '＋ 컬렉션에 등록'}</PixelText>
       </Pressable>
       )}
     </View>

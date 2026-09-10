@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { ScrollView, View, Pressable, Text, TextInput, Animated, Easing, Image, LayoutAnimation, Modal, Platform, RefreshControl, UIManager } from 'react-native';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { router, useLocalSearchParams } from 'expo-router';
+import { AdBanner } from '@/components/AdBanner';
 import { useTheme, useThemeColors } from '@/components/ThemeProvider';
 import { isFlatTheme } from '@/lib/theme';
 import { PixelFrame } from '@/components/cv/PixelFrame';
@@ -750,9 +751,11 @@ export default function CommunityScreen() {
                   ts={ts}
                 />
               ) : (
-                visiblePosts.map((p) => (
+                visiblePosts.map((p, i) => (
                   <View key={p.id} ref={(v) => { rowRefs.current[p.id] = v; }} collapsable={false}>
                     <PostRow post={p} P={P} ts={ts} tagStyle={tagStyle} onBlocked={removeBlockedUser} onDeleted={removePost} focused={focusId === p.id} />
+                    {/* 광고 — 글 3개 뒤, 글 사이에 한 번. 목록 맨 위는 오터치 위험. */}
+                    {i === 2 ? <AdBanner marginHorizontal={16} marginTop={4} marginBottom={4} /> : null}
                   </View>
                 ))
               )}
