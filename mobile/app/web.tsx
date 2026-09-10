@@ -15,6 +15,7 @@ import { requireOptionalNativeModule } from 'expo-modules-core';
 import { useToast } from '@/components/ToastProvider';
 import { EMBED_QUERY_KEY, EMBED_UA_TOKEN } from '@/lib/embed';
 import { KAKAO_APP_SCHEMES, intentToScheme } from '../../shared/kakao';
+import { isStoreUrl } from '../../shared/reviewPrompt';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { useThemeColors } from '@/components/ThemeProvider';
@@ -126,6 +127,11 @@ export default function InAppWebScreen() {
         // 카카오톡이 없으면 스토어로. (정본 shared/kakao.ts)
         onShouldStartLoadWithRequest={(req) => {
           const u = req.url ?? '';
+          // 스토어 주소(리뷰 쓰러가기)는 스토어 앱으로.
+          if (isStoreUrl(u)) {
+            Linking.openURL(u).catch(() => undefined);
+            return false;
+          }
           const isKakao = u.startsWith('intent://') || KAKAO_APP_SCHEMES.some((s) => u.startsWith(s));
           if (!isKakao) return true;
           const { url: schemeUrl, package: pkg } = intentToScheme(u);

@@ -5,7 +5,7 @@
  * 제목·경로·문구는 shared/eventPages.ts 설정에서 온다.
  */
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { router } from 'expo-router';
 import { EMBED_QUERY_KEY, EMBED_UA_TOKEN } from '@/lib/embed';
@@ -15,6 +15,7 @@ import { useThemeColors } from '@/components/ThemeProvider';
 import { useFloatNavInset } from '@/components/NavPrefsProvider';
 import { WEB_OAUTH_ORIGIN } from '@/lib/oauth';
 import { getSession, isAuthenticated } from '@/lib/session';
+import { isStoreUrl } from '../../../shared/reviewPrompt';
 
 /** 웹 페이지 배경과 같은 색 — 로딩 중/여백에서 흰 번쩍임이 없도록. */
 const CHROME_BG: Record<EventKey, string> = { cardshow: '#0F172A', tradeday: '#0B1024' };
@@ -57,6 +58,12 @@ export function EventWebView({ eventKey }: { eventKey: EventKey }) {
         // 웹이 앱 임베드로 인식해 하단 탭바를 숨기도록 UA 토큰 부착(정본 shared/embed.ts).
         applicationNameForUserAgent={EMBED_UA_TOKEN}
         onLoadEnd={() => setLoading(false)}
+        // '리뷰 쓰러가기' 스토어 링크는 WebView 안에서 열지 않고 스토어 앱으로 넘긴다(정본 shared/reviewPrompt).
+        onShouldStartLoadWithRequest={(req) => {
+          if (!isStoreUrl(req.url ?? '')) return true;
+          Linking.openURL(req.url).catch(() => undefined);
+          return false;
+        }}
         style={{ flex: 1, backgroundColor: bg, marginBottom: floatNavInset }}
         originWhitelist={['https://*', 'http://*']}
       />
