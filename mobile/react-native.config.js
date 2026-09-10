@@ -11,9 +11,13 @@
  * EAS/스토어 빌드는 이 env 가 없으므로 영향 없다. 실기기 스캔 테스트는 env 없이 pod install.
  */
 const noMlkit = process.env.SIM_NO_MLKIT === '1';
+// OTA 재현용 — 광고 SDK 가 없는 구 스토어 바이너리(1.1.3·1.1.4·1.1.5 vc28 이하)와 같은
+// 네이티브 구성으로 로컬 빌드한다: NO_ADS=1 ./gradlew assembleRelease (EAS 빌드엔 이 env 없음).
+const noAds = process.env.NO_ADS === '1';
 
 module.exports = {
-  dependencies: noMlkit
-    ? { '@react-native-ml-kit/text-recognition': { platforms: { ios: null } } }
-    : {},
+  dependencies: {
+    ...(noMlkit ? { '@react-native-ml-kit/text-recognition': { platforms: { ios: null } } } : {}),
+    ...(noAds ? { 'react-native-google-mobile-ads': { platforms: { android: null, ios: null } } } : {}),
+  },
 };
