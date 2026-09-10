@@ -8,12 +8,13 @@
  * 외부 사이트에는 절대 토큰을 노출하지 않는다.
  */
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Platform, Share, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Share, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { File, Paths } from 'expo-file-system';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { useToast } from '@/components/ToastProvider';
 import { EMBED_QUERY_KEY, EMBED_UA_TOKEN } from '@/lib/embed';
+import { KAKAO_APP_SCHEMES, intentToScheme } from '../../shared/kakao';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppBar } from '@/components/AppBar';
 import { useThemeColors } from '@/components/ThemeProvider';
@@ -121,6 +122,21 @@ export default function InAppWebScreen() {
         // 웹이 앱 임베드로 인식해 하단 탭바를 숨기도록 UA 토큰 부착(정본 shared/embed.ts).
         applicationNameForUserAgent={EMBED_UA_TOKEN}
         onLoadEnd={() => setLoading(false)}
+        // 카카오톡 공유 — 웹 SDK 가 여는 kakaolink:// / intent:// 는 WebView 가 못 열므로 OS 로 넘긴다.
+        // 카카오톡이 없으면 스토어로. (정본 shared/kakao.ts)
+        onShouldStartLoadWithRequest={(req) => {
+          const u = req.url ?? '';
+          const isKakao = u.startsWith('intent://') || KAKAO_APP_SCHEMES.some((s) => u.startsWith(s));
+          if (!isKakao) return true;
+          const { url: schemeUrl, package: pkg } = intentToScheme(u);
+          Linking.openURL(schemeUrl).catch(() => {
+            const store = Platform.OS === 'android'
+              ? `market://details?id=${pkg ?? 'com.kakao.talk'}`
+              : 'https://apps.apple.com/kr/app/id362057947';
+            Linking.openURL(store).catch(() => toast.error('카카오톡을 열지 못했어요'));
+          });
+          return false;
+        }}
         // 수익 인증 '이미지로 공유' — 웹이 포스터 PNG 를 넘기면 파일로 저장해 공유 시트를 띄운다.
         onMessage={(e: WebViewMessageEvent) => {
           let msg: WebMessage | null = null;
