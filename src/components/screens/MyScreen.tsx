@@ -10,7 +10,7 @@ import { StatusBar } from '@/components/ui/StatusBar';
 import { useUnread } from '@/components/UnreadProvider';
 import { signOut } from '@/lib/session';
 import { peekCollectionCards } from '@/lib/collectionCache';
-import { collectionTotals, type TotalsCard } from '../../../shared/collectionTotals';
+import { collectionTotals, displayTotalJpy, type TotalsCard } from '../../../shared/collectionTotals';
 import type { LevelInfo } from '@/lib/level';
 
 /**
@@ -148,13 +148,19 @@ export function MyScreen({ user, level, points = 0, cardCount, tradeCount, saved
         if (!r.ok || !alive) return;
         const j = (await r.json()) as { data?: { totalJpy: number; profitPct?: number | null; totalCount: number; history: Array<{ totalJpy: number }> } };
         const d = j.data;
-        if (!d || d.totalCount === 0) return;
-        if (!alive) return;
+        if (!d || !alive) return;
         const cached = peekCollectionCards<TotalsCard>();
-        const local = cached && cached.length > 0 ? collectionTotals(cached, rate) : null;
+        const local = cached ? collectionTotals(cached, rate) : null;
+        // 보유 카드가 없으면 ¥0·수익률 없음으로 확정해 그린다 — 예전엔 여기서 return 해
+        // '계산 중…' 이 남거나 컬렉션 캐시의 옛 총액이 그대로 보였다.
+        const empty = d.totalCount === 0 || cached?.length === 0;
         setPf({
-          totalJpy: local && local.totalJpy > 0 ? local.totalJpy : d.totalJpy,
-          profitPct: local?.profitPct ?? d.profitPct ?? null,
+          totalJpy: displayTotalJpy({
+            localCount: cached ? cached.length : null,
+            localTotalJpy: local?.totalJpy ?? 0,
+            serverTotalJpy: d.totalCount === 0 ? 0 : d.totalJpy,
+          }),
+          profitPct: empty ? null : local?.profitPct ?? d.profitPct ?? null,
           history: (d.history ?? []).map((h) => h.totalJpy),
         });
       } catch {

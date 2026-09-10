@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { snkrdunkApparelUrl } from '@/lib/snkrdunk';
 import { useToast } from '@/components/ToastProvider';
 import { CardRegisterSheet } from '@/components/cards/CardRegisterSheet';
+import { invalidateCollectionCaches } from '@/lib/collectionCache';
 
 interface Props {
   apparelId: number;
@@ -102,6 +103,9 @@ export function CardActions({ apparelId, cardName, imageUrl, currentPriceJpy, gr
         const d = await fetch(`/api/me/cards/${r.id}`, { method: 'DELETE', credentials: 'include' });
         if (!d.ok) throw new Error(`HTTP ${d.status}`);
       }
+      // 컬렉션 세션 캐시를 비운다 — 남겨두면 내 컬렉션 재진입 시 삭제 전 목록·총액이 그려진다
+      // (앱은 deleteMyCard 의 swrInvalidate 가 같은 역할).
+      invalidateCollectionCaches();
       setIsCollected(false);
       toast.success('내 컬렉션에서 제거되었습니다');
     } catch {

@@ -16,6 +16,7 @@ import { useSWR } from '@/lib/swr';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { useCollection } from '@/lib/collection';
 import { cardJpy } from '@/data/cardvault';
+import { displayTotalJpy } from '../../../shared/collectionTotals';
 import {
   fetchMyCards,
   fetchPortfolio,
@@ -124,7 +125,13 @@ export function PortfolioHero({
   const ownedAll = useCollection();
   const owned = ownedAll.filter((c) => !c.favorite);
   const localTotalJpy = owned.reduce((a, c) => a + cardJpy(c, 'single', rate), 0);
-  const totalJpy = totalJpyProp && totalJpyProp > 0 ? totalJpyProp : port ? port.totalJpy : localTotalJpy;
+  // 부모(내 자산 화면)가 합산한 값이 정본 — 0(카드를 전부 삭제)도 진실이므로
+  // 서버/캐시의 삭제 전 총액으로 되돌아가지 않는다. 부모가 안 넘기면(홈) 서버 값.
+  const totalJpy = displayTotalJpy({
+    localCount: totalCountProp ?? null,
+    localTotalJpy: totalJpyProp ?? 0,
+    serverTotalJpy: port ? port.totalJpy : localTotalJpy,
+  });
   const totalCount = totalCountProp != null ? totalCountProp : port ? port.totalCount : owned.length;
 
   // 누적 수익률 — 보유 카드 전체의 (현재가-기준가)×수량 합산 / 구매금액 합산.

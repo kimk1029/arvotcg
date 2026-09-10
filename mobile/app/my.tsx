@@ -17,7 +17,7 @@ import {
   SWR_PORTFOLIO, type MySummary, type PortfolioSummary,
 } from '@/lib/myApi';
 import { useSWR } from '@/lib/swr';
-import { collectionTotals } from '../../shared/collectionTotals';
+import { collectionTotals, displayTotalJpy } from '../../shared/collectionTotals';
 import { isAuthenticated, setSession, subscribeSession } from '@/lib/session';
 
 /* 프로토타입 고정 팔레트 — 테마 무관 (홈 CleanHomeScreen·커뮤니티 feed.tsx 와 동일 접근) */
@@ -179,11 +179,17 @@ export default function MyScreen() {
   // 마이페이지 진입마다 서버 DB 커넥션 풀이 고갈됐다(2026-09-10 로그인 실패 사고).
   const myCards = peekMyCards();
   const pfLocal = useMemo(
-    () => (myCards && myCards.length > 0 ? collectionTotals(myCards, rate) : null),
+    () => (myCards ? collectionTotals(myCards, rate) : null),
     [myCards, rate],
   );
-  const pfTotalJpy = pfLocal && pfLocal.totalJpy > 0 ? pfLocal.totalJpy : pf?.totalJpy ?? 0;
-  const pfProfitPct = pfLocal?.profitPct ?? pf?.profitPct ?? null;
+  // 캐시된 목록이 비면 ¥0 이 정답 — 서버 캐시의 삭제 전 총액으로 돌아가지 않는다.
+  const pfTotalJpy = displayTotalJpy({
+    localCount: myCards ? myCards.length : null,
+    localTotalJpy: pfLocal?.totalJpy ?? 0,
+    serverTotalJpy: pf && pf.totalCount === 0 ? 0 : pf?.totalJpy ?? 0,
+  });
+  const pfEmpty = myCards?.length === 0 || pf?.totalCount === 0;
+  const pfProfitPct = pfEmpty ? null : pfLocal?.profitPct ?? pf?.profitPct ?? null;
 
   // 이름 편집 — 웹 EditableName 대응(PATCH /api/me/name).
   const [editOpen, setEditOpen] = useState(false);

@@ -3,7 +3,7 @@
 import { loadCollectionDelta } from '../../../shared/collectionDelta';
 
 import Link from 'next/link';
-import { COLLECTION_CACHE_KEY } from '@/lib/collectionCache';
+import { COLLECTION_CACHE_KEY, HOME_PORT_CACHE_KEY } from '@/lib/collectionCache';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { CardThumb } from '@/components/CardThumb';
@@ -17,7 +17,7 @@ import { FavoritesPanel } from '@/components/screens/FavoritesPanel';
 import { useToast } from '@/components/ToastProvider';
 import { groupDuplicates, type CardGroup } from '../../../shared/collectionGroup';
 import { evaluationUnitJpy } from '../../../shared/snkrdunkPrice';
-import { collectionTotals } from '../../../shared/collectionTotals';
+import { collectionTotals, displayTotalJpy } from '../../../shared/collectionTotals';
 
 interface HistPoint {
   date: string;
@@ -356,26 +356,40 @@ export function CollectionScreen() {
   const handleRemove = useCallback(async (id: number) => {
     if (typeof window !== 'undefined' && !window.confirm('이 카드를 컬렉션에서 제거할까요?')) return;
     let removed: CardRow | null = null;
+    let rest: CardRow[] = [];
     setCards((prev) => {
       if (!prev) return prev;
       removed = prev.find((c) => c.id === id) ?? null;
-      return prev.filter((c) => c.id !== id);
+      rest = prev.filter((c) => c.id !== id);
+      return rest;
     });
     try {
       const res = await fetch(`/api/me/cards/${id}`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) throw new Error(`status ${res.status}`);
       // 캐시도 남은 목록으로 갱신 — 비우면 재진입 때 전체 재조회로 화면이 깜빡인다.
-      setCards((prev) => {
-        if (prev && port) saveCollectionCache(port, prev);
-        return prev;
-      });
+      // port(서버 요약)도 남은 목록에 맞춰 둔다 — 그대로 두면 재진입 시 삭제 전 총액이
+      // 시드로 먼저 그려진다(마지막 한 장을 지워도 옛 금액이 남던 원인).
+      if (port) {
+        const t = collectionTotals(rest, rate);
+        const nextPort: PortfolioData = {
+          ...port,
+          totalJpy: t.totalJpy,
+          totalPsa10Jpy: rest.length === 0 ? 0 : port.totalPsa10Jpy,
+          totalCount: rest.length,
+          pricedCount: Math.min(port.pricedCount, rest.length),
+        };
+        setPort(nextPort);
+        saveCollectionCache(nextPort, rest);
+      }
+      // 홈 헤더 등락 인디케이터도 옛 총액 기준 — 다음 진입 때 다시 계산되게 비운다.
+      try { sessionStorage.removeItem(HOME_PORT_CACHE_KEY); } catch {}
       toast.success('카드가 컬렉션에서 삭제되었습니다');
     } catch {
       // 실패 — 뺐던 카드를 되돌린다.
       setCards((prev) => (prev && removed ? [removed, ...prev] : prev));
       toast.error('삭제에 실패했어요. 잠시 후 다시 시도해 주세요');
     }
-  }, [toast, port]);
+  }, [toast, rate, port]);
 
   if (tab === 'favorites')
     return (
@@ -404,7 +418,8 @@ export function CollectionScreen() {
         <Msg>불러오는 중…</Msg>
       </>
     );
-  if (port.totalCount === 0)
+  // 목록이 비면(전부 삭제) 빈 상태 — port 는 삭제 후 재조회 전이라 옛 totalCount 를 들고 있다.
+  if (port.totalCount === 0 || cards.length === 0)
     return (
       <>
         <CollectionHeader tab={tab} setTab={setTab} />
@@ -418,12 +433,13 @@ export function CollectionScreen() {
       </>
     );
 
-  const totalJpy =
-    usePsa10 && port.totalPsa10Jpy > 0
-      ? port.totalPsa10Jpy
-      : localTotalJpy > 0
-        ? localTotalJpy
-        : port.totalJpy;
+  const totalJpy = displayTotalJpy({
+    localCount: visibleRows.length,
+    localTotalJpy,
+    serverTotalJpy: port.totalJpy,
+    serverPsa10Jpy: port.totalPsa10Jpy,
+    usePsa10,
+  });
   // 누적 수익률 — 보유 카드 전체의 (현재가-기준가)×수량 합산 / 구매금액 합산.
   // 카드별 손익(-100만/+50만)을 상쇄한 평균 수익률 (앱 PortfolioHero 동일).
   const up = totals.profit >= 0;

@@ -16,7 +16,7 @@ import {
   upsideFromCards,
 } from '@/components/portfolio/PortfolioExtras';
 import { additionIndexMap, additionLabel, type VizAcquisition, type VizAddition } from '../../../shared/portfolioViz';
-import { collectionTotals } from '../../../shared/collectionTotals';
+import { collectionTotals, displayTotalJpy } from '../../../shared/collectionTotals';
 import type { MarketIndexResponse, MarketIndexSeries } from '../../../shared/marketIndex';
 import type { VizCard } from '../../../shared/portfolioViz';
 
@@ -286,7 +286,8 @@ export function PortfolioScreen() {
       </div>
     );
   if (!port || !cards) return <div className="cv-pf-board cv-pf-msg">불러오는 중…</div>;
-  if (port.totalCount === 0)
+  // 목록이 비면(전부 삭제) 빈 상태 — port 는 재조회 전이라 옛 totalCount 를 들고 있을 수 있다.
+  if (port.totalCount === 0 || cards.length === 0)
     return (
       <div className="cv-pf-board">
       <div className="cv-pf-msg">
@@ -300,12 +301,13 @@ export function PortfolioScreen() {
       </div>
     );
 
-  const totalJpy =
-    usePsa10 && port.totalPsa10Jpy > 0
-      ? port.totalPsa10Jpy
-      : totalsAll.totalJpy > 0
-        ? totalsAll.totalJpy
-        : port.totalJpy;
+  const totalJpy = displayTotalJpy({
+    localCount: cards.length,
+    localTotalJpy: totalsAll.totalJpy,
+    serverTotalJpy: port.totalJpy,
+    serverPsa10Jpy: port.totalPsa10Jpy,
+    usePsa10,
+  });
   const up = (totals.pct ?? 0) >= 0;
   const gradedCount = cards.filter((c) => c.graded).length;
   const pullCount = cards.filter((c) => c.selfPulled).length;

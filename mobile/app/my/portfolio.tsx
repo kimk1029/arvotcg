@@ -24,7 +24,7 @@ import {
   upsideFromCards,
 } from '@/components/portfolio/PortfolioExtras';
 import { additionIndexMap, additionLabel, type VizAcquisition, type VizAddition } from '../../../shared/portfolioViz';
-import { collectionTotals } from '../../../shared/collectionTotals';
+import { collectionTotals, displayTotalJpy } from '../../../shared/collectionTotals';
 import { fetchMarketIndexes, type MarketIndexSeries } from '@/lib/myApi';
 import type { VizCard } from '../../../shared/portfolioViz';
 import { shotSource } from '@/lib/shotMode';
@@ -214,7 +214,7 @@ export default function PortfolioPage() {
         </ScrollView>
       ) : !port || !cards ? (
         <LoadingState />
-      ) : port.totalCount === 0 ? (
+      ) : port.totalCount === 0 || cards.length === 0 ? (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 120, gap: 16 }}>
           <View style={{ padding: 30, alignItems: 'center', gap: 12 }}>
             <PixelText variant={txt} size={13} color={flat ? W60 : tc.ink3}>아직 보유 카드가 없어요</PixelText>
@@ -229,12 +229,13 @@ export default function PortfolioPage() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 120, gap: 16 }}>
           {/* 평가액 헤더 */}
           {(() => {
-            const totalJpy =
-              usePsa10 && (port.totalPsa10Jpy ?? 0) > 0
-                ? (port.totalPsa10Jpy as number)
-                : totalsAll.totalJpy > 0
-                  ? totalsAll.totalJpy
-                  : port.totalJpy;
+            const totalJpy = displayTotalJpy({
+              localCount: cards.length,
+              localTotalJpy: totalsAll.totalJpy,
+              serverTotalJpy: port.totalJpy,
+              serverPsa10Jpy: port.totalPsa10Jpy,
+              usePsa10,
+            });
             // 등락은 '누적 수익률' — 등록가 대비 오늘 시세(전 카드 합산). 웹 PortfolioScreen 동일.
             const up = (totals.pct ?? 0) >= 0;
             return (
@@ -269,12 +270,13 @@ export default function PortfolioPage() {
 
           {/* KPI 그리드 6종 — 다크 셀 */}
           {(() => {
-            const totalJpy =
-              usePsa10 && (port.totalPsa10Jpy ?? 0) > 0
-                ? (port.totalPsa10Jpy as number)
-                : totalsAll.totalJpy > 0
-                  ? totalsAll.totalJpy
-                  : port.totalJpy;
+            const totalJpy = displayTotalJpy({
+              localCount: cards.length,
+              localTotalJpy: totalsAll.totalJpy,
+              serverTotalJpy: port.totalJpy,
+              serverPsa10Jpy: port.totalPsa10Jpy,
+              usePsa10,
+            });
             const gradedCount = cards.filter((c) => c.graded).length;
             return (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -445,12 +447,13 @@ export default function PortfolioPage() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 40, gap: 14 }}>
           {/* 평가액 헤더 */}
           {(() => {
-            const totalJpy =
-              usePsa10 && (port.totalPsa10Jpy ?? 0) > 0
-                ? (port.totalPsa10Jpy as number)
-                : totalsAll.totalJpy > 0
-                  ? totalsAll.totalJpy
-                  : port.totalJpy;
+            const totalJpy = displayTotalJpy({
+              localCount: cards.length,
+              localTotalJpy: totalsAll.totalJpy,
+              serverTotalJpy: port.totalJpy,
+              serverPsa10Jpy: port.totalPsa10Jpy,
+              usePsa10,
+            });
             const up = (totals.pct ?? 0) >= 0;
             return (
               <PixelFrame bg={tc.ink} borderWidth={3} shadow={6}>
@@ -493,12 +496,13 @@ export default function PortfolioPage() {
 
           {/* KPI 인포그래픽 그리드 — 웹 동일 6종 */}
           {(() => {
-            const totalJpy =
-              usePsa10 && (port.totalPsa10Jpy ?? 0) > 0
-                ? (port.totalPsa10Jpy as number)
-                : totalsAll.totalJpy > 0
-                  ? totalsAll.totalJpy
-                  : port.totalJpy;
+            const totalJpy = displayTotalJpy({
+              localCount: cards.length,
+              localTotalJpy: totalsAll.totalJpy,
+              serverTotalJpy: port.totalJpy,
+              serverPsa10Jpy: port.totalPsa10Jpy,
+              usePsa10,
+            });
             const gradedCount = cards.filter((c) => c.graded).length;
             return (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
