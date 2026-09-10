@@ -218,7 +218,9 @@ export function FlexPoster({ data: d }: { data: FlexData }) {
           <div style={{ display: 'flex', alignItems: 'center', margin: '10px 0 14px', padding: '0 8px' }}>
             {/* 왼쪽 — 앱 로고 + ARVO/TCG + 슬로건 (세로) */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-              <LogoMark size={40} />
+              {/* 현재 앱 아이콘(mobile/assets/icon.png 과 동일본) — 캡처를 위해 같은 출처(/app-icon.png) */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/app-icon.png" alt="ARVOTCG" width={44} height={44} style={{ borderRadius: 11, display: 'block', boxShadow: '0 6px 14px rgba(20,30,60,.25)' }} />
               <div style={{ textAlign: 'center', lineHeight: 1 }}>
                 <div style={{ fontSize: 17, fontWeight: 900, color: INK, letterSpacing: -0.3 }}>ARVO</div>
                 <div style={{ fontSize: 17, fontWeight: 900, color: ACCENT, letterSpacing: -0.3, marginTop: 2 }}>TCG</div>
@@ -364,30 +366,6 @@ function KakaoIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
       <path fill="#191919" d="M12 3C6.48 3 2 6.58 2 11c0 2.84 1.87 5.33 4.68 6.75L5.6 21.6a.4.4 0 0 0 .6.44l4.6-3.06c.39.04.79.06 1.2.06 5.52 0 10-3.58 10-8.04S17.52 3 12 3z" />
-    </svg>
-  );
-}
-
-/** 파비콘(src/app/icon.svg)과 같은 마크 — 틸 라운드 스퀘어 + 부채꼴 카드 3장. */
-function LogoMark({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden>
-      <defs>
-        <linearGradient id="flex-logo-bg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#14A085" />
-          <stop offset="1" stopColor="#0A5C4B" />
-        </linearGradient>
-      </defs>
-      <rect width="64" height="64" rx="14" fill="url(#flex-logo-bg)" />
-      <g fill="#FFFFFF" stroke="#FFFFFF" strokeWidth="1" strokeOpacity=".4">
-        <rect x="9" y="14" width="21" height="30" rx="3" opacity=".22" transform="rotate(-16 19.5 29)" />
-        <rect x="34" y="14" width="21" height="30" rx="3" opacity=".22" transform="rotate(16 44.5 29)" />
-        <rect x="21.5" y="12.5" width="21" height="30" rx="3" opacity=".32" />
-      </g>
-      <g fill="#FFFFFF" fontFamily="Arial, sans-serif" fontWeight="bold" textAnchor="middle">
-        <text x="32" y="31.5" fontSize="15" letterSpacing="0.5">ARVO</text>
-        <text x="32" y="46.5" fontSize="15" letterSpacing="1">TCG</text>
-      </g>
     </svg>
   );
 }
