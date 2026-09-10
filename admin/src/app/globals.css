@@ -7,11 +7,18 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
   background:#EEE;padding:1px 5px;border-radius:3px;}
 
 .admin-shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh;}
-.admin-side{background:#1E293B;color:#E2E8F0;padding:20px 0;position:sticky;top:0;height:100vh;}
+.admin-side{background:#1E293B;color:#E2E8F0;padding:20px 0 14px;position:sticky;top:0;
+  height:100vh;display:flex;flex-direction:column;min-height:0;}
 .admin-brand{padding:0 22px 18px;font-size:16px;font-weight:700;color:#fff;letter-spacing:.3px;
-  border-bottom:1px solid #334155;margin-bottom:14px;}
+  border-bottom:1px solid #334155;margin-bottom:14px;flex:none;}
 .admin-brand small{display:block;font-size:10px;color:#94A3B8;font-weight:400;margin-top:4px;letter-spacing:.5px;}
-.admin-nav{display:flex;flex-direction:column;gap:2px;padding:0 10px;}
+/* 그룹을 다 펼쳐도 화면을 넘지 않게 — 메뉴 영역만 세로 스크롤. */
+.admin-nav{display:flex;flex-direction:column;gap:2px;padding:0 10px;
+  flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  scrollbar-width:thin;scrollbar-color:#475569 transparent;}
+.admin-nav::-webkit-scrollbar{width:8px;}
+.admin-nav::-webkit-scrollbar-thumb{background:#475569;border-radius:99px;}
+.admin-nav::-webkit-scrollbar-track{background:transparent;}
 .admin-nav a{padding:9px 14px;color:#CBD5E1;border-radius:6px;font-size:13px;display:flex;
   align-items:center;gap:10px;}
 .admin-nav a:hover{background:#334155;color:#fff;text-decoration:none;}
@@ -51,10 +58,24 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
 .admin-details[open]>summary::before{content:'▾ ';}
 .admin-details>summary:hover{background:#E2E8F0;}
 
-.admin-nav-group{display:flex;flex-direction:column;gap:2px;}
-.admin-nav-group+.admin-nav-group{margin-top:14px;}
-.admin-nav-title{padding:0 14px 5px;font-size:10px;font-weight:700;letter-spacing:.9px;
-  text-transform:uppercase;color:#64748B;}
+.admin-nav-group+.admin-nav-group{margin-top:12px;}
+.admin-nav-items{display:flex;flex-direction:column;gap:2px;padding-top:2px;}
+.admin-nav-title{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;
+  padding:5px 14px 6px;font-size:10px;font-weight:700;letter-spacing:.9px;
+  text-transform:uppercase;color:#64748B;border-radius:6px;list-style:none;}
+.admin-nav-title::-webkit-details-marker{display:none;}
+.admin-nav-title:hover{color:#CBD5E1;background:#273449;}
+.admin-nav-chev{width:0;height:0;flex:none;border-left:4px solid currentColor;
+  border-top:3.5px solid transparent;border-bottom:3.5px solid transparent;
+  transition:transform .15s ease;}
+.admin-nav-group[open]>.admin-nav-title>.admin-nav-chev{transform:rotate(90deg);}
+.admin-nav-count{margin-left:auto;font-size:9px;font-weight:700;color:#475569;
+  background:#0F172A;border-radius:99px;padding:1px 6px;letter-spacing:0;}
+.admin-nav-title:hover .admin-nav-count{color:#94A3B8;}
+
+/* 모바일 전용 상단 바 — 데스크톱에선 숨긴다. */
+.admin-topbar{display:none;}
+.admin-backdrop{display:none;}
 
 .admin-main{padding:28px 36px;max-width:1400px;}
 .admin-h1{font-size:22px;font-weight:700;margin:0 0 6px;letter-spacing:-.2px;}
@@ -158,7 +179,8 @@ form.search a.btn{display:inline-flex;align-items:center;text-decoration:none;}
 .login-hint{font-size:11px;color:#94A3B8;text-align:center;margin:2px 0 0;line-height:1.6;}
 
 /* 사이드바 로그아웃 */
-.admin-logout{margin:14px 10px 0;padding:9px 14px;width:calc(100% - 20px);text-align:left;
+.admin-logout{flex:none;margin:12px 10px 0;padding:9px 14px;width:calc(100% - 20px);text-align:left;
+  border-top:1px solid #334155;padding-top:14px;
   background:none;border:none;color:#94A3B8;font-size:13px;border-radius:6px;cursor:pointer;
   display:flex;align-items:center;gap:10px;}
 .admin-logout:hover{background:#334155;color:#fff;}
@@ -181,3 +203,60 @@ form.search a.btn{display:inline-flex;align-items:center;text-decoration:none;}
 .online-indicator-dot{width:8px;height:8px;flex-shrink:0;border-radius:50%;background:#16A34A;animation:online-blink 1.8s ease-in-out infinite;}
 @keyframes online-blink{0%,100%{opacity:1;}50%{opacity:.25;}}
 @media(prefers-reduced-motion:reduce){.online-indicator-dot{animation:none;}}
+
+/* ── 반응형: 태블릿·모바일 ──────────────────────────────────────────
+   사이드바는 오프캔버스 드로어가 되고, 표는 가로 스크롤 상자가 된다.
+   표를 낱낱이 감싸는 대신 table 자체를 스크롤 컨테이너로 만든다. */
+@media (max-width: 1100px) {
+  .admin-shell{grid-template-columns:190px 1fr;}
+  .admin-main{padding:24px 22px;}
+}
+
+@media (max-width: 860px) {
+  .admin-shell{grid-template-columns:1fr;}
+
+  .admin-topbar{display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:40;
+    background:#1E293B;color:#fff;padding:10px 14px;}
+  .admin-topbar-title{font-size:15px;font-weight:700;letter-spacing:.3px;}
+  .admin-burger{width:38px;height:38px;flex:none;display:flex;align-items:center;
+    justify-content:center;font-size:17px;line-height:1;color:#fff;background:#334155;
+    border:none;border-radius:8px;cursor:pointer;}
+  .admin-burger:hover{background:#475569;}
+
+  .admin-backdrop{display:block;position:fixed;inset:0;z-index:45;
+    background:rgba(15,23,42,.5);}
+
+  .admin-side{position:fixed;left:0;top:0;bottom:0;z-index:50;width:250px;height:100dvh;
+    transform:translateX(-100%);transition:transform .18s ease;box-shadow:0 0 32px rgba(0,0,0,.4);}
+  .admin-side.open{transform:none;}
+
+  .admin-main{padding:16px 14px 40px;}
+  .admin-h1{font-size:19px;}
+  .admin-sub{font-size:12px;}
+
+  /* 표는 가로로 넘치면 그 표만 스크롤된다. 화면 전체가 밀리지 않게. */
+  table.tbl{display:block;overflow-x:auto;white-space:nowrap;
+    -webkit-overflow-scrolling:touch;}
+  table.tbl td{max-width:none;}
+
+  .grid-stats{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
+  .stat-card{padding:13px 14px;}
+  .stat-card .val{font-size:23px;}
+
+  .health-grid{grid-template-columns:1fr;gap:10px;}
+  .health-banner{gap:12px;padding:15px 16px;}
+  .health-banner-title{font-size:17px;}
+
+  .card{padding:15px 14px;}
+  .donut-wrap{flex-direction:column;align-items:flex-start;}
+}
+
+@media (max-width: 420px) {
+  .admin-main{padding:14px 11px 40px;}
+  .grid-stats{grid-template-columns:1fr;}
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-side{transition:none;}
+  .admin-nav-chev{transition:none;}
+}

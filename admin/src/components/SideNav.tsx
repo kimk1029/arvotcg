@@ -2,101 +2,104 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 
-interface NavItem { href: string; label: string; icon: string }
+import { NAV_GROUPS as GROUPS, activeGroupTitle, isActive } from '@/lib/nav';
 
-const GROUPS: { title: string; items: NavItem[] }[] = [
-  {
-    title: '운영',
-    items: [
-      { href: '/', label: '대시보드', icon: '📊' },
-      { href: '/monitoring', label: '시스템 상태', icon: '🩺' },
-    ],
-  },
-  {
-    title: '콘텐츠',
-    items: [
-      { href: '/notices', label: '공지사항', icon: '📢' },
-      { href: '/banners', label: '히어로 배너', icon: '🎏' },
-      { href: '/event-posts', label: '이벤트 게시판', icon: '📅' },
-      { href: '/cardshow', label: '카드쇼 예약', icon: '🎪' },
-      { href: '/feeds', label: '커뮤니티 글', icon: '📝' },
-      { href: '/cards', label: '카드 카탈로그', icon: '🃏' },
-    ],
-  },
-  {
-    title: '회원',
-    items: [
-      { href: '/users', label: '회원 관리', icon: '👥' },
-      { href: '/ranking', label: '포인트 랭킹', icon: '🏆' },
-      { href: '/online', label: '접속중 사용자', icon: '🟢' },
-      { href: '/messages', label: '쪽지 목록', icon: '✉️' },
-      { href: '/bug-reports', label: '버그 제보', icon: '🐛' },
-    ],
-  },
-  {
-    title: '거래·오리파',
-    items: [
-      { href: '/trades', label: '거래 관리', icon: '🤝' },
-      { href: '/shops', label: '카드샵 관리', icon: '🏪' },
-      { href: '/oripa/packs', label: '오리파 팩', icon: '🎁' },
-      { href: '/oripa', label: '오리파 티켓', icon: '🎟️' },
-    ],
-  },
-  {
-    title: '지표·로그',
-    items: [
-      { href: '/visitors', label: '방문 기록', icon: '🚪' },
-      { href: '/events', label: '행동 로그', icon: '🖱️' },
-      { href: '/searches', label: '검색 로그', icon: '🔍' },
-      { href: '/scans', label: '스캔 로그', icon: '📷' },
-      { href: '/ads', label: '광고 분석', icon: '📈' },
-    ],
-  },
-];
-
-const ALL = GROUPS.flatMap((g) => g.items);
+const STORAGE_KEY = 'arvo:admin:nav-groups';
 
 export function SideNav({ who }: { who?: string | null }) {
   const pathname = usePathname();
-  const isOn = (href: string) => {
-    if (href === '/') return pathname === '/';
-    // 더 긴 prefix 가 있으면 짧은 prefix 는 무시 (/oripa 가 /oripa/packs 일 때 highlight 안 되게)
-    const longerMatches = ALL.some(
-      (m) => m.href !== href && m.href.startsWith(href + '/') && (pathname === m.href || pathname.startsWith(m.href + '/')),
-    );
-    return !longerMatches && (pathname === href || pathname.startsWith(href + '/'));
-  };
+  // 서버·첫 렌더는 항상 전부 펼침 → 하이드레이션 불일치 없음. 저장값은 마운트 후 반영.
+  const [closed, setClosed] = useState<Record<string, boolean>>({});
+  const [drawer, setDrawer] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) setClosed(JSON.parse(raw) as Record<string, boolean>);
+    } catch {
+      /* 저장소를 못 읽어도 전부 펼친 기본값으로 동작한다. */
+    }
+  }, []);
+
+  // 지금 보고 있는 페이지가 접힌 그룹 안에 있으면 그 그룹만 펼쳐 준다.
+  const activeGroup = activeGroupTitle(pathname);
+  useEffect(() => {
+    if (!activeGroup) return;
+    setClosed((prev) => (prev[activeGroup] ? { ...prev, [activeGroup]: false } : prev));
+  }, [activeGroup]);
+
+  // 모바일 드로어는 페이지를 옮기면 닫는다.
+  useEffect(() => { setDrawer(false); }, [pathname]);
+
+  const toggle = useCallback((title: string, open: boolean) => {
+    setClosed((prev) => {
+      if (!!prev[title] === !open) return prev;
+      const next = { ...prev, [title]: !open };
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* 저장 실패는 무시 */ }
+      return next;
+    });
+  }, []);
+
   return (
-    <aside className="admin-side">
-      <div className="admin-brand">
-        ARVOTCG Admin
-        <small>{who ? `${who} 님` : '운영 대시보드'}</small>
+    <>
+      <div className="admin-topbar">
+        <button
+          type="button"
+          className="admin-burger"
+          onClick={() => setDrawer((v) => !v)}
+          aria-label={drawer ? '메뉴 닫기' : '메뉴 열기'}
+          aria-expanded={drawer}
+        >
+          {drawer ? '✕' : '☰'}
+        </button>
+        <span className="admin-topbar-title">ARVOTCG Admin</span>
       </div>
-      <nav className="admin-nav">
-        {GROUPS.map((g) => (
-          <div key={g.title} className="admin-nav-group">
-            <div className="admin-nav-title">{g.title}</div>
-            {g.items.map((n) => (
-              <Link key={n.href} href={n.href} className={isOn(n.href) ? 'on' : ''}>
-                <span>{n.icon}</span>
-                <span>{n.label}</span>
-              </Link>
-            ))}
-          </div>
-        ))}
-      </nav>
-      <button
-        type="button"
-        className="admin-logout"
-        onClick={async () => {
-          await fetch('/api/logout', { method: 'POST' }).catch(() => {});
-          window.location.href = '/login';
-        }}
-      >
-        <span>🚪</span>
-        <span>로그아웃</span>
-      </button>
-    </aside>
+
+      {drawer ? <div className="admin-backdrop" onClick={() => setDrawer(false)} aria-hidden /> : null}
+
+      <aside className={drawer ? 'admin-side open' : 'admin-side'}>
+        <div className="admin-brand">
+          ARVOTCG Admin
+          <small>{who ? `${who} 님` : '운영 대시보드'}</small>
+        </div>
+        <nav className="admin-nav">
+          {GROUPS.map((g) => (
+            <details
+              key={g.title}
+              className="admin-nav-group"
+              open={!closed[g.title]}
+              onToggle={(e) => toggle(g.title, (e.currentTarget as HTMLDetailsElement).open)}
+            >
+              <summary className="admin-nav-title">
+                <span className="admin-nav-chev" aria-hidden />
+                <span>{g.title}</span>
+                <span className="admin-nav-count">{g.items.length}</span>
+              </summary>
+              <div className="admin-nav-items">
+                {g.items.map((n) => (
+                  <Link key={n.href} href={n.href} className={isActive(n.href, pathname) ? 'on' : ''}>
+                    <span>{n.icon}</span>
+                    <span>{n.label}</span>
+                  </Link>
+                ))}
+              </div>
+            </details>
+          ))}
+        </nav>
+        <button
+          type="button"
+          className="admin-logout"
+          onClick={async () => {
+            await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+            window.location.href = '/login';
+          }}
+        >
+          <span>🚪</span>
+          <span>로그아웃</span>
+        </button>
+      </aside>
+    </>
   );
 }
