@@ -26,7 +26,7 @@ export type AdPlatform = 'android' | 'ios';
  */
 export const ADMOB_APP_ID: Record<AdPlatform, string | null> = {
   // TODO: 안드로이드 앱 ID 미발급 — 애드몹 > 앱 > 안드로이드 앱 > 앱 설정에서 확인.
-  android: null,
+  android: 'ca-app-pub-8606099213555265~7191313009',
   ios: 'ca-app-pub-8606099213555265~3547581465',
 };
 
