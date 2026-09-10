@@ -801,6 +801,26 @@ model EventPost {
 }
 
 /// 이벤트 글 댓글.
+model Notice {
+  id          Int      @id @default(autoincrement())
+  title       String
+  /// 본문 — 줄바꿈 \n 그대로 렌더.
+  body        String   @default("")
+  /// 'update' | 'event' | 'maintenance'. null = 태그 없음.
+  tag         String?
+  /// 목록 상단 고정.
+  pinned      Boolean  @default(false)
+  /// false = 비공개(웹·앱 미노출, 어드민에서만 보임).
+  published   Boolean  @default(true)
+  /// 표시용 발행일 'YYYY-MM-DD' — 등록일과 다를 수 있어 별도 보관.
+  publishedAt String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([published, pinned, publishedAt(sort: Desc)])
+  @@map("notices")
+}
+
 model EventPostComment {
   id        Int       @id @default(autoincrement())
   postId    Int

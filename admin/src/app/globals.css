@@ -16,6 +16,10 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
   align-items:center;gap:10px;}
 .admin-nav a:hover{background:#334155;color:#fff;text-decoration:none;}
 .admin-nav a.on{background:#3B82F6;color:#fff;}
+.admin-nav-group{display:flex;flex-direction:column;gap:2px;}
+.admin-nav-group+.admin-nav-group{margin-top:14px;}
+.admin-nav-title{padding:0 14px 5px;font-size:10px;font-weight:700;letter-spacing:.9px;
+  text-transform:uppercase;color:#64748B;}
 
 .admin-main{padding:28px 36px;max-width:1400px;}
 .admin-h1{font-size:22px;font-weight:700;margin:0 0 6px;letter-spacing:-.2px;}
