@@ -37,12 +37,22 @@ GitHub Actions에서 다음 워크플로를 각각 실행·재실행할 수 있�
 
 ## 데이터 원칙 (스니덩크 시세)
 
-- 카탈로그(불변 정보) = `snkrdunk_cards` (가격 필드 없음). 가격 = `snkrdunk_price_snapshots`
-  append-only, 현재가 = 최신 행. 조회는 DB 우선 + TTL(컬렉션 30분 / 팩 24h).
-- **일일 배치**: `lib/dailyPriceSnapshot.ts` — 매일 03:00 KST 전 카탈로그 순회 스냅샷
-  (멱등: 오늘치 있으면 스킵, 부팅 5분 후 캐치업). 통계 API:
-  `GET /api/snkrdunk/apparels/:id/price-stats` (KST 일별 + 1/7/30일 평균),
-  상태: `GET /api/snkrdunk/daily-snapshot-status`.
+- 카탈로그 = `snkrdunk_cards`, 현재가 = `snkrdunk_current_prices`, 가격 이력 = `snkrdunk_price_snapshots`.
+- 가격 신선도는 실제 DB `fetchedAt`부터 24시간. 갱신 결과·쓰기 억제 캐시는 이 시각을
+  그대로 사용하며, 읽거나 저장을 시도했다고 만료 시간이 하루 더 늘어나지 않는다.
+  현재가·카탈로그 조회 캐시는 60초. 가격 갱신 작업은 캐시를 우회해 DB 시각을 확인하고
+  작업 완료를 기다린다. 화면 조회는 기존 값으로 응답하면서 백그라운드 갱신한다.
+- **분산 배치**: `lib/dailyPriceSnapshot.ts` — 부팅 5분 후 첫 실행, 이후 매시 00/30분.
+  보유 카드와 고가 후보 중 24시간 넘은 가격을 오래된 순서로 최대 50개 처리한다.
+  동시 처리 1개, 최소 2초 간격, 5분이 지나면 새 작업을 시작하지 않는다(실행 중 작업은 완료 대기).
+  연속 3회 실패 시 중단하고 실패 카드는 1시간 뒤 재시도한다.
+  대상 선정 SQL은 2초, 트랜잭션은 실행 3초/연결 대기 1초 제한.
+  상태: `GET /api/snkrdunk/daily-snapshot-status` (`nextRunAt`, `intervalMs`, `batchLimit` 포함).
+  `DAILY_SNAPSHOT_DISABLED=1`로 중단. standby에서 `DAILY_PRICE_REFRESH_ENABLED=1`이면
+  가격 배치만 실행한다. 옛 `DAILY_SNAPSHOT_HOUR_KST/DELAY_MS/MAX_MS` 환경변수는 사용하지 않는다.
+- 웹·앱 컬렉션은 `/prices` 실패(네트워크·429·5xx·잘못된 응답)에 전체 목록을 재요청하지 않는다.
+  기존 값을 유지하며, 정상 응답에서 카드 ID 구성이 달라졌을 때만 전체 조회한다.
+  401/403 인증 실패는 숨기지 않는다. 앱 컬렉션 요청의 즉시 자동 재시도도 끈다.
 - 등록가/등락률은 등급 기준 통일 — `shared/snkrdunkPrice.ts`의 registerBasisJpy가 정본.
 
 ## 스케줄러 패턴
@@ -50,7 +60,7 @@ GitHub Actions에서 다음 워크플로를 각각 실행·재실행할 수 있�
 단일 인스턴스 전제의 in-process 타이머 (별도 크론 인프라 없음):
 - `priceAlerts.ts` — 15분 interval, 가격알림 체크
 - `cardImageCache.js` — 부팅+매일, 카드 이미지 webp 셀프 CDN 워밍
-- `dailyPriceSnapshot.ts` — 매일 정각(KST) 체인 setTimeout
+- `dailyPriceSnapshot.ts` — 30분 간격 체인 setTimeout
 새 주기 작업도 이 패턴으로: `start*Scheduler()` export → index.js listen 콜백에서 기동,
 타이머 `unref()`, 겹침 방지 플래그, env로 on/off.
 

@@ -30,7 +30,8 @@ export class DailyCache<T> {
   private retryAt = new Map<string, number>();
   private loaded: Promise<void>;
   private saving = Promise.resolve();
-  constructor(private ttl = DAY_MS, private max = 1000, private file?: string) {
+  constructor(private ttl = DAY_MS, private max = 1000, private file?: string,
+    private timestamp?: (value: T) => number) {
     this.loaded = file ? readFile(file, 'utf8').then(text => {
       const entries = JSON.parse(text);
       if (Array.isArray(entries)) for (const [k, v] of entries.slice(-max)) {
@@ -38,12 +39,12 @@ export class DailyCache<T> {
       }
     }).catch(() => {}) : Promise.resolve();
   }
-  async get(key: string, load: () => Promise<T>): Promise<T> {
+  async get(key: string, load: () => Promise<T>, options: { waitForFresh?: boolean; forceRefresh?: boolean } = {}): Promise<T> {
     await this.loaded;
     const old = this.values.get(key);
-    if (old && Date.now() - old.at < this.ttl) return old.value;
+    if (!options.forceRefresh && old && Date.now() - old.at < this.ttl) return old.value;
     if ((this.retryAt.get(key) ?? 0) > Date.now()) {
-      if (old) return old.value;
+      if (old && !options.waitForFresh) return old.value;
       throw new Error('Refresh temporarily unavailable');
     }
     let task = this.pending.get(key);
@@ -59,7 +60,7 @@ export class DailyCache<T> {
       }).finally(() => this.pending.delete(key));
       this.pending.set(key, task);
     }
-    if (old) { void task.catch(() => {}); return old.value; }
+    if (old && !options.waitForFresh) { void task.catch(() => {}); return old.value; }
     return task;
   }
   invalidate(predicate: (key: string) => boolean) {
@@ -67,7 +68,8 @@ export class DailyCache<T> {
   }
   set(key: string, value: T) {
     this.values.delete(key);
-    this.values.set(key, { at: Date.now(), value });
+    const sourceAt = this.timestamp ? this.timestamp(value) : Date.now();
+    this.values.set(key, { at: Number.isFinite(sourceAt) ? Math.min(sourceAt, Date.now()) : 0, value });
     this.retryAt.delete(key);
     while (this.values.size > this.max) this.values.delete(this.values.keys().next().value!);
     if (this.file) this.saving = this.saving.then(async () => {

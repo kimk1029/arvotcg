@@ -262,7 +262,7 @@ async function loadCatalogBatch(ids: number[]): Promise<Map<number, CatalogEntry
   return map;
 }
 
-const catalogCache = new DailyCache<Map<number, CatalogEntry>>(DAY_MS, 256);
+const catalogCache = new DailyCache<Map<number, CatalogEntry>>(60_000, 256);
 onCurrentPriceChanged(id => catalogCache.invalidate(key => key.split(',').includes(String(id))));
 const catalogReads = new WorkQueue(1, 100);
 export async function loadCatalogEntries(ids: number[]): Promise<Map<number, CatalogEntry>> {
@@ -290,6 +290,8 @@ export function isFreshEntry(e: CatalogEntry | undefined, ttlMs = CATALOG_PRICE_
 /* ── 라이브 갱신 (stale-while-revalidate 공용) ───────────────────── */
 
 export interface RefreshedApparel extends ApparelPrices {
+  /** Actual DB price collection time, never the cache read time. */
+  fetchedAt: number;
   /** 시세상세 헤드라인과 동일한 대표 시세 + 기준 (headlineFromHistory). */
   headlinePrice: number;
   headlineBasis: string | null;
@@ -316,7 +318,7 @@ async function fetchApparelPrices(apparelId: number): Promise<RefreshedApparel |
     // /apparels/:id·일별 배치가 남긴 좋은 값을 덮어쓰고 팩 그리드가 최저가로 폴백한다.
     const headline = headlineFromHistory(hist?.history ?? [], a.minPrice ?? 0);
     await upsertCatalogCard(a);
-    const saved = await recordPriceSnapshot(apparelId, {
+    const fetchedAt = await saveCurrentPrice(apparelId, {
       minPrice: a.minPrice ?? 0,
       listingCount: a.listingCount,
       headlinePrice: headline.price,
@@ -327,8 +329,8 @@ async function fetchApparelPrices(apparelId: number): Promise<RefreshedApparel |
       pricePsa8: prices.psa8,
       trend: prices.trendJpy,
     });
-    if (!saved) throw new Error('Price persistence failed');
     return {
+      fetchedAt,
       ...prices,
       headlinePrice: headline.price,
       headlineBasis: headline.basis ?? null,
@@ -342,21 +344,21 @@ async function fetchApparelPrices(apparelId: number): Promise<RefreshedApparel |
   }
 }
 
-const refreshCache = new DailyCache<RefreshedApparel>(DAY_MS, 25000);
+const refreshCache = new DailyCache<RefreshedApparel>(DAY_MS, 25000, undefined, p => p.fetchedAt);
 const liveRefreshes = new WorkQueue(1, 200);
 export async function refreshApparelPrices(apparelId: number): Promise<RefreshedApparel | null> {
   try {
     return await refreshCache.get(String(apparelId), () => liveRefreshes.run(async () => {
-      const [p] = await readCurrentPrices([apparelId]);
+      const [p] = await readCurrentPrices([apparelId], { fresh: true });
       if (p?.isFull && Date.now() - p.fetchedAt.getTime() < DAY_MS) {
         const entry = (await loadCatalogEntries([apparelId])).get(apparelId);
-        return { single: p.priceSingle, psa10: p.pricePsa10, psa9: p.pricePsa9, psa8: p.pricePsa8,
+        return { fetchedAt: p.fetchedAt.getTime(), single: p.priceSingle, psa10: p.pricePsa10, psa9: p.pricePsa9, psa8: p.pricePsa8,
           trendJpy: p.trend ?? [], headlinePrice: p.headlinePrice, headlineBasis: p.headlineBasis,
           name: entry?.name ?? '', imageUrl: entry?.imageUrl ?? null, minPrice: p.minPrice } as RefreshedApparel;
       }
       const fresh = await fetchApparelPrices(apparelId);
       if (!fresh) throw new Error('Price fetch unavailable');
       return fresh;
-    }));
+    }), { waitForFresh: true });
   } catch (err) { console.warn('[snkrdunkCatalog.refresh]', apparelId, err); return null; }
 }

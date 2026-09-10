@@ -857,7 +857,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   startPriceAlertScheduler();
   // 카드 이미지 자체 CDN 워밍 — 부팅 후 + 매일, 미캐싱 카드 점진 backfill.
   startCardImageWarmer();
-  // 일일 시세 스냅샷 — 매일 새벽 3시(KST) 카탈로그 전체 순회, 가격 통계용 히스토리 적재.
+  // 시세 분산 배치 — 30분마다 오래된 보유·고가 후보 최대 50장.
   startDailyPriceSnapshotScheduler();
   // 시장 지표(TCG 인덱스) — 부팅 캐치업 + 매일 06:30 KST 한 스텝 (tcgcsv 갱신 후).
   startMarketIndexScheduler();

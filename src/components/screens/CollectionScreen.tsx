@@ -1,5 +1,7 @@
 'use client';
 
+import { loadCollectionDelta } from '../../../shared/collectionDelta';
+
 import Link from 'next/link';
 import { COLLECTION_CACHE_KEY } from '@/lib/collectionCache';
 import { useRouter } from 'next/navigation';
@@ -218,16 +220,25 @@ export function CollectionScreen() {
         }
         let nextCards: CardRow[];
         if (cachedCards && cachedCards.length > 0) {
-          const dj = (await cr.json().catch(() => null)) as { data?: CardPriceRow[] } | null;
-          const merged = cr.ok && dj?.data ? mergeCardPrices(cachedCards, dj.data) : null;
-          if (merged) {
-            nextCards = merged;
-          } else {
-            // 카드 추가/삭제됨(또는 델타 실패) — 풀 목록 재조회.
-            const fr = await fetch('/api/me/cards/with-prices', { credentials: 'include', cache: 'no-store', signal: ctrl.signal });
-            const fj = (await fr.json().catch(() => null)) as { data?: CardRow[] } | null;
-            nextCards = fj?.data ?? cachedCards;
-          }
+          nextCards = await loadCollectionDelta<CardRow, CardPriceRow>({
+            cached: cachedCards,
+            loadPrices: async () => {
+              if (!cr.ok) throw Object.assign(new Error('Price lookup failed'), { status: cr.status });
+              return (await cr.json()).data;
+            },
+            loadFull: async () => {
+              const fr = await fetch('/api/me/cards/with-prices', { credentials: 'include', cache: 'no-store', signal: ctrl.signal });
+              if (!fr.ok) throw Object.assign(new Error('Collection lookup failed'), { status: fr.status });
+              const body = await fr.json();
+              if (!Array.isArray(body?.data)) throw new Error('Invalid collection response');
+              return body.data;
+            },
+            merge: (cached, prices) => {
+              const merged = mergeCardPrices(cached, prices);
+              if (!merged) throw new Error('Invalid collection prices');
+              return merged;
+            },
+          });
         } else {
           const cj = (await cr.json().catch(() => null)) as { data?: CardRow[] } | null;
           nextCards = cj?.data ?? [];
@@ -236,8 +247,13 @@ export function CollectionScreen() {
         setPort(pj.data);
         setCards(nextCards);
         saveCollectionCache(pj.data, nextCards);
-      } catch {
-        if (alive) setErr('시세 조회가 지연되고 있어요. 잠시 후 다시 시도해주세요');
+      } catch (error) {
+        if (alive && (error as { status?: number })?.status === 401) {
+          try { sessionStorage.removeItem(COLLECTION_CACHE_KEY); } catch {}
+          setCards(null);
+          setPort(null);
+          setErr('로그인이 필요해요');
+        } else if (alive) setErr('시세 조회가 지연되고 있어요. 잠시 후 다시 시도해주세요');
       } finally {
         clearTimeout(timer);
       }

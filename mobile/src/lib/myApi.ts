@@ -4,6 +4,7 @@
  * 응답 타입은 웹 [[src/lib/queries.ts]] / [[src/lib/messages.ts]] 의 반환 모양과 1:1.
  * 모바일이 자체 mock 으로 폴백할 수 있도록 [[ApiError]] 를 그대로 던진다.
  */
+import { loadCollectionDelta } from '../../../shared/collectionDelta';
 import { api, ApiError, getApiBaseUrl } from './apiClient';
 import { swrInvalidate, swrPeek, swrSet } from './swr';
 import { SHOT } from './shotMode';
@@ -366,7 +367,7 @@ export function peekPortfolio(): PortfolioSummary | null {
 
 export function fetchMyCards(): Promise<MyCardRow[]> {
   if (SHOT) return Promise.resolve(SHOT_MY_CARDS);
-  return api<{ data: MyCardRow[] }>('/api/me/cards/with-prices').then((r) => {
+  return api<{ data: MyCardRow[] }>('/api/me/cards/with-prices', { retries: 0 }).then((r) => {
     const rows = r.data.map((c) => ({
       ...c,
       photoUrl: absApiUrl(c.photoUrl),
@@ -402,34 +403,32 @@ export async function fetchMyCardsSmart(): Promise<MyCardRow[]> {
   if (SHOT) return Promise.resolve(SHOT_MY_CARDS);
   const cached = peekMyCards();
   if (!cached || cached.length === 0) return fetchMyCards();
-  try {
-    const r = await api<{ data: MyCardPriceRow[] }>('/api/me/cards/prices');
-    const priceById = new Map(r.data.map((p) => [p.id, p]));
-    if (r.data.length !== cached.length || cached.some((c) => !priceById.has(c.id))) {
-      return fetchMyCards(); // 카드 추가/삭제됨 — 풀 목록 재조회
-    }
-    const merged = cached.map((c) => {
-      const p = priceById.get(c.id)!;
-      return {
-        ...c,
-        priceSingleJpy: p.priceSingleJpy > 0 ? p.priceSingleJpy : c.priceSingleJpy,
-        snkrdunkMinPriceJpy: p.priceSingleJpy > 0 ? p.priceSingleJpy : c.snkrdunkMinPriceJpy,
-        pricePsa10Jpy: p.pricePsa10Jpy > 0 ? p.pricePsa10Jpy : c.pricePsa10Jpy,
-        pricePsa9Jpy: p.pricePsa9Jpy > 0 ? p.pricePsa9Jpy : c.pricePsa9Jpy,
-        pricePsa8Jpy: p.pricePsa8Jpy > 0 ? p.pricePsa8Jpy : c.pricePsa8Jpy,
-        currentPriceJpy: p.currentPriceJpy > 0 ? p.currentPriceJpy : c.currentPriceJpy,
-        priceBasis: p.currentPriceJpy > 0 ? p.priceBasis : c.priceBasis,
-        trend: p.trend.length > 0 ? p.trend : c.trend,
-        // 박스 판정은 캐시가 아니라 서버 최신값 — '박스 제외' 필터가 옛 오판을 물고 있지 않게 (웹 mergeCardPrices 동일).
-        itemKind: p.itemKind ?? c.itemKind,
-      };
-    });
-    swrSet(SWR_MY_CARDS, merged, { persist: true });
-    return merged;
-  } catch {
-    // 델타 실패 — 풀 경로 폴백 (서버 구버전 배포 중 등).
-    return fetchMyCards();
-  }
+  const merged = await loadCollectionDelta<MyCardRow, MyCardPriceRow>({
+    cached,
+    loadPrices: async () => (await api<{ data: MyCardPriceRow[] }>('/api/me/cards/prices', { retries: 0 })).data,
+    loadFull: fetchMyCards,
+    merge: (cached, prices) => {
+      const priceById = new Map(prices.map(p => [p.id, p]));
+      return cached.map((c) => {
+        const p = priceById.get(c.id)!;
+        return {
+          ...c,
+          priceSingleJpy: p.priceSingleJpy > 0 ? p.priceSingleJpy : c.priceSingleJpy,
+          snkrdunkMinPriceJpy: p.priceSingleJpy > 0 ? p.priceSingleJpy : c.snkrdunkMinPriceJpy,
+          pricePsa10Jpy: p.pricePsa10Jpy > 0 ? p.pricePsa10Jpy : c.pricePsa10Jpy,
+          pricePsa9Jpy: p.pricePsa9Jpy > 0 ? p.pricePsa9Jpy : c.pricePsa9Jpy,
+          pricePsa8Jpy: p.pricePsa8Jpy > 0 ? p.pricePsa8Jpy : c.pricePsa8Jpy,
+          currentPriceJpy: p.currentPriceJpy > 0 ? p.currentPriceJpy : c.currentPriceJpy,
+          priceBasis: p.currentPriceJpy > 0 ? p.priceBasis : c.priceBasis,
+          trend: p.trend.length > 0 ? p.trend : c.trend,
+          // 박스 판정은 캐시가 아니라 서버 최신값 — '박스 제외' 필터가 옛 오판을 물고 있지 않게 (웹 mergeCardPrices 동일).
+          itemKind: p.itemKind ?? c.itemKind,
+        };
+      });
+    },
+  });
+  swrSet(SWR_MY_CARDS, merged, { persist: true });
+  return merged;
 }
 
 export function fetchMyFavorites(): Promise<MyFavoriteRow[]> {
