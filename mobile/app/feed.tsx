@@ -12,6 +12,7 @@ import { isFeedCategory } from '@/lib/feedCategories';
 import { feedHotScore, feedPostTitle, formatCount, rankBestPosts, rankHotPosts } from '@/lib/feedRanking';
 import { fonts } from '@/theme/tokens';
 import { api } from '@/lib/apiClient';
+import { AdBanner } from '@/components/AdBanner';
 import { swrPeek, swrSet } from '@/lib/swr';
 import { ReportMenu } from '@/components/ReportMenu';
 import { ensureUgcTerms } from '@/components/UgcTermsGate';
@@ -750,9 +751,12 @@ export default function CommunityScreen() {
                   ts={ts}
                 />
               ) : (
-                visiblePosts.map((p) => (
+                visiblePosts.map((p, i) => (
                   <View key={p.id} ref={(v) => { rowRefs.current[p.id] = v; }} collapsable={false}>
                     <PostRow post={p} P={P} ts={ts} tagStyle={tagStyle} onBlocked={removeBlockedUser} onDeleted={removePost} focused={focusId === p.id} />
+                    {/* 배너 광고 1개 — 글 3개 뒤. 목록 맨 위나 버튼 옆에 두면 오터치가
+                        나고 애드몹 정책에도 걸린다. 위치 변경은 이 줄만 고치면 되고 OTA 로 나간다. */}
+                    {i === 2 ? <AdBanner /> : null}
                   </View>
                 ))
               )}

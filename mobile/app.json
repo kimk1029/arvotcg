@@ -81,7 +81,14 @@
         }
       ],
       "./plugins/withR8Optimize",
-      "./plugins/withGradleMemory"
+      "./plugins/withGradleMemory",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-8606099213555265~3547581465"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false
