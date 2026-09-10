@@ -80,3 +80,29 @@ export function collectionTotals(cards: TotalsCard[], jpyKrwRate: number): Colle
     profitPct: investedJpy > 0 ? (profitJpy / investedJpy) * 100 : null,
   };
 }
+
+/**
+ * 화면에 그릴 총 자산(엔) — **목록을 이미 받아왔다면 그 목록이 정본**이다.
+ *
+ * 카드를 전부 지워 목록이 비면 0 이 진실이므로 서버/세션 캐시의 옛 총액으로 폴백하지 않는다.
+ * (기존 `local > 0 ? local : server` 폴백이 빈 컬렉션에서 삭제 전 금액을 되살렸다.)
+ * 폴백은 목록을 아직 못 받았을 때(localCount === null)와, 목록은 있는데 합계가 0 인
+ * 과도기(시세 미수신)에만 쓴다.
+ */
+export function displayTotalJpy(o: {
+  /** 화면이 합산한 카드 수. 목록 미수신이면 null. */
+  localCount: number | null;
+  /** collectionTotals(...).totalJpy */
+  localTotalJpy: number;
+  /** 서버 /api/me/portfolio totalJpy */
+  serverTotalJpy?: number | null;
+  /** 서버 PSA10 환산 총액 — 화면이 PSA10 모드일 때만 쓴다. */
+  serverPsa10Jpy?: number | null;
+  usePsa10?: boolean;
+}): number {
+  // 빈 컬렉션 — 0 이 정답. 서버/캐시의 옛 값으로 되돌아가지 않는다.
+  if (o.localCount === 0) return 0;
+  if (o.usePsa10 && (o.serverPsa10Jpy ?? 0) > 0) return o.serverPsa10Jpy as number;
+  if (o.localTotalJpy > 0) return o.localTotalJpy;
+  return o.serverTotalJpy ?? 0;
+}

@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { PixelText } from '@/components/PixelText';
-import { CardRegisterForm, useManualPalette } from '@/components/CardRegisterForm';
+import { CardRegisterForm, useManualPalette, type RegisterInitial } from '@/components/CardRegisterForm';
 import { useToast } from '@/components/ToastProvider';
 import type { CardItem } from '@/data/cardvault';
+import type { MyCardRow } from '@/lib/myApi';
 
 /** 등급별 현재시세 (JPY) — 시세상세의 등급 집계에서 전달. */
 export interface GradePrices {
@@ -37,17 +38,23 @@ export function CardRegisterSheet({
   onSaved,
   alreadyCollected = false,
   onRemove,
+  editId,
+  initial,
 }: {
   visible: boolean;
   card: RegisterCardInfo;
   /** 이미 완성된 카드(검색 결과·직접입력) — 세트/번호까지 그대로 등록해야 하는 '내 카드 등록' 경로용. */
   item?: CardItem | null;
   onClose: () => void;
-  onSaved?: () => void;
+  /** 저장 완료. 수정 모드면 서버가 돌려준 갱신 행을 넘긴다(목록 캐시 merge 용). */
+  onSaved?: (updated?: MyCardRow) => void;
   /** 이미 컬렉션에 있는 카드 — 헤더를 '추가 등록'으로 바꾸고 제거 버튼을 보여준다. */
   alreadyCollected?: boolean;
   /** '컬렉션에서 제거' 버튼 — 호출 측이 확인창·삭제를 처리한다. */
   onRemove?: () => void;
+  /** 수정 모드 — 기존 등록 행 id + 초기값. 헤더가 '등록 정보 수정'으로 바뀐다 (웹 CollectionScreen 수정 모달 페어). */
+  editId?: number | null;
+  initial?: RegisterInitial | null;
 }) {
   const MP = useManualPalette();
   const toast = useToast();
@@ -98,7 +105,7 @@ export function CardRegisterSheet({
               }}
             >
               <PixelText variant="ko" size={13} weight="bold" color={MP.ink}>
-                {alreadyCollected ? '＋ 카드 추가 등록' : '＋ 카드 등록'}
+                {editId != null ? '✏️ 등록 정보 수정' : alreadyCollected ? '＋ 카드 추가 등록' : '＋ 카드 등록'}
               </PixelText>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
                 {alreadyCollected && onRemove && (
@@ -118,9 +125,11 @@ export function CardRegisterSheet({
               <CardRegisterForm
                 key={formCard.id}
                 card={formCard}
-                onSaved={() => {
-                  toast.success(alreadyCollected ? '내 컬렉션에 추가 등록되었습니다' : '내 컬렉션에 등록되었습니다');
-                  onSaved?.();
+                editId={editId}
+                initial={initial}
+                onSaved={(_saved, updated) => {
+                  toast.success(editId != null ? '등록 정보를 수정했어요' : alreadyCollected ? '내 컬렉션에 추가 등록되었습니다' : '내 컬렉션에 등록되었습니다');
+                  onSaved?.(updated);
                   onClose();
                 }}
               />

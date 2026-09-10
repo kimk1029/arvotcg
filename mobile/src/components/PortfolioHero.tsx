@@ -16,6 +16,7 @@ import { useSWR } from '@/lib/swr';
 import { useCurrency } from '@/components/CurrencyProvider';
 import { useCollection } from '@/lib/collection';
 import { cardJpy } from '@/data/cardvault';
+import { displayTotalJpy } from '../../../shared/collectionTotals';
 import {
   fetchMyCards,
   fetchPortfolio,
@@ -124,25 +125,19 @@ export function PortfolioHero({
   const ownedAll = useCollection();
   const owned = ownedAll.filter((c) => !c.favorite);
   const localTotalJpy = owned.reduce((a, c) => a + cardJpy(c, 'single', rate), 0);
-  const totalJpy = totalJpyProp && totalJpyProp > 0 ? totalJpyProp : port ? port.totalJpy : localTotalJpy;
+  // 부모(내 자산 화면)가 합산한 값이 정본 — 0(카드를 전부 삭제)도 진실이므로
+  // 서버/캐시의 삭제 전 총액으로 되돌아가지 않는다. 부모가 안 넘기면(홈) 서버 값.
+  const totalJpy = displayTotalJpy({
+    localCount: totalCountProp ?? null,
+    localTotalJpy: totalJpyProp ?? 0,
+    serverTotalJpy: port ? port.totalJpy : localTotalJpy,
+  });
   const totalCount = totalCountProp != null ? totalCountProp : port ? port.totalCount : owned.length;
 
   // 누적 수익률 — 보유 카드 전체의 (현재가-기준가)×수량 합산 / 구매금액 합산.
   // 카드별 손익(-100만/+50만)을 상쇄해 평균 수익률로 보여준다 (웹 CollectionScreen 동일).
   const profitPct = hasInvested ? (profitJpy / investedJpy) * 100 : null;
   const up = profitJpy >= 0;
-
-  // 자산 요약(7일·30일 변화) — 서버 history(일별 평가액) 델타. 웹 CollectionScreen 히어로 동일.
-  const deltaOver = (days: number): { abs: number; pct: number } | null => {
-    const h = port?.history ?? [];
-    if (h.length < 2) return null;
-    const last = h[h.length - 1].totalJpy;
-    const base = h[Math.max(0, h.length - 1 - days)].totalJpy;
-    if (!base) return null;
-    return { abs: last - base, pct: ((last - base) / base) * 100 };
-  };
-  const d7 = deltaOver(7);
-  const d30 = deltaOver(30);
 
   return (
     <View style={{ marginHorizontal: 14, marginBottom: 6, position: 'relative' }}>
@@ -205,12 +200,6 @@ export function PortfolioHero({
               flex={1.2}
             />
           </View>
-
-          {/* 자산 요약 — 7일·30일 변화 (웹 히어로 HeroDelta 동일) */}
-          <View style={{ flexDirection: 'row', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)' }}>
-            <HeroDelta label="7일 변화" delta={d7} format={format} />
-            <HeroDelta label="30일 변화" delta={d30} format={format} />
-          </View>
         </Pressable>
       </View>
 
@@ -243,20 +232,6 @@ function HeroStat({ label, value, color = '#fff', flex = 1 }: { label: string; v
       <PixelText variant="ko" size={10} color="rgba(255,255,255,0.5)">{label}</PixelText>
       <PixelText variant="ko" size={12} weight="bold" color={color} numberOfLines={1} adjustsFontSizeToFit style={{ marginTop: 4 }}>
         {value}
-      </PixelText>
-    </View>
-  );
-}
-
-/** 히어로 안 7일/30일 변화 셀 — 금액 + (등락률). 웹 HeroDelta 동일. */
-function HeroDelta({ label, delta, format }: { label: string; delta: { abs: number; pct: number } | null; format: (jpy: number) => string }) {
-  const up = (delta?.pct ?? 0) >= 0;
-  const color = delta == null ? 'rgba(255,255,255,0.55)' : up ? '#FF6B5E' : '#6FA8FF';
-  return (
-    <View style={{ flex: 1 }}>
-      <PixelText variant="ko" size={10} color="rgba(255,255,255,0.5)">{label}</PixelText>
-      <PixelText variant="ko" size={12} weight="bold" color={color} numberOfLines={1} adjustsFontSizeToFit style={{ marginTop: 4 }}>
-        {delta == null ? '—' : `${delta.abs >= 0 ? '+' : '-'}${format(Math.abs(delta.abs))} (${up ? '+' : ''}${delta.pct.toFixed(2)}%)`}
       </PixelText>
     </View>
   );

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { AdBanner } from '@/components/AdBanner';
 import { AppBar } from '@/components/AppBar';
 import { TranslationTicker } from '@/components/TranslationTicker';
 import { PixelText } from '@/components/PixelText';
@@ -499,8 +500,12 @@ export default function SnkrdunkSearchScreen() {
                 <EmptyState icon="🔍" title="SNKRDUNK 결과가 없습니다" desc={initialQuery} />
               ) : (
                 <View style={{ gap: 6 }}>
-                  {hits.map((hit) => (
-                    <SnkrdunkRow key={hit.apparelId} hit={hit} />
+                  {hits.map((hit, i) => (
+                    <View key={hit.apparelId}>
+                      <SnkrdunkRow hit={hit} />
+                      {/* 광고 — 검색 결과 2번째 다음. */}
+                      {i === 1 ? <AdBanner marginHorizontal={0} marginTop={8} marginBottom={2} /> : null}
+                    </View>
                   ))}
                   {loadingMore ? (
                     <Spinner pad={18} />

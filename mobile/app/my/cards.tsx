@@ -1,6 +1,6 @@
 /**
  * /my/cards — 내 자산 (웹 CollectionScreen 1:1).
- * 히어로(총 자산 + 자산 요약 7일/30일) → 내 카드 목록.
+ * 히어로(총 자산) → 내 카드 목록. (7일/30일 변화는 포트폴리오 상세로 이동)
  * (자산 구성 파이는 총 자산 탭 → 포트폴리오 상세로 이동.)
  * 목록: 기본 리스트형, 뷰 2종(그리드 2열/리스트) + 정렬(가격순/등락순/등록일/이름순/테마순) +
  * 중복 등록 카드는 한 줄로 묶고(×N) 펼치면 장별 등록가/손익 +
@@ -9,7 +9,11 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Alert, Dimensions, Pressable, ScrollView, Text, View } from 'react-native';
+import { CardRegisterSheet } from '@/components/CardRegisterSheet';
+import type { RegisterInitial } from '@/components/CardRegisterForm';
+import type { CardItem } from '@/data/cardvault';
 import { router } from 'expo-router';
+import { AdBanner } from '@/components/AdBanner';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { PortfolioHero } from '@/components/PortfolioHero';
 import { FavoritesView } from '@/components/FavoritesView';
@@ -25,6 +29,7 @@ import { useThemeColors, useThemeTextVariant } from '@/components/ThemeProvider'
 import {
   fetchMyCardsSmart,
   deleteMyCard,
+  bundleMyCards,
   SWR_MY_CARDS,
   type MyCardRow,
 } from '@/lib/myApi';
@@ -35,6 +40,7 @@ import { SegmentedTabs, SegIcons } from '@/components/cv/SegmentedTabs';
 import { groupDuplicates, type CardGroup } from '../../../shared/collectionGroup';
 import { evaluationUnitJpy } from '../../../shared/snkrdunkPrice';
 import { collectionTotals } from '../../../shared/collectionTotals';
+import { regionBadge } from '../../../shared/collectionBadges';
 
 type SortKey = 'value' | 'change' | 'recent' | 'name' | 'game';
 type ViewMode = 'grid' | 'list';
@@ -109,6 +115,11 @@ export default function MyCardsScreen() {
   const [excludeBox, setExcludeBox] = useState(false);
   // 삭제 낙관 반영 — 서버 응답을 기다리지 않고 목록·총액에서 즉시 뺀다.
   const [removedIds, setRemovedIds] = useState<number[]>([]);
+  // 등록 정보 수정 — ⋯ 메뉴 '등록 정보 수정' → 등록 시트를 기존 값으로 채워 띄운다 (웹 동일).
+  const [editing, setEditing] = useState<MyCardRow | null>(null);
+  // 묶음 만들기 — 선택 모드에서 카드를 고르고 '묶기'. 서버 bundleId 로 저장 (웹 동일).
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<number[]>([]);
 
   // SWR — 카드 정적 데이터는 디스크까지 캐싱, 재진입 시 즉시 그리고 "오늘의 금액"만
   // /api/me/cards/prices 로 받아 merge (fetchMyCardsSmart). 등록/삭제 시 자동 무효화.
@@ -213,6 +224,25 @@ export default function MyCardsScreen() {
     [toast, data],
   );
 
+  // 묶음 만들기/해제 — 캐시에 bundleId 반영 후 refresh(캐시 시드로 즉시 그리고 백그라운드 갱신).
+  const handleBundle = useCallback(
+    async (ids: number[], bundle: boolean) => {
+      try {
+        await bundleMyCards(ids, bundle);
+        setSelecting(false);
+        setSelected([]);
+        refresh();
+        toast.success(bundle ? `${ids.length}장을 묶었어요` : '묶음을 해제했어요');
+      } catch {
+        toast.error(bundle ? '묶기에 실패했어요' : '묶음 해제에 실패했어요');
+      }
+    },
+    [refresh, toast],
+  );
+  const toggleSelect = useCallback((id: number) => {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }, []);
+
   if (!authed) {
     return (
       <InlineLoginGate
@@ -252,12 +282,22 @@ export default function MyCardsScreen() {
         ) : (
           <>
             <View style={{ height: 12 }} />
+            {/* 광고 — 자산 히어로와 카드 목록 사이. */}
+            <AdBanner marginHorizontal={space.gap} marginBottom={14} />
             {/* ── 내 카드 목록 (웹 동일: 헤더 + 그리드/리스트 토글 + 정렬 세그먼트) ── */}
             <View style={{ paddingHorizontal: space.gap }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <PixelText variant="ko" size={15} weight="bold" color={tc.ink}>
                   내 카드 목록 <PixelText variant="ko" size={15} weight="bold" color={tc.ink3}>({rows.length})</PixelText>
                 </PixelText>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {/* 묶기 — 선택 모드 토글 (웹 동일). 리스트형에서 고른 뒤 하단 바의 '묶기'. */}
+                <Pressable
+                  onPress={() => { setSelecting((v) => !v); setSelected([]); if (!selecting) setView('list'); }}
+                  style={{ paddingVertical: 5, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: selecting ? tc.ink : tc.pap3, backgroundColor: selecting ? tc.ink : tc.white }}
+                >
+                  <PixelText variant="ko" size={10} weight="bold" color={selecting ? tc.white : tc.ink}>{selecting ? '선택 취소' : '묶기'}</PixelText>
+                </Pressable>
                 <View style={{ flexDirection: 'row', gap: 4, backgroundColor: tc.pap2, borderRadius: 8, padding: 3 }}>
                   {(['grid', 'list'] as ViewMode[]).map((v) => {
                     const on = view === v;
@@ -277,6 +317,7 @@ export default function MyCardsScreen() {
                       </Pressable>
                     );
                   })}
+                </View>
                 </View>
               </View>
 
@@ -317,13 +358,25 @@ export default function MyCardsScreen() {
               ) : view === 'grid' ? (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingBottom: 24 }}>
                   {groups.map((g, i) => (
-                    <CardGridItem key={g.key} group={g} rank={i + 1} format={format} onRemove={handleRemove} tc={tc} />
+                    <CardGridItem key={g.key} group={g} rank={i + 1} format={format} onRemove={handleRemove} onEdit={setEditing} onUnbundle={(ids) => handleBundle(ids, false)} tc={tc} />
                   ))}
                 </View>
               ) : (
                 <View style={{ paddingBottom: 24 }}>
                   {groups.map((g, i, arr) => (
-                    <CardListItem key={g.key} group={g} format={format} last={i === arr.length - 1} onRemove={handleRemove} tc={tc} />
+                    <CardListItem
+                      key={g.key}
+                      group={g}
+                      format={format}
+                      last={i === arr.length - 1}
+                      onRemove={handleRemove}
+                      onEdit={setEditing}
+                      onUnbundle={(ids) => handleBundle(ids, false)}
+                      selecting={selecting}
+                      selected={selected}
+                      onToggleSelect={toggleSelect}
+                      tc={tc}
+                    />
                   ))}
                 </View>
               )}
@@ -337,8 +390,93 @@ export default function MyCardsScreen() {
         </>
         )}
       </ScrollView>
+
+      {/* 선택 모드 하단 바 — 2장 이상 고르면 '묶기' 활성 (웹 동일). */}
+      {selecting ? (
+        <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: 100, alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: tc.ink, borderRadius: 999, paddingVertical: 8, paddingLeft: 18, paddingRight: 8, elevation: 6, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } }}>
+            <PixelText variant="ko" size={12} weight="bold" color={tc.white}>{`${selected.length}장 선택`}</PixelText>
+            <Pressable
+              disabled={selected.length < 2}
+              onPress={() => handleBundle(selected, true)}
+              style={{ paddingVertical: 7, paddingHorizontal: 16, borderRadius: 999, backgroundColor: selected.length < 2 ? 'rgba(255,255,255,0.25)' : tc.white }}
+            >
+              <PixelText variant="ko" size={12} weight="bold" color={selected.length < 2 ? 'rgba(255,255,255,0.6)' : tc.ink}>묶기</PixelText>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
+      {/* 등록 정보 수정 시트 — 시세상세 등록 팝업과 같은 폼을 기존 값으로 채워 띄운다 (웹 수정 모달 페어). */}
+      {editing ? (
+        <CardRegisterSheet
+          visible
+          card={{ apparelId: editing.snkrdunkApparelId ?? 0, name: cardName(editing), imageUrl: editing.snkrdunkImageUrl || editing.photoUrl, currentPriceJpy: editing.currentPriceJpy ?? null }}
+          item={rowToCardItem(editing)}
+          editId={editing.id}
+          initial={rowToInitial(editing)}
+          onClose={() => setEditing(null)}
+          onSaved={(updated) => {
+            // 서버가 돌려준 행(등록가 재산정 포함)을 캐시에 merge 하고 refresh — 시드로 즉시 그려져 스피너가 없다.
+            const id = editing.id;
+            const cur = data ?? [];
+            swrSet(
+              SWR_MY_CARDS,
+              cur.map((c) => (c.id === id && updated ? { ...c, ...pickEditable(updated) } : c)),
+              { persist: true },
+            );
+            refresh();
+          }}
+        />
+      ) : null}
     </View>
   );
+}
+
+/** MyCardRow → 등록 폼이 받는 CardItem (수정 모드 미리보기용). */
+function rowToCardItem(c: MyCardRow): CardItem {
+  return {
+    id: c.id,
+    name: cardName(c),
+    set: c.ocrSetCode ?? '-',
+    num: c.ocrCardNumber ?? '-',
+    game: '포켓몬',
+    rar: 'R',
+    grade: null,
+    price: c.currentPriceJpy ?? 0,
+    priceSingle: (c.currentPriceJpy ?? 0) > 0 ? c.currentPriceJpy : undefined,
+    priceCurrency: 'JPY',
+    trend: [],
+    emoji: '🃏',
+    owned: true,
+    snkrdunkApparelId: c.snkrdunkApparelId ?? undefined,
+    imageUrl: c.snkrdunkImageUrl || c.photoUrl || undefined,
+  };
+}
+
+/** MyCardRow → 등록 폼 초기값 (웹 CollectionScreen initial 동일 규칙). */
+function rowToInitial(c: MyCardRow): RegisterInitial {
+  return {
+    selfPulled: c.selfPulled ?? false,
+    buyPrice: c.buyPrice != null && c.buyPrice > 0 ? String(c.buyPrice) : '',
+    buyCurrency: c.buyCurrency === 'JPY' ? 'JPY' : 'KRW',
+    buyDate: c.buyDate ?? '',
+    qty: Math.max(1, c.qty || 1),
+    region: c.region === 'kr' || c.region === 'en' ? c.region : 'jp',
+    graded: c.graded ?? false,
+    gradeCompany: c.gradeCompany ?? 'PSA',
+    gradeValue: c.gradeValue ?? '',
+    memo: c.memo ?? '',
+  };
+}
+
+/** 서버 갱신 행에서 목록 캐시에 덮어쓸 편집 필드만 — 시세 필드는 기존 값 유지. */
+function pickEditable(u: MyCardRow): Partial<MyCardRow> {
+  return {
+    buyPrice: u.buyPrice ?? null, buyCurrency: u.buyCurrency ?? null, qty: u.qty, buyDate: u.buyDate ?? null,
+    region: u.region ?? null, memo: u.memo ?? null, selfPulled: u.selfPulled, graded: u.graded,
+    gradeCompany: u.gradeCompany ?? null, gradeValue: u.gradeValue ?? null, registerPriceJpy: u.registerPriceJpy,
+  };
 }
 
 /**
@@ -353,7 +491,7 @@ function openCardDetail(apparelId: number | null | undefined, basis?: string | n
 }
 
 /* ── 그리드 셀 — 웹 CardGridItem 동일 (2열, 정사각 썸네일, 랭크 배지, 그레이딩 라벨) ── */
-function CardGridItem({ group, rank, format, onRemove, tc }: { group: CardGroup<Row>; rank: number; format: (j: number) => string; onRemove: (id: number) => void; tc: ReturnType<typeof useThemeColors> }) {
+function CardGridItem({ group, rank, format, onRemove, onEdit, onUnbundle, tc }: { group: CardGroup<Row>; rank: number; format: (j: number) => string; onRemove: (id: number) => void; onEdit: (c: MyCardRow) => void; onUnbundle: (ids: number[]) => void; tc: ReturnType<typeof useThemeColors> }) {
   const { c, curJpy, basisJpy } = group.head;
   // 중복 등록은 한 타일로 — 장수·손익률은 그룹 합산 기준 (웹 동일).
   const qty = group.qty;
@@ -386,14 +524,80 @@ function CardGridItem({ group, rank, format, onRemove, tc }: { group: CardGroup<
         </View>
       </Pressable>
       <View style={{ position: 'absolute', top: 6, right: 6, zIndex: 6 }}>
-        <CardMenu menuKey={`grid:${c.id}`} apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} tc={tc} />
+        <CardMenu
+          menuKey={`grid:${c.id}`}
+          apparelId={c.snkrdunkApparelId}
+          basis={c.priceBasis}
+          onRemove={() => onRemove(c.id)}
+          onEdit={group.items.length === 1 ? () => onEdit(c) : undefined}
+          onUnbundle={c.bundleId ? () => onUnbundle(group.items.map((r) => r.c.id)) : undefined}
+          tc={tc}
+        />
       </View>
     </View>
   );
 }
 
-/* ── 리스트 행 — 웹 CardListItem 동일: 썸네일 | 카드명+등급배지 / 등록가·장수 | 오늘가 / 차액·등락률 ── */
-function CardListItem({ group, format, last, onRemove, tc }: { group: CardGroup<Row>; format: (j: number) => string; last: boolean; onRemove: (id: number) => void; tc: ReturnType<typeof useThemeColors> }) {
+/** 카드 이름 아랫줄 배지 — 등급(PSA 10 / 무등급) + 언어판(일판/한판/영판) + 묶음(N장). 웹 BadgeRow 동일. */
+function BadgeRow({ c, bundleCount, tc }: { c: MyCardRow; bundleCount?: number; tc: ReturnType<typeof useThemeColors> }) {
+  const lang = regionBadge(c.region);
+  const Chip = ({ label, dark }: { label: string; dark?: boolean }) => (
+    <View style={{ backgroundColor: dark ? tc.ink : tc.pap2, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 }}>
+      <PixelText variant="ko" size={9} weight="bold" color={dark ? tc.white : tc.ink3}>{label}</PixelText>
+    </View>
+  );
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+      {c.graded ? <GradedLabel gold={tc.gold} company={c.gradeCompany} grade={c.gradeValue} height={9} inline /> : <Chip label="무등급" />}
+      {lang ? <Chip label={lang} /> : null}
+      {bundleCount != null && bundleCount > 1 ? <Chip label={`묶음 ${bundleCount}장`} dark /> : null}
+    </View>
+  );
+}
+
+/** 묶음 썸네일 — 카드 이미지가 부채꼴로 겹치고 우하단에 장수 배지 (웹 FanThumb 동일). */
+function FanThumb({ srcs, count, tc }: { srcs: Array<string | null>; count: number; tc: ReturnType<typeof useThemeColors> }) {
+  const layers = srcs.slice(0, 3);
+  const n = layers.length;
+  return (
+    <View style={{ width: 54, height: 74 }}>
+      {layers.map((src, i) => {
+        // 뒤 카드일수록 왼쪽·위로 살짝 벗어나며 기울인다(부채꼴). 맨 앞(i=n-1)이 정위치.
+        const k = n - 1 - i;
+        return (
+          <ThumbImage
+            key={i}
+            uri={src}
+            emojiSize={22}
+            style={{ position: 'absolute', left: 0, top: 0, width: 46, height: 64, borderRadius: 6, zIndex: i + 1, transform: [{ translateX: k * -4 }, { translateY: k * -3 }, { rotate: `${k * -8}deg` }] }}
+          />
+        );
+      })}
+      <View style={{ position: 'absolute', right: -2, bottom: 2, zIndex: 5, minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: 9, backgroundColor: tc.ink, alignItems: 'center', justifyContent: 'center' }}>
+        <PixelText variant="ko" size={10} weight="bold" color={tc.white}>{String(count)}</PixelText>
+      </View>
+    </View>
+  );
+}
+
+/** 선택 모드 체크박스. */
+function SelectBox({ on, tc }: { on: boolean; tc: ReturnType<typeof useThemeColors> }) {
+  return (
+    <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: on ? tc.ink : tc.pap3, backgroundColor: on ? tc.ink : tc.white, alignItems: 'center', justifyContent: 'center' }}>
+      {on ? <PixelText variant="ko" size={11} weight="bold" color={tc.white}>✓</PixelText> : null}
+    </View>
+  );
+}
+
+/* ── 리스트 행 — 웹 CardListItem 동일: 썸네일(묶음=부채꼴) | 카드명 / 배지줄 / 등록가·장수 | 평가액 / 손익 ── */
+function CardListItem({
+  group, format, last, onRemove, onEdit, onUnbundle, selecting, selected, onToggleSelect, tc,
+}: {
+  group: CardGroup<Row>; format: (j: number) => string; last: boolean;
+  onRemove: (id: number) => void; onEdit: (c: MyCardRow) => void; onUnbundle: (ids: number[]) => void;
+  selecting: boolean; selected: number[]; onToggleSelect: (id: number) => void;
+  tc: ReturnType<typeof useThemeColors>;
+}) {
   const { c } = group.head;
   const dup = group.items.length > 1;
   const [open, setOpen] = useState(false);
@@ -401,77 +605,88 @@ function CardListItem({ group, format, last, onRemove, tc }: { group: CardGroup<
   const openDetail = () => openCardDetail(c.snkrdunkApparelId, c.priceBasis);
   const profit = group.profitAbsJpy;
   const up = (profit ?? 0) >= 0;
+  const allSelected = group.items.every((r) => selected.includes(r.c.id));
+  const toggleGroup = () => group.items.forEach((r) => { if (selected.includes(r.c.id) === allSelected) onToggleSelect(r.c.id); });
   return (
     <View style={{ borderBottomWidth: last ? 0 : 1, borderBottomColor: tc.pap3 }}>
       <View style={{ position: 'relative' }}>
-        <Pressable onPress={openDetail} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingRight: 24, paddingLeft: 2 }}>
-          {/* 카드 비율 썸네일 */}
-          <ThumbImage uri={img} emojiSize={26} style={{ width: 54, height: 74, borderRadius: 8 }} />
+        <Pressable onPress={selecting ? toggleGroup : openDetail} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingRight: 24, paddingLeft: 2 }}>
+          {selecting ? <SelectBox on={allSelected} tc={tc} /> : null}
+          {/* 썸네일 — 묶음이면 부채꼴 + 장수 배지 */}
+          {dup ? (
+            <FanThumb srcs={group.items.map((r) => r.c.snkrdunkImageUrl || r.c.photoUrl || null)} count={group.qty} tc={tc} />
+          ) : (
+            <ThumbImage uri={img} emojiSize={26} style={{ width: 54, height: 74, borderRadius: 8 }} />
+          )}
           <View style={{ flex: 1, minWidth: 0 }}>
-            {/* 카드명 + 등급 배지(무등급이면 회색 칩) */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <PixelText variant="ko" size={13.5} weight="bold" color={tc.ink} numberOfLines={1} style={{ flexShrink: 1 }}>{cardName(c)}</PixelText>
-              {c.graded ? (
-                <GradedLabel gold={tc.gold} company={c.gradeCompany} grade={c.gradeValue} height={11} inline />
-              ) : (
-                <View style={{ backgroundColor: tc.pap2, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
-                  <PixelText variant="ko" size={9.5} weight="bold" color={tc.ink3}>무등급</PixelText>
-                </View>
-              )}
-            </View>
-            {/* 등록(기준)가 · 보유 장수 */}
-            <PixelText variant="ko" size={11} color={tc.ink3} numberOfLines={1} style={{ marginTop: 6 }}>
-              {`등록 ${group.head.basisJpy ? format(group.head.basisJpy) : '—'} · ${group.qty}장${dup ? ` (${group.items.length}건)` : ''}`}
+            {/* 카드명 — 배지는 아랫줄로 빼서 이름이 잘리지 않게 */}
+            <PixelText variant="ko" size={13.5} weight="bold" color={tc.ink} numberOfLines={1}>{cardName(c)}</PixelText>
+            <BadgeRow c={c} bundleCount={dup ? group.qty : undefined} tc={tc} />
+            {/* 등록(기준)가 · 보유 장수(진하게). 묶음은 등록 합계. */}
+            <PixelText variant="ko" size={11} color={tc.ink3} numberOfLines={1} style={{ marginTop: 5 }}>
+              {dup ? `등록 합계 ${group.investedJpy > 0 ? format(group.investedJpy) : '—'}` : `등록 ${group.head.basisJpy ? format(group.head.basisJpy) : '—'}`}
+              {' · '}
+              <PixelText variant="ko" size={11} weight="bold" color={tc.ink}>{`${group.qty}장`}</PixelText>
             </PixelText>
           </View>
-          {/* 오늘 가격(평가액) + 등록가 대비 차액·등락률 */}
+          {/* 평가금액(검정 볼드) + 등록가 대비 손익(한 단계 작게, 상승 빨강/하락 파랑) */}
           <View style={{ alignItems: 'flex-end' }}>
             <PixelText variant="ko" size={14} weight="bold" color={tc.ink}>
               {group.value > 0 ? format(group.value) : '—'}
             </PixelText>
             {profit != null && group.profitPct != null ? (
-              <PixelText variant="ko" size={11.5} weight="bold" color={up ? UP : DOWN} style={{ marginTop: 5 }}>
+              <PixelText variant="ko" size={10.5} weight="bold" color={up ? UP : DOWN} style={{ marginTop: 4 }}>
                 {`${up ? '▲' : '▼'} ${format(Math.abs(profit))} (${up ? '+' : '-'}${Math.abs(group.profitPct).toFixed(1)}%)`}
               </PixelText>
             ) : null}
           </View>
         </Pressable>
-        <View style={{ position: 'absolute', top: '50%', right: -4, transform: [{ translateY: -13 }], zIndex: 6 }}>
-          {dup ? (
-            <Pressable onPress={() => setOpen((v) => !v)} hitSlop={8} style={{ width: 22, height: 26, alignItems: 'center', justifyContent: 'center' }}>
-              <PixelText variant="ko" size={11} color={tc.ink3}>{open ? '▲' : '▼'}</PixelText>
-            </Pressable>
-          ) : (
-            <CardMenu menuKey={`list:${c.id}`} apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} tc={tc} plain />
-          )}
-        </View>
+        {/* ⋯ 메뉴 — 우측 세로 중앙. 묶음이면 펼치기 버튼으로 대체(메뉴는 하위 행에). */}
+        {!selecting ? (
+          <View style={{ position: 'absolute', top: '50%', right: -4, transform: [{ translateY: -13 }], zIndex: 6 }}>
+            {dup ? (
+              <Pressable onPress={() => setOpen((v) => !v)} hitSlop={8} style={{ width: 22, height: 26, alignItems: 'center', justifyContent: 'center' }}>
+                <PixelText variant="ko" size={11} color={tc.ink3}>{open ? '▲' : '▼'}</PixelText>
+              </Pressable>
+            ) : (
+              <CardMenu menuKey={`list:${c.id}`} apparelId={c.snkrdunkApparelId} basis={c.priceBasis} onRemove={() => onRemove(c.id)} onEdit={() => onEdit(c)} tc={tc} plain />
+            )}
+          </View>
+        ) : null}
       </View>
 
-      {/* 중복 등록분 — 장마다 등록가·손익이 다르므로 각각 보여준다. */}
-      {dup && open ? (
+      {/* 묶음 하위 행 — 장마다 등록가·등록일·개별 손익이 다르므로 각각. 현재가는 같은 카드면 전부 같다. */}
+      {dup && open && !selecting ? (
         <View style={{ paddingLeft: 66, paddingBottom: 10 }}>
+          {c.bundleId ? (
+            <Pressable onPress={() => onUnbundle(group.items.map((r) => r.c.id))} style={{ alignSelf: 'flex-start', backgroundColor: tc.pap2, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, marginBottom: 4 }}>
+              <PixelText variant="ko" size={10} weight="bold" color={tc.ink3}>🧩 묶음 해제</PixelText>
+            </Pressable>
+          ) : null}
           {group.items.map((r, i) => {
             // 장별 차액 — 현재 평가액 − 기준가×수량. 금액은 검정, 차액만 부호색 (웹 동일).
             const diff = r.basisJpy != null && r.gradePriceJpy > 0 ? r.value - r.basisJpy * r.qty : null;
             const diffUp = (diff ?? 0) >= 0;
+            const date = (r.c.buyDate || r.c.createdAt || '').slice(0, 10);
             return (
               // 뒤 행이 위로 쌓이게(zIndex) + 메뉴는 위로 펼쳐 다음 행에 가리지 않는다.
               <View key={r.c.id} style={{ position: 'relative', zIndex: i + 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 7, paddingRight: 24 }}>
-                <PixelText variant="ko" size={10} color={tc.ink3} numberOfLines={1} style={{ flexShrink: 1 }}>
-                  {`${i + 1}번째${r.qty > 1 ? ` · ×${r.qty}` : ''} · 등록 ${r.basisJpy ? format(r.basisJpy) : '—'}`}
-                </PixelText>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-                  <PixelText variant="ko" size={12} weight="bold" color={tc.ink}>
-                    {r.value > 0 ? format(r.value) : '—'}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <PixelText variant="ko" size={11} weight="bold" color={tc.ink} numberOfLines={1}>{`${i + 1}. ${cardName(r.c)}`}</PixelText>
+                  <PixelText variant="ko" size={10} color={tc.ink3} numberOfLines={1} style={{ marginTop: 2 }}>
+                    {`등록 ${r.basisJpy ? format(r.basisJpy) : '—'}${r.qty > 1 ? ` · ×${r.qty}` : ''}${date ? ` · ${date}` : ''}`}
                   </PixelText>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <PixelText variant="ko" size={12} weight="bold" color={tc.ink}>{r.curJpy > 0 ? format(r.curJpy) : '—'}</PixelText>
                   {diff != null ? (
-                    <PixelText variant="ko" size={11} weight="bold" color={diffUp ? UP : DOWN}>
+                    <PixelText variant="ko" size={10} weight="bold" color={diffUp ? UP : DOWN} style={{ marginTop: 2 }}>
                       {`${diffUp ? '▲' : '▼'} ${format(Math.abs(diff))}${r.profitPct != null ? ` (${diffUp ? '+' : '-'}${Math.abs(r.profitPct).toFixed(1)}%)` : ''}`}
                     </PixelText>
                   ) : null}
                 </View>
                 <View style={{ position: 'absolute', top: '50%', right: -4, transform: [{ translateY: -13 }] }}>
-                  <CardMenu menuKey={`item:${r.c.id}`} apparelId={r.c.snkrdunkApparelId} basis={r.c.priceBasis} onRemove={() => onRemove(r.c.id)} tc={tc} plain up />
+                  <CardMenu menuKey={`item:${r.c.id}`} apparelId={r.c.snkrdunkApparelId} basis={r.c.priceBasis} onRemove={() => onRemove(r.c.id)} onEdit={() => onEdit(r.c)} tc={tc} plain up />
                 </View>
               </View>
             );
@@ -515,8 +730,8 @@ function useMenuOpen(key: string): boolean {
   return useSyncExternalStore(subscribeMenu, () => openMenuKey, () => null) === key;
 }
 
-/** 카드 ⋯ 메뉴 — 시세 보기 / 컬렉션에서 제거 (웹 CardMenu 동일). */
-function CardMenu({ menuKey, apparelId, basis, onRemove, tc, plain = false, up = false }: { menuKey: string; apparelId: number | null; basis?: string | null; onRemove: () => void; tc: ReturnType<typeof useThemeColors>; plain?: boolean; up?: boolean }) {
+/** 카드 ⋯ 메뉴 — 시세 보기 / 등록 정보 수정 / 묶음 해제 / 컬렉션에서 제거 (웹 CardMenu 동일). */
+function CardMenu({ menuKey, apparelId, basis, onRemove, onEdit, onUnbundle, tc, plain = false, up = false }: { menuKey: string; apparelId: number | null; basis?: string | null; onRemove: () => void; onEdit?: () => void; onUnbundle?: () => void; tc: ReturnType<typeof useThemeColors>; plain?: boolean; up?: boolean }) {
   const open = useMenuOpen(menuKey);
   const setOpen = (v: boolean) => setOpenMenuKey(v ? menuKey : null);
   // 화면 아래쪽 행이면 위로 펼친다 — 아래로 열면 하단 탭바 뒤로 들어가 눌리지 않는다.
@@ -555,6 +770,16 @@ function CardMenu({ menuKey, apparelId, basis, onRemove, tc, plain = false, up =
               style={{ paddingVertical: 9, paddingHorizontal: 13 }}
             >
               <PixelText variant="ko" size={11} weight="bold" color={tc.ink}>시세 보기</PixelText>
+            </Pressable>
+          ) : null}
+          {onEdit ? (
+            <Pressable onPress={() => { setOpen(false); onEdit(); }} style={{ paddingVertical: 9, paddingHorizontal: 13 }}>
+              <PixelText variant="ko" size={11} weight="bold" color={tc.ink}>등록 정보 수정</PixelText>
+            </Pressable>
+          ) : null}
+          {onUnbundle ? (
+            <Pressable onPress={() => { setOpen(false); onUnbundle(); }} style={{ paddingVertical: 9, paddingHorizontal: 13 }}>
+              <PixelText variant="ko" size={11} weight="bold" color={tc.ink}>묶음 해제</PixelText>
             </Pressable>
           ) : null}
           <Pressable
