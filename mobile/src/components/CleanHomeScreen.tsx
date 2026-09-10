@@ -116,7 +116,7 @@ type RankRow = { apparelId: number; shortName: string; localizedName?: string; i
 const MOVER_TABS: { id: MoverTab; label: string; title: string }[] = [
   { id: 'surge', label: '실시간 급등', title: '실시간 급등 카드' },
   { id: 'snkr', label: 'SNKR 최고가', title: '스니덩크 체결가 TOP 10' },
-  { id: 'collection', label: '컬렉션 TOP', title: '회원 컬렉션 TOP 10' },
+  { id: 'collection', label: '많이 모은 카드', title: '많이 등록된 카드 TOP 10' },
 ];
 const HOT_PREFIX = 'home:hot:';
 const BOX_PREFIX = 'home:box:';
@@ -1191,7 +1191,7 @@ export function CleanHomeScreen() {
                       ) : null}
                       {t.id !== 'surge' && st.list ? st.list.map((m, i) => {
                         const sub = t.id === 'collection'
-                          ? `보유 ${m.holders ?? 0}명 · ${m.qty ?? 0}장${m.basis ? ` · ${m.basis}` : ''}`
+                          ? `보유 회원 ${m.holders ?? 0}명 · 등록 수량 기준`
                           : `${m.localizedName && m.localizedName !== m.shortName ? m.localizedName : '스니덩크 체결가'}${m.basis ? ` · ${m.basis}` : ''}`;
                         return (
                           <Pressable
@@ -1206,7 +1206,7 @@ export function CleanHomeScreen() {
                               <Text numberOfLines={1} style={[ts(12, '400', P.ink3), { marginTop: 2 }]}>{sub}</Text>
                             </View>
                             <View style={{ alignItems: 'flex-end' }}>
-                              <Text style={ts(14.5, '900', P.ink)}>{fmtPrice(m.recentPrice ?? m.minPrice)}</Text>
+                              <Text style={ts(14.5, '900', P.ink)}>{t.id === 'collection' ? `${(m.qty ?? 0).toLocaleString()}장` : fmtPrice(m.recentPrice ?? m.minPrice)}</Text>
                             </View>
                           </Pressable>
                         );
