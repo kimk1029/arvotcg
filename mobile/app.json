@@ -24,7 +24,13 @@
         "NSMicrophoneUsageDescription": "카메라 촬영 기능에 포함된 시스템 요구사항입니다. 음성은 수집하지 않습니다.",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
-        }
+        },
+        "LSApplicationQueriesSchemes": [
+          "kakaokompassauth",
+          "kakaolink",
+          "kakaoplus",
+          "kakaotalk"
+        ]
       },
       "buildNumber": "35"
     },

@@ -5,6 +5,7 @@ import { toPng } from 'html-to-image';
 import { ComposedAvatar } from '@/components/ComposedAvatar';
 import { GRADE_LOGOS } from '@/components/cards/GradeMark';
 import { useCurrency } from '@/components/CurrencyProvider';
+import { KAKAO_JS_KEY, KAKAO_JS_SDK_URL, flexShareUrl } from '../../shared/kakao';
 
 export interface FlexData {
   name: string;
@@ -37,6 +38,34 @@ function ymd(iso: string): string {
   const d = new Date(iso);
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}. ${p(d.getMonth() + 1)}. ${p(d.getDate())}`;
+}
+
+/** 카카오 JS SDK(v2) 중 쓰는 부분만 — 전역 window.Kakao. */
+interface KakaoSdk {
+  isInitialized(): boolean;
+  init(key: string): void;
+  Share: {
+    uploadImage(o: { file: File[] }): Promise<{ infos: { original: { url: string; width?: number; height?: number } } }>;
+    sendDefault(o: Record<string, unknown>): void;
+  };
+}
+
+/** 카카오 SDK 를 이 페이지에서만 지연 로드하고 init. 실패하면 throw. */
+async function loadKakao(): Promise<KakaoSdk> {
+  const w = window as unknown as { Kakao?: KakaoSdk };
+  if (!w.Kakao) {
+    await new Promise<void>((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = KAKAO_JS_SDK_URL;
+      el.crossOrigin = 'anonymous';
+      el.onload = () => resolve();
+      el.onerror = () => reject(new Error('kakao sdk load failed'));
+      document.head.appendChild(el);
+    });
+  }
+  if (!w.Kakao) throw new Error('kakao sdk missing');
+  if (!w.Kakao.isInitialized()) w.Kakao.init(KAKAO_JS_KEY);
+  return w.Kakao;
 }
 
 /** 앱 WebView 안이면 RN 쪽 브리지가 있다(react-native-webview 가 주입). */
@@ -104,6 +133,40 @@ export function FlexPoster({ data: d }: { data: FlexData }) {
       flash('이미지를 저장했어요');
     } catch {
       flash('이미지를 만들지 못했어요. 잠시 후 다시 시도해 주세요');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * 카카오톡 공유 — 포스터 PNG 를 카카오 이미지 서버에 올리고(uploadImage) 피드 메시지로 보낸다.
+   * 링크는 WebView 가 붙인 token/embed 쿼리를 뺀 공개 URL. 앱 WebView 에선 SDK 가 여는
+   * kakaolink:// / intent:// 를 mobile/app/web.tsx 가 가로채 카카오톡 앱으로 넘긴다.
+   */
+  const shareKakao = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const [kakao, dataUrl] = await Promise.all([loadKakao(), capture()]);
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], fileName, { type: 'image/png' });
+      const uploaded = (await kakao.Share.uploadImage({ file: [file] })).infos.original;
+      const url = flexShareUrl(window.location.pathname, window.location.origin);
+      const headline = pct != null ? `${d.name} · ${up ? '+' : ''}${pct.toFixed(1)}%` : d.name;
+      kakao.Share.sendDefault({
+        objectType: 'feed',
+        content: {
+          title: `${headline} 수익 인증`,
+          description: `${d.owner.name} 님의 카드 · 등록가 ${basis > 0 ? format(basis) : '—'} → 현재 ${cur > 0 ? format(cur) : '—'}`,
+          imageUrl: uploaded.url,
+          imageWidth: uploaded.width,
+          imageHeight: uploaded.height,
+          link: { mobileWebUrl: url, webUrl: url },
+        },
+        buttons: [{ title: '내 카드 시세 보기', link: { mobileWebUrl: url, webUrl: url } }],
+      });
+    } catch {
+      flash('카카오톡 공유에 실패했어요. 잠시 후 다시 시도해 주세요');
     } finally {
       setBusy(false);
     }
@@ -259,14 +322,27 @@ export function FlexPoster({ data: d }: { data: FlexData }) {
         {/* ── 공유 버튼 — 캡처 영역 밖 ── */}
         <button
           type="button"
-          onClick={shareImage}
+          onClick={shareKakao}
           disabled={busy}
           style={{
             width: '100%', marginTop: 14, height: 50, borderRadius: 14, border: 'none', cursor: busy ? 'default' : 'pointer',
-            background: busy ? '#7DA0F5' : '#1D5BFF', color: '#fff', fontSize: 15, fontWeight: 800,
+            background: '#FEE500', color: '#191919', fontSize: 15, fontWeight: 800, opacity: busy ? 0.7 : 1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}
         >
-          {busy ? '이미지 만드는 중…' : '📸 이미지로 공유하기'}
+          <KakaoIcon />
+          {busy ? '준비 중…' : '카카오톡으로 공유'}
+        </button>
+        <button
+          type="button"
+          onClick={shareImage}
+          disabled={busy}
+          style={{
+            width: '100%', marginTop: 8, height: 46, borderRadius: 14, border: 'none', cursor: busy ? 'default' : 'pointer',
+            background: busy ? '#7DA0F5' : '#1D5BFF', color: '#fff', fontSize: 14, fontWeight: 800,
+          }}
+        >
+          📸 이미지로 공유하기
         </button>
         <button
           type="button"
@@ -279,10 +355,19 @@ export function FlexPoster({ data: d }: { data: FlexData }) {
           🔗 링크 복사
         </button>
         <div style={{ textAlign: 'center', fontSize: 11, color: note ? '#1D5BFF' : '#8FA3C8', marginTop: 10, fontWeight: note ? 800 : 400 }}>
-          {note ?? '공유 시트에서 카카오톡을 고르면 사진으로 전송돼요 · arvotcg.com'}
+          {note ?? '카카오톡 공유는 포스터 이미지와 링크가 함께 전송돼요 · arvotcg.com'}
         </div>
       </div>
     </div>
+  );
+}
+
+/** 카카오 말풍선 심볼(단색) — 공유 버튼용. */
+function KakaoIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
+      <path fill="#191919" d="M12 3C6.48 3 2 6.58 2 11c0 2.84 1.87 5.33 4.68 6.75L5.6 21.6a.4.4 0 0 0 .6.44l4.6-3.06c.39.04.79.06 1.2.06 5.52 0 10-3.58 10-8.04S17.52 3 12 3z" />
+    </svg>
   );
 }
 
