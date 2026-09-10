@@ -220,7 +220,7 @@ export function FlexPoster({ data: d }: { data: FlexData }) {
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
               {/* 현재 앱 아이콘(mobile/assets/icon.png 과 동일본) — 캡처를 위해 같은 출처(/app-icon.png) */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/app-icon.png" alt="ARVOTCG" width={44} height={44} style={{ borderRadius: 11, display: 'block', boxShadow: '0 6px 14px rgba(20,30,60,.25)' }} />
+              <img src="/app-icon-v2.png" alt="ARVOTCG" width={44} height={44} style={{ borderRadius: 11, display: 'block', boxShadow: '0 6px 14px rgba(20,30,60,.25)' }} />
               <div style={{ textAlign: 'center', lineHeight: 1 }}>
                 <div style={{ fontSize: 17, fontWeight: 900, color: INK, letterSpacing: -0.3 }}>ARVO</div>
                 <div style={{ fontSize: 17, fontWeight: 900, color: ACCENT, letterSpacing: -0.3, marginTop: 2 }}>TCG</div>

@@ -124,7 +124,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               name: '아르보TCG',
               alternateName: 'ARVOTCG',
               url: SITE_URL,
-              logo: `${SITE_URL}/app-icon.png`,
+              logo: `${SITE_URL}/app-icon-v2.png`,
               description:
                 '포켓몬·원피스·유희왕 TCG 카드 시세 검색·카드 거래·컬렉션 관리 커뮤니티',
             },
