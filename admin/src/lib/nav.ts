@@ -47,6 +47,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: '지표·로그',
     items: [
+      { href: '/server-logs', label: '서버 로그', icon: '📜' },
       { href: '/visitors', label: '방문 기록', icon: '🚪' },
       { href: '/events', label: '행동 로그', icon: '🖱️' },
       { href: '/searches', label: '검색 로그', icon: '🔍' },

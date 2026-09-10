@@ -11,6 +11,8 @@ import { warmCatalogImages, getWarmState, CARD_CDN_DIR } from '../lib/cardImageC
 import { getHeroAutoplayMs, setHeroAutoplayMs } from '../lib/queries.js';
 import { HERO_AUTOPLAY_MAX_MS, HERO_AUTOPLAY_MIN_MS } from '../../shared/heroBanner';
 import { encodeBanner } from '../lib/bannerImage';
+import { readServerLogs } from '../lib/serverLogFiles.js';
+import { filterByLevel, mergeLogLines } from '../../shared/serverLogs';
 
 const SLIDE_CLASSES = ['slide-a', 'slide-b', 'slide-c', 'slide-d'] as const;
 const VISUAL_TYPES = ['emoji', 'image'] as const;
@@ -125,9 +127,42 @@ function hasUploadSecret(req: Request): boolean {
   if (!expected || got.length !== expected.length) return false;
   return timingSafeEqual(Buffer.from(got), Buffer.from(expected));
 }
+const SECRET_ONLY_PATHS = new Set(['/banners/upload', '/logs']);
 router.use((req, res, next) => {
-  if (req.path === '/banners/upload' && hasUploadSecret(req)) return next();
+  if (SECRET_ONLY_PATHS.has(req.path) && hasUploadSecret(req)) return next();
   return requireAdmin(req, res, next);
+});
+
+/* ── 서버 로그 (pm2 파일 tail) ──────────────────────────────────── */
+
+/**
+ * GET /api/admin/logs?limit=300&level=all|error
+ * 표준 출력·표준 에러를 시각순으로 합쳐 최근 줄만 돌려준다. 파일 전체를 읽지 않는다.
+ */
+router.get('/logs', async (req: Request, res: Response) => {
+  const limitRaw = Number(req.query.limit ?? 300);
+  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.trunc(limitRaw), 1), 2000) : 300;
+  const level = req.query.level === 'error' ? 'error' : 'all';
+  try {
+    const { groups, sources } = await readServerLogs();
+    // 필터가 'error' 면 먼저 걸러야 "최근 300줄 안에 에러가 없다"로 빈 화면이 되지 않는다.
+    const merged = mergeLogLines(groups, 0);
+    const lines = filterByLevel(merged, level);
+    const tail = lines.length > limit ? lines.slice(lines.length - limit) : lines;
+    res.json({
+      lines: tail,
+      level,
+      limit,
+      totalScanned: merged.length,
+      errorCount: merged.filter((l) => l.level === 'error').length,
+      warnCount: merged.filter((l) => l.level === 'warn').length,
+      sources,
+      at: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('[admin.logs.GET]', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'internal' });
+  }
 });
 
 /* ── 카드 이미지 자체 CDN: 커버리지 상태 + 일괄 워밍 ─────────────── */
