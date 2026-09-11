@@ -2,7 +2,7 @@
   "expo": {
     "name": "아르보TCG",
     "slug": "pokefesta30",
-    "version": "1.1.6",
+    "version": "1.1.7",
     "orientation": "portrait",
     "newArchEnabled": true,
     "scheme": "pokefesta30",
@@ -73,7 +73,10 @@
             "usesCleartextTraffic": false,
             "enableProguardInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
-            "extraProguardRules": "# ML Kit — 리플렉션으로 모델/옵션을 찾으므로 통째로 보존\n-keep class com.google.mlkit.** { *; }\n-keep class com.google.android.gms.internal.mlkit_** { *; }\n-keep class com.google.android.gms.vision.** { *; }\n-dontwarn com.google.mlkit.**\n\n# Expo / RN 네이티브 모듈 — 이름 기반 조회라 난독화되면 못 찾는다\n-keep class expo.modules.** { *; }\n-keep class com.rnmlkit.textrecognition.** { *; }\n-keep class com.websitebeaver.documentscanner.** { *; }\n\n# JS ↔ 네이티브 브릿지 진입점\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactProp <methods>; }\n-keepclassmembers class * { @com.facebook.react.bridge.ReactMethod <methods>; }\n"
+            "extraProguardRules": "# ML Kit — 리플렉션으로 모델/옵션을 찾으므로 통째로 보존\n-keep class com.google.mlkit.** { *; }\n-keep class com.google.android.gms.internal.mlkit_** { *; }\n-keep class com.google.android.gms.vision.** { *; }\n-dontwarn com.google.mlkit.**\n\n# Expo / RN 네이티브 모듈 — 이름 기반 조회라 난독화되면 못 찾는다\n-keep class expo.modules.** { *; }\n-keep class com.rnmlkit.textrecognition.** { *; }\n-keep class com.websitebeaver.documentscanner.** { *; }\n\n# JS ↔ 네이티브 브릿지 진입점\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactProp <methods>; }\n-keepclassmembers class * { @com.facebook.react.bridge.ReactMethod <methods>; }\n",
+            "extraMavenRepos": [
+              "https://repository.map.naver.com/archive/maven"
+            ]
           }
         }
       ],
@@ -93,6 +96,12 @@
         {
           "androidAppId": "ca-app-pub-8606099213555265~7191313009",
           "iosAppId": "ca-app-pub-8606099213555265~3547581465"
+        }
+      ],
+      [
+        "@mj-studio/react-native-naver-map",
+        {
+          "client_id": "deksck3h1y"
         }
       ]
     ],
