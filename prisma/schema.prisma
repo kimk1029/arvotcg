@@ -283,6 +283,8 @@ model CardShop {
   phone       String   @default("")
   /// 인스타그램 — @handle / handle / 프로필 URL (shared/shopLinks.instagramHandle 로 정규화).
   instagram   String   @default("")
+  /// 대표 이미지 URL (http/https). 비우면 타일 색·이모지로 표시.
+  imageUrl    String   @default("")
   hours       String   @default("")
   closedDays  String   @default("")
   intro       String   @default("")

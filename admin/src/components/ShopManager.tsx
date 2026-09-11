@@ -24,6 +24,7 @@ export interface ShopData {
   dist: string;
   phone: string;
   instagram: string;
+  imageUrl: string;
   hours: string;
   closedDays: string;
   intro: string;
@@ -53,6 +54,7 @@ const EMPTY_DRAFT: Draft = {
   dist: '',
   phone: '',
   instagram: '',
+  imageUrl: '',
   hours: '',
   closedDays: '',
   intro: '',
@@ -129,6 +131,7 @@ export function ShopManager({ initialShops }: { initialShops: ShopData[] }) {
       dist: draft.dist,
       phone: draft.phone,
       instagram: draft.instagram,
+      imageUrl: draft.imageUrl,
       hours: draft.hours,
       closedDays: draft.closedDays,
       intro: draft.intro,
@@ -237,11 +240,11 @@ export function ShopManager({ initialShops }: { initialShops: ShopData[] }) {
 
             <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'flex-start' }}>
               <div style={{
-                width: 52, height: 52, flexShrink: 0, borderRadius: 12,
+                width: 52, height: 52, flexShrink: 0, borderRadius: 12, overflow: 'hidden',
                 background: `linear-gradient(150deg,${s.gradFrom},${s.gradTo})`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26,
               }}>
-                {s.emoji}
+                {s.imageUrl ? <img src={s.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : s.emoji}
               </div>
               <div style={{ fontSize: 12, lineHeight: 1.6, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{s.name}</div>
@@ -313,7 +316,7 @@ function ShopForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) => v
         <Field label="샵 이름">
           <input type="text" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="포켓랩 성수점" style={inp} />
         </Field>
-        <Field label="이모지">
+        <Field label="이모지 (대표 이미지가 없을 때 타일)">
           <input type="text" value={draft.emoji} onChange={(e) => setDraft({ ...draft, emoji: e.target.value })} style={inp} />
         </Field>
         <Field label="정렬 (작을수록 먼저)">
@@ -415,6 +418,12 @@ function ShopForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) => v
           <input type="text" value={draft.closedDays} onChange={(e) => setDraft({ ...draft, closedDays: e.target.value })} style={inp} />
         </Field>
       </div>
+      <Field label="대표 이미지 링크 (http/https — 리스트 타일·상세 상단에 표시)">
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <input type="url" value={draft.imageUrl} onChange={(e) => setDraft({ ...draft, imageUrl: e.target.value })} style={{ ...inp, flex: 1 }} placeholder="https://…/shop.jpg" />
+          {draft.imageUrl ? <img src={draft.imageUrl} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', background: '#eee' }} /> : null}
+        </div>
+      </Field>
       <Field label="인스타그램 (@핸들 / 핸들 / 프로필 URL — 있으면 상세 페이지에 '최근 소식' 피드가 붙습니다. 공개 계정만 표시)">
         <input type="text" value={draft.instagram} onChange={(e) => setDraft({ ...draft, instagram: e.target.value })} style={inp} placeholder="@poke_lab" />
       </Field>

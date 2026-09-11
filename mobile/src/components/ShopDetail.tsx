@@ -1,6 +1,6 @@
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { useEffect, useState } from 'react';
-import { Linking, Modal, Pressable, ScrollView, Share, Text, View } from 'react-native';
+import { Image, Linking, Modal, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { WebView } from 'react-native-webview';
@@ -31,6 +31,7 @@ export interface ShopDetailData {
   emoji: string;
   phone?: string;
   instagram?: string;
+  imageUrl?: string;
   hours?: string;
   closedDays?: string;
   intro?: string;
@@ -110,10 +111,10 @@ export function ShopDetail({ shop, onClose }: Props) {
             </Pressable>
           </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 + insets.bottom }} showsVerticalScrollIndicator={false}>
-            {/* hero (사진 데이터 없음 — 타일 색·이모지) */}
+            {/* hero — 대표 이미지(어드민 imageUrl), 없으면 타일 색·이모지 (웹 동일) */}
             <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
-              <View style={{ height: 150, borderRadius: 14, backgroundColor: shop.tile, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                <Text style={{ fontSize: 56 }}>{shop.emoji}</Text>
+              <View style={{ height: shop.imageUrl ? 200 : 150, borderRadius: 14, backgroundColor: shop.tile, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                {shop.imageUrl ? <Image source={{ uri: shop.imageUrl }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} resizeMode="cover" /> : <Text style={{ fontSize: 56 }}>{shop.emoji}</Text>}
                 <View style={{ position: 'absolute', left: 10, bottom: 9, backgroundColor: 'rgba(0,0,0,.45)', paddingVertical: 3, paddingHorizontal: 8, borderRadius: 7 }}>
                   <Text style={t(10.5, '800', '#fff')}>매장</Text>
                 </View>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 
 import { HAS_NAVER_MAP_KEY, ShopNaverMap } from '@/components/ShopNaverMap';
@@ -71,6 +71,8 @@ interface ShopInfo {
   /** 상세 페이지 정보 (어드민 선택 입력) */
   phone?: string;
   instagram?: string;
+  /** 대표 이미지 — 있으면 타일·상세 히어로에 이모지 대신 표시 */
+  imageUrl?: string;
   hours?: string;
   closedDays?: string;
   intro?: string;
@@ -105,6 +107,7 @@ interface ShopApiRow {
   dist: string;
   phone?: string;
   instagram?: string;
+  imageUrl?: string;
   hours?: string;
   closedDays?: string;
   intro?: string;
@@ -140,6 +143,7 @@ function shopFromApi(r: ShopApiRow): ShopInfo {
     lng: r.lng ?? SEOUL_CENTER.lng,
     phone: r.phone || undefined,
     instagram: r.instagram || undefined,
+    imageUrl: r.imageUrl || undefined,
     hours: r.hours || undefined,
     closedDays: r.closedDays || undefined,
     intro: r.intro || undefined,
@@ -500,8 +504,8 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
             const sel = s.id === shopId;
             return (
               <Pressable key={s.id} onPress={() => { selectShop(s.id); setDetailId(s.id); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 15, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: P.line, backgroundColor: sel ? '#FFF9F4' : P.cardBg }}>
-                <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: s.tile, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 21 }}>{s.emoji}</Text>
+                <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: s.tile, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  {s.imageUrl ? <Image source={{ uri: s.imageUrl }} style={{ width: 42, height: 42 }} resizeMode="cover" /> : <Text style={{ fontSize: 21 }}>{s.emoji}</Text>}
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>

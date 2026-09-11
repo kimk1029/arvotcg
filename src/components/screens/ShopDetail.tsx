@@ -28,6 +28,7 @@ export interface ShopDetailData {
   emoji: string;
   phone?: string;
   instagram?: string;
+  imageUrl?: string;
   hours?: string;
   closedDays?: string;
   intro?: string;
@@ -102,11 +103,17 @@ export function ShopDetail({ shop, onClose }: Props) {
         </button>
       </div>
       <div className="cv-hrow" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
-        {/* hero (사진 데이터 없음 — 타일 색·이모지) */}
+        {/* hero — 대표 이미지(어드민 imageUrl), 없으면 타일 색·이모지 */}
         <div style={{ padding: '14px 20px 0' }}>
-          <div style={{ height: 150, borderRadius: 14, background: shop.grad, position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 56 }}>
-            <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 50% 30%,rgba(255,255,255,.35),transparent 65%)' }} />
-            <span style={{ position: 'relative' }}>{shop.emoji}</span>
+          <div style={{ height: shop.imageUrl ? 200 : 150, borderRadius: 14, background: shop.grad, position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 56 }}>
+            {shop.imageUrl ? (
+              <img src={shop.imageUrl} alt={shop.name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <>
+                <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 50% 30%,rgba(255,255,255,.35),transparent 65%)' }} />
+                <span style={{ position: 'relative' }}>{shop.emoji}</span>
+              </>
+            )}
             <div style={{ position: 'absolute', left: 10, bottom: 9, fontSize: 10.5, fontWeight: 800, color: '#fff', background: 'rgba(0,0,0,.45)', padding: '3px 8px', borderRadius: 7, whiteSpace: 'nowrap' }}>매장</div>
           </div>
         </div>

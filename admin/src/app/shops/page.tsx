@@ -29,6 +29,7 @@ export default async function Page() {
       dist: s.dist,
       phone: s.phone,
       instagram: s.instagram,
+      imageUrl: s.imageUrl,
       hours: s.hours,
       closedDays: s.closedDays,
       intro: s.intro,

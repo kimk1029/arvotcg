@@ -67,6 +67,8 @@ interface ShopInfo {
   /** 상세 페이지 정보 (어드민 선택 입력) */
   phone?: string;
   instagram?: string;
+  /** 대표 이미지 — 있으면 타일·상세 히어로에 이모지 대신 표시 */
+  imageUrl?: string;
   hours?: string;
   closedDays?: string;
   intro?: string;
@@ -101,6 +103,7 @@ interface ShopApiRow {
   dist: string;
   phone?: string;
   instagram?: string;
+  imageUrl?: string;
   hours?: string;
   closedDays?: string;
   intro?: string;
@@ -136,6 +139,7 @@ function shopFromApi(r: ShopApiRow): ShopInfo {
     lng: r.lng ?? SEOUL_CENTER.lng,
     phone: r.phone || undefined,
     instagram: r.instagram || undefined,
+    imageUrl: r.imageUrl || undefined,
     hours: r.hours || undefined,
     closedDays: r.closedDays || undefined,
     intro: r.intro || undefined,
@@ -461,7 +465,9 @@ export function ShopSection({ P }: { P: ShopPalette }) {
             const sel = s.id === shopId;
             return (
               <button key={s.id} type="button" onClick={() => { selectShop(s.id); setDetailId(s.id); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 15px', width: '100%', borderTop: i === 0 ? 'none' : `1px solid ${P.line}`, cursor: 'pointer', background: sel ? '#FFF9F4' : P.cardBg, border: 'none', borderBottom: 'none', textAlign: 'left' }}>
-                <span style={{ width: 42, height: 42, borderRadius: 12, background: s.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21, flex: 'none' }}>{s.emoji}</span>
+                <span style={{ width: 42, height: 42, borderRadius: 12, background: s.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21, flex: 'none', overflow: 'hidden' }}>
+                  {s.imageUrl ? <img src={s.imageUrl} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : s.emoji}
+                </span>
                 <span style={{ flex: 1, minWidth: 0, display: 'block' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ fontSize: 14, fontWeight: 800, color: P.ink }}>{s.name}</span>

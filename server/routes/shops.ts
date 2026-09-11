@@ -91,6 +91,7 @@ router.get('/', async (_req: Request, res: Response) => {
         dist: r.dist,
         phone: r.phone,
         instagram: r.instagram,
+        imageUrl: r.imageUrl,
         hours: r.hours,
         closedDays: r.closedDays,
         intro: r.intro,
