@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import { prisma } from '../lib/prisma.js';
 
@@ -44,9 +45,32 @@ async function geocode(addr: string): Promise<{ lat: number; lng: number } | nul
   return null;
 }
 
+// 응답 메모리 캐시 — 탭을 열 때마다 DB 를 치지 않게 60초. 어드민 저장은 POST /invalidate 로 즉시 비운다 (2026-09-12).
+const CACHE_TTL_MS = 60_000;
+let cache: { body: unknown; at: number } | null = null;
+export function invalidateShopsCache(): void { cache = null; }
+// 대량 등록 직후 첫 요청이 좌표 없는 샵을 전부 지오코딩하며 수십 초 걸리지 않게 — 요청당 상한, 나머지는 다음 요청에서.
+const GEOCODE_PER_REQUEST = 8;
+
+function hasUploadSecret(req: Request): boolean {
+  const expected = process.env.ADMIN_UPLOAD_SECRET ?? '';
+  const got = req.header('x-admin-upload-secret') ?? '';
+  if (!expected || got.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(got), Buffer.from(expected));
+}
+
 const router = Router();
 
+/** POST /api/shops/invalidate — 어드민 저장 직후 캐시 비우기 (공유 비밀). */
+router.post('/invalidate', (req: Request, res: Response) => {
+  if (!hasUploadSecret(req)) { res.status(401).json({ error: 'unauthorized' }); return; }
+  invalidateShopsCache();
+  res.json({ ok: true });
+});
+
 router.get('/', async (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  if (cache && Date.now() - cache.at < CACHE_TTL_MS) { res.json(cache.body); return; }
   try {
     const list = () =>
       prisma.cardShop.findMany({
@@ -62,16 +86,19 @@ router.get('/', async (_req: Request, res: Response) => {
         rows = await list();
       }
     }
-    // 좌표 없는 샵 → 지오코딩 후 저장 (같은 응답에 바로 반영)
+    // 좌표 없는 샵 → 지오코딩 후 저장 (같은 응답에 바로 반영). 요청당 GEOCODE_PER_REQUEST 건까지.
+    let geocoded = 0;
     for (const r of rows) {
       if (r.lat != null && r.lng != null) continue;
+      if (geocoded >= GEOCODE_PER_REQUEST) break;
+      geocoded += 1;
       const g = await geocode(r.addr);
       if (!g) continue;
       r.lat = g.lat;
       r.lng = g.lng;
       await prisma.cardShop.update({ where: { id: r.id }, data: g }).catch((err) => console.warn('[shops.geocode.save]', r.id, err));
     }
-    res.json({
+    const body = {
       shops: rows.map((r) => ({
         id: r.id,
         name: r.name,
@@ -97,9 +124,13 @@ router.get('/', async (_req: Request, res: Response) => {
         intro: r.intro,
         tags: r.tags,
       })),
-    });
+    };
+    // 아직 좌표를 못 채운 샵이 남아 있으면 캐시하지 않는다 — 다음 요청이 이어서 채우게.
+    if (!rows.some((r) => r.lat == null || r.lng == null)) cache = { body, at: Date.now() };
+    res.json(body);
   } catch (err) {
     console.error('[shops.GET]', err);
+    res.setHeader('Cache-Control', 'no-store');
     res.json({ shops: [] });
   }
 });

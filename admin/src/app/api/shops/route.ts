@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { invalidateShopsCache } from '@/lib/shopsCache';
 import { parseShopInput, shopCreateData } from '@/lib/shops';
 
 export const dynamic = 'force-dynamic';
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
   if (v.ok === false) return NextResponse.json({ error: v.error }, { status: 400 });
   try {
     const shop = await prisma.cardShop.create({ data: shopCreateData(v.data) });
+    await invalidateShopsCache();
     return NextResponse.json({ shop }, { status: 201 });
   } catch (err) {
     console.error('[admin.shops.POST]', err);

@@ -38,5 +38,6 @@ export function isPublicApi(path: string, method: string): boolean {
 export function hasIndependentApiAuth(path: string, method: string): boolean {
   return path === '/api/admin' || path.startsWith('/api/admin/')
     || ((path === '/api/app-release' || path === '/api/app-release/') && method === 'PUT')
+    || (path === '/api/shops/invalidate' && method === 'POST')
     || (path === '/api/psa-relay' && method === 'GET');
 }

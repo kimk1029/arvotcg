@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { invalidateShopsCache } from '@/lib/shopsCache';
 import { parseShopInput } from '@/lib/shops';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +27,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       where: { id },
       data: v.data as Prisma.CardShopUpdateInput,
     });
+    await invalidateShopsCache();
     return NextResponse.json({ shop });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
@@ -41,6 +43,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   if (id === null) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
   try {
     await prisma.cardShop.delete({ where: { id } });
+    await invalidateShopsCache();
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
