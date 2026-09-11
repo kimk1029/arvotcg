@@ -16,6 +16,8 @@ export interface SessionUser {
   avatar?: string;
   avatarId?: string;
   provider?: string | null;
+  /** 서버 판정(ADMIN_EMAILS ∪ User.isAdmin) — UI 분기용, 권한 검증은 서버가 한다. */
+  isAdmin?: boolean;
 }
 
 export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated';

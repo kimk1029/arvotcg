@@ -4,6 +4,7 @@ import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 
 import { HAS_NAVER_MAP_KEY, ShopNaverMap } from '@/components/ShopNaverMap';
 import { api } from '@/lib/apiClient';
+import { isAuthenticated } from '@/lib/session';
 import {
   ALL_REGIONS,
   SHOP_COMING_SOON,
@@ -237,7 +238,15 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
 
   const card = { backgroundColor: P.cardBg, borderRadius: 16 } as const;
 
-  const curtained = SHOP_COMING_SOON[country];
+  // 어드민은 커튼 없이 실제 화면을 본다(오픈 전 검수용, 웹 useSession().user.isAdmin 페어).
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    if (!isAuthenticated()) return;
+    api<{ user: { isAdmin?: boolean } | null }>('/auth/me')
+      .then((r) => setIsAdmin(!!r.user?.isAdmin))
+      .catch(() => {});
+  }, []);
+  const curtained = SHOP_COMING_SOON[country] && !isAdmin;
 
   return (
     <View style={{ flex: 1 }}>

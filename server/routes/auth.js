@@ -6,7 +6,7 @@ import { signSession, extractToken, verifySession } from '../lib/auth.js';
 import { setSessionCookie, clearSessionCookie } from '../lib/cookies.js';
 import { getProvider } from '../lib/oauth/index.js';
 import { defaultNameFor } from '../lib/defaultName.js';
-import { isAdminUser } from '../lib/admin.js';
+import { isAdminEmail, isAdminUser } from '../lib/admin.js';
 
 const router = Router();
 router.use((_req, res, next) => {
@@ -70,11 +70,13 @@ router.get('/me', async (req, res) => {
     const session = await verifySession(token);
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { id: true, name: true, email: true, avatar: true, avatarId: true },
+      select: { id: true, name: true, email: true, avatar: true, avatarId: true, isAdmin: true },
     });
     if (!user) return res.json({ user: null });
+    const { isAdmin, ...pub } = user;
     return res.json({
-      user: { ...user, provider: session.provider ?? null },
+      // isAdmin: ADMIN_EMAILS ∪ User.isAdmin (lib/admin.ts 와 같은 판정) — 클라이언트 UI 분기용
+      user: { ...pub, provider: session.provider ?? null, isAdmin: isAdmin || isAdminEmail(user.email) },
     });
   } catch {
     return res.json({ user: null });

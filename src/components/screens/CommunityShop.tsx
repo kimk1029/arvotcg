@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
 import { HAS_NAVER_MAP_KEY, ShopNaverMap } from '@/components/screens/ShopNaverMap';
+import { useSession } from '@/lib/session';
 import {
   ALL_REGIONS,
   SHOP_COMING_SOON,
@@ -240,7 +241,9 @@ export function ShopSection({ P }: { P: ShopPalette }) {
 
   const cardSt: CSSProperties = { background: P.cardBg, borderRadius: 16, boxShadow: '0 2px 10px rgba(0,0,0,.05)' };
 
-  const curtained = SHOP_COMING_SOON[country];
+  // 어드민은 커튼 없이 실제 화면을 본다(오픈 전 검수용). 일반 사용자는 shared 플래그 그대로.
+  const { user } = useSession();
+  const curtained = SHOP_COMING_SOON[country] && !user?.isAdmin;
 
   return (
     <div>
