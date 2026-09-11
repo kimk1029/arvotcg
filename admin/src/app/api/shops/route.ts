@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { parseShopInput } from '@/lib/shops';
+import { parseShopInput, shopCreateData } from '@/lib/shops';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,27 +26,7 @@ export async function POST(req: Request) {
   const v = parseShopInput(body, false);
   if (v.ok === false) return NextResponse.json({ error: v.error }, { status: 400 });
   try {
-    const shop = await prisma.cardShop.create({
-      data: {
-        name: v.data.name!,
-        addr: v.data.addr!,
-        official: v.data.official ?? false,
-        lat: v.data.lat ?? null,
-        lng: v.data.lng ?? null,
-        emoji: v.data.emoji ?? '🏪',
-        gradFrom: v.data.gradFrom ?? '#ffb347',
-        gradTo: v.data.gradTo ?? '#ff7a1f',
-        tileColor: v.data.tileColor ?? '#ff9a33',
-        oripaPct: v.data.oripaPct ?? 0,
-        singleText: v.data.singleText ?? '',
-        priceLevel: v.data.priceLevel ?? '보통',
-        rating: v.data.rating ?? 0,
-        reviewCount: v.data.reviewCount ?? 0,
-        dist: v.data.dist ?? '',
-        sortOrder: v.data.sortOrder ?? 50,
-        active: v.data.active ?? true,
-      },
-    });
+    const shop = await prisma.cardShop.create({ data: shopCreateData(v.data) });
     return NextResponse.json({ shop }, { status: 201 });
   } catch (err) {
     console.error('[admin.shops.POST]', err);

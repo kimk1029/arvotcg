@@ -128,6 +128,39 @@ export function parseShopInput(
   return { ok: true, data: out };
 }
 
+/**
+ * 검증 결과 → CardShop 생성 행. 단건 POST 와 일괄 import 가 같이 쓴다.
+ * parseShopInput 이 받아준 상세 필드(전화·인스타·영업시간·휴무·소개·태그)까지 전부
+ * 담는다 — 한쪽에서 빠지면 "등록은 됐는데 상세가 비어 있는" 샵이 생긴다.
+ */
+export function shopCreateData(d: ShopInput) {
+  return {
+    name: d.name!,
+    addr: d.addr!,
+    official: d.official ?? false,
+    lat: d.lat ?? null,
+    lng: d.lng ?? null,
+    emoji: d.emoji ?? '\u{1F3EA}',
+    gradFrom: d.gradFrom ?? '#ffb347',
+    gradTo: d.gradTo ?? '#ff7a1f',
+    tileColor: d.tileColor ?? '#ff9a33',
+    oripaPct: d.oripaPct ?? 0,
+    singleText: d.singleText ?? '',
+    priceLevel: d.priceLevel ?? '보통',
+    rating: d.rating ?? 0,
+    reviewCount: d.reviewCount ?? 0,
+    dist: d.dist ?? '',
+    phone: d.phone ?? '',
+    instagram: d.instagram ?? '',
+    hours: d.hours ?? '',
+    closedDays: d.closedDays ?? '',
+    intro: d.intro ?? '',
+    tags: d.tags ?? '',
+    sortOrder: d.sortOrder ?? 50,
+    active: d.active ?? true,
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /* JSON 일괄 등록 양식 — 어드민 '기본 양식 다운로드' + 필드 설명           */
 /* ------------------------------------------------------------------ */
