@@ -30,7 +30,8 @@
           "kakaolink",
           "kakaoplus",
           "kakaotalk"
-        ]
+        ],
+        "NSLocationWhenInUseUsageDescription": "주변 카드샵을 지도에서 찾을 때 현재 위치를 표시하기 위해 사용합니다."
       },
       "buildNumber": "37"
     },
