@@ -91,3 +91,28 @@ export function groupDuplicates<C extends GroupableCard, R extends GroupableRow<
   }
   return out;
 }
+
+/* ── 테마순 섹션 — 게임별 소제목으로 나눈다 (웹 CollectionScreen ↔ 앱 my/cards.tsx 공통) ── */
+
+export type GameSectionKey = 'pokemon' | 'onepiece' | 'yugioh' | 'other';
+export const GAME_SECTION_ORDER: GameSectionKey[] = ['pokemon', 'onepiece', 'yugioh', 'other'];
+export const GAME_SECTION_LABEL: Record<GameSectionKey, string> = { pokemon: '포켓몬', onepiece: '원피스', yugioh: '유희왕', other: '기타' };
+
+export interface GameSection<G> {
+  game: GameSectionKey;
+  label: string;
+  groups: G[];
+}
+
+/** 정렬된 그룹 배열을 게임별 섹션으로 — 비어 있는 게임은 생략, 순서는 포켓몬→원피스→유희왕→기타. */
+export function sectionsByGame<G>(groups: readonly G[], gameOf: (g: G) => string | null | undefined): GameSection<G>[] {
+  const buckets = new Map<GameSectionKey, G[]>();
+  for (const g of groups) {
+    const raw = gameOf(g);
+    const key: GameSectionKey = raw === 'pokemon' || raw === 'onepiece' || raw === 'yugioh' ? raw : 'other';
+    const arr = buckets.get(key) ?? [];
+    arr.push(g);
+    buckets.set(key, arr);
+  }
+  return GAME_SECTION_ORDER.filter((k) => buckets.has(k)).map((k) => ({ game: k, label: GAME_SECTION_LABEL[k], groups: buckets.get(k)! }));
+}

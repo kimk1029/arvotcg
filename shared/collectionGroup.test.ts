@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { groupDuplicates } from './collectionGroup';
+import { groupDuplicates, sectionsByGame } from './collectionGroup';
 
 const row = (
   id: number,
@@ -55,4 +55,10 @@ test('사용자 묶음(bundleId)은 상품·등급이 달라도 한 그룹, 없�
   assert.deepEqual(groups[0].items.map((r) => r.c.id), [1, 2]);
   assert.equal(groups[0].value, 2400);
   assert.equal(groups[1].items.length, 1);
+});
+
+test('테마순 섹션 — 게임별로 나누고 빈 게임은 생략, 순서 고정', () => {
+  const groups = [{ g: 'yugioh' }, { g: 'pokemon' }, { g: null }, { g: 'pokemon' }, { g: 'sports' }];
+  const s = sectionsByGame(groups, (x) => x.g);
+  assert.deepEqual(s.map((x) => [x.label, x.groups.length]), [['포켓몬', 2], ['유희왕', 1], ['기타', 2]]);
 });

@@ -15,7 +15,7 @@ import { parseCardStatics } from '../../../shared/cardStatics';
 import { SegmentedTabs, SegIcons } from '@/components/ui/SegmentedTabs';
 import { FavoritesPanel } from '@/components/screens/FavoritesPanel';
 import { useToast } from '@/components/ToastProvider';
-import { groupDuplicates, type CardGroup } from '../../../shared/collectionGroup';
+import { groupDuplicates, sectionsByGame, type CardGroup } from '../../../shared/collectionGroup';
 import { evaluationUnitJpy } from '../../../shared/snkrdunkPrice';
 import { collectionTotals, displayTotalJpy } from '../../../shared/collectionTotals';
 import { regionBadge } from '../../../shared/collectionBadges';
@@ -98,9 +98,11 @@ function cardName(c: CardRow): string {
 }
 /** 테마순 정렬 순서 — 포켓몬 → 원피스 → 유희왕 → 기타/미분류. */
 const GAME_SORT_ORDER: Record<string, number> = { pokemon: 0, onepiece: 1, yugioh: 2, sports: 3 };
+function gameOf(c: CardRow): string {
+  return c.game || parseCardStatics(cardName(c)).game;
+}
 function gameRank(c: CardRow): number {
-  const g = c.game || parseCardStatics(cardName(c)).game;
-  return GAME_SORT_ORDER[g] ?? 9;
+  return GAME_SORT_ORDER[gameOf(c)] ?? 9;
 }
 function cardSub(c: CardRow): string {
   if (c.graded) return `${c.gradeCompany ?? 'PSA'} ${c.gradeValue ?? ''}`.trim();
@@ -324,6 +326,11 @@ export function CollectionScreen() {
 
   // 중복 등록(같은 카드·같은 등급)은 한 줄로 묶는다 — 정본 shared/collectionGroup (앱 동일).
   const groups = useMemo(() => groupDuplicates(rows), [rows]);
+  // 테마순이면 게임별 소제목 섹션으로, 아니면 섹션 하나(제목 없음) — 정본 shared/collectionGroup.sectionsByGame (앱 동일).
+  const sections = useMemo(
+    () => (sort === 'game' ? sectionsByGame(groups, (g) => gameOf(g.head.c)) : [{ game: 'other' as const, label: '', groups }]),
+    [groups, sort],
+  );
 
   // 총 자산 가치 — 정본 shared/collectionTotals 로 화면에서 직접 합산한다. 서버 값만 쓰면
   // 카드 추가/삭제 후 재조회가 끝날 때까지 총액이 옛 값에 머물고, 화면마다 숫자가 어긋난다.
@@ -632,26 +639,38 @@ export function CollectionScreen() {
             해당 조건의 카드가 없어요
           </div>
         ) : view === 'grid' ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, paddingBottom: 24 }}>
-            {groups.map((g, i) => (
-              <CardGridItem key={g.key} group={g} rank={i + 1} format={format} onRemove={handleRemove} onEdit={setEditing} onUnbundle={(ids) => handleBundle(ids, false)} />
+          <div style={{ paddingBottom: 24 }}>
+            {sections.map((sec) => (
+              <div key={sec.game}>
+                {sec.label && <SectionTitle label={sec.label} count={sec.groups.length} />}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginBottom: sec.label ? 18 : 0 }}>
+                  {sec.groups.map((g, i) => (
+                    <CardGridItem key={g.key} group={g} rank={i + 1} format={format} onRemove={handleRemove} onEdit={setEditing} onUnbundle={(ids) => handleBundle(ids, false)} />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         ) : (
           <div style={{ paddingBottom: 24 }}>
-            {groups.map((g, i, arr) => (
-              <CardListItem
-                key={g.key}
-                group={g}
-                format={format}
-                last={i === arr.length - 1}
-                onRemove={handleRemove}
-                onEdit={setEditing}
-                onUnbundle={(ids) => handleBundle(ids, false)}
-                selecting={selecting}
-                selected={selected}
-                onToggleSelect={toggleSelect}
-              />
+            {sections.map((sec) => (
+              <div key={sec.game} style={{ marginBottom: sec.label ? 14 : 0 }}>
+                {sec.label && <SectionTitle label={sec.label} count={sec.groups.length} />}
+                {sec.groups.map((g, i, arr) => (
+                  <CardListItem
+                    key={g.key}
+                    group={g}
+                    format={format}
+                    last={i === arr.length - 1}
+                    onRemove={handleRemove}
+                    onEdit={setEditing}
+                    onUnbundle={(ids) => handleBundle(ids, false)}
+                    selecting={selecting}
+                    selected={selected}
+                    onToggleSelect={toggleSelect}
+                  />
+                ))}
+              </div>
             ))}
           </div>
         )}
@@ -794,6 +813,16 @@ function GradedLabel({ company, grade, height, inline }: { company?: string | nu
   return <GradeMark company={company} grade={grade} height={height} gold="var(--gold)" inline={inline} />;
 }
 
+/** 테마순 소제목 — 포켓몬 / 원피스 / 유희왕 / 기타 (앱 동일). */
+function SectionTitle({ label, count }: { label: string; count: number }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0 8px', borderBottom: '2px solid var(--ink)', marginBottom: 2 }}>
+      <span style={{ fontFamily: 'var(--f1)', fontSize: 13, fontWeight: 900, color: 'var(--ink)' }}>{label}</span>
+      <span style={{ fontFamily: 'var(--f1)', fontSize: 11, fontWeight: 700, color: 'var(--ink3)' }}>{count}</span>
+    </div>
+  );
+}
+
 /* ── ⋯ 메뉴는 화면에 하나만 ─────────────────────────────────────────
  * 예전엔 각 카드가 자기 open 상태를 따로 들고 있어 여러 개가 동시에 열렸다.
  * 모듈 스코프에 '열린 메뉴 키' 하나만 두고 useSyncExternalStore 로 구독한다. */
@@ -821,8 +850,10 @@ function CardMenu({ menuKey, apparelId, basis, onRemove, onEdit, onUnbundle, pla
   const wrapRef = useRef<HTMLDivElement>(null);
   const openMenu = () => {
     const r = wrapRef.current?.getBoundingClientRect();
-    // 남은 아래 공간(하단 네비 ~90px + 메뉴 높이 ~100px) 부족하면 위로.
-    setAutoUp(r ? window.innerHeight - r.bottom < 190 : false);
+    // 남은 아래 공간 < 플로팅 네비(~110px, 여백 포함) + 실제 메뉴 높이(항목 ×40 + 테두리) 면 위로 펼친다.
+    const items = 1 + (apparelId ? 1 : 0) + (onEdit ? 1 : 0) + (onUnbundle ? 1 : 0);
+    const menuH = items * 40 + 8;
+    setAutoUp(r ? window.innerHeight - r.bottom < 110 + menuH : false);
     setOpenMenuKey(open ? null : menuKey);
   };
   const setOpen = (v: boolean) => setOpenMenuKey(v ? menuKey : null);
@@ -1068,30 +1099,33 @@ function CardListItem({
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* 카드명 — 배지는 아랫줄로 빼서 이름이 잘리지 않게 */}
-        <div style={{ fontFamily: 'var(--f1)', fontSize: 14, fontWeight: 800, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontFamily: 'var(--f1)', fontSize: 13.5, fontWeight: 800, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {cardName(c)}
         </div>
         <BadgeRow c={c} bundleCount={dup ? group.qty : undefined} />
         {/* 등록(기준)가 · 보유 장수(진하게). 묶음은 등록 합계. */}
-        <div style={{ fontFamily: 'var(--f1)', fontSize: 11.5, color: 'var(--ink3)', fontWeight: 600, marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontFamily: 'var(--f1)', fontSize: 11, color: 'var(--ink3)', fontWeight: 600, marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {dup ? `등록 합계 ${group.investedJpy > 0 ? format(group.investedJpy) : '—'}` : `등록 ${group.head.basisJpy ? format(group.head.basisJpy) : '—'}`}
           {' · '}<b style={{ color: 'var(--ink)', fontWeight: 800 }}>{group.qty}장</b>
         </div>
       </div>
-      {/* 평가금액(검정 볼드) + 등록가 대비 손익(한 단계 작게, 상승 빨강/하락 파랑) */}
-      <div style={{ textAlign: 'right', flex: 'none' }}>
-        <div style={{ fontFamily: 'var(--f1)', fontSize: 15.5, fontWeight: 900, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
+      {/* 평가금액(검정 볼드) + 등록가 대비 손익 — 금액·퍼센트를 두 줄로 세로 스택해 가로폭을 줄인다(제목 영역 확보).
+          ⋯ 이 우측 상단에 있으므로 paddingTop 으로 그 아래에 자리한다. */}
+      <div style={{ textAlign: 'right', flex: 'none', alignSelf: 'stretch', display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: 18 }}>
+        <div style={{ fontFamily: 'var(--f1)', fontSize: 15, fontWeight: 900, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
           {group.value > 0 ? format(group.value) : '—'}
         </div>
         {profit != null && group.profitPct != null && (
-          <div style={{ fontFamily: 'var(--f1)', fontSize: 11, fontWeight: 800, color: up ? UP : DOWN, marginTop: 4, whiteSpace: 'nowrap' }}>
-            {up ? '▲' : '▼'} {format(Math.abs(profit))} ({up ? '+' : '-'}{Math.abs(group.profitPct).toFixed(1)}%)
+          <div style={{ fontFamily: 'var(--f1)', fontSize: 10.5, fontWeight: 800, color: up ? UP : DOWN, marginTop: 3, whiteSpace: 'nowrap', lineHeight: 1.3 }}>
+            {up ? '▲' : '▼'} {format(Math.abs(profit))}
+            <br />
+            ({up ? '+' : '-'}{Math.abs(group.profitPct).toFixed(1)}%)
           </div>
         )}
       </div>
     </>
   );
-  const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 24px 12px 2px', textDecoration: 'none', color: 'inherit', width: '100%', background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer', font: 'inherit' };
+  const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 4px 12px 2px', textDecoration: 'none', color: 'inherit', width: '100%', background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer', font: 'inherit' };
   return (
     <div style={{ borderBottom: last ? 'none' : '1px solid var(--pap3)' }}>
       <div style={{ position: 'relative' }}>
@@ -1100,14 +1134,14 @@ function CardListItem({
         ) : (
           <Link href={href} style={rowStyle}>{body}</Link>
         )}
-        {/* ⋯ 메뉴 — Link 바깥 형제(우측 세로 중앙). 묶음이면 펼치기 버튼으로 대체(메뉴는 하위 행에). */}
+        {/* ⋯ 메뉴 — Link 바깥 형제, 행 우측 상단. 묶음이면 펼치기 버튼으로 대체(메뉴는 하위 행에). */}
         {!selecting && (
-          <div style={{ position: 'absolute', top: '50%', right: -4, transform: 'translateY(-50%)', zIndex: 6 }}>
+          <div style={{ position: 'absolute', top: 6, right: -4, zIndex: 6 }}>
             {dup ? (
               <button
                 type="button"
                 aria-label={open ? '묶음 접기' : '묶음 펼치기'}
-                onClick={() => setOpen((o) => !o)}
+                onClick={() => { setOpenMenuKey(null); setOpen((o) => !o); }}
                 style={{ width: 22, height: 26, border: 'none', background: 'transparent', color: 'var(--ink3)', fontSize: 12, cursor: 'pointer', padding: 0 }}
               >
                 {open ? '▲' : '▼'}

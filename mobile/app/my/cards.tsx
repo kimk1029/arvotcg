@@ -37,7 +37,7 @@ import { useSWR, swrSet } from '@/lib/swr';
 import { isAuthenticated, subscribeSession } from '@/lib/session';
 import { parseCardStatics } from '../../../shared/cardStatics';
 import { SegmentedTabs, SegIcons } from '@/components/cv/SegmentedTabs';
-import { groupDuplicates, type CardGroup } from '../../../shared/collectionGroup';
+import { groupDuplicates, sectionsByGame, type CardGroup } from '../../../shared/collectionGroup';
 import { evaluationUnitJpy } from '../../../shared/snkrdunkPrice';
 import { collectionTotals } from '../../../shared/collectionTotals';
 import { regionBadge } from '../../../shared/collectionBadges';
@@ -56,9 +56,11 @@ function cardName(c: MyCardRow): string {
 }
 /** 테마순 정렬 순서 — 포켓몬 → 원피스 → 유희왕 → 기타/미분류 (웹 GAME_SORT_ORDER 동일). */
 const GAME_SORT_ORDER: Record<string, number> = { pokemon: 0, onepiece: 1, yugioh: 2, sports: 3 };
+function gameOf(c: MyCardRow): string {
+  return c.game || parseCardStatics(cardName(c)).game;
+}
 function gameRank(c: MyCardRow): number {
-  const g = c.game || parseCardStatics(cardName(c)).game;
-  return GAME_SORT_ORDER[g] ?? 9;
+  return GAME_SORT_ORDER[gameOf(c)] ?? 9;
 }
 function cardSub(c: MyCardRow): string {
   if (c.graded) return `${c.gradeCompany ?? 'PSA'} ${c.gradeValue ?? ''}`.trim();
@@ -176,6 +178,11 @@ export default function MyCardsScreen() {
 
   // 중복 등록(같은 카드·같은 등급)은 한 줄로 묶는다 — 정본 shared/collectionGroup (웹 동일).
   const groups = useMemo(() => groupDuplicates(rows), [rows]);
+  // 테마순이면 게임별 소제목 섹션으로 (정본 shared/collectionGroup.sectionsByGame, 웹 동일).
+  const sections = useMemo(
+    () => (sort === 'game' ? sectionsByGame(groups, (g) => gameOf(g.head.c)) : [{ game: 'other' as const, label: '', groups }]),
+    [groups, sort],
+  );
 
   // 총 자산 가치 — 정본 shared/collectionTotals (웹·마이페이지·포트폴리오와 같은 숫자).
   const heroLocal = useMemo(() => collectionTotals(visibleRows.map((r) => r.c), rate), [visibleRows, rate]);
@@ -256,7 +263,7 @@ export default function MyCardsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: tc.paper }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false} onScrollBeginDrag={() => setOpenMenuKey(null)}>
         <CollectionHeader tc={tc} tab={tab} setTab={setTab} />
         {tab === 'favorites' ? (
           <FavoritesView />
@@ -356,27 +363,39 @@ export default function MyCardsScreen() {
                   해당 조건의 카드가 없어요
                 </PixelText>
               ) : view === 'grid' ? (
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingBottom: 24 }}>
-                  {groups.map((g, i) => (
-                    <CardGridItem key={g.key} group={g} rank={i + 1} format={format} onRemove={handleRemove} onEdit={setEditing} onUnbundle={(ids) => handleBundle(ids, false)} tc={tc} />
+                <View style={{ paddingBottom: 24 }}>
+                  {sections.map((sec) => (
+                    <View key={sec.game}>
+                      {sec.label ? <SectionTitle label={sec.label} count={sec.groups.length} tc={tc} /> : null}
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: sec.label ? 18 : 0 }}>
+                        {sec.groups.map((g, i) => (
+                          <CardGridItem key={g.key} group={g} rank={i + 1} format={format} onRemove={handleRemove} onEdit={setEditing} onUnbundle={(ids) => handleBundle(ids, false)} tc={tc} />
+                        ))}
+                      </View>
+                    </View>
                   ))}
                 </View>
               ) : (
                 <View style={{ paddingBottom: 24 }}>
-                  {groups.map((g, i, arr) => (
-                    <CardListItem
-                      key={g.key}
-                      group={g}
-                      format={format}
-                      last={i === arr.length - 1}
-                      onRemove={handleRemove}
-                      onEdit={setEditing}
-                      onUnbundle={(ids) => handleBundle(ids, false)}
-                      selecting={selecting}
-                      selected={selected}
-                      onToggleSelect={toggleSelect}
-                      tc={tc}
-                    />
+                  {sections.map((sec) => (
+                    <View key={sec.game} style={{ marginBottom: sec.label ? 14 : 0 }}>
+                      {sec.label ? <SectionTitle label={sec.label} count={sec.groups.length} tc={tc} /> : null}
+                      {sec.groups.map((g, i, arr) => (
+                        <CardListItem
+                          key={g.key}
+                          group={g}
+                          format={format}
+                          last={i === arr.length - 1}
+                          onRemove={handleRemove}
+                          onEdit={setEditing}
+                          onUnbundle={(ids) => handleBundle(ids, false)}
+                          selecting={selecting}
+                          selected={selected}
+                          onToggleSelect={toggleSelect}
+                          tc={tc}
+                        />
+                      ))}
+                    </View>
                   ))}
                 </View>
               )}
@@ -610,7 +629,7 @@ function CardListItem({
   return (
     <View style={{ borderBottomWidth: last ? 0 : 1, borderBottomColor: tc.pap3 }}>
       <View style={{ position: 'relative' }}>
-        <Pressable onPress={selecting ? toggleGroup : openDetail} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingRight: 24, paddingLeft: 2 }}>
+        <Pressable onPress={selecting ? toggleGroup : () => { setOpenMenuKey(null); openDetail(); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingRight: 4, paddingLeft: 2 }}>
           {selecting ? <SelectBox on={allSelected} tc={tc} /> : null}
           {/* 썸네일 — 묶음이면 부채꼴 + 장수 배지 */}
           {dup ? (
@@ -620,32 +639,33 @@ function CardListItem({
           )}
           <View style={{ flex: 1, minWidth: 0 }}>
             {/* 카드명 — 배지는 아랫줄로 빼서 이름이 잘리지 않게 */}
-            <PixelText variant="ko" size={13.5} weight="bold" color={tc.ink} numberOfLines={1}>{cardName(c)}</PixelText>
+            <PixelText variant="ko" size={13} weight="bold" color={tc.ink} numberOfLines={1}>{cardName(c)}</PixelText>
             <BadgeRow c={c} bundleCount={dup ? group.qty : undefined} tc={tc} />
             {/* 등록(기준)가 · 보유 장수(진하게). 묶음은 등록 합계. */}
-            <PixelText variant="ko" size={11} color={tc.ink3} numberOfLines={1} style={{ marginTop: 5 }}>
+            <PixelText variant="ko" size={10.5} color={tc.ink3} numberOfLines={1} style={{ marginTop: 5 }}>
               {dup ? `등록 합계 ${group.investedJpy > 0 ? format(group.investedJpy) : '—'}` : `등록 ${group.head.basisJpy ? format(group.head.basisJpy) : '—'}`}
               {' · '}
-              <PixelText variant="ko" size={11} weight="bold" color={tc.ink}>{`${group.qty}장`}</PixelText>
+              <PixelText variant="ko" size={10.5} weight="bold" color={tc.ink}>{`${group.qty}장`}</PixelText>
             </PixelText>
           </View>
-          {/* 평가금액(검정 볼드) + 등록가 대비 손익(한 단계 작게, 상승 빨강/하락 파랑) */}
-          <View style={{ alignItems: 'flex-end' }}>
-            <PixelText variant="ko" size={14} weight="bold" color={tc.ink}>
+          {/* 평가금액(검정 볼드) + 등록가 대비 손익 — 금액·퍼센트를 두 줄로 세로 스택해 가로폭을 줄인다(제목 영역 확보, 웹 동일).
+              ⋯ 이 우측 상단에 있으므로 paddingTop 으로 그 아래에 자리한다. */}
+          <View style={{ alignItems: 'flex-end', alignSelf: 'stretch', justifyContent: 'center', paddingTop: 18 }}>
+            <PixelText variant="ko" size={13.5} weight="bold" color={tc.ink}>
               {group.value > 0 ? format(group.value) : '—'}
             </PixelText>
             {profit != null && group.profitPct != null ? (
-              <PixelText variant="ko" size={10.5} weight="bold" color={up ? UP : DOWN} style={{ marginTop: 4 }}>
-                {`${up ? '▲' : '▼'} ${format(Math.abs(profit))} (${up ? '+' : '-'}${Math.abs(group.profitPct).toFixed(1)}%)`}
+              <PixelText variant="ko" size={10} weight="bold" color={up ? UP : DOWN} style={{ marginTop: 3, textAlign: 'right', lineHeight: 13 }}>
+                {`${up ? '▲' : '▼'} ${format(Math.abs(profit))}\n(${up ? '+' : '-'}${Math.abs(group.profitPct).toFixed(1)}%)`}
               </PixelText>
             ) : null}
           </View>
         </Pressable>
-        {/* ⋯ 메뉴 — 우측 세로 중앙. 묶음이면 펼치기 버튼으로 대체(메뉴는 하위 행에). */}
+        {/* ⋯ 메뉴 — 행 우측 상단. 묶음이면 펼치기 버튼으로 대체(메뉴는 하위 행에). 웹 동일. */}
         {!selecting ? (
-          <View style={{ position: 'absolute', top: '50%', right: -4, transform: [{ translateY: -13 }], zIndex: 6 }}>
+          <View style={{ position: 'absolute', top: 6, right: -4, zIndex: 6 }}>
             {dup ? (
-              <Pressable onPress={() => setOpen((v) => !v)} hitSlop={8} style={{ width: 22, height: 26, alignItems: 'center', justifyContent: 'center' }}>
+              <Pressable onPress={() => { setOpenMenuKey(null); setOpen((v) => !v); }} hitSlop={8} style={{ width: 22, height: 26, alignItems: 'center', justifyContent: 'center' }}>
                 <PixelText variant="ko" size={11} color={tc.ink3}>{open ? '▲' : '▼'}</PixelText>
               </Pressable>
             ) : (
@@ -716,6 +736,16 @@ function GradedLabel({ gold, company, grade, height = 12, inline }: { gold: stri
 /* ── ⋯ 메뉴는 화면에 하나만 (웹 CollectionScreen 동일) ───────────────
  * 카드마다 open 상태를 따로 들면 여러 개가 동시에 열린다. 모듈 스코프에
  * '열린 메뉴 키' 하나만 두고 useSyncExternalStore 로 구독한다. */
+/** 테마순 소제목 — 포켓몬 / 원피스 / 유희왕 / 기타 (웹 SectionTitle 동일). */
+function SectionTitle({ label, count, tc }: { label: string; count: number; tc: ReturnType<typeof useThemeColors> }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 6, paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: tc.ink, marginBottom: 2 }}>
+      <PixelText variant="ko" size={13} weight="bold" color={tc.ink}>{label}</PixelText>
+      <PixelText variant="ko" size={11} weight="bold" color={tc.ink3}>{String(count)}</PixelText>
+    </View>
+  );
+}
+
 let openMenuKey: string | null = null;
 const menuSubs = new Set<() => void>();
 function setOpenMenuKey(k: string | null): void {
@@ -738,9 +768,11 @@ function CardMenu({ menuKey, apparelId, basis, onRemove, onEdit, onUnbundle, tc,
   const [autoUp, setAutoUp] = useState(false);
   const wrapRef = useRef<View>(null);
   const toggle = () => {
+    const items = 1 + (apparelId ? 1 : 0) + (onEdit ? 1 : 0) + (onUnbundle ? 1 : 0);
+    const menuH = items * 38 + 10;
     wrapRef.current?.measureInWindow((_x, y, _w, h) => {
-      // 남은 아래 공간(플로팅 탭바 ~90 + 메뉴 ~100) 부족하면 위로.
-      setAutoUp(Dimensions.get('window').height - (y + h) < 190);
+      // 남은 아래 공간 < 플로팅 탭바(~120, 안전영역 포함) + 실제 메뉴 높이면 위로 펼친다 — 아래로 열면 탭바에 겹친다.
+      setAutoUp(Dimensions.get('window').height - (y + h) < 120 + menuH);
     });
     setOpenMenuKey(open ? null : menuKey);
   };

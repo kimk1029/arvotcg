@@ -1,5 +1,6 @@
 /**
  * 애드몹 배너 — 화면 하단에 고정하지 않고, 각 화면의 섹션 사이에 콘텐츠처럼 끼워 넣는다.
+ * 크기는 320×100 고정이며 로드 전부터 그 높이를 예약한다(늦게 떠서 레이아웃이 밀리지 않게).
  * 주변 카드와 같은 여백·모서리·배경을 써서 튀지 않게 한다.
  *
  * **네이티브 모듈을 절대 top-level import 하지 않는다.** OTA 는 구 스토어 빌드
@@ -59,60 +60,53 @@ interface Props {
   bare?: boolean;
 }
 
+/** 배너 고정 규격 — LARGE_BANNER 320×100 (웹 AdFit 320×100 과 동일). 어댑티브는 높이가 기기마다 달라 예약이 안 된다. */
+export const AD_BANNER_W = 320;
+export const AD_BANNER_H = 100;
+const CARD_PAD_V = 8;
+const LABEL_H = 14;
+
 export function AdBanner({ marginHorizontal = 14, marginTop = 0, marginBottom = 12, bare = false }: Props) {
   const tc = useThemeColors();
-  const [mod, setMod] = useState<AdsModule | null>(null);
+  // 첫 렌더부터 자리를 확보해야 하므로 SDK 존재 여부를 동기적으로 판단한다(useState 초기화).
+  const [mod] = useState<AdsModule | null>(() => loadAds());
   const [failed, setFailed] = useState(false);
-  // 광고가 실제로 채워지기 전에는 자리를 차지하지 않는다 —
-  // 먼저 빈 상자를 그리면 로딩 동안 섹션 사이에 구멍이 보인다(에뮬레이터 실측).
-  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const m = loadAds();
-    if (!m) return;
-    if (!initStarted) {
-      initStarted = true;
-      // 실패해도 앱은 계속 떠야 한다 — 광고만 안 나온다.
-      m.default().initialize().catch(() => {});
-    }
-    setMod(m);
-  }, []);
+    if (!mod || initStarted) return;
+    initStarted = true;
+    // 실패해도 앱은 계속 떠야 한다 — 광고만 안 나온다.
+    mod.default().initialize().catch(() => {});
+  }, [mod]);
 
-  // SDK 없음(구 바이너리)·웹·로드 실패 → 자리를 아예 차지하지 않는다.
-  // 광고가 안 붙을 때 빈 상자가 남으면 그게 더 어색하다.
-  if (!mod || failed || Platform.OS === 'web') return null;
+  // SDK 없음(구 바이너리)·웹 → 처음부터 자리를 차지하지 않는다(나중에 생기지도 않으므로 밀림 없음).
+  if (!mod || Platform.OS === 'web') return null;
 
   const { BannerAd, BannerAdSize } = mod;
-  const ad = (
-    <BannerAd
-      unitId={bannerUnitId(platform, useTestUnit)}
-      size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-      onAdLoaded={() => setLoaded(true)}
-      onAdFailedToLoad={() => setFailed(true)}
-    />
+  // 로드 전에도 정확히 배너 높이만큼 차지하고 있다가 그 자리에 뜬다 — 늦게 로드돼 아래 콘텐츠가 밀리던 문제(2026-09-12).
+  // 로드 실패 시에도 높이를 유지한다(줄어들면 그것도 밀림).
+  const slot = (
+    <View style={{ width: '100%', height: AD_BANNER_H, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      {!failed ? (
+        <BannerAd
+          unitId={bannerUnitId(platform, useTestUnit)}
+          size={BannerAdSize.LARGE_BANNER}
+          onAdFailedToLoad={() => setFailed(true)}
+        />
+      ) : null}
+    </View>
   );
 
-  // 로딩 중에는 높이 0 으로 숨겨 둔다. 배너는 마운트돼 있어야 채워지므로 언마운트하지 않는다.
-  if (!loaded) return <View style={{ height: 0, overflow: 'hidden' }}>{ad}</View>;
-
-  if (bare) return <View style={{ alignItems: 'center' }}>{ad}</View>;
+  if (bare) return slot;
 
   return (
-    <View style={{ marginHorizontal, marginTop, marginBottom }}>
+    <View style={{ marginHorizontal, marginTop, marginBottom, height: LABEL_H + CARD_PAD_V * 2 + AD_BANNER_H }}>
       {/* 광고임을 밝히는 작은 라벨 — 콘텐츠로 오인하지 않게 하는 최소 표기. */}
-      <PixelText variant="ko" size={8} color={tc.ink3} style={{ marginBottom: 4, marginLeft: 2, letterSpacing: 0.3 }}>
+      <PixelText variant="ko" size={8} color={tc.ink3} style={{ height: LABEL_H, marginLeft: 2, letterSpacing: 0.3 }}>
         광고
       </PixelText>
-      <View
-        style={{
-          alignItems: 'center',
-          overflow: 'hidden',
-          borderRadius: 14,
-          backgroundColor: tc.white,
-          paddingVertical: 8,
-        }}
-      >
-        {ad}
+      <View style={{ overflow: 'hidden', borderRadius: 14, backgroundColor: tc.white, paddingVertical: CARD_PAD_V }}>
+        {slot}
       </View>
     </View>
   );
