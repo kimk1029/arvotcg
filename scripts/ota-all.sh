@@ -9,14 +9,17 @@
 #     항상 이 스크립트로.
 #
 # 동작:
-#   1. main(mobile/)에서 eas update.
-#   2. 각 워크트리(/home/kimk1029/dev/pf30-ota-<rt>): mobile/.ota-base 에 적힌 main 커밋 이후의
-#      mobile/shared 누적 diff(app.json·version.ts·lock 제외)를 `git apply --3way` 로 적용 → 충돌이면 중단
-#      → 커밋(.ota-base 를 main HEAD 로 갱신) → eas update.
-#   3. u.expo.dev 에 런타임×플랫폼별로 물어 방금 게시한 update id 와 같은지 표로 검증. 하나라도 다르면 exit 1.
+#   1. 각 워크트리(/home/kimk1029/dev/pf30-ota-<rt>): mobile/node_modules 를 main 의 **하드링크 복사본**으로 맞춘다
+#      (심링크 금지 — expo-router 가 app 루트를 실경로 기준으로 계산해 라우트 0개 번들이 나와 실행 즉시 크래시,
+#      2026-09-12 사고). main package-lock 이 바뀌었으면 다시 복사.
+#   2. 워크트리에 mobile/.ota-base(마지막 동기화 main 커밋) 이후의 mobile/shared 누적 diff 를 3way 적용 → 커밋.
+#   3. 런타임마다 `expo export --source-maps` → 소스맵에 app 라우트·src 파일이 있는지 검사(0이면 중단)
+#      → `eas update --skip-bundler --input-dir dist` 로 게시.
+#   4. u.expo.dev 에 런타임×플랫폼별로 물어 방금 게시한 update id 와 같은지 표로 검증. 다르면 exit 1.
 #
 # 주의: 네이티브 모듈이 필요한 JS 는 반드시 requireOptionalNativeModule / TurboModuleRegistry.get 가드
 #       ([[ota-native-module-crash]]) — 구 런타임엔 그 모듈이 없다. 이 스크립트는 그걸 검사하지 않는다.
+#       게시 후엔 구 스토어 APK(store-assets/apk) 를 에뮬레이터에 깔아 첫 실행 OTA 적용·크래시 없음을 확인할 것.
 set -euo pipefail
 
 MSG="${1:-}"
@@ -31,14 +34,46 @@ if [ -n "$(git -C "$ROOT" status --porcelain -- mobile shared)" ]; then
 fi
 
 declare -A EXPECT_ANDROID EXPECT_IOS
+
+# 소스맵에 app 라우트/src 가 들어 있는지 — 0 이면 라우트 없는 껍데기 번들(실행 즉시 "No routes found" 크래시)
+check_bundle() { # $1=dist dir, $2=runtime label
+  local dist="$1" rt="$2" pf map
+  for pf in android ios; do
+    map="$(ls "$dist"/_expo/static/js/$pf/*.hbc.map 2>/dev/null | head -1)"
+    if [ -z "$map" ]; then echo "!! [$rt] $pf 소스맵 없음" >&2; return 1; fi
+    python3 - "$map" "$rt" "$pf" <<'EOF' || return 1
+import json, sys
+src = json.load(open(sys.argv[1])).get('sources', [])
+routes = [s for s in src if '/app/' in s and 'node_modules' not in s]
+code = [s for s in src if '/src/' in s and 'node_modules' not in s]
+print(f"   [{sys.argv[2]}] {sys.argv[3]}: sources={len(src)} routes={len(routes)} src={len(code)}")
+if len(routes) < 10 or len(code) < 10:
+    print(f"!! [{sys.argv[2]}] {sys.argv[3]} 번들에 라우트/src 가 없다 — node_modules 심링크? (routes={len(routes)}, src={len(code)})", file=sys.stderr)
+    sys.exit(1)
+EOF
+  done
+}
+
 publish() { # $1=dir(mobile), $2=runtime label
   local dir="$1" rt="$2" out
-  echo "== eas update [$rt] ($dir)"
-  out="$(cd "$dir" && eas update --branch production --non-interactive --message "$MSG ($rt)" 2>&1 | tee "$LOG_DIR/$rt.log" | grep -E 'Runtime version|Update group ID|Android update ID|iOS update ID|Error|error:' || true)"
+  echo "== export [$rt] ($dir)"
+  (cd "$dir" && rm -rf dist && npx expo export --platform all --source-maps --output-dir dist > "$LOG_DIR/$rt.export.log" 2>&1) || { echo "!! [$rt] export 실패 — $LOG_DIR/$rt.export.log" >&2; exit 1; }
+  check_bundle "$dir/dist" "$rt" || exit 1
+  echo "== eas update [$rt]"
+  out="$(cd "$dir" && eas update --branch production --non-interactive --skip-bundler --input-dir dist --message "$MSG ($rt)" 2>&1 | tee "$LOG_DIR/$rt.log" | grep -E 'Runtime version|Update group ID|Android update ID|iOS update ID|Error|error:' || true)"
   echo "$out" | sed 's/^/   /'
   EXPECT_ANDROID[$rt]="$(echo "$out" | grep -o 'Android update ID *[0-9a-f-]*' | grep -o '[0-9a-f-]\{36\}' || true)"
   EXPECT_IOS[$rt]="$(echo "$out" | grep -o 'iOS update ID *[0-9a-f-]*' | grep -o '[0-9a-f-]\{36\}' || true)"
-  if [ -z "${EXPECT_ANDROID[$rt]}" ]; then echo "!! [$rt] 게시 실패 — $LOG_DIR/$rt.log" >&2; exit 1; fi
+  if [ -z "${EXPECT_ANDROID[$rt]}" ] || [ -z "${EXPECT_IOS[$rt]}" ]; then echo "!! [$rt] 게시 실패 — $LOG_DIR/$rt.log" >&2; exit 1; fi
+}
+
+# 워크트리 node_modules — main 의 하드링크 복사본(심링크 금지). lock 이 바뀌었으면 다시 복사.
+sync_node_modules() { # $1=worktree mobile dir
+  local dir="$1" nm="$1/node_modules" marker="$1/node_modules/.ota-lock-marker" src="$ROOT/mobile/node_modules"
+  if [ -L "$nm" ]; then rm "$nm"; fi
+  if [ -d "$nm" ] && [ -f "$marker" ] && cmp -s "$marker" "$ROOT/mobile/package-lock.json"; then return 0; fi
+  echo "   node_modules 복사 (hardlink) ← $src"
+  rm -rf "$nm"; cp -al "$src" "$nm"; cp "$ROOT/mobile/package-lock.json" "$marker"
 }
 
 # 1) main
@@ -54,6 +89,7 @@ for WT in "$(dirname "$ROOT")"/pf30-ota-*; do
   BASE="$(tr -d '[:space:]' < "$BASE_FILE")"
   echo "== sync [$RT] $BASE..$MAIN_HEAD → $WT"
   if [ -n "$(git -C "$WT" status --porcelain)" ]; then echo "!! $WT 에 커밋 안 된 변경이 있다" >&2; exit 2; fi
+  sync_node_modules "$WT/mobile"
   PATCH="$LOG_DIR/$RT.patch"
   git -C "$ROOT" diff "$BASE" "$MAIN_HEAD" -- mobile shared ':!shared/version.ts' ':!mobile/app.json' ':!mobile/.ota-base' ':!mobile/package-lock.json' > "$PATCH"
   if [ -s "$PATCH" ]; then
