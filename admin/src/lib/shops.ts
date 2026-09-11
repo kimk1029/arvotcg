@@ -31,6 +31,7 @@ export interface ShopInput {
   reviewCount?: number;
   dist?: string;
   phone?: string;
+  instagram?: string;
   hours?: string;
   closedDays?: string;
   intro?: string;
@@ -89,6 +90,7 @@ export function parseShopInput(
   if (input.dist !== undefined) out.dist = String(input.dist).trim().slice(0, 20);
   // 상세 페이지 정보 — 전부 선택, 길이만 제한
   if (input.phone !== undefined) out.phone = String(input.phone).trim().slice(0, 30);
+  if (input.instagram !== undefined) out.instagram = String(input.instagram).trim().slice(0, 120);
   if (input.hours !== undefined) out.hours = String(input.hours).trim().slice(0, 60);
   if (input.closedDays !== undefined) out.closedDays = String(input.closedDays).trim().slice(0, 40);
   if (input.intro !== undefined) out.intro = String(input.intro).trim().slice(0, 2000);
@@ -149,6 +151,7 @@ export const SHOP_TEMPLATE_FIELDS: ShopTemplateField[] = [
   { key: 'tileColor', desc: '앱 타일 단색 #rrggbb (기본 #ff9a33)' },
   { key: 'oripaPct', desc: '오리파 비중 0~100 정수 (기본 0)' },
   { key: 'phone', desc: '전화번호 (상세 페이지 전화 버튼, 비우면 버튼 숨김)' },
+  { key: 'instagram', desc: '인스타그램 — @핸들 / 핸들 / 프로필 URL 아무거나 (상세 페이지 버튼 + 최근 소식 임베드)' },
   { key: 'hours', desc: '영업시간 텍스트 (예: "10:00 - 21:00" — HH:MM 두 개가 있으면 영업 중/종료 표시)' },
   { key: 'closedDays', desc: '휴무 (예: "매주 월요일", "연중무휴")' },
   { key: 'intro', desc: '매장 소개 (≤2000자)' },

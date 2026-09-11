@@ -66,6 +66,7 @@ interface ShopInfo {
   lng: number;
   /** 상세 페이지 정보 (어드민 선택 입력) */
   phone?: string;
+  instagram?: string;
   hours?: string;
   closedDays?: string;
   intro?: string;
@@ -99,6 +100,7 @@ interface ShopApiRow {
   reviewCount: number;
   dist: string;
   phone?: string;
+  instagram?: string;
   hours?: string;
   closedDays?: string;
   intro?: string;
@@ -133,6 +135,7 @@ function shopFromApi(r: ShopApiRow): ShopInfo {
     lat: r.lat ?? SEOUL_CENTER.lat,
     lng: r.lng ?? SEOUL_CENTER.lng,
     phone: r.phone || undefined,
+    instagram: r.instagram || undefined,
     hours: r.hours || undefined,
     closedDays: r.closedDays || undefined,
     intro: r.intro || undefined,

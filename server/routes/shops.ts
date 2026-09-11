@@ -90,6 +90,7 @@ router.get('/', async (_req: Request, res: Response) => {
         reviewCount: r.reviewCount,
         dist: r.dist,
         phone: r.phone,
+        instagram: r.instagram,
         hours: r.hours,
         closedDays: r.closedDays,
         intro: r.intro,

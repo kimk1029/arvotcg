@@ -28,6 +28,7 @@ export default async function Page() {
       reviewCount: s.reviewCount,
       dist: s.dist,
       phone: s.phone,
+      instagram: s.instagram,
       hours: s.hours,
       closedDays: s.closedDays,
       intro: s.intro,

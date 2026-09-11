@@ -23,6 +23,7 @@ export interface ShopData {
   reviewCount: number;
   dist: string;
   phone: string;
+  instagram: string;
   hours: string;
   closedDays: string;
   intro: string;
@@ -51,6 +52,7 @@ const EMPTY_DRAFT: Draft = {
   reviewCount: 0,
   dist: '',
   phone: '',
+  instagram: '',
   hours: '',
   closedDays: '',
   intro: '',
@@ -126,6 +128,7 @@ export function ShopManager({ initialShops }: { initialShops: ShopData[] }) {
       reviewCount: draft.reviewCount,
       dist: draft.dist,
       phone: draft.phone,
+      instagram: draft.instagram,
       hours: draft.hours,
       closedDays: draft.closedDays,
       intro: draft.intro,
@@ -412,6 +415,9 @@ function ShopForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) => v
           <input type="text" value={draft.closedDays} onChange={(e) => setDraft({ ...draft, closedDays: e.target.value })} style={inp} />
         </Field>
       </div>
+      <Field label="인스타그램 (@핸들 / 핸들 / 프로필 URL — 있으면 상세 페이지에 '최근 소식' 피드가 붙습니다. 공개 계정만 표시)">
+        <input type="text" value={draft.instagram} onChange={(e) => setDraft({ ...draft, instagram: e.target.value })} style={inp} placeholder="@poke_lab" />
+      </Field>
       <Field label="매장 소개">
         <textarea value={draft.intro} onChange={(e) => setDraft({ ...draft, intro: e.target.value })} style={{ ...inp, minHeight: 90, resize: 'vertical' }} />
       </Field>
