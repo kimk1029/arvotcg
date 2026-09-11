@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
+import { ShopDetail } from '@/components/screens/ShopDetail';
 import { HAS_NAVER_MAP_KEY, ShopNaverMap } from '@/components/screens/ShopNaverMap';
+import { parseTags } from '@/lib/shopHours';
 import { useSession } from '@/lib/session';
 import {
   ALL_REGIONS,
@@ -62,6 +64,12 @@ interface ShopInfo {
   /** 네이버 지도 좌표 (근사값 — Geocoder 가 주소 기준으로 보정) */
   lat: number;
   lng: number;
+  /** 상세 페이지 정보 (어드민 선택 입력) */
+  phone?: string;
+  hours?: string;
+  closedDays?: string;
+  intro?: string;
+  tags?: string[];
 }
 
 /** API 실패 시 폴백 — server/routes/shops.ts 의 DEFAULT_SHOPS(시드)와 동일 내용. */
@@ -90,6 +98,11 @@ interface ShopApiRow {
   rating: number;
   reviewCount: number;
   dist: string;
+  phone?: string;
+  hours?: string;
+  closedDays?: string;
+  intro?: string;
+  tags?: string;
 }
 
 // 좌표 미입력 샵의 초기 위치 — 지도 Geocoder 가 주소 기준으로 곧바로 보정한다.
@@ -119,6 +132,11 @@ function shopFromApi(r: ShopApiRow): ShopInfo {
     y: `${28 + ((r.id * 53) % 46)}%`,
     lat: r.lat ?? SEOUL_CENTER.lat,
     lng: r.lng ?? SEOUL_CENTER.lng,
+    phone: r.phone || undefined,
+    hours: r.hours || undefined,
+    closedDays: r.closedDays || undefined,
+    intro: r.intro || undefined,
+    tags: parseTags(r.tags),
   };
 }
 
@@ -168,6 +186,8 @@ export function ShopSection({ P }: { P: ShopPalette }) {
   const [submitted, setSubmitted] = useState(false);
   const [reviewFilter, setReviewFilter] = useState('all');
   const [reviewCount, setReviewCount] = useState(5);
+  // 카드샵 상세 페이지 — 리스트 항목 클릭으로 열림 (지도 핀은 선택만).
+  const [detailId, setDetailId] = useState<string | null>(null);
   // 현재 위치 — '내 주변' 프레이밍(가까운 샵 2개까지). 거부/미지원이면 null → 전체 프레이밍 (앱 getCurrentOrigin 페어).
   const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
@@ -254,9 +274,11 @@ export function ShopSection({ P }: { P: ShopPalette }) {
   // 어드민은 커튼 없이 실제 화면을 본다(오픈 전 검수용). 일반 사용자는 shared 플래그 그대로.
   const { user } = useSession();
   const curtained = SHOP_COMING_SOON[country] && !user?.isAdmin;
+  const detailShop = detailId ? list.find((s) => s.id === detailId) ?? null : null;
 
   return (
     <div>
+      {detailShop && <ShopDetail shop={detailShop} onClose={() => setDetailId(null)} />}
       {/* 한국 / 일본 카드샵 탭 + 지역 칩 — '준비중' 커튼 바깥(항상 조작 가능) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px 8px', borderBottom: `1px solid ${P.line}` }}>
         {SHOP_COUNTRIES.map((c) => {
@@ -435,7 +457,7 @@ export function ShopSection({ P }: { P: ShopPalette }) {
           {regionShops.map((s, i) => {
             const sel = s.id === shopId;
             return (
-              <button key={s.id} type="button" onClick={() => selectShop(s.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 15px', width: '100%', borderTop: i === 0 ? 'none' : `1px solid ${P.line}`, cursor: 'pointer', background: sel ? '#FFF9F4' : P.cardBg, border: 'none', borderBottom: 'none', textAlign: 'left' }}>
+              <button key={s.id} type="button" onClick={() => { selectShop(s.id); setDetailId(s.id); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 15px', width: '100%', borderTop: i === 0 ? 'none' : `1px solid ${P.line}`, cursor: 'pointer', background: sel ? '#FFF9F4' : P.cardBg, border: 'none', borderBottom: 'none', textAlign: 'left' }}>
                 <span style={{ width: 42, height: 42, borderRadius: 12, background: s.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21, flex: 'none' }}>{s.emoji}</span>
                 <span style={{ flex: 1, minWidth: 0, display: 'block' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>

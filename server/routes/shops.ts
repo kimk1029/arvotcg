@@ -89,6 +89,11 @@ router.get('/', async (_req: Request, res: Response) => {
         rating: r.rating,
         reviewCount: r.reviewCount,
         dist: r.dist,
+        phone: r.phone,
+        hours: r.hours,
+        closedDays: r.closedDays,
+        intro: r.intro,
+        tags: r.tags,
       })),
     });
   } catch (err) {

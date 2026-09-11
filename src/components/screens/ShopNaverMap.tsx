@@ -60,12 +60,13 @@ function pinHtml(pin: ShopMapPin, selected: boolean): string {
   const label = pin.name.split(' ')[0];
   return `
     <div style="position:relative;width:0;height:0;">
-      <div style="position:absolute;left:0;top:0;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;cursor:pointer;">
-        <span style="display:inline-flex;align-items:center;gap:4px;background:${selected ? '#16161a' : '#fff'};border:2px solid #fff;border-radius:16px;padding:4px 9px;box-shadow:0 4px 10px rgba(0,0,0,.22);white-space:nowrap;">
+      <div style="position:absolute;left:0;top:0;transform:translate(-50%,calc(-100% + 3px));display:flex;flex-direction:column;align-items:center;cursor:pointer;">
+        <span style="display:inline-flex;align-items:center;gap:4px;background:${selected ? '#16161a' : '#fff'};border:2px solid #fff;border-radius:16px;padding:4px 9px;box-shadow:0 7px 14px rgba(0,0,0,.28),0 1px 3px rgba(0,0,0,.18);white-space:nowrap;">
           <span style="font-size:11px;line-height:1;">${pin.emoji}</span>
           <span style="font-size:11px;font-weight:800;color:${selected ? '#fff' : '#16161a'};">${label}</span>
         </span>
-        <span style="display:block;width:2px;height:7px;background:${selected ? '#16161a' : '#fff'};"></span>
+        <span style="display:block;width:2px;height:7px;background:${selected ? '#16161a' : '#fff'};position:relative;z-index:1;"></span>
+        <span style="display:block;width:18px;height:6px;border-radius:50%;background:rgba(0,0,0,.32);filter:blur(1.5px);margin-top:-3px;"></span>
       </div>
     </div>
   `;

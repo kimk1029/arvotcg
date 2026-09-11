@@ -22,6 +22,11 @@ export interface ShopData {
   rating: number;
   reviewCount: number;
   dist: string;
+  phone: string;
+  hours: string;
+  closedDays: string;
+  intro: string;
+  tags: string;
   sortOrder: number;
   active: boolean;
 }
@@ -45,6 +50,11 @@ const EMPTY_DRAFT: Draft = {
   rating: 0,
   reviewCount: 0,
   dist: '',
+  phone: '',
+  hours: '',
+  closedDays: '',
+  intro: '',
+  tags: '',
   sortOrder: 50,
   active: true,
 };
@@ -115,6 +125,11 @@ export function ShopManager({ initialShops }: { initialShops: ShopData[] }) {
       rating: draft.rating,
       reviewCount: draft.reviewCount,
       dist: draft.dist,
+      phone: draft.phone,
+      hours: draft.hours,
+      closedDays: draft.closedDays,
+      intro: draft.intro,
+      tags: draft.tags,
       sortOrder: draft.sortOrder,
       active: draft.active,
     };
@@ -384,6 +399,25 @@ function ShopForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) => v
           <input type="text" value={draft.dist} onChange={(e) => setDraft({ ...draft, dist: e.target.value })} style={inp} />
         </Field>
       </div>
+
+      {/* 상세 페이지 정보 — 전부 선택 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+        <Field label="전화번호 (상세 '전화' 버튼)">
+          <input type="text" value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} style={inp} placeholder="02-000-0000" />
+        </Field>
+        <Field label="영업시간 (예: 10:00 - 21:00)">
+          <input type="text" value={draft.hours} onChange={(e) => setDraft({ ...draft, hours: e.target.value })} style={inp} />
+        </Field>
+        <Field label="휴무 (예: 매주 월요일 / 연중무휴)">
+          <input type="text" value={draft.closedDays} onChange={(e) => setDraft({ ...draft, closedDays: e.target.value })} style={inp} />
+        </Field>
+      </div>
+      <Field label="매장 소개">
+        <textarea value={draft.intro} onChange={(e) => setDraft({ ...draft, intro: e.target.value })} style={{ ...inp, minHeight: 90, resize: 'vertical' }} />
+      </Field>
+      <Field label="태그 (쉼표 구분 — 예: 오리파, 싱글, 매입)">
+        <input type="text" value={draft.tags} onChange={(e) => setDraft({ ...draft, tags: e.target.value })} style={inp} />
+      </Field>
 
       <div style={{ display: 'flex', gap: 18 }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>

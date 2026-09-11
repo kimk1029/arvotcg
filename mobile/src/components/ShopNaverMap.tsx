@@ -58,7 +58,7 @@ export const HAS_NAVER_MAP_KEY = loadNaverMap() !== null;
 const FIT_MAX_ZOOM = 16;
 const SEOUL = { latitude: 37.5665, longitude: 126.978 };
 // 커스텀 뷰 마커는 width/height 가 필수(라이브러리 주의사항) — 라벨 길이로 폭을 잡는다.
-const PIN_H = 36;
+const PIN_H = 40; // 칩 + 스템(7) + 바닥 그림자(6, 스템과 3px 겹침)
 function pinWidth(label: string): number {
   return Math.min(170, 44 + label.length * 11);
 }
@@ -154,7 +154,7 @@ function NativeShopMap({ NM, pins, focus, origin, selId, onSelect }: Props & { N
               longitude={p.lng}
               width={w}
               height={PIN_H}
-              anchor={{ x: 0.5, y: 1 }}
+              anchor={{ x: 0.5, y: (PIN_H - 3) / PIN_H }}
               zIndex={sel ? 6 : 5}
               isHideCollidedMarkers={false}
               isHideCollidedSymbols
@@ -166,12 +166,16 @@ function NativeShopMap({ NM, pins, focus, origin, selId, onSelect }: Props & { N
                     flexDirection: 'row', alignItems: 'center', gap: 4,
                     backgroundColor: sel ? '#16161a' : '#fff', borderWidth: 2, borderColor: '#fff', borderRadius: 16,
                     paddingVertical: 4, paddingHorizontal: 9,
+                    // 떠 있는 입체감 — iOS 그림자 + Android elevation (웹 box-shadow 페어)
+                    shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 6, shadowOffset: { width: 0, height: 5 }, elevation: 6,
                   }}
                 >
                   <Text style={{ fontSize: 11, lineHeight: 13 }}>{p.emoji}</Text>
                   <Text numberOfLines={1} style={{ fontSize: 11, lineHeight: 13, fontWeight: '800', color: sel ? '#fff' : '#16161a' }}>{label}</Text>
                 </View>
-                <View style={{ width: 2, height: 7, backgroundColor: sel ? '#16161a' : '#fff' }} />
+                <View style={{ width: 2, height: 7, backgroundColor: sel ? '#16161a' : '#fff', zIndex: 1 }} />
+                {/* 바닥 그림자 — 마커 스냅샷은 뷰 밖 그림자를 못 담을 수 있어 명시적 타원으로 */}
+                <View style={{ width: 18, height: 6, borderRadius: 9, backgroundColor: 'rgba(0,0,0,.32)', marginTop: -3 }} />
               </View>
             </NaverMapMarkerOverlay>
           );

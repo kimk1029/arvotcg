@@ -4,7 +4,9 @@ import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 
 import { HAS_NAVER_MAP_KEY, ShopNaverMap } from '@/components/ShopNaverMap';
 import { api } from '@/lib/apiClient';
+import { ShopDetail } from '@/components/ShopDetail';
 import { getCurrentOrigin } from '@/lib/geo';
+import { parseTags } from '@/lib/shopHours';
 import { isAuthenticated } from '@/lib/session';
 import {
   ALL_REGIONS,
@@ -66,6 +68,12 @@ interface ShopInfo {
   /** 네이버 지도 좌표 (근사값 — Geocoder 가 주소 기준으로 보정) */
   lat: number;
   lng: number;
+  /** 상세 페이지 정보 (어드민 선택 입력) */
+  phone?: string;
+  hours?: string;
+  closedDays?: string;
+  intro?: string;
+  tags?: string[];
 }
 
 /** API 실패 시 폴백 — server/routes/shops.ts 의 DEFAULT_SHOPS(시드)와 동일 내용. */
@@ -94,6 +102,11 @@ interface ShopApiRow {
   rating: number;
   reviewCount: number;
   dist: string;
+  phone?: string;
+  hours?: string;
+  closedDays?: string;
+  intro?: string;
+  tags?: string;
 }
 
 // 좌표 미입력 샵의 초기 위치 — 지도 Geocoder 가 주소 기준으로 곧바로 보정한다.
@@ -123,6 +136,11 @@ function shopFromApi(r: ShopApiRow): ShopInfo {
     y: 28 + ((r.id * 53) % 46),
     lat: r.lat ?? SEOUL_CENTER.lat,
     lng: r.lng ?? SEOUL_CENTER.lng,
+    phone: r.phone || undefined,
+    hours: r.hours || undefined,
+    closedDays: r.closedDays || undefined,
+    intro: r.intro || undefined,
+    tags: parseTags(r.tags),
   };
 }
 
@@ -178,6 +196,8 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
   const [submitted, setSubmitted] = useState(false);
   const [reviewFilter, setReviewFilter] = useState('all');
   const [reviewCount, setReviewCount] = useState(5);
+  // 카드샵 상세 페이지 — 리스트 항목 클릭으로 열림 (지도 핀은 선택만).
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [mapW, setMapW] = useState(0);
   // 현재 위치 — '내 주변' 프레이밍(가까운 샵 2개까지). 권한 거부/모듈 없음이면 null → 전체 프레이밍 (웹 동일).
   const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
@@ -255,9 +275,11 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
       .catch(() => {});
   }, []);
   const curtained = SHOP_COMING_SOON[country] && !isAdmin;
+  const detailShop = detailId ? list.find((s) => s.id === detailId) ?? null : null;
 
   return (
     <View style={{ flex: 1 }}>
+      <ShopDetail shop={detailShop} onClose={() => setDetailId(null)} />
       {/* 한국 / 일본 카드샵 탭 + 지역 칩 — '준비중' 커튼 바깥(항상 조작 가능, 웹 동일) */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: P.line }}>
         {SHOP_COUNTRIES.map((c) => {
@@ -474,7 +496,7 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
           {regionShops.map((s, i) => {
             const sel = s.id === shopId;
             return (
-              <Pressable key={s.id} onPress={() => selectShop(s.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 15, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: P.line, backgroundColor: sel ? '#FFF9F4' : P.cardBg }}>
+              <Pressable key={s.id} onPress={() => { selectShop(s.id); setDetailId(s.id); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 15, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: P.line, backgroundColor: sel ? '#FFF9F4' : P.cardBg }}>
                 <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: s.tile, alignItems: 'center', justifyContent: 'center' }}>
                   <Text style={{ fontSize: 21 }}>{s.emoji}</Text>
                 </View>

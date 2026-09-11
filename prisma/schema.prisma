@@ -279,6 +279,12 @@ model CardShop {
   reviewCount Int      @default(0)
   /// 거리 표시 텍스트 (예: "320m"). 비우면 숨김.
   dist        String   @default("")
+  /// 상세 페이지 — 전화 · 영업시간("10:00 - 21:00") · 휴무("매주 월요일") · 소개 · 태그(쉼표 구분). 전부 선택.
+  phone       String   @default("")
+  hours       String   @default("")
+  closedDays  String   @default("")
+  intro       String   @default("")
+  tags        String   @default("")
   sortOrder   Int      @default(0)
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())

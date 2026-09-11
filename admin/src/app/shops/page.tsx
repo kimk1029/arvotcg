@@ -27,6 +27,11 @@ export default async function Page() {
       rating: s.rating,
       reviewCount: s.reviewCount,
       dist: s.dist,
+      phone: s.phone,
+      hours: s.hours,
+      closedDays: s.closedDays,
+      intro: s.intro,
+      tags: s.tags,
       sortOrder: s.sortOrder,
       active: s.active,
     }));
