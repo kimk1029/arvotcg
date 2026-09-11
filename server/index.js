@@ -56,6 +56,7 @@ import eventsRouter from './routes/events.ts';
 import noticesRouter from './routes/notices.ts';
 import placesRouter from './routes/places.ts';
 import shopsRouter from './routes/shops.ts';
+import imgRouter from './routes/img.ts';
 import usersRouter from './routes/users.ts';
 import searchLogRouter from './routes/searchLog.ts';
 import reportsRouter from './routes/reports.ts';
@@ -115,6 +116,7 @@ app.use('/api/events', eventsRouter);
 app.use('/api/notices', noticesRouter);
 app.use('/api/places', placesRouter);
 app.use('/api/shops', shopsRouter);
+app.use('/api/img', imgRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/app-release', appReleaseRouter);
 

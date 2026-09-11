@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { nearbyBounds } from '@/lib/shopRegions';
+import { nearbyBounds, type LatLngBounds } from '@/lib/shopRegions';
 
 /**
  * Shop 지도 — 네이버 지도(NCP Web Dynamic Map v3) 위 카드샵 칩 핀.
@@ -61,7 +61,7 @@ function pinHtml(pin: ShopMapPin, selected: boolean): string {
   return `
     <div style="position:relative;width:0;height:0;">
       <div style="position:absolute;left:0;top:0;transform:translate(-50%,calc(-100% + 3px));display:flex;flex-direction:column;align-items:center;cursor:pointer;">
-        <span style="display:inline-flex;align-items:center;gap:4px;background:${selected ? '#16161a' : '#fff'};border:2px solid #fff;border-radius:16px;padding:4px 9px;box-shadow:0 7px 14px rgba(0,0,0,.28),0 1px 3px rgba(0,0,0,.18);white-space:nowrap;">
+        <span style="display:inline-flex;align-items:center;gap:4px;background:${selected ? '#16161a' : '#fff'};border:2px solid #fff;border-radius:16px;padding:4px 9px;box-shadow:0 9px 18px rgba(0,0,0,.34),0 3px 6px rgba(0,0,0,.22);white-space:nowrap;">
           <span style="font-size:11px;line-height:1;">${pin.emoji}</span>
           <span style="font-size:11px;font-weight:800;color:${selected ? '#fff' : '#16161a'};">${label}</span>
         </span>
@@ -85,6 +85,8 @@ interface Props {
   focus?: MapFocus | null;
   /** 현재 위치 — 있으면(그리고 지역 선택이 없으면) 이 점을 중심으로 가까운 샵 2개가 보이게 프레이밍. */
   origin?: { lat: number; lng: number } | null;
+  /** 지도 이동/줌이 멈출 때 현재 뷰포트 — 부모가 '보이는 샵만' 리스트에 쓴다. */
+  onViewport?: (b: LatLngBounds) => void;
   selId: string;
   onSelect: (id: string) => void;
 }
@@ -92,7 +94,7 @@ interface Props {
 // 핀 1개일 때 fitBounds 가 최대 줌까지 들어가는 것을 막는 상한.
 const FIT_MAX_ZOOM = 16;
 
-export function ShopNaverMap({ pins, focus = null, origin = null, selId, onSelect }: Props) {
+export function ShopNaverMap({ pins, focus = null, origin = null, onViewport, selId, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<NMaps | null>(null);
   const markersRef = useRef<Map<string, NMaps>>(new Map());
@@ -107,6 +109,8 @@ export function ShopNaverMap({ pins, focus = null, origin = null, selId, onSelec
   const originRef = useRef(origin);
   originRef.current = origin;
   const originMarkerRef = useRef<NMaps | null>(null);
+  const onViewportRef = useRef(onViewport);
+  onViewportRef.current = onViewport;
   const selIdRef = useRef(selId);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errDetail, setErrDetail] = useState('');
@@ -210,6 +214,13 @@ export function ShopNaverMap({ pins, focus = null, origin = null, selId, onSelec
           zoomControl: false,
         });
         mapRef.current = map;
+        // 뷰포트 변경(idle) → 부모에 bounds 전달 (앱 onCameraIdle 페어)
+        naver.Event.addListener(map, 'idle', () => {
+          const b = map.getBounds();
+          const sw = b.getSW();
+          const ne = b.getNE();
+          onViewportRef.current?.({ minLat: sw.lat(), maxLat: ne.lat(), minLng: sw.lng(), maxLng: ne.lng() });
+        });
         syncMarkers(list, cancelledRef);
 
         setStatus('ready');

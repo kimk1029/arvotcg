@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, TurboModuleRegistry, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
-import { nearbyBounds } from '@/lib/shopRegions';
+import { nearbyBounds, type LatLngBounds } from '@/lib/shopRegions';
 
 /**
  * Shop 지도 — 네이버 지도 **네이티브 SDK**(Mobile Dynamic Map, @mj-studio/react-native-naver-map)
@@ -69,17 +69,19 @@ interface Props {
   focus?: MapFocus | null;
   /** 현재 위치 — 있으면(그리고 지역 선택이 없으면) 이 점을 중심으로 가까운 샵 2개가 보이게 프레이밍 (웹 동일). */
   origin?: { lat: number; lng: number } | null;
+  /** 지도 이동/줌이 멈출 때 현재 뷰포트 — 부모가 '보이는 샵만' 리스트에 쓴다 (웹 동일). */
+  onViewport?: (b: LatLngBounds) => void;
   selId: string;
   onSelect: (id: string) => void;
 }
 
-export function ShopNaverMap({ pins, focus = null, origin = null, selId, onSelect }: Props) {
+export function ShopNaverMap({ pins, focus = null, origin = null, onViewport, selId, onSelect }: Props) {
   const NM = loadNaverMap();
   if (!NM) return null;
-  return <NativeShopMap NM={NM} pins={pins} focus={focus} origin={origin} selId={selId} onSelect={onSelect} />;
+  return <NativeShopMap NM={NM} pins={pins} focus={focus} origin={origin} onViewport={onViewport} selId={selId} onSelect={onSelect} />;
 }
 
-function NativeShopMap({ NM, pins, focus, origin, selId, onSelect }: Props & { NM: NaverMapModule; focus: MapFocus | null; origin: { lat: number; lng: number } | null }) {
+function NativeShopMap({ NM, pins, focus, origin, onViewport, selId, onSelect }: Props & { NM: NaverMapModule; focus: MapFocus | null; origin: { lat: number; lng: number } | null }) {
   const { NaverMapView, NaverMapMarkerOverlay } = NM;
   const mapRef = useRef<import('@mj-studio/react-native-naver-map').NaverMapViewRef>(null);
   const [ready, setReady] = useState(false);
@@ -139,6 +141,8 @@ function NativeShopMap({ NM, pins, focus, origin, selId, onSelect }: Props & { N
         // ScrollView 안 둥근 컨테이너(overflow hidden) — SurfaceView 는 클리핑이 안 돼 TextureView 로.
         isUseTextureViewAndroid
         onInitialized={() => setReady(true)}
+        // 뷰포트 변경 → 부모에 bounds (웹 idle 리스너 페어)
+        onCameraIdle={(e) => onViewport?.({ minLat: e.region.latitude, maxLat: e.region.latitude + e.region.latitudeDelta, minLng: e.region.longitude, maxLng: e.region.longitude + e.region.longitudeDelta })}
         // 현재 위치 파란 점 (웹 origin 마커 페어)
         locationOverlay={origin ? { isVisible: true, position: { latitude: origin.lat, longitude: origin.lng } } : { isVisible: false }}
       >
@@ -161,6 +165,8 @@ function NativeShopMap({ NM, pins, focus, origin, selId, onSelect }: Props & { N
               onTap={() => onSelect(p.id)}
             >
               <View style={{ width: w, height: PIN_H, alignItems: 'center', justifyContent: 'flex-end' }}>
+                {/* 칩 몸통 그림자 — 마커 스냅샷은 shadow/elevation 을 못 담는 경우가 있어 명시적 레이어로(아래로 3px 오프셋) */}
+                <View style={{ position: 'absolute', top: 3, left: 3, right: -1, height: PIN_H - 7 - 6 - 1, borderRadius: 16, backgroundColor: 'rgba(0,0,0,.26)' }} />
                 <View
                   style={{
                     flexDirection: 'row', alignItems: 'center', gap: 4,

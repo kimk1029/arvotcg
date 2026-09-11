@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Image, Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 
@@ -7,9 +7,13 @@ import { api } from '@/lib/apiClient';
 import { ShopDetail } from '@/components/ShopDetail';
 import { getCurrentOrigin } from '@/lib/geo';
 import { parseTags } from '@/lib/shopHours';
+import { shopImageUrl } from '@/lib/shopLinks';
+import { absApiUrl } from '@/lib/myApi';
 import { isAuthenticated } from '@/lib/session';
 import {
   ALL_REGIONS,
+  inBounds,
+  type LatLngBounds,
   SHOP_COMING_SOON,
   SHOP_COMING_SOON_SUB,
   SHOP_COMING_SOON_TEXT,
@@ -205,6 +209,9 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
   const [reviewCount, setReviewCount] = useState(5);
   // 카드샵 상세 페이지 — 리스트 항목 클릭으로 열림 (지도 핀은 선택만).
   const [detailId, setDetailId] = useState<string | null>(null);
+  // 리스트 = 지도에 보이는 샵만, 10개씩 무한 스크롤 (웹 동일).
+  const [viewport, setViewport] = useState<LatLngBounds | null>(null);
+  const [listCount, setListCount] = useState(10);
   const [mapW, setMapW] = useState(0);
   // 현재 위치 — '내 주변' 프레이밍(가까운 샵 2개까지). 권한 거부/모듈 없음이면 null → 전체 프레이밍 (웹 동일).
   const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
@@ -233,6 +240,10 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
   const list = shops ?? FALLBACK_SHOPS;
   // 지역 선택 — 해당 지역 샵만 목록·지도에 (정본 shared/shopRegions, 웹 동일).
   const regionShops = filterShopsByRegion(list, sel);
+  const listShops = useMemo(() => (viewport ? regionShops.filter((s) => inBounds(s, viewport)) : regionShops), [regionShops, viewport]);
+  const listKey = listShops.map((s) => s.id).join(',');
+  useEffect(() => { setListCount(10); }, [listKey]);
+  const listMore = listCount < listShops.length;
   const focus = regionFocusOf(sel, list);
   // 선택지(시/도 → 구/군)는 실제 등록된 샵에서 만든다 — 샵 없는 지역은 나오지 않는다.
   const regionTree = buildRegionTree(list);
@@ -286,7 +297,7 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
 
   return (
     <View style={{ flex: 1 }}>
-      <ShopDetail shop={detailShop} onClose={() => setDetailId(null)} />
+      <ShopDetail shop={detailShop ? { ...detailShop, imageUrl: absApiUrl(shopImageUrl(detailShop.imageUrl, 800)) ?? detailShop.imageUrl } : null} onClose={() => setDetailId(null)} />
       {/* 한국 / 일본 카드샵 탭 + 지역 칩 — '준비중' 커튼 바깥(항상 조작 가능, 웹 동일) */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: P.line }}>
         {SHOP_COUNTRIES.map((c) => {
@@ -349,9 +360,9 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
       scrollEventThrottle={120}
       onScroll={(e) => {
         const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-        if (hasMore && contentOffset.y + layoutMeasurement.height > contentSize.height - 140) {
-          setReviewCount((c) => Math.min(30, c + 4));
-        }
+        const nearEnd = contentOffset.y + layoutMeasurement.height > contentSize.height - 140;
+        if (nearEnd && listMore) setListCount((c) => c + 10);
+        if (nearEnd && hasMore) setReviewCount((c) => Math.min(30, c + 4));
       }}
     >
       <Curtain P={P} ts={ts} on={curtained}>
@@ -363,7 +374,7 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
         >
           {HAS_NAVER_MAP_KEY ? (
             // 핀은 WebView HTML 생성 시 1회 — 샵 목록 로딩 완료 후에만 지도 마운트.
-            shops !== null && <ShopNaverMap pins={regionShops} focus={focus} origin={origin} selId={shopId} onSelect={selectShop} />
+            shops !== null && <ShopNaverMap pins={regionShops} focus={focus} origin={origin} onViewport={setViewport} selId={shopId} onSelect={selectShop} />
           ) : (
             <>
           <View style={{ position: 'absolute', left: 0, right: 0, top: 74, height: 13, backgroundColor: '#fff' }} />
@@ -487,7 +498,7 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
 
       {/* shop list */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 10 }}>
-        <Text style={ts(16, '800', P.ink)}>{regionLabel(sel)} 카드샵 <Text style={{ color: P.ink3 }}>{regionShops.length}</Text></Text>
+        <Text style={ts(16, '800', P.ink)}>{regionLabel(sel)} 카드샵 <Text style={{ color: P.ink3 }}>{listShops.length}</Text></Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Text style={ts(12.5, '700', P.ink)}>평점순</Text>
           <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={P.ink} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><Path d="m6 9 6 6 6-6" /></Svg>
@@ -495,17 +506,17 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
       </View>
       <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>
         <View style={[card, { overflow: 'hidden' }]}>
-          {regionShops.length === 0 ? (
+          {listShops.length === 0 ? (
             <View style={{ paddingVertical: 26, paddingHorizontal: 16, alignItems: 'center' }}>
-              <Text style={[ts(13, '600', P.ink3), { textAlign: 'center' }]}>{regionLabel(sel)} 지역에 등록된 카드샵이 아직 없어요.{'\n'}어드민 › 카드샵 관리에서 추가하면 바로 표시돼요.</Text>
+              <Text style={[ts(13, '600', P.ink3), { textAlign: 'center' }]}>{regionShops.length === 0 ? `${regionLabel(sel)} 지역에 등록된 카드샵이 아직 없어요.\n어드민 › 카드샵 관리에서 추가하면 바로 표시돼요.` : '지도에 보이는 범위에 카드샵이 없어요.\n지도를 움직이거나 축소해 보세요.'}</Text>
             </View>
           ) : null}
-          {regionShops.map((s, i) => {
+          {listShops.slice(0, listCount).map((s, i) => {
             const sel = s.id === shopId;
             return (
               <Pressable key={s.id} onPress={() => { selectShop(s.id); setDetailId(s.id); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 15, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: P.line, backgroundColor: sel ? '#FFF9F4' : P.cardBg }}>
                 <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: s.tile, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  {s.imageUrl ? <Image source={{ uri: s.imageUrl }} style={{ width: 42, height: 42 }} resizeMode="cover" /> : <Text style={{ fontSize: 21 }}>{s.emoji}</Text>}
+                  {s.imageUrl ? <Image source={{ uri: absApiUrl(shopImageUrl(s.imageUrl, 96)) ?? s.imageUrl }} style={{ width: 42, height: 42 }} resizeMode="cover" /> : <Text style={{ fontSize: 21 }}>{s.emoji}</Text>}
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
@@ -513,18 +524,17 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
                     {s.official ? <OfficialBadge s={14} /> : null}
                     <Text style={ts(11, '700', P.ink3)}>{s.dist}</Text>
                   </View>
+                  {/* 별점 제거 · 오리파 비중은 작은 원형 그래프 (웹 동일) */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                    <Text style={ts(12, '800', P.ink)}><Text style={{ color: STAR }}>★</Text> {s.rating}</Text>
                     <Text style={ts(11.5, '600', P.ink3)}>후기 {s.reviews}</Text>
-                    <View style={{ backgroundColor: ORANGE_SOFT, paddingVertical: 2, paddingHorizontal: 7, borderRadius: 6 }}>
-                      <Text style={ts(11, '800', ORANGE)}>오리파 {s.oripa}</Text>
-                    </View>
+                    <OripaRing pct={parseInt(s.oripa, 10) || 0} ts={ts} />
                   </View>
                 </View>
                 <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={P.chev} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><Path d="m9 6 6 6-6 6" /></Svg>
               </Pressable>
             );
           })}
+          {listMore ? <Text style={[ts(11, '600', P.ink3), { textAlign: 'center', paddingVertical: 10 }]}>더 불러오는 중…</Text> : null}
         </View>
       </View>
 
@@ -583,6 +593,22 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
       </Curtain>
     </ScrollView>
       )}
+    </View>
+  );
+}
+
+/** 오리파 비중 작은 원형 그래프 — 리스트 행용 (웹 OripaRing 페어). */
+function OripaRing({ pct, ts }: { pct: number; ts: TsFn }) {
+  const r = 7;
+  const c = 2 * Math.PI * r;
+  const v = Math.max(0, Math.min(100, pct));
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+      <Svg width={18} height={18} viewBox="0 0 18 18">
+        <Circle cx={9} cy={9} r={r} fill="none" stroke={ORANGE_SOFT} strokeWidth={3} />
+        <Circle cx={9} cy={9} r={r} fill="none" stroke={ORANGE} strokeWidth={3} strokeDasharray={`${(v / 100) * c} ${c}`} transform="rotate(-90 9 9)" strokeLinecap="round" />
+      </Svg>
+      <Text style={ts(11, '800', ORANGE)}>오리파 {v}%</Text>
     </View>
   );
 }

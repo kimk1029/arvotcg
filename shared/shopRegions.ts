@@ -237,3 +237,8 @@ export type ShopCountry = (typeof SHOP_COUNTRIES)[number]['id'];
 export const SHOP_COMING_SOON: Record<ShopCountry, boolean> = { kr: false, jp: true };
 export const SHOP_COMING_SOON_TEXT = '준비중';
 export const SHOP_COMING_SOON_SUB = '카드샵 정보를 모으는 중이에요. 곧 만나요!';
+
+/** 좌표가 지도 뷰포트(bounds) 안에 있는지 — 리스트는 지도에 보이는 샵만 (웹·앱 공통). */
+export function inBounds(p: { lat: number; lng: number }, b: LatLngBounds): boolean {
+  return p.lat >= b.minLat && p.lat <= b.maxLat && p.lng >= b.minLng && p.lng <= b.maxLng;
+}

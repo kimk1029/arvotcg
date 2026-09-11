@@ -46,3 +46,11 @@ export function instagramUrl(handle: string): string {
 export function instagramEmbedUrl(handle: string): string {
   return `https://www.instagram.com/${handle}/embed/`;
 }
+
+/** 카드샵 이미지 표시 URL — 서버 리사이즈·webp·디스크 캐시 프록시(/api/img). 상대경로라 앱은 absApiUrl 로 절대화. */
+export type ShopImageWidth = 96 | 200 | 400 | 800;
+export function shopImageUrl(imageUrl: string | null | undefined, w: ShopImageWidth): string | null {
+  const u = (imageUrl ?? '').trim();
+  if (!/^https?:\/\//i.test(u)) return null;
+  return `/api/img?u=${encodeURIComponent(u)}&w=${w}`;
+}
