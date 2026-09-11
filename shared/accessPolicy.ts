@@ -12,7 +12,7 @@ const PUBLIC_READ_PREFIXES = [
   '/api/card-packs',
   '/api/cards',         // 카탈로그 조회 (scan 등 쓰기는 라우트에서 requireAuth)
   '/api/kream', '/api/korea-price', '/api/market-index', '/api/fx',
-  '/api/psa/pop', '/api/card-lang', '/api/banners', '/api/notices', '/api/places', '/api/shops',
+  '/api/psa/pop', '/api/card-lang', '/api/banners', '/api/notices', '/api/places', '/api/shops', '/api/img',
   '/api/search-log/top',
   '/api/app-release', '/api/navercafe/img', '/api/cdn',
   '/api/flex',          // 수익 인증 공유 포스터 (서명 토큰이 있어야 열린다)
