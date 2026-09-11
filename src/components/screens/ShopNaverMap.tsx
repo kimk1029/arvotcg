@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { nearbyBounds, type LatLngBounds } from '@/lib/shopRegions';
+import type { LatLngBounds } from '@/lib/shopRegions';
 
 /**
  * Shop 지도 — 네이버 지도(NCP Web Dynamic Map v3) 위 카드샵 칩 핀.
@@ -93,6 +93,8 @@ interface Props {
 
 // 핀 1개일 때 fitBounds 가 최대 줌까지 들어가는 것을 막는 상한.
 const FIT_MAX_ZOOM = 16;
+// '내 주변' 초기 줌 — 현재 위치 중심, 최대(19)에서 3단계 아래 (앱 동일).
+const ORIGIN_ZOOM = 16;
 
 export function ShopNaverMap({ pins, focus = null, origin = null, onViewport, selId, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -121,13 +123,10 @@ export function ShopNaverMap({ pins, focus = null, origin = null, onViewport, se
     if (!map || !window.naver?.maps) return;
     const naver = window.naver.maps;
     const o = originRef.current;
-    const near = o && !focusRef.current && markersRef.current.size > 0
-      ? nearbyBounds(o, [...markersRef.current.values()].map((m) => { const pos = m.getPosition(); return { lat: pos.lat(), lng: pos.lng() }; }))
-      : null;
-    if (near) {
-      // '내 주변' — 현재 위치 중심, 가까운 샵 2개까지 (정본 shared/shopRegions.nearbyBounds, 앱 동일)
-      map.fitBounds(new naver.LatLngBounds(new naver.LatLng(near.minLat, near.minLng), new naver.LatLng(near.maxLat, near.maxLng)), { top: 46, right: 50, bottom: 30, left: 50 });
-      if (map.getZoom() > FIT_MAX_ZOOM) map.setZoom(FIT_MAX_ZOOM);
+    if (o && !focusRef.current) {
+      // '내 주변' — 현재 위치 중심, 고정 줌 (앱 동일)
+      map.setCenter(new naver.LatLng(o.lat, o.lng));
+      map.setZoom(ORIGIN_ZOOM);
     } else if (markersRef.current.size > 0) {
       const b = new naver.LatLngBounds();
       markersRef.current.forEach((m) => b.extend(m.getPosition()));

@@ -524,10 +524,14 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
                     {s.official ? <OfficialBadge s={14} /> : null}
                     <Text style={ts(11, '700', P.ink3)}>{s.dist}</Text>
                   </View>
-                  {/* 별점 제거 · 오리파 비중은 작은 원형 그래프 (웹 동일) */}
+                  {/* 별점 제거 · 후기 옆에 샵 태그(어드민 tags) 최대 3개 (웹 동일) */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
                     <Text style={ts(11.5, '600', P.ink3)}>후기 {s.reviews}</Text>
-                    <OripaRing pct={parseInt(s.oripa, 10) || 0} ts={ts} />
+                    {(s.tags ?? []).slice(0, 3).map((t) => (
+                      <View key={t} style={{ backgroundColor: '#F4F1FF', paddingVertical: 2, paddingHorizontal: 7, borderRadius: 10 }}>
+                        <Text style={ts(10.5, '700', '#5a3ad6')}>{t}</Text>
+                      </View>
+                    ))}
                   </View>
                 </View>
                 <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={P.chev} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><Path d="m9 6 6 6-6 6" /></Svg>
@@ -593,22 +597,6 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
       </Curtain>
     </ScrollView>
       )}
-    </View>
-  );
-}
-
-/** 오리파 비중 작은 원형 그래프 — 리스트 행용 (웹 OripaRing 페어). */
-function OripaRing({ pct, ts }: { pct: number; ts: TsFn }) {
-  const r = 7;
-  const c = 2 * Math.PI * r;
-  const v = Math.max(0, Math.min(100, pct));
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-      <Svg width={18} height={18} viewBox="0 0 18 18">
-        <Circle cx={9} cy={9} r={r} fill="none" stroke={ORANGE_SOFT} strokeWidth={3} />
-        <Circle cx={9} cy={9} r={r} fill="none" stroke={ORANGE} strokeWidth={3} strokeDasharray={`${(v / 100) * c} ${c}`} transform="rotate(-90 9 9)" strokeLinecap="round" />
-      </Svg>
-      <Text style={ts(11, '800', ORANGE)}>오리파 {v}%</Text>
     </View>
   );
 }

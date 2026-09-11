@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, TurboModuleRegistry, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
-import { nearbyBounds, type LatLngBounds } from '@/lib/shopRegions';
+import type { LatLngBounds } from '@/lib/shopRegions';
 
 /**
  * Shop 지도 — 네이버 지도 **네이티브 SDK**(Mobile Dynamic Map, @mj-studio/react-native-naver-map)
@@ -56,6 +56,8 @@ export const HAS_NAVER_MAP_KEY = loadNaverMap() !== null;
 
 // 핀 1개(또는 다닥다닥)일 때 최대 줌까지 들어가지 않게 — 웹 FIT_MAX_ZOOM 과 동일.
 const FIT_MAX_ZOOM = 16;
+// '내 주변' 초기 줌 — 현재 위치 중심, 최대(19)에서 3단계 아래 (웹 동일).
+const ORIGIN_ZOOM = 16;
 const SEOUL = { latitude: 37.5665, longitude: 126.978 };
 // 커스텀 뷰 마커는 width/height 가 필수(라이브러리 주의사항) — 라벨 길이로 폭을 잡는다.
 const PIN_H = 40; // 칩 + 스템(7) + 바닥 그림자(6, 스템과 3px 겹침)
@@ -90,16 +92,19 @@ function NativeShopMap({ NM, pins, focus, origin, onViewport, selId, onSelect }:
   const fitAll = () => {
     const m = mapRef.current;
     if (!m) return;
+    if (origin && !focus) {
+      // '내 주변' — 현재 위치 중심, 고정 줌 (웹 동일)
+      m.animateCameraTo({ latitude: origin.lat, longitude: origin.lng, zoom: ORIGIN_ZOOM, duration: 300 });
+      return;
+    }
     if (pins.length === 0) {
       m.animateCameraTo({ latitude: focus?.lat ?? SEOUL.latitude, longitude: focus?.lng ?? SEOUL.longitude, zoom: focus?.zoom ?? 12, duration: 300 });
       return;
     }
-    // '내 주변' — 현재 위치 중심, 가까운 샵 2개까지 (정본 shared/shopRegions.nearbyBounds, 웹 동일)
-    const near = origin && !focus ? nearbyBounds(origin, pins) : null;
     const lats = pins.map((p) => p.lat);
     const lngs = pins.map((p) => p.lng);
-    const minLat = near?.minLat ?? Math.min(...lats), maxLat = near?.maxLat ?? Math.max(...lats);
-    const minLng = near?.minLng ?? Math.min(...lngs), maxLng = near?.maxLng ?? Math.max(...lngs);
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
     // 핀이 한 점에 몰려 있으면 두 좌표 프레이밍이 최대 줌까지 들어가므로 중심+상한 줌으로.
     if (maxLat - minLat < 0.003 && maxLng - minLng < 0.003) {
       m.animateCameraTo({ latitude: (minLat + maxLat) / 2, longitude: (minLng + maxLng) / 2, zoom: FIT_MAX_ZOOM, duration: 300 });
