@@ -185,6 +185,32 @@ export function regionFocusOf(sel: RegionSelection, shops: readonly RegionableSh
   return { lat, lng, zoom: sel.gu ? 15 : 12 };
 }
 
+export interface LatLngBounds {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+}
+
+/**
+ * '내 주변' 프레이밍 — 현재 위치를 중심에 두고, 가장 가까운 카드샵 minCount 개가 들어오는
+ * 대칭 범위(웹 fitBounds · 앱 두 좌표 카메라 공통 정본). 칩이 경계에 걸리지 않게 25% 여유,
+ * 샵이 바로 옆이면 최소 반경(위도 0.003° ≈ 330m). 핀이 없으면 null.
+ */
+export function nearbyBounds(origin: { lat: number; lng: number }, pins: readonly { lat: number; lng: number }[], minCount = 2): LatLngBounds | null {
+  if (pins.length === 0) return null;
+  const nearest = [...pins].sort((a, b) => distanceKm(origin, a) - distanceKm(origin, b)).slice(0, minCount);
+  let dLat = 0;
+  let dLng = 0;
+  for (const p of nearest) {
+    dLat = Math.max(dLat, Math.abs(p.lat - origin.lat));
+    dLng = Math.max(dLng, Math.abs(p.lng - origin.lng));
+  }
+  dLat = Math.max(dLat * 1.25, 0.003);
+  dLng = Math.max(dLng * 1.25, 0.004);
+  return { minLat: origin.lat - dLat, maxLat: origin.lat + dLat, minLng: origin.lng - dLng, maxLng: origin.lng + dLng };
+}
+
 export function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const R = 6371;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;

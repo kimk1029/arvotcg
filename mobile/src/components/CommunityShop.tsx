@@ -4,6 +4,7 @@ import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 
 import { HAS_NAVER_MAP_KEY, ShopNaverMap } from '@/components/ShopNaverMap';
 import { api } from '@/lib/apiClient';
+import { getCurrentOrigin } from '@/lib/geo';
 import { isAuthenticated } from '@/lib/session';
 import {
   ALL_REGIONS,
@@ -178,6 +179,13 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
   const [reviewFilter, setReviewFilter] = useState('all');
   const [reviewCount, setReviewCount] = useState(5);
   const [mapW, setMapW] = useState(0);
+  // 현재 위치 — '내 주변' 프레이밍(가까운 샵 2개까지). 권한 거부/모듈 없음이면 null → 전체 프레이밍 (웹 동일).
+  const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getCurrentOrigin().then((o) => { if (!cancelled) setOrigin(o); });
+    return () => { cancelled = true; };
+  }, []);
 
   // 어드민 관리 샵 목록 — null = 로딩 중 (네이버 지도 WebView 는 핀을 마운트 시
   // 1회 생성하므로 목록 확정 후에만 렌더). 실패/빈 응답이면 폴백 유지.
@@ -326,7 +334,7 @@ export function ShopSection({ P, ts }: { P: ShopPalette; ts: TsFn }) {
         >
           {HAS_NAVER_MAP_KEY ? (
             // 핀은 WebView HTML 생성 시 1회 — 샵 목록 로딩 완료 후에만 지도 마운트.
-            shops !== null && <ShopNaverMap pins={regionShops} focus={focus} selId={shopId} onSelect={selectShop} />
+            shops !== null && <ShopNaverMap pins={regionShops} focus={focus} origin={origin} selId={shopId} onSelect={selectShop} />
           ) : (
             <>
           <View style={{ position: 'absolute', left: 0, right: 0, top: 74, height: 13, backgroundColor: '#fff' }} />

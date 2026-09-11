@@ -168,6 +168,16 @@ export function ShopSection({ P }: { P: ShopPalette }) {
   const [submitted, setSubmitted] = useState(false);
   const [reviewFilter, setReviewFilter] = useState('all');
   const [reviewCount, setReviewCount] = useState(5);
+  // 현재 위치 — '내 주변' 프레이밍(가까운 샵 2개까지). 거부/미지원이면 null → 전체 프레이밍 (앱 getCurrentOrigin 페어).
+  const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (p) => setOrigin({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => {},
+      { timeout: 8000, maximumAge: 5 * 60_000 },
+    );
+  }, []);
 
   // 어드민 관리 샵 목록 — null = 로딩 중 (네이버 지도는 마커를 마운트 시 1회
   // 생성하므로 목록 확정 후에만 렌더). 실패/빈 응답이면 폴백 유지.
@@ -312,7 +322,7 @@ export function ShopSection({ P }: { P: ShopPalette }) {
         <div style={{ position: 'relative', height: 230, borderRadius: 18, overflow: 'hidden', background: '#E8EDE6', boxShadow: '0 2px 10px rgba(0,0,0,.06)' }}>
           {HAS_NAVER_MAP_KEY ? (
             // 마커는 마운트 시 1회 생성 — 샵 목록 로딩 완료 후에만 지도 마운트.
-            shops !== null && <ShopNaverMap pins={regionShops} focus={focus} selId={shopId} onSelect={selectShop} />
+            shops !== null && <ShopNaverMap pins={regionShops} focus={focus} origin={origin} selId={shopId} onSelect={selectShop} />
           ) : (
             <>
           <div style={{ position: 'absolute', left: 0, right: 0, top: 74, height: 13, background: '#fff' }} />

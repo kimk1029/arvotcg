@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, TurboModuleRegistry, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
+import { nearbyBounds } from '@/lib/shopRegions';
+
 /**
  * Shop 지도 — 네이버 지도 **네이티브 SDK**(Mobile Dynamic Map, @mj-studio/react-native-naver-map)
  * (웹 ShopNaverMap = Web Dynamic Map v3 와 페어 — 핀 칩 모양·선택 색·프레이밍 규칙 동일).
@@ -65,17 +67,19 @@ interface Props {
   pins: ShopMapPin[];
   /** 지역 탭 중심. null 이면 핀 전체 프레이밍. */
   focus?: MapFocus | null;
+  /** 현재 위치 — 있으면(그리고 지역 선택이 없으면) 이 점을 중심으로 가까운 샵 2개가 보이게 프레이밍 (웹 동일). */
+  origin?: { lat: number; lng: number } | null;
   selId: string;
   onSelect: (id: string) => void;
 }
 
-export function ShopNaverMap({ pins, focus = null, selId, onSelect }: Props) {
+export function ShopNaverMap({ pins, focus = null, origin = null, selId, onSelect }: Props) {
   const NM = loadNaverMap();
   if (!NM) return null;
-  return <NativeShopMap NM={NM} pins={pins} focus={focus} selId={selId} onSelect={onSelect} />;
+  return <NativeShopMap NM={NM} pins={pins} focus={focus} origin={origin} selId={selId} onSelect={onSelect} />;
 }
 
-function NativeShopMap({ NM, pins, focus, selId, onSelect }: Props & { NM: NaverMapModule; focus: MapFocus | null }) {
+function NativeShopMap({ NM, pins, focus, origin, selId, onSelect }: Props & { NM: NaverMapModule; focus: MapFocus | null; origin: { lat: number; lng: number } | null }) {
   const { NaverMapView, NaverMapMarkerOverlay } = NM;
   const mapRef = useRef<import('@mj-studio/react-native-naver-map').NaverMapViewRef>(null);
   const [ready, setReady] = useState(false);
@@ -88,10 +92,12 @@ function NativeShopMap({ NM, pins, focus, selId, onSelect }: Props & { NM: Naver
       m.animateCameraTo({ latitude: focus?.lat ?? SEOUL.latitude, longitude: focus?.lng ?? SEOUL.longitude, zoom: focus?.zoom ?? 12, duration: 300 });
       return;
     }
+    // '내 주변' — 현재 위치 중심, 가까운 샵 2개까지 (정본 shared/shopRegions.nearbyBounds, 웹 동일)
+    const near = origin && !focus ? nearbyBounds(origin, pins) : null;
     const lats = pins.map((p) => p.lat);
     const lngs = pins.map((p) => p.lng);
-    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+    const minLat = near?.minLat ?? Math.min(...lats), maxLat = near?.maxLat ?? Math.max(...lats);
+    const minLng = near?.minLng ?? Math.min(...lngs), maxLng = near?.maxLng ?? Math.max(...lngs);
     // 핀이 한 점에 몰려 있으면 두 좌표 프레이밍이 최대 줌까지 들어가므로 중심+상한 줌으로.
     if (maxLat - minLat < 0.003 && maxLng - minLng < 0.003) {
       m.animateCameraTo({ latitude: (minLat + maxLat) / 2, longitude: (minLng + maxLng) / 2, zoom: FIT_MAX_ZOOM, duration: 300 });
@@ -111,7 +117,7 @@ function NativeShopMap({ NM, pins, focus, selId, onSelect }: Props & { NM: Naver
   useEffect(() => {
     if (ready) fitAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, pinsKey, focus?.lat, focus?.lng, focus?.zoom]);
+  }, [ready, pinsKey, focus?.lat, focus?.lng, focus?.zoom, origin?.lat, origin?.lng]);
 
   const first = pins[0];
   return (
@@ -133,6 +139,8 @@ function NativeShopMap({ NM, pins, focus, selId, onSelect }: Props & { NM: Naver
         // ScrollView 안 둥근 컨테이너(overflow hidden) — SurfaceView 는 클리핑이 안 돼 TextureView 로.
         isUseTextureViewAndroid
         onInitialized={() => setReady(true)}
+        // 현재 위치 파란 점 (웹 origin 마커 페어)
+        locationOverlay={origin ? { isVisible: true, position: { latitude: origin.lat, longitude: origin.lng } } : { isVisible: false }}
       >
         {pins.map((p) => {
           const sel = p.id === selId;

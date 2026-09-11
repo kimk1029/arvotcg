@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { nearbyBounds } from '@/lib/shopRegions';
+
 /**
  * Shop 지도 — 네이버 지도(NCP Web Dynamic Map v3) 위 카드샵 칩 핀.
  * Client ID(NEXT_PUBLIC_NCP_MAP_CLIENT_ID) 미설정이면 HAS_NAVER_MAP_KEY=false —
@@ -80,6 +82,8 @@ interface Props {
   pins: ShopMapPin[];
   /** 지역 탭 중심. null 이면 핀 전체 프레이밍. */
   focus?: MapFocus | null;
+  /** 현재 위치 — 있으면(그리고 지역 선택이 없으면) 이 점을 중심으로 가까운 샵 2개가 보이게 프레이밍. */
+  origin?: { lat: number; lng: number } | null;
   selId: string;
   onSelect: (id: string) => void;
 }
@@ -87,7 +91,7 @@ interface Props {
 // 핀 1개일 때 fitBounds 가 최대 줌까지 들어가는 것을 막는 상한.
 const FIT_MAX_ZOOM = 16;
 
-export function ShopNaverMap({ pins, focus = null, selId, onSelect }: Props) {
+export function ShopNaverMap({ pins, focus = null, origin = null, selId, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<NMaps | null>(null);
   const markersRef = useRef<Map<string, NMaps>>(new Map());
@@ -99,6 +103,9 @@ export function ShopNaverMap({ pins, focus = null, selId, onSelect }: Props) {
   pinsRef.current = pins;
   const focusRef = useRef(focus);
   focusRef.current = focus;
+  const originRef = useRef(origin);
+  originRef.current = origin;
+  const originMarkerRef = useRef<NMaps | null>(null);
   const selIdRef = useRef(selId);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errDetail, setErrDetail] = useState('');
@@ -108,7 +115,15 @@ export function ShopNaverMap({ pins, focus = null, selId, onSelect }: Props) {
     const map = mapRef.current;
     if (!map || !window.naver?.maps) return;
     const naver = window.naver.maps;
-    if (markersRef.current.size > 0) {
+    const o = originRef.current;
+    const near = o && !focusRef.current && markersRef.current.size > 0
+      ? nearbyBounds(o, [...markersRef.current.values()].map((m) => { const pos = m.getPosition(); return { lat: pos.lat(), lng: pos.lng() }; }))
+      : null;
+    if (near) {
+      // '내 주변' — 현재 위치 중심, 가까운 샵 2개까지 (정본 shared/shopRegions.nearbyBounds, 앱 동일)
+      map.fitBounds(new naver.LatLngBounds(new naver.LatLng(near.minLat, near.minLng), new naver.LatLng(near.maxLat, near.maxLng)), { top: 46, right: 50, bottom: 30, left: 50 });
+      if (map.getZoom() > FIT_MAX_ZOOM) map.setZoom(FIT_MAX_ZOOM);
+    } else if (markersRef.current.size > 0) {
       const b = new naver.LatLngBounds();
       markersRef.current.forEach((m) => b.extend(m.getPosition()));
       map.fitBounds(b, { top: 46, right: 50, bottom: 30, left: 50 });
@@ -223,6 +238,23 @@ export function ShopNaverMap({ pins, focus = null, selId, onSelect }: Props) {
     return () => { cancelledRef.current = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pinsKey, focus?.lat, focus?.lng, focus?.zoom, status]);
+
+  // 현재 위치 도착/변경 → 파란 점 + 재프레이밍 (앱 locationOverlay 페어)
+  useEffect(() => {
+    if (status !== 'ready' || !window.naver?.maps || !mapRef.current) return;
+    const naver = window.naver.maps;
+    originMarkerRef.current?.setMap(null);
+    originMarkerRef.current = null;
+    if (!origin) return;
+    originMarkerRef.current = new naver.Marker({
+      position: new naver.LatLng(origin.lat, origin.lng),
+      map: mapRef.current,
+      icon: { content: '<div style="width:14px;height:14px;border-radius:50%;background:#2F7BFF;border:3px solid #fff;box-shadow:0 0 0 6px rgba(47,123,255,.22);"></div>', size: new naver.Size(14, 14), anchor: new naver.Point(7, 7) },
+      zIndex: 4,
+    });
+    frame();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [origin?.lat, origin?.lng, status]);
 
   // 선택 변경 → 핀 아이콘만 갱신 (지도 재생성 없음)
   useEffect(() => {
