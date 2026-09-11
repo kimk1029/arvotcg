@@ -57,7 +57,7 @@ EOF
 publish() { # $1=dir(mobile), $2=runtime label
   local dir="$1" rt="$2" out
   echo "== export [$rt] ($dir)"
-  (cd "$dir" && rm -rf dist && npx expo export --platform all --source-maps --output-dir dist > "$LOG_DIR/$rt.export.log" 2>&1) || { echo "!! [$rt] export 실패 — $LOG_DIR/$rt.export.log" >&2; exit 1; }
+  (cd "$dir" && rm -rf dist && npx expo export -p android -p ios --source-maps --output-dir dist > "$LOG_DIR/$rt.export.log" 2>&1) || { echo "!! [$rt] export 실패 — $LOG_DIR/$rt.export.log" >&2; exit 1; }
   check_bundle "$dir/dist" "$rt" || exit 1
   echo "== eas update [$rt]"
   out="$(cd "$dir" && eas update --branch production --non-interactive --skip-bundler --input-dir dist --message "$MSG ($rt)" 2>&1 | tee "$LOG_DIR/$rt.log" | grep -E 'Runtime version|Update group ID|Android update ID|iOS update ID|Error|error:' || true)"
