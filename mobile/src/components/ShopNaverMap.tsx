@@ -97,9 +97,11 @@ function NativeShopMap({ NM, pins, focus, selId, onSelect }: Props & { NM: Naver
       m.animateCameraTo({ latitude: (minLat + maxLat) / 2, longitude: (minLng + maxLng) / 2, zoom: FIT_MAX_ZOOM, duration: 300 });
       return;
     }
+    // 두 좌표 프레이밍엔 mapPadding 이 안 먹어 칩(좌표 위 36px)이 상단에 잘린다 → 위쪽에 여유.
+    const latPad = (maxLat - minLat) * 0.15;
     m.animateCameraWithTwoCoords({
       coord1: { latitude: minLat, longitude: minLng },
-      coord2: { latitude: maxLat, longitude: maxLng },
+      coord2: { latitude: maxLat + latPad, longitude: maxLng },
       duration: 300,
     });
   };
