@@ -55,6 +55,8 @@ function openWithFallback(scheme: string, web: string) {
 export function ShopDetail({ shop, onClose }: Props) {
   // 복사 피드백은 인라인 (앱과 동일 표시)
   const [copied, setCopied] = useState<'ok' | 'fail' | null>(null);
+  // 길찾기 — 네이버지도 / 티맵 선택 시트
+  const [routeOpen, setRouteOpen] = useState(false);
   useEffect(() => {
     if (!copied) return;
     const id = window.setTimeout(() => setCopied(null), 1600);
@@ -132,13 +134,37 @@ export function ShopDetail({ shop, onClose }: Props) {
               <span style={{ fontSize: 11, fontWeight: 800, color: copied === 'ok' ? '#1E8E5A' : '#F5333F', background: copied === 'ok' ? '#E9F7EF' : '#FDECEC', padding: '2px 7px', borderRadius: 6, whiteSpace: 'nowrap' }}>{copied === 'ok' ? '주소가 복사되었습니다 ✓' : '복사 실패'}</span>
             )}
           </div>
-          {/* actions */}
+          {/* actions — 전화·인스타는 아이콘 버튼, 길찾기는 네이버지도/티맵 선택 시트 */}
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-            {shop.phone && actionBtn(INK, '#fff', '전화', <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.7a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" /></svg>, () => { window.location.href = `tel:${shop.phone!.replace(/[^\d+]/g, '')}`; })}
-            {actionBtn('#F2F2F4', INK, '네이버지도', <span style={{ width: 18, height: 18, borderRadius: 5, background: '#03C75A', color: '#fff', fontSize: 10, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>N</span>, () => openWithFallback(naverMapRouteUrl(route), naverMapWebUrl(shop.addr)))}
-            {actionBtn('#F2F2F4', INK, '티맵', <span style={{ width: 18, height: 18, borderRadius: 5, background: '#E8412C', color: '#fff', fontSize: 9, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>T</span>, () => openWithFallback(tmapRouteUrl(route), TMAP_WEB_URL))}
-            {ig && actionBtn('#F2F2F4', INK, '인스타', <span style={{ width: 18, height: 18, borderRadius: 5, background: 'linear-gradient(45deg,#f9ce34,#ee2a7b,#6228d7)', color: '#fff', fontSize: 10, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>◎</span>, () => window.open(instagramUrl(ig), '_blank', 'noopener'))}
+            {shop.phone && (
+              <a href={`tel:${shop.phone.replace(/[^\d+]/g, '')}`} aria-label="전화" title={shop.phone} style={{ width: 42, height: 42, borderRadius: 12, background: INK, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', textDecoration: 'none' }}>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.7a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" /></svg>
+              </a>
+            )}
+            {ig && (
+              <a href={instagramUrl(ig)} target="_blank" rel="noreferrer" aria-label="인스타그램" title={`@${ig}`} style={{ width: 42, height: 42, borderRadius: 12, background: 'linear-gradient(45deg,#f9ce34,#ee2a7b,#6228d7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', textDecoration: 'none' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="#fff" stroke="none" /></svg>
+              </a>
+            )}
+            {actionBtn('#F2F2F4', INK, '길찾기', <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l19-9-9 19-2-8z" /></svg>, () => setRouteOpen(true))}
           </div>
+          {routeOpen && (
+            <div onClick={() => setRouteOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+              <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, background: '#fff', borderRadius: '18px 18px 0 0', padding: '14px 16px 24px' }}>
+                <div style={{ width: 36, height: 4, borderRadius: 2, background: '#E5E5EA', margin: '0 auto 12px' }} />
+                <div style={{ fontSize: 15, fontWeight: 800, color: INK, marginBottom: 10 }}>길찾기 앱 선택</div>
+                {[
+                  { label: '네이버지도', mark: <span style={{ width: 26, height: 26, borderRadius: 7, background: '#03C75A', color: '#fff', fontSize: 13, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>N</span>, go: () => openWithFallback(naverMapRouteUrl(route), naverMapWebUrl(shop.addr)) },
+                  { label: '티맵', mark: <span style={{ width: 26, height: 26, borderRadius: 7, background: '#E8412C', color: '#fff', fontSize: 12, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>T</span>, go: () => openWithFallback(tmapRouteUrl(route), TMAP_WEB_URL) },
+                ].map((o) => (
+                  <button key={o.label} type="button" onClick={() => { setRouteOpen(false); o.go(); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '13px 6px', background: 'none', border: 'none', borderTop: '1px solid #F0F0F2', cursor: 'pointer', fontSize: 14.5, fontWeight: 700, color: INK, textAlign: 'left' }}>
+                    {o.mark}{o.label}
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 'auto' }}><path d="m9 6 6 6-6 6" /></svg>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         {/* intro */}
         <div style={{ padding: '22px 20px 0' }}>

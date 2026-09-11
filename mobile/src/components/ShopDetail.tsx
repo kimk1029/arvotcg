@@ -67,6 +67,8 @@ export function ShopDetail({ shop, onClose }: Props) {
   const insets = useSafeAreaInsets();
   // 복사 피드백은 인라인 — 이 화면은 네이티브 Modal 위라 루트 ToastProvider 가 뒤에 가려진다 (웹도 같은 표시).
   const [copied, setCopied] = useState<'ok' | 'fail' | null>(null);
+  // 길찾기 — 네이버지도 / 티맵 선택 시트 (웹 동일)
+  const [routeOpen, setRouteOpen] = useState(false);
   useEffect(() => {
     if (!copied) return;
     const id = setTimeout(() => setCopied(null), 1600);
@@ -143,20 +145,20 @@ export function ShopDetail({ shop, onClose }: Props) {
                   </View>
                 ) : null}
               </View>
-              {/* actions */}
+              {/* actions — 전화·인스타는 아이콘 버튼, 길찾기는 네이버지도/티맵 선택 시트 (웹 동일) */}
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
                 {shop.phone ? (
-                  <ActionBtn bg={INK} fg="#fff" label="전화" onPress={() => Linking.openURL(`tel:${shop.phone!.replace(/[^\d+]/g, '')}`).catch(() => {})}
-                    icon={<Svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><Path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.7a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" /></Svg>} />
+                  <Pressable accessibilityLabel="전화" onPress={() => Linking.openURL(`tel:${shop.phone!.replace(/[^\d+]/g, '')}`).catch(() => {})} style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: INK, alignItems: 'center', justifyContent: 'center' }}>
+                    <Svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><Path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.7a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" /></Svg>
+                  </Pressable>
                 ) : null}
-                <ActionBtn bg="#F2F2F4" fg={INK} label="네이버지도" icon={<Mark bg="#03C75A" label="N" />}
-                  onPress={() => openWithFallback(naverMapRouteUrl({ lat: shop.lat, lng: shop.lng, name: shop.name }), naverMapWebUrl(shop.addr))} />
-                <ActionBtn bg="#F2F2F4" fg={INK} label="티맵" icon={<Mark bg="#E8412C" label="T" size={9} />}
-                  onPress={() => openWithFallback(tmapRouteUrl({ lat: shop.lat, lng: shop.lng, name: shop.name }), TMAP_WEB_URL)} />
                 {ig ? (
-                  <ActionBtn bg="#F2F2F4" fg={INK} label="인스타" icon={<Mark bg="#E1306C" label="◎" />}
-                    onPress={() => openWithFallback(`instagram://user?username=${ig}`, instagramUrl(ig))} />
+                  <Pressable accessibilityLabel="인스타그램" onPress={() => openWithFallback(`instagram://user?username=${ig}`, instagramUrl(ig))} style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: '#E1306C', alignItems: 'center', justifyContent: 'center' }}>
+                    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Rect x={2} y={2} width={20} height={20} rx={5} /><Circle cx={12} cy={12} r={4} /><Circle cx={17.5} cy={6.5} r={1} fill="#fff" stroke="none" /></Svg>
+                  </Pressable>
                 ) : null}
+                <ActionBtn bg="#F2F2F4" fg={INK} label="길찾기" onPress={() => setRouteOpen(true)}
+                  icon={<Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><Path d="M3 11l19-9-9 19-2-8z" /></Svg>} />
               </View>
             </View>
             {/* intro */}
@@ -218,6 +220,24 @@ export function ShopDetail({ shop, onClose }: Props) {
               </View>
             ) : null}
           </ScrollView>
+          {routeOpen ? (
+            <Pressable onPress={() => setRouteOpen(false)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,.4)', justifyContent: 'flex-end' }}>
+              <Pressable onPress={() => {}} style={{ backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingTop: 14, paddingHorizontal: 16, paddingBottom: 24 + insets.bottom }}>
+                <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E5EA', alignSelf: 'center', marginBottom: 12 }} />
+                <Text style={[t(15, '800', INK), { marginBottom: 10 }]}>길찾기 앱 선택</Text>
+                {([
+                  { label: '네이버지도', bg: '#03C75A', mark: 'N', go: () => openWithFallback(naverMapRouteUrl({ lat: shop.lat, lng: shop.lng, name: shop.name }), naverMapWebUrl(shop.addr)) },
+                  { label: '티맵', bg: '#E8412C', mark: 'T', go: () => openWithFallback(tmapRouteUrl({ lat: shop.lat, lng: shop.lng, name: shop.name }), TMAP_WEB_URL) },
+                ] as const).map((o) => (
+                  <Pressable key={o.label} onPress={() => { setRouteOpen(false); o.go(); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 6, borderTopWidth: 1, borderTopColor: '#F0F0F2' }}>
+                    <View style={{ width: 26, height: 26, borderRadius: 7, backgroundColor: o.bg, alignItems: 'center', justifyContent: 'center' }}><Text style={t(13, '900', '#fff')}>{o.mark}</Text></View>
+                    <Text style={[t(14.5, '700', INK), { flex: 1 }]}>{o.label}</Text>
+                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><Path d="m9 6 6 6-6 6" /></Svg>
+                  </Pressable>
+                ))}
+              </Pressable>
+            </Pressable>
+          ) : null}
         </View>
       )}
     </Modal>
