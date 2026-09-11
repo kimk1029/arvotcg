@@ -185,7 +185,7 @@ export function ShopNaverMap({ pins, focus = null, selId, onSelect }: Props) {
           ...(list.length > 0
             ? { bounds }
             : { center: new naver.LatLng(f?.lat ?? 37.5665, f?.lng ?? 126.978), zoom: f?.zoom ?? 12 }),
-          minZoom: 9,
+          minZoom: 6, // 전국에 흩어진 핀 전체 프레이밍이 되도록 (앱 동일)
           maxZoom: 19,
           mapTypeControl: false,
           logoControl: false,

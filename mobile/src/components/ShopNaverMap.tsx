@@ -118,7 +118,7 @@ function NativeShopMap({ NM, pins, focus, selId, onSelect }: Props & { NM: Naver
         ref={mapRef}
         style={{ flex: 1 }}
         initialCamera={{ latitude: first?.lat ?? focus?.lat ?? SEOUL.latitude, longitude: first?.lng ?? focus?.lng ?? SEOUL.longitude, zoom: focus?.zoom ?? 12 }}
-        minZoom={9}
+        minZoom={6} // 전국 핀 전체 프레이밍 (웹 동일)
         maxZoom={19}
         // 웹 fitBounds 패딩과 동일 — 칩이 위로 뻗으므로 top 을 크게.
         mapPadding={{ top: 46, right: 50, bottom: 30, left: 50 }}
