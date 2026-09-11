@@ -294,17 +294,26 @@ export function EventReserveScreen({ eventKey }: { eventKey: EventKey }) {
   /** 이벤트 참여 / 리뷰 이벤트 참여 확정 — 입장 완료자만. 서버가 멱등 처리. */
   const participate = async (kind: 'event' | 'review') => {
     if (busy || !data?.myReservation) return;
+    const field = kind === 'event' ? 'eventJoinedAt' : 'reviewJoinedAt';
+    // 낙관적 반영 — 확인을 누르는 즉시 '참여완료 ✓' 로 바꾼다(서버 응답을 기다리면 아무 동작이 없는 것처럼 보임, 2026-09-12).
+    // 실패하면 이전 값으로 되돌리고 안내한다.
+    const prev = data.myReservation[field] ?? null;
+    const patch = (v: string | null) => setData((d) => (d?.myReservation ? { ...d, myReservation: { ...d.myReservation, [field]: v } } : d));
+    patch(new Date().toISOString());
     setBusy(true);
     setNotice(null);
     try {
       const r = await call('/api/cardshow/participate', { method: 'POST', body: JSON.stringify({ event: eventKey, kind }) });
       const j = (await r.json().catch(() => null)) as { error?: string } | null;
       if (!r.ok) {
+        patch(prev);
         setNotice(j?.error ?? '참여 처리에 실패했어요. 다시 시도해 주세요.');
         return;
       }
-      await load();
+      // 서버 시각으로 맞추기 위한 재조회 — 화면은 이미 완료 상태라 기다리지 않는다.
+      void load();
     } catch {
+      patch(prev);
       setNotice('요청에 실패했어요. 잠시 후 다시 시도해 주세요.');
     } finally {
       setBusy(false);
