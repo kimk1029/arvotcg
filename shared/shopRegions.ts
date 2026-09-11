@@ -230,9 +230,10 @@ export const SHOP_COUNTRIES = [
 export type ShopCountry = (typeof SHOP_COUNTRIES)[number]['id'];
 
 /**
- * 카드샵 화면 '준비중' 커튼 — 한국·일본 둘 다 아직 오픈 전이라 화면을 딤 처리하고
- * 앞에 안내를 덮는다. 오픈할 때 이 값만 false 로 내리면 커튼이 사라진다.
+ * 카드샵 화면 '준비중' 커튼 — 화면을 딤 처리하고 앞에 안내를 덮는다.
+ * 한국은 2026-09-12 전국 카드샵 등록(어드민 116곳)으로 오픈, 일본은 아직 수집 중.
+ * 오픈할 때 이 값만 false 로 내리면 커튼이 사라진다.
  */
-export const SHOP_COMING_SOON: Record<ShopCountry, boolean> = { kr: true, jp: true };
+export const SHOP_COMING_SOON: Record<ShopCountry, boolean> = { kr: false, jp: true };
 export const SHOP_COMING_SOON_TEXT = '준비중';
 export const SHOP_COMING_SOON_SUB = '카드샵 정보를 모으는 중이에요. 곧 만나요!';
