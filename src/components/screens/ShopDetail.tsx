@@ -1,6 +1,7 @@
 'use client';
 
-import { useToast } from '@/components/ToastProvider';
+import { useEffect, useState } from 'react';
+
 import { SHOP_OPEN_LABEL, shopOpenState } from '@/lib/shopHours';
 import { TMAP_WEB_URL, instagramEmbedUrl, instagramHandle, instagramUrl, naverMapRouteUrl, naverMapWebUrl, tmapRouteUrl } from '@/lib/shopLinks';
 
@@ -52,22 +53,27 @@ function openWithFallback(scheme: string, web: string) {
 }
 
 export function ShopDetail({ shop, onClose }: Props) {
-  const toast = useToast();
+  // 복사 피드백은 인라인 (앱과 동일 표시)
+  const [copied, setCopied] = useState<'ok' | 'fail' | null>(null);
+  useEffect(() => {
+    if (!copied) return;
+    const id = window.setTimeout(() => setCopied(null), 1600);
+    return () => window.clearTimeout(id);
+  }, [copied]);
   const open = shopOpenState(shop.hours, shop.closedDays);
   const openLabel = open ? SHOP_OPEN_LABEL[open] : null;
   const ig = instagramHandle(shop.instagram);
   const route = { lat: shop.lat, lng: shop.lng, name: shop.name };
 
   const copyAddr = () => {
-    navigator.clipboard?.writeText(shop.addr)
-      .then(() => toast.success('주소가 복사되었습니다'))
-      .catch(() => toast.error('복사에 실패했어요'));
+    if (!navigator.clipboard) { setCopied('fail'); return; }
+    navigator.clipboard.writeText(shop.addr).then(() => setCopied('ok')).catch(() => setCopied('fail'));
   };
   const share = () => {
     const url = window.location.href;
     const text = `${shop.name} · ${shop.addr}`;
     if (navigator.share) navigator.share({ title: shop.name, text, url }).catch(() => {});
-    else navigator.clipboard?.writeText(`${text}\n${url}`).then(() => toast.success('링크가 복사되었습니다')).catch(() => {});
+    else navigator.clipboard?.writeText(`${text}\n${url}`).catch(() => {});
   };
   const actionBtn = (bg: string, fg: string, label: string, icon: React.ReactNode, onClick: () => void) => (
     <button type="button" onClick={onClick} style={{ flex: 1, height: 42, borderRadius: 12, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', border: 'none', fontSize: 13, fontWeight: 800, color: fg }}>{icon}{label}</button>
@@ -122,6 +128,9 @@ export function ShopDetail({ shop, onClose }: Props) {
             <button type="button" onClick={copyAddr} aria-label="주소 복사" title="주소 복사" style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', background: 'none', border: 'none', padding: 2 }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
             </button>
+            {copied && (
+              <span style={{ fontSize: 11, fontWeight: 800, color: copied === 'ok' ? '#1E8E5A' : '#F5333F', background: copied === 'ok' ? '#E9F7EF' : '#FDECEC', padding: '2px 7px', borderRadius: 6, whiteSpace: 'nowrap' }}>{copied === 'ok' ? '주소가 복사되었습니다 ✓' : '복사 실패'}</span>
+            )}
           </div>
           {/* actions */}
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>

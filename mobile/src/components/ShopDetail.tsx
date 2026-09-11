@@ -1,10 +1,10 @@
 import { requireOptionalNativeModule } from 'expo-modules-core';
+import { useEffect, useState } from 'react';
 import { Linking, Modal, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { WebView } from 'react-native-webview';
 
-import { useToast } from '@/components/ToastProvider';
 import { SHOP_OPEN_LABEL, shopOpenState } from '@/lib/shopHours';
 import { TMAP_WEB_URL, instagramEmbedUrl, instagramHandle, instagramUrl, naverMapRouteUrl, naverMapWebUrl, tmapRouteUrl } from '@/lib/shopLinks';
 
@@ -65,15 +65,20 @@ function openWithFallback(scheme: string, web: string) {
 
 export function ShopDetail({ shop, onClose }: Props) {
   const insets = useSafeAreaInsets();
-  const toast = useToast();
+  // 복사 피드백은 인라인 — 이 화면은 네이티브 Modal 위라 루트 ToastProvider 가 뒤에 가려진다 (웹도 같은 표시).
+  const [copied, setCopied] = useState<'ok' | 'fail' | null>(null);
+  useEffect(() => {
+    if (!copied) return;
+    const id = setTimeout(() => setCopied(null), 1600);
+    return () => clearTimeout(id);
+  }, [copied]);
   const open = shop ? shopOpenState(shop.hours, shop.closedDays) : null;
   const openLabel = open ? SHOP_OPEN_LABEL[open] : null;
   const ig = shop ? instagramHandle(shop.instagram) : null;
 
   const copyAddr = async () => {
     if (!shop) return;
-    if (await copyText(shop.addr)) toast.success('주소가 복사되었습니다');
-    else toast.error('복사에 실패했어요');
+    setCopied((await copyText(shop.addr)) ? 'ok' : 'fail');
   };
   const share = () => {
     if (!shop) return;
@@ -132,6 +137,11 @@ export function ShopDetail({ shop, onClose }: Props) {
                 <Pressable onPress={copyAddr} hitSlop={8} accessibilityLabel="주소 복사">
                   <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Rect x={9} y={9} width={13} height={13} rx={2} /><Path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></Svg>
                 </Pressable>
+                {copied ? (
+                  <View style={{ backgroundColor: copied === 'ok' ? '#E9F7EF' : '#FDECEC', paddingVertical: 2, paddingHorizontal: 7, borderRadius: 6 }}>
+                    <Text style={t(11, '800', copied === 'ok' ? '#1E8E5A' : '#F5333F')}>{copied === 'ok' ? '주소가 복사되었습니다 ✓' : '복사 실패'}</Text>
+                  </View>
+                ) : null}
               </View>
               {/* actions */}
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
@@ -189,18 +199,20 @@ export function ShopDetail({ shop, onClose }: Props) {
                   <Text style={t(16, '800', INK)}>최근 소식</Text>
                   <Text onPress={() => openWithFallback(`instagram://user?username=${ig}`, instagramUrl(ig))} style={t(12, '700', '#5a3ad6')}>@{ig} 인스타그램 →</Text>
                 </View>
+                {/* 미리보기 전용 — WebView 가 세로 제스처를 삼켜 페이지 스크롤이 막히므로 터치는 오버레이가 받고 인스타그램으로 보낸다 */}
                 <View style={{ height: 540, borderRadius: 14, overflow: 'hidden', backgroundColor: '#F7F7F9' }}>
                   <WebView
+                    pointerEvents="none"
                     source={{ uri: instagramEmbedUrl(ig) }}
                     style={{ flex: 1, backgroundColor: '#F7F7F9' }}
-                    nestedScrollEnabled
+                    scrollEnabled={false}
                     setSupportMultipleWindows={false}
-                    // 임베드 안 링크(게시물 클릭)는 인스타그램 앱/브라우저로 넘긴다
-                    onShouldStartLoadWithRequest={(req) => {
-                      if (req.url.includes('/embed')) return true;
-                      Linking.openURL(req.url).catch(() => {});
-                      return false;
-                    }}
+                    onShouldStartLoadWithRequest={(req) => req.url.includes('/embed')}
+                  />
+                  <Pressable
+                    accessibilityLabel="인스타그램에서 보기"
+                    onPress={() => openWithFallback(`instagram://user?username=${ig}`, instagramUrl(ig))}
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
                   />
                 </View>
               </View>
