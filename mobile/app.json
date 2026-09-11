@@ -32,7 +32,7 @@
           "kakaotalk"
         ]
       },
-      "buildNumber": "36"
+      "buildNumber": "37"
     },
     "android": {
       "package": "com.arvotcg.app",
@@ -40,7 +40,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0a1121"
       },
-      "versionCode": 33
+      "versionCode": 34
     },
     "web": {
       "bundler": "metro",
