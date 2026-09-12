@@ -21,6 +21,8 @@ import {
   EVENT_PAGES,
   SLOT_STATE_LABEL,
   sessionIndexFor,
+  sessionFor,
+  slotDisplay,
   slotCapacityLabel,
   fillEventText,
   type EventKey,
@@ -239,8 +241,8 @@ export function EventReserveScreen({ eventKey }: { eventKey: EventKey }) {
       } else {
         setNotice(
           j?.moved
-            ? `예약을 ${slot.date} ${slot.time} 으로 옮겼어요! 🎟️`
-            : `${slot.date} ${slot.time} 예약 완료! 🎟️`,
+            ? `예약을 ${slot.date} ${slotDisplay(config, slot.time)} 으로 옮겼어요! 🎟️`
+            : `${slot.date} ${slotDisplay(config, slot.time)} 예약 완료! 🎟️`,
         );
       }
       setSelectedId(null);
@@ -449,10 +451,17 @@ export function EventReserveScreen({ eventKey }: { eventKey: EventKey }) {
           color: P.ink,
         }}
       >
-        {/* 시간 레일 */}
-        <span style={{ flex: 'none', width: 72, display: 'flex', alignItems: 'center', justifyContent: 'center', background: hi ? (night ? 'rgba(45,212,191,.12)' : 'rgba(255,122,0,.10)') : P.rail, padding: config.showSlotMeta ? '16px 0' : '18px 0' }}>
-          <span style={{ fontSize: 16, fontWeight: 900, letterSpacing: -0.4, color: soldout ? P.mute : P.ink }}>{s.time}</span>
-        </span>
+        {/* 시간 레일 — session 모드(트레이드 데이)는 회차 라벨 + 시간 범위, 아니면 시각 */}
+        {config.slotMode === 'session' && sessionFor(config, s.time) ? (
+          <span style={{ flex: 'none', width: 118, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, background: hi ? (night ? 'rgba(45,212,191,.12)' : 'rgba(255,122,0,.10)') : P.rail, padding: '16px 6px' }}>
+            <span style={{ fontSize: 14, fontWeight: 900, letterSpacing: -0.3, color: soldout ? P.mute : P.ink, textAlign: 'center', lineHeight: 1.2 }}>{sessionFor(config, s.time)!.label.replace(/\s*\(.*\)$/, '')}</span>
+            <span style={{ fontSize: 10.5, fontWeight: 800, color: soldout ? P.mute : P.dim, whiteSpace: 'nowrap' }}>{sessionFor(config, s.time)!.range}</span>
+          </span>
+        ) : (
+          <span style={{ flex: 'none', width: 72, display: 'flex', alignItems: 'center', justifyContent: 'center', background: hi ? (night ? 'rgba(45,212,191,.12)' : 'rgba(255,122,0,.10)') : P.rail, padding: config.showSlotMeta ? '16px 0' : '18px 0' }}>
+            <span style={{ fontSize: 16, fontWeight: 900, letterSpacing: -0.4, color: soldout ? P.mute : P.ink }}>{s.time}</span>
+          </span>
+        )}
         {/* 본문 — 회차 잔여석 + 상태 점 */}
         <span style={{ flex: 1, minWidth: 0, padding: config.showSlotMeta ? '12px 13px' : '0 13px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -578,7 +587,7 @@ export function EventReserveScreen({ eventKey }: { eventKey: EventKey }) {
           const rem = g.slots.reduce((a, s) => a + s.remaining, 0);
           return (
             <div key={g.label ?? 'all'}>
-              {g.label ? (
+              {g.label && config.slotMode !== 'session' ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 2px 10px' }}>
                   <span style={{ fontSize: 11.5, fontWeight: 900, letterSpacing: 0.5, color: night ? P.chipOnText : '#fff', background: P.accent, padding: '3px 9px', borderRadius: 8 }}>{g.label}</span>
                   {g.range ? <span style={{ fontSize: 12.5, fontWeight: 800, color: P.ink }}>{g.range}</span> : null}
@@ -612,7 +621,7 @@ export function EventReserveScreen({ eventKey }: { eventKey: EventKey }) {
           boxShadow: selected ? (night ? '0 8px 24px rgba(45,212,191,.35)' : '0 6px 16px rgba(0,0,0,.18)') : 'none',
         }}
       >
-        {busy ? '처리 중…' : selected ? `${selected.time} 사전예약 신청` : '시간을 선택하세요'}
+        {busy ? '처리 중…' : selected ? `${slotDisplay(config, selected.time)} 사전예약 신청` : config.slotMode === 'session' ? '테이블(회차)을 선택하세요' : '시간을 선택하세요'}
       </button>
 
       {confirm ? (
@@ -834,7 +843,7 @@ function MyReservationModal({ P, night, config, slot, reservedAt, checkedInAt, e
         <p style={{ margin: '6px 0 0', fontSize: 12.5, fontWeight: 700, color: done ? P.green : P.accent }}>{done ? '입장 완료' : '입장 대기'}</p>
       </div>
       <div style={{ background: P.modalBg, borderRadius: 14, padding: '4px 14px', marginBottom: 16 }}>
-        <Row P={P} label="방문 일시" value={`${fmtDate(slot.date)} ${slot.time}`} />
+        <Row P={P} label="방문 일시" value={`${fmtDate(slot.date)} ${slotDisplay(config, slot.time)}`} />
         {config.partyLine ? <Row P={P} label="입장 인원" value={config.partyLine} /> : null}
         {reservedAt ? <Row P={P} label="예약 시각" value={new Date(reservedAt).toLocaleString('ko-KR')} /> : null}
         {checkedInAt ? <Row P={P} label="입장 확인" value={new Date(checkedInAt).toLocaleString('ko-KR')} /> : null}
@@ -929,7 +938,7 @@ function CheckInConfirmModal({ P, night, busy, onConfirm, onClose }: { P: Palett
 
 function ConfirmModal({ P, night, config, slot, mySlot, busy, onConfirm, onClose }: { P: Palette; night: boolean; config: EventPageConfig; slot: Slot; mySlot: Slot | null; busy: boolean; onConfirm: () => void; onClose: () => void }) {
   const isMove = mySlot != null && mySlot.id !== slot.id;
-  const fmt = (s: Pick<Slot, 'date' | 'time'>) => `${fmtDate(s.date)} ${s.time}`;
+  const fmt = (s: Pick<Slot, 'date' | 'time'>) => `${fmtDate(s.date)} ${slotDisplay(config, s.time)}`;
   return (
     <ModalShell P={P} night={night} onClose={onClose}>
       <div style={{ textAlign: 'center', marginBottom: 14 }}>

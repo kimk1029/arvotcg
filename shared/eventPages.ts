@@ -49,6 +49,12 @@ export interface EventPageConfig {
   theme: 'light' | 'night';
   /** 회차 구분. 비어 있으면 회차 헤더 없이 한 목록. */
   sessions: EventSession[];
+  /**
+   * 신청 단위 — time: 시간대별 슬롯 카드(카드쇼), session: 회차(오전/오후 테이블)당 슬롯 하나
+   * (트레이드 데이, 2026-09-13). session 이면 DB 에 회차당 슬롯 1개(시작 시각 = 회차 from)를 두고
+   * 카드에는 시각 대신 회차 라벨·시간 범위를 보인다.
+   */
+  slotMode: 'time' | 'session';
   /** 슬롯 카드에 '정원 N석 · N명 예약' 보조줄을 보일지. 트레이드 데이는 시간/잔여석/상태점만. */
   showSlotMeta: boolean;
   /**
@@ -81,6 +87,7 @@ export const EVENT_PAGES: Record<EventKey, EventPageConfig> = {
     theme: 'light',
     sessions: [],
     showSlotMeta: true,
+    slotMode: 'time',
     thirdStat: { label: '입장 인원', value: '1인 + 동반 1인' },
     visitNotice: {
       bullets: [
@@ -111,9 +118,11 @@ export const EVENT_PAGES: Record<EventKey, EventPageConfig> = {
     loginNote: '트레이드 데이 예약은 로그인한 회원만 가능해요.',
     theme: 'night',
     sessions: [
-      { label: '1부', range: '11:00 ~ 15:00', from: '11:00', to: '15:00' },
-      { label: '2부', range: '15:00 ~ 20:00', from: '15:00', to: '20:00' },
+      { label: '오전 테이블 (1부)', range: '11:00 ~ 15:00', from: '11:00', to: '15:00' },
+      { label: '오후 테이블 (2부)', range: '15:00 ~ 20:00', from: '15:00', to: '20:00' },
     ],
+    // 오전/오후 테이블 단위로 신청 — 시간대별 예약은 회차로 합산해 운영 (2026-09-13 사용자 지시).
+    slotMode: 'session',
     showSlotMeta: false,
     // 정원은 어드민이 슬롯에 설정한 값(2026-09-08 현재 15명)을 화면에서 채운다 — 숫자 하드코딩 금지.
     thirdStat: { label: '회차 정원', value: '{capacity}' },
@@ -174,4 +183,19 @@ export function fillEventText(text: string, vars: { capacity: string | null }): 
 /** 슬롯 시작 시각이 속한 회차 인덱스 (-1 = 회차 없음). */
 export function sessionIndexFor(config: EventPageConfig, time: string): number {
   return config.sessions.findIndex((s) => time >= s.from && time < s.to);
+}
+
+/** 슬롯이 속한 회차 (없으면 null). */
+export function sessionFor(config: EventPageConfig, time: string): EventSession | null {
+  const i = sessionIndexFor(config, time);
+  return i >= 0 ? config.sessions[i] : null;
+}
+
+/** 슬롯 표시명 — session 모드면 '오전 테이블 (1부) 11:00 ~ 15:00', 아니면 시각. 토스트·예약 모달 공통. */
+export function slotDisplay(config: EventPageConfig, time: string): string {
+  if (config.slotMode === 'session') {
+    const s = sessionFor(config, time);
+    if (s) return `${s.label} ${s.range}`;
+  }
+  return time;
 }
